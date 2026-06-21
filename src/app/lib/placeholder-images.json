@@ -1,0 +1,35 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "hero-wedding",
+      "description": "Elegant wedding couple in a luxurious setting",
+      "imageUrl": "https://picsum.photos/seed/hafash-hero/1920/1080",
+      "imageHint": "luxury wedding"
+    },
+    {
+      "id": "gallery-1",
+      "description": "Barat event coverage",
+      "imageUrl": "https://picsum.photos/seed/barat/800/600",
+      "imageHint": "wedding celebration"
+    },
+    {
+      "id": "gallery-2",
+      "description": "Mehndi event vibrant colors",
+      "imageUrl": "https://picsum.photos/seed/mehndi/800/600",
+      "imageHint": "colorful culture"
+    },
+    {
+      "id": "gallery-3",
+      "description": "Engagement rings and decor",
+      "imageUrl": "https://picsum.photos/seed/engagement/800/600",
+      "imageHint": "jewelry decor"
+    },
+    {
+      "id": "photographer-profile",
+      "description": "Professional photographer portrait",
+      "imageUrl": "https://picsum.photos/seed/photographer/400/400",
+      "imageHint": "professional photographer"
+    }
+  ]
+}
