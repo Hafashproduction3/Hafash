@@ -1,7 +1,6 @@
-
 "use client";
 
-import { create } from 'react';
+import { create } from 'zustand';
 
 export type EventCategory = 'Wedding' | 'Mehndi' | 'Barat' | 'Engagement' | 'Other';
 

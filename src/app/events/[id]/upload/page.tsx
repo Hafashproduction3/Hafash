@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -8,7 +7,7 @@ import { Upload, X, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles } fro
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { photographerAIGalleryHighlights } from '@/ai/flows/photographer-ai-gallery-highlights';
+import Link from 'next/link';
 
 export default function GalleryUploadPage() {
   const router = useRouter();
@@ -64,12 +63,11 @@ export default function GalleryUploadPage() {
     }
     setIsAiProcessing(true);
     try {
-      // For demo, we just simulate the AI flow call since we don't have real data URIs of images here.
-      // But we show the UI transition.
+      // Simulation of AI processing to remove dependency on external Gemini API keys for basic functionality.
       await new Promise(r => setTimeout(r, 2000));
       toast({
         title: "AI Highlights Found",
-        description: "Successfully identified 5 cinematic highlights from your gallery.",
+        description: "Successfully identified cinematic highlights from your gallery (Simulated).",
       });
     } catch (err) {
       console.error(err);
@@ -105,7 +103,6 @@ export default function GalleryUploadPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Upload Area */}
         <div className="lg:col-span-2 space-y-6">
           <div className="relative h-80 border-2 border-dashed border-border/50 rounded-3xl flex flex-col items-center justify-center bg-card/30 group hover:border-primary/50 transition-all">
             <input 
@@ -134,7 +131,6 @@ export default function GalleryUploadPage() {
           </div>
         </div>
 
-        {/* Upload List */}
         <div className="bg-card border border-border/50 rounded-3xl p-6 h-[500px] flex flex-col">
           <h3 className="text-xl font-headline font-bold mb-4 flex items-center justify-between">
             Upload Queue
