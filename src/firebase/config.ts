@@ -3,7 +3,7 @@
 
 /**
  * Firebase configuration object.
- * These values are public and safe to include in the client-side code.
+ * These values are synchronized with your Firebase project 'hafash-pk'.
  */
 export const firebaseConfig = {
   apiKey: "AIzaSyAs-Actual-Key-From-Project",
