@@ -1,0 +1,48 @@
+
+{
+  "entities": {
+    "GalleryItem": {
+      "title": "GalleryItem",
+      "description": "An image or video in a gallery",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "url": { "type": "string" },
+        "type": { "type": "string", "enum": ["image", "video"] },
+        "isFavorite": { "type": "boolean" }
+      },
+      "required": ["id", "url", "type", "isFavorite"]
+    },
+    "EventGallery": {
+      "title": "EventGallery",
+      "description": "A collection of media for a specific event",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "clientName": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "coverImage": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": { "$ref": "#/entities/GalleryItem" }
+        },
+        "isLocked": { "type": "boolean" },
+        "viewCount": { "type": "number" },
+        "userId": { "type": "string" }
+      },
+      "required": ["id", "slug", "title", "clientName", "date", "category", "coverImage", "items", "isLocked", "viewCount", "userId"]
+    }
+  },
+  "auth": {
+    "providers": ["google.com", "password"]
+  },
+  "firestore": {
+    "/galleries/{galleryId}": {
+      "schema": "#/entities/EventGallery",
+      "description": "Individual event galleries"
+    }
+  }
+}

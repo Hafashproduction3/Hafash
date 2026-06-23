@@ -1,8 +1,10 @@
+
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useStore } from '@/lib/store';
+import { useFirestore, useDoc } from '@/firebase';
+import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { Upload, X, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -12,15 +14,13 @@ import Link from 'next/link';
 export default function GalleryUploadPage() {
   const router = useRouter();
   const { id } = useParams() as { id: string };
-  const { events, updateEvent } = useStore();
+  const firestore = useFirestore();
   const { toast } = useToast();
   
-  const event = events.find(e => e.id === id);
+  const { data: event, loading: eventLoading } = useDoc(firestore ? doc(firestore, 'galleries', id) : null);
   const [files, setFiles] = useState<{ id: string, name: string, progress: number, url: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
-
-  if (!event) return <div>Event not found.</div>;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -35,7 +35,10 @@ export default function GalleryUploadPage() {
   };
 
   const startUpload = async () => {
+    if (!firestore || !event) return;
     setIsUploading(true);
+    
+    // Simulate upload progress
     for (let i = 0; i < files.length; i++) {
       setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, progress: 100 } : f));
       await new Promise(r => setTimeout(r, 400));
@@ -48,22 +51,35 @@ export default function GalleryUploadPage() {
       isFavorite: false
     }));
 
-    updateEvent(id, { items: [...event.items, ...newItems] });
-    setIsUploading(false);
-    toast({
-      title: "Upload Complete",
-      description: `Successfully uploaded ${files.length} photos.`,
-    });
+    try {
+      const galleryRef = doc(firestore, 'galleries', id);
+      await updateDoc(galleryRef, {
+        items: arrayUnion(...newItems)
+      });
+      
+      setIsUploading(false);
+      setFiles([]);
+      toast({
+        title: "Upload Complete",
+        description: `Successfully uploaded ${files.length} photos.`,
+      });
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: err.message
+      });
+      setIsUploading(false);
+    }
   };
 
   const runAiHighlights = async () => {
-    if (event.items.length === 0) {
+    if (!event || event.items.length === 0) {
       toast({ title: "No images", description: "Upload some photos first." });
       return;
     }
     setIsAiProcessing(true);
     try {
-      // Simulation of AI processing to remove dependency on external Gemini API keys for basic functionality.
       await new Promise(r => setTimeout(r, 2000));
       toast({
         title: "AI Highlights Found",
@@ -75,6 +91,16 @@ export default function GalleryUploadPage() {
       setIsAiProcessing(false);
     }
   };
+
+  if (eventLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!event) return <div>Event not found.</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -89,7 +115,7 @@ export default function GalleryUploadPage() {
           </div>
         </div>
         
-        {event.items.length > 0 && (
+        {event.items?.length > 0 && (
           <Button 
             variant="outline" 
             className="border-primary text-primary hover:bg-primary/10 rounded-full gap-2"
