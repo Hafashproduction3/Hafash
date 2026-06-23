@@ -1,12 +1,11 @@
-
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { Camera, Lock, User, Mail, Briefcase, Loader2 } from 'lucide-react';
+import { Lock, Mail, Briefcase, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,8 +18,15 @@ export default function SignupPage() {
   const [studioName, setStudioName] = useState('');
   
   const auth = useAuth();
+  const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,21 +35,26 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Store studio name in user profile as a simple solution
       await updateProfile(userCredential.user, {
         displayName: studioName
+      });
+      toast({
+        title: "Account Created",
+        description: "Welcome to Hafash.pk!",
       });
       router.push('/dashboard');
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Account Creation Failed",
-        description: error.message || "Please try again with different details.",
+        title: "Signup Failed",
+        description: error.message || "Please check your details.",
       });
     } finally {
       setLoading(false);
     }
   };
+
+  if (authLoading) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">

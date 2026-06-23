@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -56,44 +55,44 @@ export default function CreateEventPage() {
       toast({
         variant: "destructive",
         title: "Authentication required",
-        description: "Please wait for authentication to complete or log in again."
+        description: "Please login to create an event."
       });
       return;
     }
 
     setLoading(true);
-    const galleriesRef = collection(firestore, 'galleries');
-    const newDocRef = doc(galleriesRef);
-    const newId = newDocRef.id;
-    const slug = generateSlug(formData.title);
-    
-    const newGallery = {
-      id: newId,
-      slug: slug,
-      title: formData.title,
-      clientName: formData.clientName,
-      date: formData.date,
-      category: formData.category,
-      coverImage: `https://picsum.photos/seed/${newId}/800/600`,
-      items: [],
-      isLocked: true,
-      viewCount: 0,
-      userId: user.uid,
-      createdAt: new Date().toISOString()
-    };
-
     try {
+      const galleriesRef = collection(firestore, 'galleries');
+      const newDocRef = doc(galleriesRef);
+      const newId = newDocRef.id;
+      const slug = generateSlug(formData.title);
+      
+      const newGallery = {
+        id: newId,
+        slug: slug,
+        title: formData.title,
+        clientName: formData.clientName,
+        date: formData.date,
+        category: formData.category,
+        coverImage: `https://picsum.photos/seed/${newId}/800/600`,
+        items: [],
+        isLocked: true,
+        viewCount: 0,
+        userId: user.uid,
+        createdAt: new Date().toISOString()
+      };
+
       await setDoc(newDocRef, newGallery);
       toast({
         title: "Gallery Created",
-        description: "Moving to upload center...",
+        description: "Proceeding to upload center...",
       });
       router.push(`/events/${newId}/upload`);
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error creating event",
-        description: error.message
+        title: "Error",
+        description: error.message || "Could not save event."
       });
     } finally {
       setLoading(false);
@@ -107,6 +106,8 @@ export default function CreateEventPage() {
       </div>
     );
   }
+
+  if (!user) return null;
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -128,7 +129,7 @@ export default function CreateEventPage() {
               <Input 
                 id="title" 
                 placeholder="e.g., Ahmed & Fatima's Barat" 
-                className="pl-10 h-12 bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20 rounded-xl"
+                className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -143,7 +144,7 @@ export default function CreateEventPage() {
               <Input 
                 id="client" 
                 placeholder="Full Name" 
-                className="pl-10 h-12 bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20 rounded-xl"
+                className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
                 required
                 value={formData.clientName}
                 onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
@@ -159,7 +160,7 @@ export default function CreateEventPage() {
                 <Input 
                   id="date" 
                   type="date"
-                  className="pl-10 h-12 bg-background/50 border-border/50 focus:border-primary/50 focus:ring-primary/20 rounded-xl"
+                  className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
                   required
                   value={formData.date}
                   onChange={(e) => setFormData({ ...formData, date: e.target.value })}

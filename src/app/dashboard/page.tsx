@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useUser, useCollection } from '@/firebase';
@@ -84,6 +83,8 @@ export default function DashboardPage() {
     );
   }
 
+  if (!user) return null;
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -99,7 +100,6 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard title="Total Galleries" value={galleries?.length.toString() || "0"} icon={<ImageIcon className="w-5 h-5 text-primary" />} />
         <StatCard title="Total Clients" value={galleries?.length.toString() || "0"} icon={<Users className="w-5 h-5 text-primary" />} />

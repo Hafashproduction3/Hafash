@@ -1,12 +1,11 @@
-
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/firebase';
+import { useAuth, useUser } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { Camera, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Lock, User, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -16,9 +15,17 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  
   const auth = useAuth();
+  const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +34,10 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      toast({
+        title: "Success",
+        description: "Welcome back!",
+      });
       router.push('/dashboard');
     } catch (error: any) {
       toast({
@@ -38,6 +49,8 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (authLoading) return null;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
@@ -102,10 +115,6 @@ export default function LoginPage() {
             <Link href="/signup" className="text-primary font-bold hover:underline">Create an account</Link>
           </div>
         </div>
-        
-        <p className="text-center text-xs text-muted-foreground mt-8">
-          By logging in, you agree to our Terms of Service.
-        </p>
       </div>
     </div>
   );
