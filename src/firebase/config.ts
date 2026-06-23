@@ -2,7 +2,7 @@
 
 /**
  * Firebase configuration object.
- * These values are synchronized with your Firebase project 'hafash-pk'.
+ * Strictly defined to avoid runtime undefined errors.
  */
 export const firebaseConfig = {
   apiKey: "AIzaSyBBh-aekSYcl0_3mHXtodGe3z9Ek-qCE2k",

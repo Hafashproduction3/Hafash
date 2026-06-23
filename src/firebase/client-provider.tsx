@@ -1,8 +1,7 @@
-
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { initializeFirebase } from './index';
+import { initializeFirebase } from './init';
 import { FirebaseProvider } from './provider';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore } from 'firebase/firestore';
@@ -16,12 +15,13 @@ export const FirebaseClientProvider: React.FC<{ children: React.ReactNode }> = (
   } | null>(null);
 
   useEffect(() => {
+    // Initialize strictly on the client
     const { firebaseApp, firestore, auth } = initializeFirebase();
     setInstances({ firebaseApp, firestore, auth });
   }, []);
 
   if (!instances) {
-    return null; // Or a loading spinner
+    return null; // Prevent rendering before Firebase is ready
   }
 
   return (
