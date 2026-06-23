@@ -3,20 +3,40 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Camera, Lock, User, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { Camera, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const auth = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth) return;
+    
     setLoading(true);
-    setTimeout(() => {
-      window.location.href = '/dashboard';
-    }, 1000);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Login Failed",
+        description: error.message || "Please check your credentials.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -40,7 +60,15 @@ export default function LoginPage() {
               <Label htmlFor="email">Email Address</Label>
               <div className="relative">
                 <User className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                <Input id="email" type="email" placeholder="name@studio.com" className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" required />
+                <Input 
+                  id="email" 
+                  type="email" 
+                  placeholder="name@studio.com" 
+                  className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                  required 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
             </div>
 
@@ -51,11 +79,20 @@ export default function LoginPage() {
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                <Input id="password" type="password" placeholder="••••••••" className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" required />
+                <Input 
+                  id="password" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                  required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
               </div>
             </div>
 
             <Button type="submit" className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold rounded-2xl shadow-lg shadow-primary/20" disabled={loading}>
+              {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
               {loading ? "Authenticating..." : "Login to Studio"}
             </Button>
           </form>

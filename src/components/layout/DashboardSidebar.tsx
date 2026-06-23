@@ -2,7 +2,9 @@
 "use client";
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 import { 
   LayoutDashboard, 
   PlusCircle, 
@@ -15,6 +17,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -26,6 +29,23 @@ const navItems = [
 
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const auth = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      router.push('/');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Logout Failed",
+        description: error.message
+      });
+    }
+  };
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
@@ -66,12 +86,14 @@ export function DashboardSidebar() {
           </div>
         </div>
         
-        <Link href="/">
-          <Button variant="ghost" className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10">
-            <LogOut className="w-5 h-5" />
-            Logout
-          </Button>
-        </Link>
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          onClick={handleLogout}
+        >
+          <LogOut className="w-5 h-5" />
+          Logout
+        </Button>
       </div>
     </aside>
   );

@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, useAuth } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
 import { Calendar as CalendarIcon, User, Camera, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ export type EventCategory = 'Wedding' | 'Mehndi' | 'Barat' | 'Engagement' | 'Oth
 export default function CreateEventPage() {
   const router = useRouter();
   const firestore = useFirestore();
-  const auth = useAuth();
+  const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   
@@ -34,6 +34,12 @@ export default function CreateEventPage() {
     date: '',
     category: 'Wedding' as EventCategory,
   });
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
 
   const generateSlug = (title: string) => {
     return title
@@ -46,11 +52,11 @@ export default function CreateEventPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firestore || !auth?.currentUser) {
+    if (!firestore || !user) {
       toast({
         variant: "destructive",
         title: "Authentication required",
-        description: "Please log in to create an event."
+        description: "Please wait for authentication to complete or log in again."
       });
       return;
     }
@@ -72,7 +78,7 @@ export default function CreateEventPage() {
       items: [],
       isLocked: true,
       viewCount: 0,
-      userId: auth.currentUser.uid,
+      userId: user.uid,
       createdAt: new Date().toISOString()
     };
 
@@ -93,6 +99,14 @@ export default function CreateEventPage() {
       setLoading(false);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

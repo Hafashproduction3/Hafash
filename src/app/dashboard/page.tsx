@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useFirestore, useAuth, useCollection } from '@/firebase';
+import { useFirestore, useUser, useCollection } from '@/firebase';
 import { 
   Users, 
   Image as ImageIcon, 
@@ -24,20 +24,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { collection, query, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
-  const auth = useAuth();
+  const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
 
   const galleriesQuery = useMemo(() => {
-    if (!firestore || !auth?.currentUser) return null;
-    return query(collection(firestore, 'galleries'), where('userId', '==', auth.currentUser.uid));
-  }, [firestore, auth?.currentUser?.uid]);
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
+  }, [firestore, user?.uid]);
 
-  const { data: galleries, loading } = useCollection(galleriesQuery);
+  const { data: galleries, loading: dataLoading } = useCollection(galleriesQuery);
 
   const handleShare = (slug: string) => {
     const url = `${window.location.origin}/gallery/${slug}`;
@@ -67,7 +75,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (loading) {
+  if (authLoading || (dataLoading && !galleries)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
