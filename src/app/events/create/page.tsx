@@ -56,13 +56,18 @@ export default function CreateEventPage() {
     }
 
     setLoading(true);
-    const newId = doc(collection(firestore, 'galleries')).id;
+    const galleriesRef = collection(firestore, 'galleries');
+    const newDocRef = doc(galleriesRef);
+    const newId = newDocRef.id;
     const slug = generateSlug(formData.title);
     
     const newGallery = {
       id: newId,
       slug: slug,
-      ...formData,
+      title: formData.title,
+      clientName: formData.clientName,
+      date: formData.date,
+      category: formData.category,
       coverImage: `https://picsum.photos/seed/${newId}/800/600`,
       items: [],
       isLocked: true,
@@ -72,7 +77,11 @@ export default function CreateEventPage() {
     };
 
     try {
-      await setDoc(doc(firestore, 'galleries', newId), newGallery);
+      await setDoc(newDocRef, newGallery);
+      toast({
+        title: "Gallery Created",
+        description: "Moving to upload center...",
+      });
       router.push(`/events/${newId}/upload`);
     } catch (error: any) {
       toast({

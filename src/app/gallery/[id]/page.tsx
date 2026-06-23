@@ -6,12 +6,13 @@ import { useParams } from 'next/navigation';
 import { Heart, Download, Share2, ArrowLeft, Camera, ShieldAlert, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useMemo, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 
 export default function ClientGalleryPage() {
-  const { id: slug } = useParams() as { id: string };
+  const params = useParams();
+  const galleryParam = params?.id as string;
   const firestore = useFirestore();
   const { toast } = useToast();
   
@@ -21,32 +22,79 @@ export default function ClientGalleryPage() {
 
   useEffect(() => {
     async function fetchGallery() {
-      if (!firestore || !slug) return;
+      if (!firestore || !galleryParam) return;
       
       setLoading(true);
       try {
-        // First try by slug
-        const q = query(collection(firestore, 'galleries'), where('slug', '==', slug));
-        const querySnapshot = await getDocs(q);
+        // 1. Try fetching by Document ID directly (most efficient)
+        const docRef = doc(firestore, 'galleries', galleryParam);
+        const docSnap = await getDoc(docRef);
         
-        if (!querySnapshot.empty) {
-          setGallery(querySnapshot.docs[0].data());
+        if (docSnap.exists()) {
+          setGallery({ ...docSnap.data(), id: docSnap.id });
         } else {
-          // Fallback to ID directly
-          const qById = query(collection(firestore, 'galleries'), where('id', '==', slug));
-          const idSnapshot = await getDocs(qById);
-          if (!idSnapshot.empty) {
-            setGallery(idSnapshot.docs[0].data());
+          // 2. Fallback: Search by Slug field
+          const q = query(collection(firestore, 'galleries'), where('slug', '==', galleryParam));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const result = querySnapshot.docs[0];
+            setGallery({ ...result.data(), id: result.id });
+          } else {
+            setGallery(null);
           }
         }
       } catch (error) {
         console.error("Error fetching gallery:", error);
+        setGallery(null);
       } finally {
         setLoading(false);
       }
     }
     fetchGallery();
-  }, [firestore, slug]);
+  }, [firestore, galleryParam]);
+
+  const handleFavorite = async (itemId: string, isCurrentlyFavorite: boolean) => {
+    if (!firestore || !gallery) return;
+    
+    try {
+      const galleryRef = doc(firestore, 'galleries', gallery.id);
+      const updatedItems = gallery.items.map((item: any) => 
+        item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
+      );
+      
+      await updateDoc(galleryRef, { items: updatedItems });
+      setGallery({ ...gallery, items: updatedItems });
+      
+      toast({
+        title: "Preference Updated",
+        description: isCurrentlyFavorite ? "Removed from favorites." : "Added to favorites.",
+      });
+    } catch (err) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not update favorite status.",
+      });
+    }
+  };
+
+  const handleDownload = (url: string) => {
+    if (gallery?.isLocked) {
+      toast({
+        variant: "destructive",
+        title: "Downloads Locked",
+        description: "Contact the photographer to unlock this gallery.",
+      });
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `hafash-${gallery?.title || 'photo'}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (loading) {
     return (
@@ -67,48 +115,6 @@ export default function ClientGalleryPage() {
       <Link href="/"><Button className="rounded-full px-8">Back to Home</Button></Link>
     </div>
   );
-
-  const handleFavorite = async (itemId: string, isCurrentlyFavorite: boolean) => {
-    if (!firestore) return;
-    
-    try {
-      const galleryRef = doc(firestore, 'galleries', gallery.id);
-      const updatedItems = gallery.items.map((item: any) => 
-        item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
-      );
-      
-      await updateDoc(galleryRef, { items: updatedItems });
-      setGallery({ ...gallery, items: updatedItems });
-      
-      toast({
-        title: "Preference Updated",
-        description: "Favorite status synced with photographer.",
-      });
-    } catch (err) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not update favorite status.",
-      });
-    }
-  };
-
-  const handleDownload = (url: string) => {
-    if (gallery.isLocked) {
-      toast({
-        variant: "destructive",
-        title: "Downloads Locked",
-        description: "Contact the photographer to unlock this gallery.",
-      });
-      return;
-    }
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `hafash-${gallery.title}.jpg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -155,13 +161,13 @@ export default function ClientGalleryPage() {
 
       {/* Image Grid */}
       <div className="max-w-7xl mx-auto px-6 pt-20">
-        {gallery.items.length === 0 ? (
+        {gallery.items?.length === 0 ? (
           <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50">
             <p className="text-muted-foreground italic">Your photographer is currently preparing this gallery.</p>
           </div>
         ) : (
           <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
-            {gallery.items.map((item: any) => (
+            {gallery.items?.map((item: any) => (
               <div key={item.id} className="relative group break-inside-avoid overflow-hidden rounded-2xl border border-border/30 bg-card/50 shadow-xl cursor-zoom-in" onClick={() => setSelectedImage(item.url)}>
                 <div className="relative overflow-hidden">
                   <img 
@@ -199,7 +205,11 @@ export default function ClientGalleryPage() {
                         <Download className="w-4 h-4" />
                         Download
                       </Button>
-                      <Button size="icon" variant="ghost" className="rounded-full text-white">
+                      <Button size="icon" variant="ghost" className="rounded-full text-white" onClick={(e) => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(window.location.href);
+                        toast({ title: "Link Copied", description: "Gallery URL copied to clipboard." });
+                      }}>
                         <Share2 className="w-5 h-5" />
                       </Button>
                     </div>
@@ -232,13 +242,16 @@ export default function ClientGalleryPage() {
             <Heart className="w-6 h-6" />
             Favorites
           </Button>
-          <Button variant="ghost" className="flex flex-col gap-1 h-auto py-2 text-xs">
+          <Button variant="ghost" className="flex flex-col gap-1 h-auto py-2 text-xs" onClick={() => {
+             navigator.clipboard.writeText(window.location.href);
+             toast({ title: "Link Copied" });
+          }}>
             <Share2 className="w-6 h-6" />
             Share
           </Button>
           <Button variant="ghost" className="flex flex-col gap-1 h-auto py-2 text-xs" onClick={() => handleDownload('dummy')}>
             <Download className="w-6 h-6" />
-            All Photos
+            Download
           </Button>
       </div>
     </div>
