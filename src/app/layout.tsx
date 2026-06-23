@@ -2,6 +2,7 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { FirebaseClientProvider } from '@/firebase';
 
 export const metadata: Metadata = {
   title: 'Hafash.pk | Deliver Memories Beautifully',
@@ -23,8 +24,10 @@ export default function RootLayout({
         <meta name="theme-color" content="#1A1916" />
       </head>
       <body className="font-body antialiased min-h-screen bg-background text-foreground">
-        {children}
-        <Toaster />
+        <FirebaseClientProvider>
+          {children}
+          <Toaster />
+        </FirebaseClientProvider>
       </body>
     </html>
   );
