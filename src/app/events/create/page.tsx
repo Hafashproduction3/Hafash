@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/select';
 import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export type EventCategory = 'Wedding' | 'Mehndi' | 'Barat' | 'Engagement' | 'Other';
 
@@ -61,42 +63,53 @@ export default function CreateEventPage() {
     }
 
     setLoading(true);
-    try {
-      const galleriesRef = collection(firestore, 'galleries');
-      const newDocRef = doc(galleriesRef);
-      const newId = newDocRef.id;
-      const slug = generateSlug(formData.title);
-      
-      const newGallery = {
-        id: newId,
-        slug: slug,
-        title: formData.title,
-        clientName: formData.clientName,
-        date: formData.date,
-        category: formData.category,
-        coverImage: `https://picsum.photos/seed/${newId}/800/600`,
-        items: [],
-        isLocked: true,
-        viewCount: 0,
-        userId: user.uid,
-        createdAt: new Date().toISOString()
-      };
+    const galleriesRef = collection(firestore, 'galleries');
+    const newDocRef = doc(galleriesRef);
+    const newId = newDocRef.id;
+    const slug = generateSlug(formData.title);
+    
+    const newGallery = {
+      id: newId,
+      slug: slug,
+      title: formData.title,
+      clientName: formData.clientName,
+      date: formData.date,
+      category: formData.category,
+      coverImage: `https://picsum.photos/seed/${newId}/800/600`,
+      items: [],
+      isLocked: true,
+      viewCount: 0,
+      userId: user.uid,
+      createdAt: new Date().toISOString()
+    };
 
-      await setDoc(newDocRef, newGallery);
-      toast({
-        title: "Gallery Created",
-        description: "Proceeding to upload center...",
+    setDoc(newDocRef, newGallery)
+      .then(() => {
+        toast({
+          title: "Gallery Created",
+          description: "Proceeding to upload center...",
+        });
+        router.push(`/events/${newId}/upload`);
+      })
+      .catch(async (err) => {
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: newDocRef.path,
+            operation: 'create',
+            requestResourceData: newGallery,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: err.message || "Could not save event."
+          });
+        }
+      })
+      .finally(() => {
+        setLoading(false);
       });
-      router.push(`/events/${newId}/upload`);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Could not save event."
-      });
-    } finally {
-      setLoading(false);
-    }
   };
 
   if (authLoading) {

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -9,13 +8,14 @@ import {
   DocumentData,
   queryEqual
 } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   
-  // Memoize the query to avoid unnecessary re-subscriptions
   const queryRef = useRef<Query<T> | null>(null);
 
   useEffect(() => {
@@ -25,7 +25,6 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
       return;
     }
 
-    // Check if query has changed
     if (queryRef.current && queryEqual(query, queryRef.current)) {
       return;
     }
@@ -42,9 +41,17 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
         setData(docs);
         setLoading(false);
       },
-      (err) => {
-        console.error("Firestore useCollection error:", err);
-        setError(err);
+      async (err) => {
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: 'galleries', // Best estimate for collection queries
+            operation: 'list',
+          });
+          errorEmitter.emit('permission-error', permissionError);
+          setError(permissionError);
+        } else {
+          setError(err);
+        }
         setLoading(false);
       }
     );
