@@ -30,31 +30,50 @@ export default function SignupPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth) {
+      toast({
+        variant: "destructive",
+        title: "Configuration Error",
+        description: "Firebase Auth is not initialized correctly.",
+      });
+      return;
+    }
 
     setLoading(true);
     try {
+      // Create user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, {
-        displayName: studioName
-      });
+      
+      // Update display name
+      if (userCredential.user) {
+        await updateProfile(userCredential.user, {
+          displayName: studioName
+        });
+      }
+
       toast({
         title: "Account Created",
-        description: "Welcome to Hafash.pk!",
+        description: `Welcome to Hafash.pk, ${studioName}!`,
       });
+      
       router.push('/dashboard');
     } catch (error: any) {
+      console.error("Signup error details:", error);
       toast({
         variant: "destructive",
         title: "Signup Failed",
-        description: error.message || "Please check your details.",
+        description: error.message || "Please check your details and try again.",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  if (authLoading) return null;
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="w-10 h-10 animate-spin text-primary" />
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
@@ -114,6 +133,7 @@ export default function SignupPage() {
                   placeholder="••••••••" 
                   className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
                   required 
+                  minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />

@@ -29,7 +29,14 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth) {
+      toast({
+        variant: "destructive",
+        title: "Configuration Error",
+        description: "Firebase Auth is not initialized correctly.",
+      });
+      return;
+    }
     
     setLoading(true);
     try {
@@ -40,6 +47,7 @@ export default function LoginPage() {
       });
       router.push('/dashboard');
     } catch (error: any) {
+      console.error("Login error details:", error);
       toast({
         variant: "destructive",
         title: "Login Failed",
@@ -50,7 +58,11 @@ export default function LoginPage() {
     }
   };
 
-  if (authLoading) return null;
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <Loader2 className="w-10 h-10 animate-spin text-primary" />
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
