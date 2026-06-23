@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
@@ -23,6 +22,7 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
+import { useMemo } from 'react';
 
 export default function EventManagementPage() {
   const { id } = useParams() as { id: string };
@@ -30,10 +30,41 @@ export default function EventManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
   
-  const { data: event, loading } = useDoc(firestore ? doc(firestore, 'galleries', id) : null);
+  const eventRef = useMemo(() => {
+    if (!firestore || !id) return null;
+    return doc(firestore, 'galleries', id);
+  }, [firestore, id]);
 
-  if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
-  if (!event) return <div>Event not found.</div>;
+  const { data: event, loading, error } = useDoc(eventRef);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading event details...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-destructive font-bold">Error loading event</p>
+        <p className="text-muted-foreground text-sm">{error.message}</p>
+        <Button variant="link" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
+      </div>
+    );
+  }
+
+  if (!event) {
+    return (
+      <div className="text-center py-20">
+        <h2 className="text-2xl font-bold">Event not found</h2>
+        <p className="text-muted-foreground mt-2">The event you're looking for doesn't exist or you don't have access.</p>
+        <Button className="mt-6 rounded-full" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
+      </div>
+    );
+  }
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}/gallery/${event.slug || event.id}`;
@@ -51,6 +82,7 @@ export default function EventManagementPage() {
     if (!firestore || !confirm('Are you sure you want to delete this event? This action cannot be undone.')) return;
     try {
       await deleteDoc(doc(firestore, 'galleries', id));
+      toast({ title: "Event Deleted", description: "The gallery has been removed." });
       router.push('/dashboard');
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error", description: err.message });
@@ -70,11 +102,9 @@ export default function EventManagementPage() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/dashboard')}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
           <div>
             <h1 className="text-3xl font-headline font-bold">{event.title}</h1>
             <p className="text-muted-foreground">Manage gallery access and sharing.</p>
@@ -94,7 +124,6 @@ export default function EventManagementPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* Sharing Card */}
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="border-b border-border/30 bg-background/30">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
@@ -125,7 +154,6 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Access Control Card */}
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="border-b border-border/30 bg-background/30">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
@@ -171,7 +199,6 @@ export default function EventManagementPage() {
         </div>
 
         <div className="space-y-8">
-          {/* Quick Actions */}
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="border-b border-border/30 bg-background/30">
               <CardTitle className="text-sm uppercase tracking-widest text-primary font-bold">Quick Actions</CardTitle>
@@ -190,7 +217,6 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Cover Photo Selection (Simulated) */}
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="border-b border-border/30 bg-background/30">
               <CardTitle className="text-sm uppercase tracking-widest text-primary font-bold">Cover Preview</CardTitle>

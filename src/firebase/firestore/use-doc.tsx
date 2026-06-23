@@ -1,25 +1,37 @@
-
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   DocumentReference, 
   onSnapshot, 
   DocumentSnapshot, 
-  DocumentData 
+  DocumentData,
+  FirestoreError
 } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  
+  // Track the current path to avoid unnecessary re-subscriptions
+  const currentPathRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!docRef) {
       setData(null);
       setLoading(false);
+      currentPathRef.current = null;
       return;
     }
+
+    // Only re-subscribe if the document path has actually changed
+    if (docRef.path === currentPathRef.current) {
+      return;
+    }
+    currentPathRef.current = docRef.path;
 
     setLoading(true);
     const unsubscribe = onSnapshot(
@@ -32,9 +44,17 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
         }
         setLoading(false);
       },
-      (err) => {
-        console.error("Firestore useDoc error:", err);
-        setError(err);
+      async (err: FirestoreError) => {
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'get',
+          });
+          errorEmitter.emit('permission-error', permissionError);
+          setError(permissionError);
+        } else {
+          setError(err);
+        }
         setLoading(false);
       }
     );

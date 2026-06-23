@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc } from '@/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
@@ -17,7 +16,13 @@ export default function GalleryUploadPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   
-  const { data: event, loading: eventLoading } = useDoc(firestore ? doc(firestore, 'galleries', id) : null);
+  const eventRef = useMemo(() => {
+    if (!firestore || !id) return null;
+    return doc(firestore, 'galleries', id);
+  }, [firestore, id]);
+
+  const { data: event, loading: eventLoading } = useDoc(eventRef);
+  
   const [files, setFiles] = useState<{ id: string, name: string, progress: number, url: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
@@ -96,17 +101,23 @@ export default function GalleryUploadPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading event data...</p>
       </div>
     );
   }
 
-  if (!event) return <div>Event not found.</div>;
+  if (!event) return (
+    <div className="text-center py-20">
+      <h2 className="text-2xl font-bold">Event not found</h2>
+      <Button className="mt-4 rounded-full" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
+    </div>
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/dashboard')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
