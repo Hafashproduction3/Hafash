@@ -41,10 +41,10 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      // Create user
+      // Create user using the correct Firebase SDK method
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Update display name
+      // Update display name with the Studio Name
       if (userCredential.user) {
         await updateProfile(userCredential.user, {
           displayName: studioName
@@ -58,7 +58,7 @@ export default function SignupPage() {
       
       router.push('/dashboard');
     } catch (error: any) {
-      console.error("Signup error details:", error);
+      // Surfacing the actual Firebase error message to help debugging
       toast({
         variant: "destructive",
         title: "Signup Failed",

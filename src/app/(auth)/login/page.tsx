@@ -47,7 +47,6 @@ export default function LoginPage() {
       });
       router.push('/dashboard');
     } catch (error: any) {
-      console.error("Login error details:", error);
       toast({
         variant: "destructive",
         title: "Login Failed",
