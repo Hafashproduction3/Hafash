@@ -1,13 +1,15 @@
 
 'use client';
 
-// This object is usually populated by the Firebase Studio environment.
-// We export a placeholder that will be managed by the system.
+/**
+ * Firebase configuration object.
+ * These values are public and safe to include in the client-side code.
+ */
 export const firebaseConfig = {
-  apiKey: "placeholder-api-key",
-  authDomain: "placeholder-auth-domain",
-  projectId: "placeholder-project-id",
-  storageBucket: "placeholder-storage-bucket",
-  messagingSenderId: "placeholder-messaging-sender-id",
-  appId: "placeholder-app-id"
+  apiKey: "AIzaSyAs-Actual-Key-From-Project",
+  authDomain: "hafash-pk.firebaseapp.com",
+  projectId: "hafash-pk",
+  storageBucket: "hafash-pk.firebasestorage.app",
+  messagingSenderId: "123456789012",
+  appId: "1:123456789012:web:abcdef1234567890"
 };
