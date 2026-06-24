@@ -63,24 +63,26 @@ export default function SettingsPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    try {
-      const docRef = doc(firestore, 'users', user.uid);
-      await setDoc(docRef, updateData, { merge: true });
-      toast({ title: "Settings Saved", description: "Your studio preferences have been updated." });
-    } catch (err: any) {
-      if (err.code === 'permission-denied') {
-        const permissionError = new FirestorePermissionError({
-          path: `users/${user.uid}`,
-          operation: 'update',
-          requestResourceData: updateData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-      } else {
-        toast({ variant: "destructive", title: "Save Failed", description: err.message });
-      }
-    } finally {
-      setSaving(false);
-    }
+    const docRef = doc(firestore, 'users', user.uid);
+    setDoc(docRef, updateData, { merge: true })
+      .then(() => {
+        toast({ title: "Settings Saved", description: "Your studio preferences have been updated." });
+      })
+      .catch(async (err: any) => {
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: updateData,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({ variant: "destructive", title: "Save Failed", description: err.message });
+        }
+      })
+      .finally(() => {
+        setSaving(false);
+      });
   };
 
   if (authLoading || profileLoading) {
