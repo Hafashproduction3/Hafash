@@ -3,7 +3,7 @@
 
 import { useFirestore, useDoc } from '@/firebase';
 import { useParams } from 'next/navigation';
-import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle } from 'lucide-react';
+import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
@@ -46,15 +46,7 @@ export default function ClientGalleryPage() {
           
           const gRef = doc(firestore, 'galleries', foundId);
           updateDoc(gRef, { viewCount: increment(1) })
-            .catch(async (err) => {
-               if (err.code === 'permission-denied') {
-                 errorEmitter.emit('permission-error', new FirestorePermissionError({
-                   path: gRef.path,
-                   operation: 'update',
-                   requestResourceData: { viewCount: 'increment(1)' }
-                 }));
-               }
-            });
+            .catch(() => {}); // Silent view count update
         } else {
           setGalleryId(galleryParam);
         }
@@ -73,16 +65,6 @@ export default function ClientGalleryPage() {
   }, [firestore, galleryId]);
 
   const { data: gallery, loading: docLoading } = useDoc(galleryRef);
-
-  useEffect(() => {
-    if (gallery) {
-      console.log(`GALLERY_DEBUG: Gallery data retrieved:`, {
-        title: gallery.title,
-        itemsCount: gallery.items?.length,
-        items: gallery.items
-      });
-    }
-  }, [gallery]);
 
   const handleFavorite = (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
@@ -123,8 +105,15 @@ export default function ClientGalleryPage() {
   };
 
   const handleWhatsAppContact = () => {
-    const message = `Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and I'd like to talk about the selection.`;
+    const message = `Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and I'd like to talk about my selection.`;
     window.open(`https://wa.me/923000000000?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  const handleShare = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      toast({ title: "Link Copied", description: "Gallery link is ready to share." });
+    }
   };
 
   if (searching || docLoading) {
@@ -151,23 +140,26 @@ export default function ClientGalleryPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
           <div className="mb-6 h-px w-24 bg-primary/50" />
-          <h1 className="text-4xl md:text-8xl font-headline font-bold mb-6 uppercase tracking-[0.2em] leading-tight">
+          <h1 className="text-4xl md:text-8xl font-headline font-bold mb-6 uppercase tracking-[0.2em] leading-tight max-w-5xl">
             {gallery.title}
           </h1>
           <p className="text-xl md:text-2xl italic text-primary font-headline lowercase tracking-widest">
-            {gallery.clientName} &bull; {gallery.category}
+            {gallery.clientName} &bull; {gallery.category} &bull; {gallery.date}
           </p>
-          <div className="mt-8 flex gap-4">
-            <Button className="rounded-full px-8 h-12 bg-primary font-bold gap-2" onClick={handleWhatsAppContact}>
+          <div className="mt-10 flex flex-wrap justify-center gap-4">
+            <Button className="rounded-full px-8 h-12 bg-primary font-bold gap-2 shadow-xl shadow-primary/20" onClick={handleWhatsAppContact}>
               <MessageCircle className="w-4 h-4" /> Contact Studio
+            </Button>
+            <Button variant="outline" className="rounded-full px-8 h-12 border-white/20 text-white hover:bg-white/10 gap-2 backdrop-blur-md" onClick={handleShare}>
+              <Share2 className="w-4 h-4" /> Share Gallery
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 -mt-20 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 -mt-24 relative z-10">
         {!gallery.items || gallery.items.length === 0 ? (
-          <div className="text-center py-40 bg-card/30 backdrop-blur-xl border border-dashed border-border/30 rounded-[3rem]">
+          <div className="text-center py-40 bg-card/30 backdrop-blur-3xl border border-dashed border-border/30 rounded-[3rem] shadow-2xl">
              <Camera className="w-12 h-12 text-primary/20 mx-auto mb-6" />
              <p className="text-2xl text-muted-foreground font-headline italic">Your masterpieces are being prepared.</p>
           </div>
@@ -176,23 +168,23 @@ export default function ClientGalleryPage() {
             {gallery.items.map((item: any) => (
               <div 
                 key={item.id} 
-                className="relative group break-inside-avoid overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-2xl transition-all hover:border-primary/30"
+                className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-2xl transition-all hover:border-primary/30"
                 onClick={() => setSelectedImage(item.url)}
               >
                 <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
                 
                 {gallery.isLocked && (
-                  <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none overflow-hidden">
-                    <span className="text-primary font-headline text-4xl -rotate-45 whitespace-nowrap uppercase tracking-[1em]">HAFASH STUDIO</span>
+                  <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none overflow-hidden">
+                    <span className="text-primary font-headline text-5xl -rotate-45 whitespace-nowrap uppercase tracking-[1em]">HAFASH STUDIO PREVIEW</span>
                   </div>
                 )}
 
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6">
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6 backdrop-blur-[2px]">
                   <div className="flex gap-4">
                     <Button 
                       size="icon" 
                       className={cn(
-                        "rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110",
+                        "rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110 shadow-xl",
                         item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/10 text-white"
                       )} 
                       onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}
@@ -201,13 +193,13 @@ export default function ClientGalleryPage() {
                     </Button>
                     <Button 
                       size="icon" 
-                      className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110" 
+                      className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" 
                       onClick={(e) => handleDownloadAttempt(e, item.url)}
                     >
                       <Download className="w-6 h-6" />
                     </Button>
                   </div>
-                  <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/50">Experience Excellence</p>
+                  <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/70">Luxury Experience</p>
                 </div>
               </div>
             ))}
@@ -216,33 +208,33 @@ export default function ClientGalleryPage() {
       </div>
 
       {selectedImage && (
-        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-2xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
-          <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain shadow-2xl rounded-lg" alt="Fullscreen" />
-          <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-primary hover:bg-primary/10 rounded-full h-12 w-12">
+        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
+          <img src={selectedImage} className="max-w-full max-h-[92vh] object-contain shadow-2xl rounded-2xl" alt="Fullscreen" />
+          <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-primary hover:bg-primary/10 rounded-full h-12 w-12 bg-background/50 backdrop-blur-md">
             <X className="w-8 h-8" />
           </Button>
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-card/80 backdrop-blur-md px-6 py-3 rounded-full border border-border/50 text-xs font-bold uppercase tracking-widest">
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-card/80 backdrop-blur-md px-10 py-4 rounded-full border border-border/50 text-[10px] font-bold uppercase tracking-[0.5em] text-primary">
             Hafash Luxury Viewing
           </div>
         </div>
       )}
 
       <AlertDialog open={showLockDialog} onOpenChange={setShowLockDialog}>
-        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] p-12 shadow-2xl">
+        <AlertDialogContent className="bg-card border-border/50 rounded-[3rem] p-12 shadow-2xl max-w-xl">
           <AlertDialogHeader className="text-center">
-            <div className="mx-auto bg-primary/10 h-20 w-20 rounded-full flex items-center justify-center mb-6">
-              <Lock className="w-10 h-10 text-primary" />
+            <div className="mx-auto bg-primary/10 h-24 w-24 rounded-full flex items-center justify-center mb-8">
+              <Lock className="w-12 h-12 text-primary" />
             </div>
-            <AlertDialogTitle className="text-4xl font-headline font-bold italic tracking-tighter">Premium Delivery</AlertDialogTitle>
-            <AlertDialogDescription className="text-lg mt-4 leading-relaxed text-muted-foreground">
-              Original quality downloads are currently restricted. Please contact your studio to finalize your package and unlock high-resolution access.
+            <AlertDialogTitle className="text-4xl font-headline font-bold italic tracking-tighter">High-Resolution Delivery</AlertDialogTitle>
+            <AlertDialogDescription className="text-lg mt-6 leading-relaxed text-muted-foreground">
+              Original quality downloads are currently restricted for this gallery. Please contact the studio to finalize your package and unlock master file access.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="mt-10 flex flex-col gap-4">
-            <Button className="rounded-full h-14 w-full bg-primary text-primary-foreground font-bold text-lg shadow-xl shadow-primary/20" onClick={handleWhatsAppContact}>
+          <AlertDialogFooter className="mt-12 flex flex-col gap-4">
+            <Button className="rounded-full h-16 w-full bg-primary text-primary-foreground font-bold text-xl shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-transform" onClick={handleWhatsAppContact}>
               Contact Photographer
             </Button>
-            <AlertDialogAction className="rounded-full h-12 w-full border-none bg-transparent text-muted-foreground hover:bg-background/50" onClick={() => setShowLockDialog(false)}>
+            <AlertDialogAction className="rounded-full h-12 w-full border-none bg-transparent text-muted-foreground hover:bg-background/50 font-medium" onClick={() => setShowLockDialog(false)}>
               I Understand
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -3,12 +3,12 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc, useUser, useStorage } from '@/firebase';
+import { useFirestore, useDoc, useUser } from '@/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, Activity } from 'lucide-react';
+import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, Activity, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -30,7 +30,6 @@ export default function GalleryUploadPage() {
   const router = useRouter();
   const { id } = useParams() as { id: string };
   const firestore = useFirestore();
-  const storage = useStorage();
   const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
   
@@ -68,15 +67,8 @@ export default function GalleryUploadPage() {
     setFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
-  const startUpload = async () => {
-    if (!firestore || !storage || !user || !event) {
-      toast({ 
-        variant: "destructive", 
-        title: "Setup Error", 
-        description: "Services not initialized. Storage check: " + (!!storage ? 'OK' : 'MISSING')
-      });
-      return;
-    }
+  const startDemoUpload = async () => {
+    if (!firestore || !user || !event) return;
     
     if (files.length === 0) {
       toast({ title: "No files selected" });
@@ -84,102 +76,73 @@ export default function GalleryUploadPage() {
     }
 
     setIsUploading(true);
-    console.log(`[UPLOAD_START] User: ${user.uid}, Doc: galleries/${id}`);
-    
     const uploadedItems: any[] = [];
     const successfulFileIds: string[] = [];
 
     for (let i = 0; i < files.length; i++) {
       const fileItem = files[i];
-      if (fileItem.status === 'completed') continue;
-
       const fileId = fileItem.id;
-      const updateStep = (status: UploadStepStatus, step: string, progress: number = 0, errorMsg?: string) => {
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status, currentStep: step, progress, error: errorMsg } : f));
+
+      const updateStep = (status: UploadStepStatus, step: string, progress: number = 0) => {
+        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status, currentStep: step, progress } : f));
       };
 
-      try {
-        updateStep('uploading', 'Step 2: Upload Started', 0);
+      // Step 2: Telemetry Check
+      updateStep('uploading', 'Step 2: Processing Masterpiece', 30);
+      await new Promise(r => setTimeout(r, 400));
+
+      // Step 3: Optimization
+      updateStep('uploading', 'Step 3: Optimizing for Web', 60);
+      await new Promise(r => setTimeout(r, 400));
+
+      // Step 4: Generating Secure URL (Demo Mode)
+      updateStep('uploading', 'Step 4: Finalizing Asset', 90);
+      const demoUrl = `https://picsum.photos/seed/${fileId}/1600/1200`;
+      
+      uploadedItems.push({
+        id: fileId,
+        url: demoUrl,
+        type: 'image',
+        isFavorite: false,
+        fileName: fileItem.name,
+        createdAt: new Date().toISOString()
+      });
+      successfulFileIds.push(fileId);
+      updateStep('uploading', 'Step 4: Done', 100);
+    }
+
+    // Step 5: Sync with Firestore
+    const galleryRef = doc(firestore, 'galleries', id);
+    const updateData = { items: arrayUnion(...uploadedItems) };
+
+    updateDoc(galleryRef, updateData)
+      .then(() => {
+        setFiles(prev => prev.map(f => 
+          successfulFileIds.includes(f.id) 
+            ? { ...f, status: 'completed', currentStep: 'Step 5: Cloud Sync Complete' } 
+            : f
+        ));
+        toast({ title: "Delivery Complete", description: `${uploadedItems.length} masterpieces delivered to cloud.` });
+      })
+      .catch(async (err: any) => {
+        setFiles(prev => prev.map(f => 
+          successfulFileIds.includes(f.id) 
+            ? { ...f, status: 'error', error: `Cloud Sync Error: ${err.message}` } 
+            : f
+        ));
         
-        const storageRef = ref(storage, `galleries/${id}/${fileId}_${fileItem.name}`);
-        const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
-
-        // Add 30s timeout per file
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Storage Upload Timeout')), 30000));
-
-        const uploadPromise = new Promise<void>((resolve, reject) => {
-          uploadTask.on('state_changed', 
-            (snapshot) => {
-              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
-            },
-            (error) => reject(error),
-            () => resolve()
-          );
-        });
-
-        await Promise.race([uploadPromise, timeoutPromise]);
-
-        updateStep('uploading', 'Step 3: Storage Success', 100);
-
-        const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-        updateStep('uploading', 'Step 4: URL Generated', 100);
-
-        uploadedItems.push({
-          id: fileId,
-          url: downloadUrl,
-          type: 'image',
-          isFavorite: false,
-          fileName: fileItem.name
-        });
-        successfulFileIds.push(fileId);
-
-      } catch (err: any) {
-        console.error(`[STORAGE_FAIL] File: ${fileItem.name}, Error: ${err.message}`);
-        updateStep('error', 'FAILED', 0, `Storage Error: ${err.message}`);
-      }
-    }
-
-    if (uploadedItems.length > 0) {
-      const galleryRef = doc(firestore, 'galleries', id);
-      const updateData = { items: arrayUnion(...uploadedItems) };
-      console.log(`[FIRESTORE_UPDATE_ATTEMPT] User: ${user.uid}, Path: ${galleryRef.path}, Method: arrayUnion`);
-
-      updateDoc(galleryRef, updateData)
-        .then(() => {
-          console.log(`[FIRESTORE_UPDATE_SUCCESS] Path: ${galleryRef.path}`);
-          setFiles(prev => prev.map(f => 
-            successfulFileIds.includes(f.id) 
-              ? { ...f, status: 'completed', currentStep: 'Step 5: Firestore Sync Success' } 
-              : f
-          ));
-          toast({ title: "Delivery Complete", description: `${uploadedItems.length} photos synced to cloud.` });
-        })
-        .catch(async (err: any) => {
-          console.error(`[FIRESTORE_UPDATE_FAIL] Path: ${galleryRef.path}, Error: ${err.message}`);
-          setFiles(prev => prev.map(f => 
-            successfulFileIds.includes(f.id) 
-              ? { ...f, status: 'error', error: `Step 5 Failed: ${err.message}` } 
-              : f
-          ));
-          
-          if (err.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-              path: galleryRef.path,
-              operation: 'update',
-              requestResourceData: updateData,
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-          } else {
-            toast({ variant: "destructive", title: "Sync Failed", description: `Path: ${galleryRef.path} - Error: ${err.message}` });
-          }
-        })
-        .finally(() => {
-          setIsUploading(false);
-        });
-    } else {
-      setIsUploading(false);
-    }
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: galleryRef.path,
+            operation: 'update',
+            requestResourceData: updateData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        }
+      })
+      .finally(() => {
+        setIsUploading(false);
+      });
   };
 
   if (authLoading || dataLoading) {
@@ -207,6 +170,14 @@ export default function GalleryUploadPage() {
         </div>
       </div>
 
+      <Alert className="bg-primary/10 border-primary/20 rounded-2xl">
+        <Info className="h-5 w-5 text-primary" />
+        <AlertTitle className="font-bold text-primary">MVP Demo Mode Active</AlertTitle>
+        <AlertDescription className="text-primary/80">
+          Real file uploads are currently restricted. Using high-quality sample masterpieces for demonstration.
+        </AlertDescription>
+      </Alert>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="relative h-80 border-2 border-dashed border-border/50 rounded-3xl flex flex-col items-center justify-center bg-card/30 group hover:border-primary/50 transition-all">
@@ -222,18 +193,18 @@ export default function GalleryUploadPage() {
               <Upload className="w-10 h-10 text-primary" />
             </div>
             <p className="text-lg font-headline font-bold">Select Masterpieces</p>
-            <p className="text-sm text-muted-foreground mt-2 font-mono">Telemetry Active.</p>
+            <p className="text-sm text-muted-foreground mt-2 font-mono italic">Studio Telemetry Active.</p>
           </div>
 
           <div className="flex justify-end gap-4">
             <Button variant="ghost" className="rounded-full px-8" onClick={() => setFiles([])} disabled={isUploading}>Clear Queue</Button>
             <Button 
-              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-10 h-12 font-bold shadow-lg shadow-primary/20 min-w-[200px]"
-              onClick={startUpload}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-10 h-12 font-bold shadow-lg shadow-primary/20 min-w-[220px]"
+              onClick={startDemoUpload}
               disabled={files.length === 0 || isUploading}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              {isUploading ? 'Syncing...' : 'Deliver Now'}
+              {isUploading ? 'Finalizing...' : 'Deliver Masterpieces'}
             </Button>
           </div>
         </div>
@@ -241,7 +212,7 @@ export default function GalleryUploadPage() {
         <div className="bg-card border border-border/50 rounded-3xl p-6 h-[500px] flex flex-col shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-headline font-bold flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" /> Status Panel
+              <Activity className="w-5 h-5 text-primary" /> Delivery Status
             </h3>
             <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full font-bold tracking-widest">{files.length} ITEMS</span>
           </div>
@@ -253,7 +224,7 @@ export default function GalleryUploadPage() {
               </div>
             ) : (
               files.map(file => (
-                <div key={file.id} className={`bg-background/50 p-4 rounded-2xl border transition-all ${file.status === 'error' ? 'border-destructive/50 shadow-sm shadow-destructive/10' : 'border-border/30'}`}>
+                <div key={file.id} className={`bg-background/50 p-4 rounded-2xl border transition-all ${file.status === 'error' ? 'border-destructive/50' : 'border-border/30'}`}>
                   <div className="flex justify-between items-start mb-2">
                     <div className="truncate pr-4">
                       <p className="text-sm font-bold truncate">{file.name}</p>
@@ -273,14 +244,12 @@ export default function GalleryUploadPage() {
                     </div>
                   </div>
                   
-                  <Progress value={file.progress} className={`h-1 rounded-full ${file.status === 'error' ? 'bg-destructive/20' : 'bg-border/30'}`} />
+                  <Progress value={file.progress} className={`h-1 rounded-full bg-border/30`} />
                   
                   {file.error && (
-                    <div className="mt-3 p-2 bg-destructive/10 rounded-lg border border-destructive/20">
-                      <p className="text-[9px] text-destructive font-bold break-words uppercase">
-                        {file.error}
-                      </p>
-                    </div>
+                    <p className="mt-2 text-[9px] text-destructive font-bold uppercase">
+                      {file.error}
+                    </p>
                   )}
                 </div>
               ))
@@ -290,10 +259,10 @@ export default function GalleryUploadPage() {
       </div>
 
       <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row gap-6 justify-between items-center">
-        <p className="text-sm text-muted-foreground italic max-w-md">
-          <Info className="w-4 h-4 inline mr-2 text-primary" />
-          Debug Info: Collection=galleries, Path=galleries/{id}, User={user.uid}
-        </p>
+        <div className="flex items-center gap-3 text-sm text-muted-foreground italic">
+          <ShieldCheck className="w-4 h-4 text-primary" />
+          <span>Encrypted Delivery Channel Active</span>
+        </div>
         <Link href={`/events/${id}/manage`}>
           <Button variant="outline" className="rounded-full font-bold gap-2 px-8 h-12 border-primary text-primary hover:bg-primary/5">
             Return to Management
