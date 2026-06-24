@@ -3,7 +3,7 @@
 
 import { useFirestore, useDoc } from '@/firebase';
 import { useParams } from 'next/navigation';
-import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2 } from 'lucide-react';
+import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
@@ -148,6 +148,9 @@ export default function ClientGalleryPage() {
     }
   };
 
+  // Determine cover image: explicit cover or fallback to first gallery item
+  const coverImageUrl = gallery?.coverImage || (gallery?.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
+
   if (searching || docLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
@@ -167,29 +170,61 @@ export default function ClientGalleryPage() {
 
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
-      <div className="h-[75vh] relative overflow-hidden">
-        <img src={gallery.coverImage} className="w-full h-full object-cover scale-105 filter blur-[2px] opacity-40" alt="Cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6">
-          <div className="mb-6 h-px w-24 bg-primary/50" />
-          <h1 className="text-4xl md:text-8xl font-headline font-bold mb-6 uppercase tracking-[0.2em] leading-tight max-w-5xl">
+      {/* Cinematic Gallery Cover */}
+      <div className="h-[85vh] relative overflow-hidden flex flex-col items-center justify-center">
+        <img 
+          src={coverImageUrl} 
+          className="absolute inset-0 w-full h-full object-cover scale-105 filter blur-[1px] opacity-40 brightness-50" 
+          alt="Gallery Cover" 
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/40 to-background" />
+        
+        {/* Studio Branding Overlay */}
+        <div className="absolute top-12 left-0 right-0 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-1000">
+          {profile?.studioLogo && (
+            <img src={profile.studioLogo} className="h-20 w-auto mb-4 object-contain" alt="Studio Logo" />
+          )}
+          <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase">
+            {profile?.studioName || 'Professional Studio'}
+          </span>
+        </div>
+
+        {/* Hero Metadata */}
+        <div className="relative z-10 text-center px-6 max-w-5xl animate-in fade-in zoom-in-95 duration-1000 delay-300">
+          <div className="mb-8 h-px w-24 bg-primary/50 mx-auto" />
+          <h1 className="text-5xl md:text-9xl font-headline font-bold mb-8 uppercase tracking-[0.1em] leading-none drop-shadow-2xl">
             {gallery.title}
           </h1>
-          <p className="text-xl md:text-2xl italic text-primary font-headline lowercase tracking-widest">
-            {gallery.clientName} &bull; {gallery.category} &bull; {gallery.date}
-          </p>
-          <div className="mt-10 flex flex-wrap justify-center gap-4">
-            <Button className="rounded-full px-8 h-12 bg-primary font-bold gap-2 shadow-xl shadow-primary/20" onClick={handleWhatsAppContact}>
-              <MessageCircle className="w-4 h-4" /> Contact {profile?.studioName || 'Studio'}
+          <div className="space-y-4">
+             <p className="text-2xl md:text-4xl italic text-primary font-headline lowercase tracking-widest">
+              {gallery.clientName}
+            </p>
+            <div className="flex items-center justify-center gap-4 text-muted-foreground uppercase tracking-[0.3em] text-[10px] font-bold">
+              <span>{gallery.category}</span>
+              <span className="h-1 w-1 bg-primary/50 rounded-full" />
+              <span>{gallery.date}</span>
+            </div>
+          </div>
+          
+          <div className="mt-14 flex flex-wrap justify-center gap-4">
+            <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground font-bold gap-3 shadow-2xl shadow-primary/20 hover:scale-105 transition-transform" onClick={handleWhatsAppContact}>
+              <MessageCircle className="w-5 h-5" /> Contact Studio
             </Button>
-            <Button variant="outline" className="rounded-full px-8 h-12 border-white/20 text-white hover:bg-white/10 gap-2 backdrop-blur-md" onClick={handleShare}>
-              <Share2 className="w-4 h-4" /> Share Gallery
+            <Button variant="outline" className="rounded-full px-10 h-14 border-white/20 text-white hover:bg-white/10 gap-3 backdrop-blur-md shadow-xl" onClick={handleShare}>
+              <Share2 className="w-5 h-5" /> Share Gallery
             </Button>
           </div>
         </div>
+
+        {/* Scroll Indicator */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center opacity-50">
+          <span className="text-[8px] uppercase tracking-[0.5em] font-bold mb-4">Discover Gallery</span>
+          <div className="h-12 w-px bg-gradient-to-b from-primary to-transparent" />
+        </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 -mt-24 relative z-10">
+      {/* Photo Grid Section */}
+      <div className="max-w-7xl mx-auto px-6 mt-12 relative z-10">
         {!gallery.items || gallery.items.length === 0 ? (
           <div className="text-center py-40 bg-card/30 backdrop-blur-3xl border border-dashed border-border/30 rounded-[3rem] shadow-2xl">
              <Camera className="w-12 h-12 text-primary/20 mx-auto mb-6" />
@@ -240,14 +275,19 @@ export default function ClientGalleryPage() {
         )}
       </div>
 
+      {/* Footer Branding */}
       <div className="max-w-4xl mx-auto text-center mt-20 px-6 py-12 border-t border-border/20">
-        <h3 className="text-2xl font-headline font-bold mb-4">Crafted by {profile?.studioName || 'Studio'}</h3>
+        <h3 className="text-2xl font-headline font-bold mb-4">Crafted by {profile?.studioName || 'Professional Studio'}</h3>
         <p className="text-muted-foreground italic mb-8">Contact photographer for original high-resolution master files.</p>
-        <Button className="rounded-full px-12 h-14 bg-primary font-bold shadow-2xl shadow-primary/20" onClick={handleWhatsAppContact}>
+        <Button className="rounded-full px-12 h-16 bg-primary font-bold shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-transform text-lg" onClick={handleWhatsAppContact}>
           Finalize My Selection
         </Button>
+        <div className="mt-12 text-[10px] uppercase tracking-[0.5em] text-muted-foreground/30 font-bold">
+          Delivered via Hafash Luxury Network
+        </div>
       </div>
 
+      {/* Fullscreen Preview Modal */}
       {selectedImage && (
         <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
@@ -263,6 +303,7 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
+      {/* Download Lock Notification */}
       <AlertDialog open={showLockDialog} onOpenChange={setShowLockDialog}>
         <AlertDialogContent className="bg-card border-border/50 rounded-[3rem] p-12 shadow-2xl max-w-xl">
           <AlertDialogHeader className="text-center">
