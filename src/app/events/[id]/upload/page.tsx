@@ -6,13 +6,14 @@ import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser, useStorage } from '@/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X } from 'lucide-react';
+import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function GalleryUploadPage() {
   const router = useRouter();
@@ -47,6 +48,7 @@ export default function GalleryUploadPage() {
         name: f.name,
         progress: 0,
       }));
+      console.log("UPLOAD_DEBUG: Files selected", newFiles.length);
       setFiles(prev => [...prev, ...newFiles]);
     }
   };
@@ -56,24 +58,40 @@ export default function GalleryUploadPage() {
   };
 
   const startUpload = async () => {
-    console.log("UPLOAD_DEBUG: Starting upload process...", { filesCount: files.length, eventId: id });
+    console.log("UPLOAD_DEBUG: startUpload clicked", { 
+      filesCount: files.length, 
+      eventId: id,
+      hasFirestore: !!firestore,
+      hasStorage: !!storage,
+      hasUser: !!user,
+      hasEvent: !!event
+    });
 
-    if (!firestore || !storage || !event || !user) {
-      console.error("UPLOAD_DEBUG: Initialization error", { 
-        firestore: !!firestore, 
-        storage: !!storage, 
-        event: !!event, 
-        user: !!user 
-      });
+    if (!firestore || !storage) {
       toast({
         variant: "destructive",
-        title: "System Error",
-        description: "Services not ready. Please refresh."
+        title: "Configuration Error",
+        description: "Firebase services (Firestore or Storage) are not initialized. Please check your config.",
+      });
+      return;
+    }
+
+    if (!user || !event) {
+      toast({
+        variant: "destructive",
+        title: "Initialization Error",
+        description: "Event or User session not loaded yet. Please wait a moment.",
       });
       return;
     }
     
-    if (files.length === 0) return;
+    if (files.length === 0) {
+      toast({
+        title: "No files selected",
+        description: "Please select photos to upload first.",
+      });
+      return;
+    }
 
     setIsUploading(true);
     const uploadedItems: { id: string, url: string, type: 'image', isFavorite: boolean }[] = [];
@@ -86,7 +104,7 @@ export default function GalleryUploadPage() {
         const storagePath = `galleries/${id}/${fileId}_${fileItem.name}`;
         const storageRef = ref(storage, storagePath);
         
-        console.log(`UPLOAD_DEBUG: Processing ${fileItem.name}...`);
+        console.log(`UPLOAD_DEBUG: Beginning storage upload for ${fileItem.name}...`);
         
         const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
@@ -109,7 +127,7 @@ export default function GalleryUploadPage() {
                   type: 'image',
                   isFavorite: false
                 });
-                console.log(`UPLOAD_DEBUG: ${fileItem.name} uploaded. URL: ${downloadURL}`);
+                console.log(`UPLOAD_DEBUG: ${fileItem.name} successfully stored. URL: ${downloadURL}`);
                 resolve();
               } catch (err) {
                 console.error(`UPLOAD_DEBUG: URL retrieval error:`, err);
@@ -121,23 +139,23 @@ export default function GalleryUploadPage() {
       }
 
       if (uploadedItems.length > 0) {
-        console.log(`UPLOAD_DEBUG: Attempting Firestore sync for ${uploadedItems.length} items...`);
+        console.log(`UPLOAD_DEBUG: Attempting to sync ${uploadedItems.length} items to Firestore...`);
         const galleryRef = doc(firestore, 'galleries', id);
         
         await updateDoc(galleryRef, {
           items: arrayUnion(...uploadedItems)
         });
 
-        console.log("UPLOAD_DEBUG: Firestore sync successful.");
+        console.log("UPLOAD_DEBUG: Firestore update complete.");
         toast({
-          title: "Success",
-          description: `${uploadedItems.length} photos added to gallery.`,
+          title: "Gallery Updated",
+          description: `Successfully added ${uploadedItems.length} photos.`,
         });
         setFiles([]);
       }
     } catch (err: any) {
-      console.error("UPLOAD_DEBUG: Batch failed:", err);
-      if (err.code === 'permission-denied') {
+      console.error("UPLOAD_DEBUG: Batch upload process failed:", err);
+      if (err.code === 'permission-denied' || (err.message && err.message.includes('permission'))) {
         const permissionError = new FirestorePermissionError({
           path: `galleries/${id}`,
           operation: 'update',
@@ -147,8 +165,8 @@ export default function GalleryUploadPage() {
       } else {
         toast({
           variant: "destructive",
-          title: "Upload Error",
-          description: err.message || "An error occurred."
+          title: "Upload Failed",
+          description: err.message || "An unexpected error occurred during upload."
         });
       }
     } finally {
@@ -217,6 +235,16 @@ export default function GalleryUploadPage() {
         )}
       </div>
 
+      {!storage && (
+        <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive rounded-2xl">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Storage Service Unavailable</AlertTitle>
+          <AlertDescription>
+            Firebase Storage is not initialized. Please ensure your configuration includes a storageBucket.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="relative h-80 border-2 border-dashed border-border/50 rounded-3xl flex flex-col items-center justify-center bg-card/30 group hover:border-primary/50 transition-all">
@@ -225,7 +253,7 @@ export default function GalleryUploadPage() {
               multiple 
               className="absolute inset-0 opacity-0 cursor-pointer" 
               onChange={handleFileChange}
-              disabled={isUploading}
+              disabled={isUploading || !storage}
             />
             <div className="p-6 rounded-full bg-primary/10 mb-4 group-hover:scale-110 transition-transform">
               <Upload className="w-10 h-10 text-primary" />
@@ -239,7 +267,7 @@ export default function GalleryUploadPage() {
             <Button 
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-10 h-12 font-bold shadow-lg shadow-primary/20"
               onClick={startUpload}
-              disabled={files.length === 0 || isUploading}
+              disabled={files.length === 0 || isUploading || !storage}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
               {isUploading ? 'Uploading...' : 'Start Upload'}
