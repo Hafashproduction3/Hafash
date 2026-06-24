@@ -148,7 +148,6 @@ export default function ClientGalleryPage() {
     }
   };
 
-  // Determine cover image: explicit cover or fallback to first gallery item
   const coverImageUrl = gallery?.coverImage || (gallery?.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
 
   if (searching || docLoading) {
@@ -171,37 +170,37 @@ export default function ClientGalleryPage() {
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
       {/* Cinematic Gallery Cover */}
-      <div className="h-[85vh] relative overflow-hidden flex flex-col items-center justify-center">
+      <div className="h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card">
         <img 
           src={coverImageUrl} 
-          className="absolute inset-0 w-full h-full object-cover scale-105 filter blur-[1px] opacity-40 brightness-50" 
+          className="absolute inset-0 w-full h-full object-cover opacity-60 brightness-75 transition-opacity duration-1000" 
           alt="Gallery Cover" 
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/20 via-background/40 to-background" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-transparent to-background" />
         
         {/* Studio Branding Overlay */}
         <div className="absolute top-12 left-0 right-0 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-1000">
           {profile?.studioLogo && (
-            <img src={profile.studioLogo} className="h-20 w-auto mb-4 object-contain" alt="Studio Logo" />
+            <img src={profile.studioLogo} className="h-20 w-auto mb-4 object-contain shadow-2xl" alt="Studio Logo" />
           )}
-          <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase">
+          <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase drop-shadow-lg">
             {profile?.studioName || 'Professional Studio'}
           </span>
         </div>
 
         {/* Hero Metadata */}
         <div className="relative z-10 text-center px-6 max-w-5xl animate-in fade-in zoom-in-95 duration-1000 delay-300">
-          <div className="mb-8 h-px w-24 bg-primary/50 mx-auto" />
-          <h1 className="text-5xl md:text-9xl font-headline font-bold mb-8 uppercase tracking-[0.1em] leading-none drop-shadow-2xl">
+          <div className="mb-8 h-px w-24 bg-primary/80 mx-auto" />
+          <h1 className="text-5xl md:text-9xl font-headline font-bold mb-8 uppercase tracking-[0.1em] leading-none text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.8)]">
             {gallery.title}
           </h1>
           <div className="space-y-4">
-             <p className="text-2xl md:text-4xl italic text-primary font-headline lowercase tracking-widest">
+             <p className="text-2xl md:text-4xl italic text-primary font-headline lowercase tracking-widest drop-shadow-md">
               {gallery.clientName}
             </p>
-            <div className="flex items-center justify-center gap-4 text-muted-foreground uppercase tracking-[0.3em] text-[10px] font-bold">
+            <div className="flex items-center justify-center gap-4 text-white/80 uppercase tracking-[0.3em] text-[10px] font-bold drop-shadow-sm">
               <span>{gallery.category}</span>
-              <span className="h-1 w-1 bg-primary/50 rounded-full" />
+              <span className="h-1 w-1 bg-primary rounded-full" />
               <span>{gallery.date}</span>
             </div>
           </div>
@@ -210,15 +209,15 @@ export default function ClientGalleryPage() {
             <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground font-bold gap-3 shadow-2xl shadow-primary/20 hover:scale-105 transition-transform" onClick={handleWhatsAppContact}>
               <MessageCircle className="w-5 h-5" /> Contact Studio
             </Button>
-            <Button variant="outline" className="rounded-full px-10 h-14 border-white/20 text-white hover:bg-white/10 gap-3 backdrop-blur-md shadow-xl" onClick={handleShare}>
+            <Button variant="outline" className="rounded-full px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md shadow-xl" onClick={handleShare}>
               <Share2 className="w-5 h-5" /> Share Gallery
             </Button>
           </div>
         </div>
 
         {/* Scroll Indicator */}
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center opacity-50">
-          <span className="text-[8px] uppercase tracking-[0.5em] font-bold mb-4">Discover Gallery</span>
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center opacity-80 animate-bounce">
+          <span className="text-[8px] uppercase tracking-[0.5em] font-bold mb-4 text-white">Discover Gallery</span>
           <div className="h-12 w-px bg-gradient-to-b from-primary to-transparent" />
         </div>
       </div>
@@ -277,7 +276,7 @@ export default function ClientGalleryPage() {
 
       {/* Footer Branding */}
       <div className="max-w-4xl mx-auto text-center mt-20 px-6 py-12 border-t border-border/20">
-        <h3 className="text-2xl font-headline font-bold mb-4">Crafted by {profile?.studioName || 'Professional Studio'}</h3>
+        <h3 className="text-2xl font-headline font-bold mb-4 text-primary">Crafted by {profile?.studioName || 'Professional Studio'}</h3>
         <p className="text-muted-foreground italic mb-8">Contact photographer for original high-resolution master files.</p>
         <Button className="rounded-full px-12 h-16 bg-primary font-bold shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-transform text-lg" onClick={handleWhatsAppContact}>
           Finalize My Selection
