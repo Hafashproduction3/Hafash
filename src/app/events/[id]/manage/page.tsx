@@ -22,6 +22,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 import { useMemo, useEffect } from 'react';
 
@@ -87,24 +89,45 @@ export default function EventManagementPage() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!firestore || !confirm('Are you sure you want to delete this event?')) return;
-    try {
-      await deleteDoc(doc(firestore, 'galleries', id));
-      toast({ title: "Event Deleted" });
-      router.push('/dashboard');
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Error", description: err.message });
-    }
+    const docRef = doc(firestore, 'galleries', id);
+    deleteDoc(docRef)
+      .then(() => {
+        toast({ title: "Event Deleted" });
+        router.push('/dashboard');
+      })
+      .catch(async (err: any) => {
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'delete',
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({ variant: "destructive", title: "Error", description: err.message });
+        }
+      });
   };
 
-  const toggleLock = async (status: boolean) => {
+  const toggleLock = (status: boolean) => {
     if (!firestore) return;
-    try {
-      await updateDoc(doc(firestore, 'galleries', id), { isLocked: !status });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Error", description: err.message });
-    }
+    const docRef = doc(firestore, 'galleries', id);
+    const updateData = { isLocked: !status };
+
+    updateDoc(docRef, updateData)
+      .catch(async (err: any) => {
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: updateData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({ variant: "destructive", title: "Error", description: err.message });
+        }
+      });
   };
 
   return (

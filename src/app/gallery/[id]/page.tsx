@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
@@ -7,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
@@ -40,7 +43,18 @@ export default function ClientGalleryPage() {
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
           setGalleryId(foundId);
-          updateDoc(doc(firestore, 'galleries', foundId), { viewCount: increment(1) });
+          
+          const gRef = doc(firestore, 'galleries', foundId);
+          updateDoc(gRef, { viewCount: increment(1) })
+            .catch(async (err) => {
+               if (err.code === 'permission-denied') {
+                 errorEmitter.emit('permission-error', new FirestorePermissionError({
+                   path: gRef.path,
+                   operation: 'update',
+                   requestResourceData: { viewCount: 'increment(1)' }
+                 }));
+               }
+            });
         } else {
           setGalleryId(galleryParam);
         }
@@ -60,21 +74,43 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading } = useDoc(galleryRef);
 
-  const handleFavorite = async (itemId: string, isCurrentlyFavorite: boolean) => {
-    if (!firestore || !gallery || !galleryId) return;
-    try {
-      const gRef = doc(firestore, 'galleries', galleryId);
-      const updatedItems = gallery.items.map((item: any) => 
-        item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
-      );
-      await updateDoc(gRef, { items: updatedItems });
-      toast({ 
-        title: isCurrentlyFavorite ? "Removed from Selection" : "Added to Selection", 
-        description: "Your choices are synced with the photographer." 
+  useEffect(() => {
+    if (gallery) {
+      console.log(`GALLERY_DEBUG: Gallery data retrieved:`, {
+        title: gallery.title,
+        itemsCount: gallery.items?.length,
+        items: gallery.items
       });
-    } catch (err) {
-      toast({ variant: "destructive", title: "Action Failed" });
     }
+  }, [gallery]);
+
+  const handleFavorite = (itemId: string, isCurrentlyFavorite: boolean) => {
+    if (!firestore || !gallery || !galleryId) return;
+    const gRef = doc(firestore, 'galleries', galleryId);
+    const updatedItems = gallery.items.map((item: any) => 
+      item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
+    );
+    const updateData = { items: updatedItems };
+
+    updateDoc(gRef, updateData)
+      .then(() => {
+        toast({ 
+          title: isCurrentlyFavorite ? "Removed from Selection" : "Added to Selection", 
+          description: "Your choices are synced with the photographer." 
+        });
+      })
+      .catch(async (err: any) => {
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: gRef.path,
+            operation: 'update',
+            requestResourceData: updateData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        } else {
+          toast({ variant: "destructive", title: "Action Failed" });
+        }
+      });
   };
 
   const handleDownloadAttempt = (e: React.MouseEvent, url: string) => {
@@ -145,7 +181,6 @@ export default function ClientGalleryPage() {
               >
                 <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
                 
-                {/* Visual Watermark for Locked Galleries */}
                 {gallery.isLocked && (
                   <div className="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none select-none overflow-hidden">
                     <span className="text-primary font-headline text-4xl -rotate-45 whitespace-nowrap uppercase tracking-[1em]">HAFASH STUDIO</span>

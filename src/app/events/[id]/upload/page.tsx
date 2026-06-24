@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 
 type UploadStepStatus = 'queued' | 'uploading' | 'completed' | 'error';
@@ -97,13 +97,11 @@ export default function GalleryUploadPage() {
       };
 
       try {
-        // Step 2: Upload Started
         updateStep('uploading', 'Step 2: Upload Started', 0);
         
         const storageRef = ref(storage, `galleries/${id}/${fileId}_${fileItem.name}`);
         const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
-        // Track internal progress
         const unsubscribe = uploadTask.on('state_changed', 
           (snapshot) => {
             const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
@@ -111,14 +109,11 @@ export default function GalleryUploadPage() {
           }
         );
 
-        // Await Storage Upload
         await uploadTask;
         unsubscribe();
 
-        // Step 3: Firebase Storage Upload Complete
         updateStep('uploading', 'Step 3: Firebase Storage Upload Complete', 100);
 
-        // Step 4: Download URL Generated
         const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
         updateStep('uploading', 'Step 4: Download URL Generated', 100);
 
@@ -132,41 +127,40 @@ export default function GalleryUploadPage() {
         successfulFileIds.push(fileId);
 
       } catch (err: any) {
-        updateStep('error', 'FAILED', 0, `Runtime Error: ${err.message}`);
+        updateStep('error', 'FAILED', 0, `Storage Error: ${err.message}`);
         console.error("UPLOAD_STEP_FAILURE", err);
       }
     }
 
-    // Step 5: Firestore Updated
     if (uploadedItems.length > 0) {
-      try {
-        const galleryRef = doc(firestore, 'galleries', id);
-        await updateDoc(galleryRef, { 
-          items: arrayUnion(...uploadedItems) 
-        });
+      const galleryRef = doc(firestore, 'galleries', id);
+      const updateData = { items: arrayUnion(...uploadedItems) };
 
-        setFiles(prev => prev.map(f => 
-          successfulFileIds.includes(f.id) 
-            ? { ...f, status: 'completed', currentStep: 'Step 5: Firestore Updated' } 
-            : f
-        ));
-        
-        toast({ title: "Delivery Complete", description: `${uploadedItems.length} photos synced to cloud.` });
-      } catch (err: any) {
-        setFiles(prev => prev.map(f => 
-          successfulFileIds.includes(f.id) 
-            ? { ...f, status: 'error', error: `Step 5 Failed: ${err.message}` } 
-            : f
-        ));
-        
-        if (err.code === 'permission-denied') {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `galleries/${id}`,
-            operation: 'update',
-            requestResourceData: { items: 'arrayUnion(...)' },
-          }));
-        }
-      }
+      updateDoc(galleryRef, updateData)
+        .then(() => {
+          setFiles(prev => prev.map(f => 
+            successfulFileIds.includes(f.id) 
+              ? { ...f, status: 'completed', currentStep: 'Step 5: Firestore Updated' } 
+              : f
+          ));
+          toast({ title: "Delivery Complete", description: `${uploadedItems.length} photos synced to cloud.` });
+        })
+        .catch(async (err: any) => {
+          setFiles(prev => prev.map(f => 
+            successfulFileIds.includes(f.id) 
+              ? { ...f, status: 'error', error: `Step 5 Failed: ${err.message}` } 
+              : f
+          ));
+          
+          if (err.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+              path: galleryRef.path,
+              operation: 'update',
+              requestResourceData: updateData,
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+          }
+        });
     }
 
     setIsUploading(false);
