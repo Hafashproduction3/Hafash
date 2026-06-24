@@ -66,7 +66,6 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading } = useDoc(galleryRef);
 
-  // Fetch photographer settings based on the gallery owner's ID
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
     return doc(firestore, 'users', gallery.userId);
@@ -206,8 +205,12 @@ export default function ClientGalleryPage() {
               >
                 <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
                 
-                <div className="absolute inset-0 watermark-overlay pointer-events-none" />
-                <div className="watermark-text">HAFASH PREVIEW</div>
+                {gallery.isLocked && (
+                  <>
+                    <div className="absolute inset-0 watermark-overlay pointer-events-none" />
+                    <div className="watermark-text">HAFASH PREVIEW</div>
+                  </>
+                )}
 
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6 backdrop-blur-[2px]">
                   <div className="flex gap-4">
@@ -249,7 +252,7 @@ export default function ClientGalleryPage() {
         <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
             <img src={selectedImage} className="max-w-full max-h-[92vh] object-contain shadow-2xl rounded-2xl" alt="Fullscreen" />
-            <div className="watermark-text">HAFASH PREVIEW</div>
+            {gallery.isLocked && <div className="watermark-text">HAFASH PREVIEW</div>}
           </div>
           <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-primary hover:bg-primary/10 rounded-full h-12 w-12 bg-background/50 backdrop-blur-md">
             <X className="w-8 h-8" />
