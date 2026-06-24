@@ -40,7 +40,7 @@ export default function GalleryUploadPage() {
   const [isAiProcessing, setIsAiProcessing] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
+    if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files).map(f => ({
         id: Math.random().toString(36).substr(2, 9),
         file: f,
@@ -51,30 +51,38 @@ export default function GalleryUploadPage() {
     }
   };
 
-  const removeFile = (id: string) => {
-    setFiles(prev => prev.filter(f => f.id !== id));
+  const removeFile = (fileId: string) => {
+    setFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
   const startUpload = async () => {
+    console.log("Starting upload process...", { filesCount: files.length, id });
+
     if (!firestore || !storage || !event || !user) {
+      console.error("Initialization error:", { firestore: !!firestore, storage: !!storage, event: !!event, user: !!user });
       toast({
         variant: "destructive",
         title: "System Error",
-        description: "Firebase services are not initialized."
+        description: "Firebase services are not fully initialized. Please refresh and try again."
       });
       return;
     }
     
+    if (files.length === 0) return;
+
     setIsUploading(true);
     const uploadedItems: { id: string, url: string, type: 'image', isFavorite: boolean }[] = [];
 
     try {
       for (const fileItem of files) {
-        if (fileItem.progress === 100) continue; // Skip already uploaded
+        if (fileItem.progress === 100) continue; 
 
         const fileId = fileItem.id;
-        const storagePath = `galleries/${id}/${fileId}_${fileItem.file.name}`;
+        const storagePath = `galleries/${id}/${fileId}_${fileItem.name}`;
         const storageRef = ref(storage, storagePath);
+        
+        console.log(`Uploading file: ${fileItem.name} to path: ${storagePath}`);
+        
         const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
         await new Promise<void>((resolve, reject) => {
@@ -84,7 +92,7 @@ export default function GalleryUploadPage() {
               setFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
             }, 
             (error) => {
-              console.error("Storage upload error:", error);
+              console.error(`Upload error for ${fileItem.name}:`, error);
               reject(error);
             }, 
             async () => {
@@ -96,8 +104,10 @@ export default function GalleryUploadPage() {
                   type: 'image',
                   isFavorite: false
                 });
+                console.log(`Successfully uploaded: ${fileItem.name}, URL: ${downloadURL}`);
                 resolve();
               } catch (err) {
+                console.error(`Error getting download URL for ${fileItem.name}:`, err);
                 reject(err);
               }
             }
@@ -106,20 +116,23 @@ export default function GalleryUploadPage() {
       }
 
       if (uploadedItems.length > 0) {
+        console.log(`Syncing ${uploadedItems.length} items to Firestore...`);
         const galleryRef = doc(firestore, 'galleries', id);
         
-        // Use standard non-blocking mutation with proper error handling
         updateDoc(galleryRef, {
           items: arrayUnion(...uploadedItems)
         })
         .then(() => {
           toast({
             title: "Upload Complete",
-            description: `Successfully uploaded ${uploadedItems.length} photos.`,
+            description: `Successfully delivered ${uploadedItems.length} photos.`,
           });
           setFiles([]);
+          setIsUploading(false);
         })
         .catch(async (err) => {
+          console.error("Firestore sync error:", err);
+          setIsUploading(false);
           if (err.code === 'permission-denied') {
             const permissionError = new FirestorePermissionError({
               path: galleryRef.path,
@@ -130,21 +143,22 @@ export default function GalleryUploadPage() {
           } else {
             toast({
               variant: "destructive",
-              title: "Firestore Sync Failed",
-              description: err.message
+              title: "Firestore Error",
+              description: "Files were uploaded but could not be added to the gallery. Please contact support."
             });
           }
         });
+      } else {
+        setIsUploading(false);
       }
     } catch (err: any) {
-      console.error("Batch upload process failed:", err);
+      console.error("Batch upload failed:", err);
+      setIsUploading(false);
       toast({
         variant: "destructive",
-        title: "Upload Error",
-        description: err.message || "An error occurred during file upload."
+        title: "Upload Failed",
+        description: err.message || "An error occurred while uploading your files."
       });
-    } finally {
-      setIsUploading(false);
     }
   };
 
@@ -155,6 +169,7 @@ export default function GalleryUploadPage() {
     }
     setIsAiProcessing(true);
     try {
+      // Logic for AI highlights would go here (e.g., calling photographerAIGalleryHighlights)
       await new Promise(r => setTimeout(r, 2000));
       toast({
         title: "AI Highlights Found",
@@ -196,7 +211,7 @@ export default function GalleryUploadPage() {
           </div>
         </div>
         
-        {event.items?.length > 0 && (
+        {event.items && event.items.length > 0 && (
           <Button 
             variant="outline" 
             className="border-primary text-primary hover:bg-primary/10 rounded-full gap-2"
@@ -240,10 +255,10 @@ export default function GalleryUploadPage() {
         </div>
 
         <div className="bg-card border border-border/50 rounded-3xl p-6 h-[500px] flex flex-col shadow-xl">
-          <h3 className="text-xl font-headline font-bold mb-4 flex items-center justify-between">
-            Upload Queue
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-headline font-bold">Upload Queue</h3>
             <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full font-bold">{files.length} Files</span>
-          </h3>
+          </div>
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
             {files.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm italic opacity-50">
