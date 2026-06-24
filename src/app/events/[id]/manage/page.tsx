@@ -46,6 +46,16 @@ export default function EventManagementPage() {
 
   const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
+  useEffect(() => {
+    if (event) {
+      console.log(`Managing event: ${event.title}`, {
+        id: event.id,
+        itemsCount: event.items?.length,
+        items: event.items
+      });
+    }
+  }, [event]);
+
   if (authLoading || dataLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 min-h-[50vh]">

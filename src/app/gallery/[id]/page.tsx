@@ -1,13 +1,13 @@
 
 "use client";
 
-import { useFirestore } from '@/firebase';
+import { useFirestore, useDoc } from '@/firebase';
 import { useParams } from 'next/navigation';
-import { Heart, Download, Share2, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle } from 'lucide-react';
+import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from 'react';
+import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import Link from 'next/link';
 import {
   AlertDialog,
@@ -25,64 +25,62 @@ export default function ClientGalleryPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
   
-  const [gallery, setGallery] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [galleryId, setGalleryId] = useState<string | null>(null);
+  const [searching, setSearching] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showLockDialog, setShowLockDialog] = useState(false);
 
+  // Resolve ID from slug if necessary
   useEffect(() => {
-    async function fetchGallery() {
+    async function resolveGallery() {
       if (!firestore || !galleryParam) return;
-      
-      console.log(`Fetching gallery: ${galleryParam}`);
-      setLoading(true);
+      setSearching(true);
       try {
-        // First try to fetch by Document ID
-        const docRef = doc(firestore, 'galleries', galleryParam);
-        const docSnap = await getDoc(docRef);
+        // Try direct ID first
+        const directRef = doc(firestore, 'galleries', galleryParam);
+        const directSnap = await getDocs(query(collection(firestore, 'galleries'), where('__name__', '==', galleryParam)));
         
-        if (docSnap.exists()) {
-          const data = { ...docSnap.data(), id: docSnap.id };
-          console.log("Gallery found by ID:", data.title, "Items count:", data.items?.length);
-          setGallery(data);
-          updateDoc(docRef, { viewCount: increment(1) });
+        if (!directSnap.empty) {
+          setGalleryId(galleryParam);
+          updateDoc(doc(firestore, 'galleries', galleryParam), { viewCount: increment(1) });
         } else {
-          // Fallback to searching by slug
+          // Fallback to slug
           const q = query(collection(firestore, 'galleries'), where('slug', '==', galleryParam));
           const querySnapshot = await getDocs(q);
-          
           if (!querySnapshot.empty) {
-            const result = querySnapshot.docs[0];
-            const data = { ...result.data(), id: result.id };
-            console.log("Gallery found by Slug:", data.title, "Items count:", data.items?.length);
-            setGallery(data);
-            updateDoc(doc(firestore, 'galleries', result.id), { viewCount: increment(1) });
+            setGalleryId(querySnapshot.docs[0].id);
+            updateDoc(doc(firestore, 'galleries', querySnapshot.docs[0].id), { viewCount: increment(1) });
           } else {
-            console.error("No gallery found with param:", galleryParam);
-            setGallery(null);
+            setGalleryId(null);
           }
         }
-      } catch (error) {
-        console.error("Fetch gallery error:", error);
-        setGallery(null);
+      } catch (err) {
+        console.error("Gallery resolution error:", err);
+        setGalleryId(null);
       } finally {
-        setLoading(false);
+        setSearching(false);
       }
     }
-    fetchGallery();
+    resolveGallery();
   }, [firestore, galleryParam]);
 
+  const galleryRef = useMemo(() => {
+    if (!firestore || !galleryId) return null;
+    return doc(firestore, 'galleries', galleryId);
+  }, [firestore, galleryId]);
+
+  const { data: gallery, loading: docLoading } = useDoc(galleryRef);
+
   const handleFavorite = async (itemId: string, isCurrentlyFavorite: boolean) => {
-    if (!firestore || !gallery) return;
+    if (!firestore || !gallery || !galleryId) return;
     
     try {
-      const galleryRef = doc(firestore, 'galleries', gallery.id);
+      const gRef = doc(firestore, 'galleries', galleryId);
       const updatedItems = gallery.items.map((item: any) => 
         item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
       );
       
-      await updateDoc(galleryRef, { items: updatedItems });
-      setGallery({ ...gallery, items: updatedItems });
+      await updateDoc(gRef, { items: updatedItems });
       
       toast({
         title: "Preference Updated",
@@ -114,13 +112,13 @@ export default function ClientGalleryPage() {
   };
 
   const handleContactStudio = () => {
-    // Standard WhatsApp format for Pakistan or international numbers
     const phoneNumber = "923330000000"; 
-    const message = encodeURIComponent(`Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and would like to request download access for high-resolution images.`);
+    const studioName = gallery?.title || "your studio";
+    const message = encodeURIComponent(`Hi, I'm viewing the "${studioName}" gallery on Hafash.pk and would like to request download access for high-resolution images.`);
     window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
   };
 
-  if (loading) {
+  if (searching || docLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -201,8 +199,7 @@ export default function ClientGalleryPage() {
         ) : (
           <div className="columns-1 md:columns-2 lg:columns-3 gap-10 space-y-10">
             {gallery.items.map((item: any, idx: number) => {
-              // Fallback if item structure is slightly different
-              const imageUrl = typeof item === 'string' ? item : item.url;
+              const imageUrl = item.url;
               const itemId = item.id || `item-${idx}`;
               
               if (!imageUrl) return null;

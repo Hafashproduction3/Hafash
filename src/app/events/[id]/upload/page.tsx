@@ -10,6 +10,8 @@ import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X } fro
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 
 export default function GalleryUploadPage() {
@@ -54,13 +56,22 @@ export default function GalleryUploadPage() {
   };
 
   const startUpload = async () => {
-    if (!firestore || !storage || !event || !user) return;
-    setIsUploading(true);
+    if (!firestore || !storage || !event || !user) {
+      toast({
+        variant: "destructive",
+        title: "System Error",
+        description: "Firebase services are not initialized."
+      });
+      return;
+    }
     
+    setIsUploading(true);
     const uploadedItems: { id: string, url: string, type: 'image', isFavorite: boolean }[] = [];
 
     try {
       for (const fileItem of files) {
+        if (fileItem.progress === 100) continue; // Skip already uploaded
+
         const fileId = fileItem.id;
         const storagePath = `galleries/${id}/${fileId}_${fileItem.file.name}`;
         const storageRef = ref(storage, storagePath);
@@ -73,19 +84,22 @@ export default function GalleryUploadPage() {
               setFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
             }, 
             (error) => {
-              console.error("Upload error:", error);
+              console.error("Storage upload error:", error);
               reject(error);
             }, 
             async () => {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              console.log(`File uploaded: ${fileItem.name} -> ${downloadURL}`);
-              uploadedItems.push({
-                id: fileId,
-                url: downloadURL,
-                type: 'image',
-                isFavorite: false
-              });
-              resolve();
+              try {
+                const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+                uploadedItems.push({
+                  id: fileId,
+                  url: downloadURL,
+                  type: 'image',
+                  isFavorite: false
+                });
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
             }
           );
         });
@@ -93,25 +107,43 @@ export default function GalleryUploadPage() {
 
       if (uploadedItems.length > 0) {
         const galleryRef = doc(firestore, 'galleries', id);
-        await updateDoc(galleryRef, {
-          items: arrayUnion(...uploadedItems)
-        });
         
-        toast({
-          title: "Upload Complete",
-          description: `Successfully uploaded ${uploadedItems.length} photos.`,
+        // Use standard non-blocking mutation with proper error handling
+        updateDoc(galleryRef, {
+          items: arrayUnion(...uploadedItems)
+        })
+        .then(() => {
+          toast({
+            title: "Upload Complete",
+            description: `Successfully uploaded ${uploadedItems.length} photos.`,
+          });
+          setFiles([]);
+        })
+        .catch(async (err) => {
+          if (err.code === 'permission-denied') {
+            const permissionError = new FirestorePermissionError({
+              path: galleryRef.path,
+              operation: 'update',
+              requestResourceData: { items: uploadedItems },
+            });
+            errorEmitter.emit('permission-error', permissionError);
+          } else {
+            toast({
+              variant: "destructive",
+              title: "Firestore Sync Failed",
+              description: err.message
+            });
+          }
         });
       }
-      
-      setIsUploading(false);
-      setFiles([]);
     } catch (err: any) {
-      console.error("Batch upload failed:", err);
+      console.error("Batch upload process failed:", err);
       toast({
         variant: "destructive",
-        title: "Upload Failed",
-        description: err.message
+        title: "Upload Error",
+        description: err.message || "An error occurred during file upload."
       });
+    } finally {
       setIsUploading(false);
     }
   };
@@ -123,7 +155,6 @@ export default function GalleryUploadPage() {
     }
     setIsAiProcessing(true);
     try {
-      // Logic for AI highlights would go here, calling Genkit flows
       await new Promise(r => setTimeout(r, 2000));
       toast({
         title: "AI Highlights Found",
