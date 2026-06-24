@@ -56,14 +56,19 @@ export default function GalleryUploadPage() {
   };
 
   const startUpload = async () => {
-    console.log("Starting upload process...", { filesCount: files.length, id });
+    console.log("UPLOAD_DEBUG: Starting upload process...", { filesCount: files.length, eventId: id });
 
     if (!firestore || !storage || !event || !user) {
-      console.error("Initialization error:", { firestore: !!firestore, storage: !!storage, event: !!event, user: !!user });
+      console.error("UPLOAD_DEBUG: Initialization error", { 
+        firestore: !!firestore, 
+        storage: !!storage, 
+        event: !!event, 
+        user: !!user 
+      });
       toast({
         variant: "destructive",
         title: "System Error",
-        description: "Firebase services are not fully initialized. Please refresh and try again."
+        description: "Services not ready. Please refresh."
       });
       return;
     }
@@ -81,7 +86,7 @@ export default function GalleryUploadPage() {
         const storagePath = `galleries/${id}/${fileId}_${fileItem.name}`;
         const storageRef = ref(storage, storagePath);
         
-        console.log(`Uploading file: ${fileItem.name} to path: ${storagePath}`);
+        console.log(`UPLOAD_DEBUG: Processing ${fileItem.name}...`);
         
         const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
@@ -92,7 +97,7 @@ export default function GalleryUploadPage() {
               setFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
             }, 
             (error) => {
-              console.error(`Upload error for ${fileItem.name}:`, error);
+              console.error(`UPLOAD_DEBUG: Storage error for ${fileItem.name}:`, error);
               reject(error);
             }, 
             async () => {
@@ -104,10 +109,10 @@ export default function GalleryUploadPage() {
                   type: 'image',
                   isFavorite: false
                 });
-                console.log(`Successfully uploaded: ${fileItem.name}, URL: ${downloadURL}`);
+                console.log(`UPLOAD_DEBUG: ${fileItem.name} uploaded. URL: ${downloadURL}`);
                 resolve();
               } catch (err) {
-                console.error(`Error getting download URL for ${fileItem.name}:`, err);
+                console.error(`UPLOAD_DEBUG: URL retrieval error:`, err);
                 reject(err);
               }
             }
@@ -116,49 +121,38 @@ export default function GalleryUploadPage() {
       }
 
       if (uploadedItems.length > 0) {
-        console.log(`Syncing ${uploadedItems.length} items to Firestore...`);
+        console.log(`UPLOAD_DEBUG: Attempting Firestore sync for ${uploadedItems.length} items...`);
         const galleryRef = doc(firestore, 'galleries', id);
         
-        updateDoc(galleryRef, {
+        await updateDoc(galleryRef, {
           items: arrayUnion(...uploadedItems)
-        })
-        .then(() => {
-          toast({
-            title: "Upload Complete",
-            description: `Successfully delivered ${uploadedItems.length} photos.`,
-          });
-          setFiles([]);
-          setIsUploading(false);
-        })
-        .catch(async (err) => {
-          console.error("Firestore sync error:", err);
-          setIsUploading(false);
-          if (err.code === 'permission-denied') {
-            const permissionError = new FirestorePermissionError({
-              path: galleryRef.path,
-              operation: 'update',
-              requestResourceData: { items: uploadedItems },
-            });
-            errorEmitter.emit('permission-error', permissionError);
-          } else {
-            toast({
-              variant: "destructive",
-              title: "Firestore Error",
-              description: "Files were uploaded but could not be added to the gallery. Please contact support."
-            });
-          }
         });
-      } else {
-        setIsUploading(false);
+
+        console.log("UPLOAD_DEBUG: Firestore sync successful.");
+        toast({
+          title: "Success",
+          description: `${uploadedItems.length} photos added to gallery.`,
+        });
+        setFiles([]);
       }
     } catch (err: any) {
-      console.error("Batch upload failed:", err);
+      console.error("UPLOAD_DEBUG: Batch failed:", err);
+      if (err.code === 'permission-denied') {
+        const permissionError = new FirestorePermissionError({
+          path: `galleries/${id}`,
+          operation: 'update',
+          requestResourceData: { items: 'arrayUnion(uploadedItems)' },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Upload Error",
+          description: err.message || "An error occurred."
+        });
+      }
+    } finally {
       setIsUploading(false);
-      toast({
-        variant: "destructive",
-        title: "Upload Failed",
-        description: err.message || "An error occurred while uploading your files."
-      });
     }
   };
 
@@ -169,11 +163,10 @@ export default function GalleryUploadPage() {
     }
     setIsAiProcessing(true);
     try {
-      // Logic for AI highlights would go here (e.g., calling photographerAIGalleryHighlights)
       await new Promise(r => setTimeout(r, 2000));
       toast({
         title: "AI Highlights Found",
-        description: "Successfully identified cinematic highlights from your gallery.",
+        description: "Successfully identified cinematic highlights.",
       });
     } catch (err) {
       console.error(err);
@@ -186,7 +179,7 @@ export default function GalleryUploadPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading event data...</p>
+        <p className="mt-4 text-muted-foreground">Syncing with studio...</p>
       </div>
     );
   }
@@ -292,7 +285,7 @@ export default function GalleryUploadPage() {
 
       <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row gap-6 justify-between items-center">
         <p className="text-sm text-muted-foreground italic max-w-md">
-          Tip: High-resolution files are securely stored. You can toggle download access for your clients anytime from the Delivery Suite.
+          Tip: High-resolution files are securely stored. Toggle download access for your clients anytime.
         </p>
         <Link href={`/events/${id}/manage`}>
           <Button className="rounded-full bg-white text-black hover:bg-white/90 font-bold gap-2 px-8 h-12">

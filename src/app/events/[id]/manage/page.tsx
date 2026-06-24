@@ -48,10 +48,9 @@ export default function EventManagementPage() {
 
   useEffect(() => {
     if (event) {
-      console.log(`Managing event: ${event.title}`, {
-        id: event.id,
+      console.log(`MANAGE_DEBUG: Retrieved event: ${event.title}`, {
         itemsCount: event.items?.length,
-        items: event.items
+        itemsSample: event.items?.slice(0, 2)
       });
     }
   }, [event]);
@@ -60,28 +59,15 @@ export default function EventManagementPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground animate-pulse">Loading event details...</p>
+        <p className="mt-4 text-muted-foreground">Loading event details...</p>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="text-center py-20 bg-destructive/5 rounded-3xl border border-destructive/20 max-w-2xl mx-auto">
-        <p className="text-destructive font-bold text-lg">Error loading event</p>
-        <p className="text-muted-foreground text-sm mt-2">{error.message}</p>
-        <Button variant="outline" className="mt-6 rounded-full" onClick={() => router.push('/dashboard')}>
-          Back to Dashboard
-        </Button>
-      </div>
-    );
-  }
-
-  if (!user || !event) {
+  if (error || !event) {
     return (
       <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50 max-w-2xl mx-auto">
         <h2 className="text-2xl font-headline font-bold">Event not found</h2>
-        <p className="text-muted-foreground mt-2">The event you're looking for doesn't exist or you don't have access.</p>
         <Button className="mt-6 rounded-full px-8 bg-primary text-primary-foreground" onClick={() => router.push('/dashboard')}>
           Back to Dashboard
         </Button>
@@ -92,7 +78,7 @@ export default function EventManagementPage() {
   const handleCopyLink = () => {
     const url = `${window.location.origin}/gallery/${event.slug || event.id}`;
     navigator.clipboard.writeText(url);
-    toast({ title: "Copied!", description: "Gallery link copied to clipboard." });
+    toast({ title: "Copied!", description: "Gallery link copied." });
   };
 
   const handleWhatsAppShare = () => {
@@ -102,10 +88,10 @@ export default function EventManagementPage() {
   };
 
   const handleDelete = async () => {
-    if (!firestore || !confirm('Are you sure you want to delete this event? This action cannot be undone.')) return;
+    if (!firestore || !confirm('Are you sure you want to delete this event?')) return;
     try {
       await deleteDoc(doc(firestore, 'galleries', id));
-      toast({ title: "Event Deleted", description: "The gallery has been removed." });
+      toast({ title: "Event Deleted" });
       router.push('/dashboard');
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error", description: err.message });
@@ -167,10 +153,10 @@ export default function EventManagementPage() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button className="h-14 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold gap-3 shadow-lg shadow-green-500/10" onClick={handleWhatsAppShare}>
+                <Button className="h-14 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold gap-3" onClick={handleWhatsAppShare}>
                   <MessageCircle className="w-5 h-5" /> Share via WhatsApp
                 </Button>
-                <Button className="h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-lg shadow-primary/10" onClick={handleCopyLink}>
+                <Button className="h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3" onClick={handleCopyLink}>
                   <LinkIcon className="w-5 h-5" /> Copy Gallery Link
                 </Button>
               </div>
@@ -191,9 +177,7 @@ export default function EventManagementPage() {
                     Client Downloads
                   </h4>
                   <p className="text-sm text-muted-foreground">
-                    {event.isLocked 
-                      ? "Watermarks are active. Clients cannot download original files." 
-                      : "Watermarks are hidden. Original files are ready for download."}
+                    {event.isLocked ? "Watermarks are active." : "Original files are ready."}
                   </p>
                 </div>
                 <Switch 
@@ -201,21 +185,6 @@ export default function EventManagementPage() {
                   onCheckedChange={() => toggleLock(event.isLocked)} 
                   className="data-[state=checked]:bg-primary"
                 />
-              </div>
-              
-              <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
-                 <div className="p-4 rounded-xl border border-border/30 bg-background/30">
-                   <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Total Items</p>
-                   <p className="text-2xl font-headline font-bold">{event.items?.length || 0}</p>
-                 </div>
-                 <div className="p-4 rounded-xl border border-border/30 bg-background/30">
-                   <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Total Views</p>
-                   <p className="text-2xl font-headline font-bold">{event.viewCount || 0}</p>
-                 </div>
-                 <div className="p-4 rounded-xl border border-border/30 bg-background/30">
-                   <p className="text-xs uppercase tracking-widest text-muted-foreground mb-1">Favorites</p>
-                   <p className="text-2xl font-headline font-bold text-primary">{event.items?.filter((i: any) => i.isFavorite).length || 0}</p>
-                 </div>
               </div>
             </CardContent>
           </Card>
@@ -233,27 +202,6 @@ export default function EventManagementPage() {
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </Link>
-              <Button variant="ghost" className="w-full justify-between hover:bg-primary/10 hover:text-primary rounded-xl h-12">
-                <span className="flex items-center gap-3"><SettingsIcon className="w-4 h-4" /> Gallery Settings</span>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-lg">
-            <CardHeader className="border-b border-border/30 bg-background/30">
-              <CardTitle className="text-sm uppercase tracking-widest text-primary font-bold">Cover Preview</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="relative aspect-video">
-                <img src={event.coverImage} alt="Cover" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/20" />
-              </div>
-              <div className="p-4">
-                <Button variant="outline" size="sm" className="w-full rounded-xl border-border/50 hover:bg-primary hover:text-primary-foreground hover:border-primary">
-                  Change Cover Photo
-                </Button>
-              </div>
             </CardContent>
           </Card>
         </div>
