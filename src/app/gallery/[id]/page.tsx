@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
