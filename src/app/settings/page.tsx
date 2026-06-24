@@ -4,7 +4,7 @@
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
-import { User, Shield, Camera, Save, Loader2, Briefcase, Phone } from 'lucide-react';
+import { User, Shield, Camera, Save, Loader2, Briefcase, Phone, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +33,7 @@ export default function SettingsPage() {
     studioName: '',
     photographerName: '',
     whatsappNumber: '',
+    studioLogo: '',
   });
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export default function SettingsPage() {
         studioName: profile.studioName || '',
         photographerName: profile.photographerName || '',
         whatsappNumber: profile.whatsappNumber || '',
+        studioLogo: profile.studioLogo || '',
       });
     }
   }, [profile]);
@@ -140,25 +142,39 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Photographer Name</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                  <Input 
-                    value={formData.photographerName} 
-                    onChange={(e) => setFormData({ ...formData, photographerName: e.target.value })}
-                    placeholder="Your Name" 
-                    className="pl-10 rounded-xl bg-background/50 border-border/50" 
-                  />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label>Photographer Name</Label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                    <Input 
+                      value={formData.photographerName} 
+                      onChange={(e) => setFormData({ ...formData, photographerName: e.target.value })}
+                      placeholder="Your Name" 
+                      className="pl-10 rounded-xl bg-background/50 border-border/50" 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Studio Logo URL (Optional)</Label>
+                  <div className="relative">
+                    <ImageIcon className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                    <Input 
+                      value={formData.studioLogo} 
+                      onChange={(e) => setFormData({ ...formData, studioLogo: e.target.value })}
+                      placeholder="https://..." 
+                      className="pl-10 rounded-xl bg-background/50 border-border/50" 
+                    />
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
+          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-xl">
             <CardHeader className="border-b border-border/30 bg-background/30">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                <Shield className="w-5 h-5 text-primary" /> Account Details
+                <Shield className="w-5 h-5 text-primary" /> Account Security
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
@@ -184,6 +200,9 @@ export default function SettingsPage() {
                    <p className="text-xs text-muted-foreground">Enabled for all previews</p>
                  </div>
                  <Switch defaultChecked disabled className="data-[state=checked]:bg-primary" />
+               </div>
+               <div className="pt-4 border-t border-border/30">
+                 <p className="text-[10px] text-muted-foreground italic">Studio configuration is encrypted and synced across your photographer account.</p>
                </div>
             </CardContent>
           </Card>

@@ -66,7 +66,7 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading } = useDoc(galleryRef);
 
-  // Fetch photographer settings
+  // Fetch photographer settings based on the gallery owner's ID
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
     return doc(firestore, 'users', gallery.userId);
@@ -128,8 +128,17 @@ export default function ClientGalleryPage() {
   };
 
   const handleWhatsAppContact = () => {
-    const whatsapp = profile?.whatsappNumber || "923000000000";
-    const message = `Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and I'd like to talk about my selection.`;
+    if (!profile?.whatsappNumber) {
+      toast({
+        variant: "destructive",
+        title: "Configuration Incomplete",
+        description: "Please configure your studio WhatsApp number.",
+      });
+      return;
+    }
+    
+    const whatsapp = profile.whatsappNumber;
+    const message = `Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and I'd like to discuss my selection.`;
     window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -197,12 +206,8 @@ export default function ClientGalleryPage() {
               >
                 <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
                 
-                {gallery.isLocked && (
-                  <>
-                    <div className="absolute inset-0 watermark-overlay" />
-                    <div className="watermark-text">HAFASH PREVIEW</div>
-                  </>
-                )}
+                <div className="absolute inset-0 watermark-overlay pointer-events-none" />
+                <div className="watermark-text">HAFASH PREVIEW</div>
 
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6 backdrop-blur-[2px]">
                   <div className="flex gap-4">
@@ -244,7 +249,7 @@ export default function ClientGalleryPage() {
         <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
             <img src={selectedImage} className="max-w-full max-h-[92vh] object-contain shadow-2xl rounded-2xl" alt="Fullscreen" />
-            {gallery.isLocked && <div className="watermark-text">HAFASH PREVIEW</div>}
+            <div className="watermark-text">HAFASH PREVIEW</div>
           </div>
           <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-primary hover:bg-primary/10 rounded-full h-12 w-12 bg-background/50 backdrop-blur-md">
             <X className="w-8 h-8" />
@@ -263,7 +268,7 @@ export default function ClientGalleryPage() {
             </div>
             <AlertDialogTitle className="text-4xl font-headline font-bold italic tracking-tighter">High-Resolution Restricted</AlertDialogTitle>
             <AlertDialogDescription className="text-lg mt-6 leading-relaxed text-muted-foreground">
-              Original quality downloads are currently locked. Please contact {profile?.photographerName || 'the studio'} to finalize your package and unlock high-resolution master file access.
+              Original downloads are locked by the photographer. Please contact {profile?.photographerName || 'the studio'} to finalize your package and unlock high-resolution master file access.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-12 flex flex-col gap-4">
