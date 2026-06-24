@@ -25,7 +25,8 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 
 export default function EventManagementPage() {
-  const { id } = useParams() as { id: string };
+  const params = useParams();
+  const id = params?.id as string;
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
@@ -39,29 +40,33 @@ export default function EventManagementPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
+      <div className="flex flex-col items-center justify-center py-20 min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading event details...</p>
+        <p className="mt-4 text-muted-foreground animate-pulse">Loading event details...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-20">
-        <p className="text-destructive font-bold">Error loading event</p>
-        <p className="text-muted-foreground text-sm">{error.message}</p>
-        <Button variant="link" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
+      <div className="text-center py-20 bg-destructive/5 rounded-3xl border border-destructive/20 max-w-2xl mx-auto">
+        <p className="text-destructive font-bold text-lg">Error loading event</p>
+        <p className="text-muted-foreground text-sm mt-2">{error.message}</p>
+        <Button variant="outline" className="mt-6 rounded-full" onClick={() => router.push('/dashboard')}>
+          Back to Dashboard
+        </Button>
       </div>
     );
   }
 
   if (!event) {
     return (
-      <div className="text-center py-20">
-        <h2 className="text-2xl font-bold">Event not found</h2>
+      <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50 max-w-2xl mx-auto">
+        <h2 className="text-2xl font-headline font-bold">Event not found</h2>
         <p className="text-muted-foreground mt-2">The event you're looking for doesn't exist or you don't have access.</p>
-        <Button className="mt-6 rounded-full" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
+        <Button className="mt-6 rounded-full px-8 bg-primary text-primary-foreground" onClick={() => router.push('/dashboard')}>
+          Back to Dashboard
+        </Button>
       </div>
     );
   }
@@ -102,12 +107,12 @@ export default function EventManagementPage() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.push('/dashboard')}>
+          <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10" onClick={() => router.push('/dashboard')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
             <h1 className="text-3xl font-headline font-bold">{event.title}</h1>
-            <p className="text-muted-foreground">Manage gallery access and sharing.</p>
+            <p className="text-muted-foreground">Manage gallery access and delivery.</p>
           </div>
         </div>
         <div className="flex gap-3">
@@ -117,15 +122,15 @@ export default function EventManagementPage() {
              </Button>
           </Link>
           <Button variant="destructive" className="rounded-full gap-2" onClick={handleDelete}>
-             <Trash2 className="w-4 h-4" /> Delete
+             <Trash2 className="w-4 h-4" /> Delete Event
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
-            <CardHeader className="border-b border-border/30 bg-background/30">
+          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-xl">
+            <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
                 <Share2 className="w-5 h-5 text-primary" /> Delivery Suite
               </CardTitle>
@@ -134,30 +139,30 @@ export default function EventManagementPage() {
               <div className="space-y-4">
                 <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Public Gallery Link</label>
                 <div className="flex gap-2">
-                  <div className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-3 text-sm truncate opacity-60">
-                    {window.location.origin}/gallery/{event.slug || event.id}
+                  <div className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-3 text-sm truncate opacity-80 text-primary/80 font-mono">
+                    {typeof window !== 'undefined' ? window.location.origin : ''}/gallery/{event.slug || event.id}
                   </div>
-                  <Button size="icon" className="rounded-xl bg-primary text-primary-foreground" onClick={handleCopyLink}>
+                  <Button size="icon" className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" onClick={handleCopyLink}>
                     <LinkIcon className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button className="h-14 rounded-2xl bg-green-600 hover:bg-green-700 text-white font-bold gap-3" onClick={handleWhatsAppShare}>
+                <Button className="h-14 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold gap-3 shadow-lg shadow-green-500/10" onClick={handleWhatsAppShare}>
                   <MessageCircle className="w-5 h-5" /> Share via WhatsApp
                 </Button>
-                <Button className="h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3" onClick={handleCopyLink}>
+                <Button className="h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-lg shadow-primary/10" onClick={handleCopyLink}>
                   <LinkIcon className="w-5 h-5" /> Copy Gallery Link
                 </Button>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
-            <CardHeader className="border-b border-border/30 bg-background/30">
+          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-xl">
+            <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                <Lock className="w-5 h-5 text-primary" /> Download Controls
+                <Lock className="w-5 h-5 text-primary" /> Access Controls
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8">
@@ -199,32 +204,37 @@ export default function EventManagementPage() {
         </div>
 
         <div className="space-y-8">
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
+          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-lg">
             <CardHeader className="border-b border-border/30 bg-background/30">
               <CardTitle className="text-sm uppercase tracking-widest text-primary font-bold">Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-2">
               <Link href={`/events/${id}/upload`} className="block">
                 <Button variant="ghost" className="w-full justify-between hover:bg-primary/10 hover:text-primary rounded-xl h-12">
-                  <span className="flex items-center gap-3"><ImageIcon className="w-4 h-4" /> Add Media</span>
+                  <span className="flex items-center gap-3"><ImageIcon className="w-4 h-4" /> Add More Media</span>
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </Link>
               <Button variant="ghost" className="w-full justify-between hover:bg-primary/10 hover:text-primary rounded-xl h-12">
-                <span className="flex items-center gap-3"><SettingsIcon className="w-4 h-4" /> Edit Event Info</span>
+                <span className="flex items-center gap-3"><SettingsIcon className="w-4 h-4" /> Gallery Settings</span>
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
+          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-lg">
             <CardHeader className="border-b border-border/30 bg-background/30">
               <CardTitle className="text-sm uppercase tracking-widest text-primary font-bold">Cover Preview</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <img src={event.coverImage} alt="Cover" className="w-full aspect-video object-cover" />
+              <div className="relative aspect-video">
+                <img src={event.coverImage} alt="Cover" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/20" />
+              </div>
               <div className="p-4">
-                <Button variant="outline" size="sm" className="w-full rounded-xl border-border/50">Change Cover Photo</Button>
+                <Button variant="outline" size="sm" className="w-full rounded-xl border-border/50 hover:bg-primary hover:text-primary-foreground hover:border-primary">
+                  Change Cover Photo
+                </Button>
               </div>
             </CardContent>
           </Card>

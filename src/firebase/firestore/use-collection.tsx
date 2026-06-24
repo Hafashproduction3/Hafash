@@ -1,36 +1,34 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Query, 
   onSnapshot, 
   QuerySnapshot, 
   DocumentData,
-  queryEqual
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
+/**
+ * Hook to listen to a Firestore collection or query.
+ */
 export function useCollection<T = DocumentData>(query: Query<T> | null) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  
-  const queryRef = useRef<Query<T> | null>(null);
 
   useEffect(() => {
     if (!query) {
       setData(null);
+      setError(null);
       setLoading(false);
       return;
     }
 
-    if (queryRef.current && queryEqual(query, queryRef.current)) {
-      return;
-    }
-    queryRef.current = query;
-
     setLoading(true);
+    setError(null);
+
     const unsubscribe = onSnapshot(
       query,
       (snapshot: QuerySnapshot<T>) => {
@@ -44,7 +42,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
       async (err) => {
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
-            path: 'galleries', // Best estimate for collection queries
+            path: 'collection_query',
             operation: 'list',
           });
           errorEmitter.emit('permission-error', permissionError);
@@ -57,7 +55,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [query]);
+  }, [query]); // Note: parent should memoize query
 
   return { data, loading, error };
 }

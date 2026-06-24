@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   DocumentReference, 
   onSnapshot, 
@@ -11,29 +11,27 @@ import {
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
+/**
+ * Hook to listen to a single Firestore document.
+ * Handles loading, data, and permission errors contextualized for the developer.
+ */
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  
-  // Track the current path to avoid unnecessary re-subscriptions
-  const currentPathRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Reset state if docRef is null
     if (!docRef) {
       setData(null);
+      setError(null);
       setLoading(false);
-      currentPathRef.current = null;
       return;
     }
-
-    // Only re-subscribe if the document path has actually changed
-    if (docRef.path === currentPathRef.current) {
-      return;
-    }
-    currentPathRef.current = docRef.path;
 
     setLoading(true);
+    setError(null);
+
     const unsubscribe = onSnapshot(
       docRef,
       (snapshot: DocumentSnapshot<T>) => {
@@ -60,7 +58,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [docRef]);
+  }, [docRef?.path]); // Depend on path string for stability
 
   return { data, loading, error };
 }
