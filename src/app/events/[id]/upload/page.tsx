@@ -93,21 +93,19 @@ export default function GalleryUploadPage() {
           const storageRef = ref(storage, `galleries/${id}/${fileId}_${fileItem.name}`);
           const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
-          await new Promise<void>((resolve, reject) => {
-            uploadTask.on('state_changed', 
-              (snapshot) => {
-                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-                updateStatus('uploading', progress);
-              }, 
-              (error) => {
-                console.error("UPLOAD_DEBUG: Storage error", error);
-                reject(error);
-              }, 
-              () => {
-                resolve();
-              }
-            );
-          });
+          // Listen for progress updates separately
+          const unsubscribe = uploadTask.on('state_changed', 
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              updateStatus('uploading', progress);
+            }
+          );
+
+          // Use the task promise directly to await completion
+          await uploadTask;
+          
+          // Cleanup listener
+          unsubscribe();
 
           const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
@@ -122,7 +120,8 @@ export default function GalleryUploadPage() {
           updateStatus('completed', 100);
         } catch (err: any) {
           updateStatus('error', 0, err.message);
-          throw err;
+          // If a single file fails, we catch it but continue to process others if possible
+          console.error(`File upload failed: ${fileItem.name}`, err);
         }
       }
 
@@ -140,15 +139,15 @@ export default function GalleryUploadPage() {
           }
         });
         
-        toast({ title: "Success", description: `${uploadedItems.length} photos delivered.` });
-        setFiles([]);
+        toast({ title: "Upload Finished", description: `${uploadedItems.length} photos processed.` });
+        // Only clear files that were successfully uploaded
+        setFiles(prev => prev.filter(f => f.status !== 'completed'));
       }
     } catch (err: any) {
-      console.error("UPLOAD_DEBUG: Batch failed", err);
       toast({
         variant: "destructive",
-        title: "Upload Failed",
-        description: err.message || "An unexpected error occurred during upload.",
+        title: "Upload Error",
+        description: err.message || "An unexpected error occurred during delivery.",
       });
     } finally {
       setIsUploading(false);
