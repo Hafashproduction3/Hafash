@@ -1,16 +1,45 @@
 
 "use client";
 
-import { useStore } from '@/lib/store';
-import { Heart, Download, ExternalLink, Calendar } from 'lucide-react';
+import { useFirestore, useUser, useCollection } from '@/firebase';
+import { Heart, Download, ExternalLink, Calendar, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo } from 'react';
+import { collection, query, where } from 'firebase/firestore';
 
 export default function FavoritesPanelPage() {
-  const { events } = useStore();
+  const firestore = useFirestore();
+  const { user, loading: authLoading } = useUser();
+  const router = useRouter();
 
-  const favoriteEvents = events.filter(e => e.items.some(i => i.isFavorite));
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  const galleriesQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
+  }, [firestore, user?.uid]);
+
+  const { data: galleries, loading: dataLoading } = useCollection(galleriesQuery);
+
+  if (authLoading || (dataLoading && !galleries)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">Loading favorites...</p>
+      </div>
+    );
+  }
+
+  if (!user) return null;
+
+  const favoriteEvents = (galleries || []).filter(e => e.items && e.items.some((i: any) => i.isFavorite));
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -29,7 +58,7 @@ export default function FavoritesPanelPage() {
       ) : (
         <div className="grid grid-cols-1 gap-8">
           {favoriteEvents.map(event => {
-            const favorites = event.items.filter(i => i.isFavorite);
+            const favorites = event.items.filter((i: any) => i.isFavorite);
             return (
               <Card key={event.id} className="bg-card border-border/50 overflow-hidden">
                 <CardContent className="p-0">
@@ -57,7 +86,7 @@ export default function FavoritesPanelPage() {
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
-                        {favorites.slice(0, 16).map(item => (
+                        {favorites.slice(0, 16).map((item: any) => (
                           <div key={item.id} className="aspect-square rounded-lg overflow-hidden border border-border/30 hover:border-primary transition-colors">
                             <img src={item.url} className="w-full h-full object-cover" alt="Selected" />
                           </div>

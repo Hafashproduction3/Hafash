@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   Share2, 
@@ -22,23 +23,30 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 
 export default function EventManagementPage() {
   const params = useParams();
   const id = params?.id as string;
   const firestore = useFirestore();
+  const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
   const router = useRouter();
   
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
   const eventRef = useMemo(() => {
     if (!firestore || !id) return null;
     return doc(firestore, 'galleries', id);
   }, [firestore, id]);
 
-  const { data: event, loading, error } = useDoc(eventRef);
+  const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
-  if (loading) {
+  if (authLoading || dataLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -59,7 +67,7 @@ export default function EventManagementPage() {
     );
   }
 
-  if (!event) {
+  if (!user || !event) {
     return (
       <div className="text-center py-20 bg-card/30 rounded-3xl border border-dashed border-border/50 max-w-2xl mx-auto">
         <h2 className="text-2xl font-headline font-bold">Event not found</h2>

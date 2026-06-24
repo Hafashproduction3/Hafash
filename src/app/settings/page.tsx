@@ -1,7 +1,10 @@
 
 "use client";
 
-import { User, Shield, Bell, HardDrive, Camera, Save } from 'lucide-react';
+import { useUser } from '@/firebase';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { User, Shield, Camera, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,11 +13,29 @@ import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SettingsPage() {
+  const { user, loading: authLoading } = useUser();
+  const router = useRouter();
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
 
   const handleSave = () => {
     toast({ title: "Settings Saved", description: "Your studio preferences have been updated." });
   };
+
+  if (authLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-[50vh]">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -41,7 +62,7 @@ export default function SettingsPage() {
               <div className="flex flex-col md:flex-row gap-8 items-center mb-6">
                 <div className="relative">
                   <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-primary/20">
-                    <img src="https://picsum.photos/seed/photographer/400/400" className="w-full h-full object-cover" alt="Profile" />
+                    <img src={user.photoURL || "https://picsum.photos/seed/photographer/400/400"} className="w-full h-full object-cover" alt="Profile" />
                   </div>
                   <Button size="icon" className="absolute bottom-0 right-0 rounded-full bg-primary text-primary-foreground h-10 w-10">
                     <Camera className="w-4 h-4" />
@@ -51,18 +72,18 @@ export default function SettingsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Full Name</Label>
-                      <Input defaultValue="Hamza Farooq" className="rounded-xl bg-background/50 border-border/50" />
+                      <Input defaultValue={user.displayName || ""} className="rounded-xl bg-background/50 border-border/50" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Studio Name</Label>
-                      <Input defaultValue="Hafash Studios" className="rounded-xl bg-background/50 border-border/50" />
+                      <Label>Studio Email</Label>
+                      <Input defaultValue={user.email || ""} readOnly className="rounded-xl bg-background/50 border-border/50 opacity-70" />
                     </div>
                   </div>
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Bio / Tagline</Label>
-                <Input defaultValue="Luxury wedding photography capturing timeless emotions." className="rounded-xl bg-background/50 border-border/50" />
+                <Label>Studio Tagline</Label>
+                <Input placeholder="Luxury wedding photography capturing timeless emotions." className="rounded-xl bg-background/50 border-border/50" />
               </div>
             </CardContent>
           </Card>

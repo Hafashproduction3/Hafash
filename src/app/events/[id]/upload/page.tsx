@@ -1,10 +1,11 @@
+
 "use client";
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore, useDoc, useUser } from '@/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { Upload, X, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
@@ -14,14 +15,21 @@ export default function GalleryUploadPage() {
   const router = useRouter();
   const { id } = useParams() as { id: string };
   const firestore = useFirestore();
+  const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
   
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
   const eventRef = useMemo(() => {
     if (!firestore || !id) return null;
     return doc(firestore, 'galleries', id);
   }, [firestore, id]);
 
-  const { data: event, loading: eventLoading } = useDoc(eventRef);
+  const { data: event, loading: dataLoading } = useDoc(eventRef);
   
   const [files, setFiles] = useState<{ id: string, name: string, progress: number, url: string }[]>([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -97,7 +105,7 @@ export default function GalleryUploadPage() {
     }
   };
 
-  if (eventLoading) {
+  if (authLoading || dataLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -106,7 +114,7 @@ export default function GalleryUploadPage() {
     );
   }
 
-  if (!event) return (
+  if (!user || !event) return (
     <div className="text-center py-20">
       <h2 className="text-2xl font-bold">Event not found</h2>
       <Button className="mt-4 rounded-full" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>

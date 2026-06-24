@@ -8,12 +8,10 @@ import { signOut } from 'firebase/auth';
 import { 
   LayoutDashboard, 
   PlusCircle, 
-  Image as ImageIcon, 
   Heart, 
   HardDrive, 
   Settings, 
-  LogOut,
-  Camera
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -37,7 +35,11 @@ export function DashboardSidebar() {
     if (!auth) return;
     try {
       await signOut(auth);
-      router.push('/');
+      toast({
+        title: "Signed Out",
+        description: "You have been logged out of your studio.",
+      });
+      router.push('/login');
     } catch (error: any) {
       toast({
         variant: "destructive",
