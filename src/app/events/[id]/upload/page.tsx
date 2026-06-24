@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -15,8 +14,9 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
+import { firebaseConfig } from '@/firebase/config';
 
-type UploadStep = 'queued' | 'starting' | 'uploading' | 'generating-url' | 'syncing' | 'completed' | 'error' | 'timeout';
+type UploadStep = 'queued' | 'starting' | 'uploading' | 'generating-url' | 'syncing' | 'completed' | 'error' | 'timeout' | 'storage-missing';
 
 interface FileItem {
   id: string;
@@ -40,6 +40,10 @@ export default function GalleryUploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isAiProcessing, setIsAiProcessing] = useState(false);
   const [currentBatchStep, setCurrentBatchStep] = useState<string>('');
+  const [storageError, setStorageError] = useState<string | null>(null);
+
+  // Check if storage bucket is even configured in the client config
+  const isStorageConfigured = !!firebaseConfig.storageBucket;
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -63,7 +67,6 @@ export default function GalleryUploadPage() {
         progress: 0,
         status: 'queued'
       }));
-      console.log("UPLOAD_DEBUG: Files selected", newFiles.length);
       setFiles(prev => [...prev, ...newFiles]);
     }
   };
@@ -73,19 +76,22 @@ export default function GalleryUploadPage() {
   };
 
   const startUpload = async () => {
-    console.log("UPLOAD_DEBUG: startUpload triggered", { filesCount: files.length, eventId: id });
-
     if (!firestore || !storage || !user || !event) {
       toast({
         variant: "destructive",
         title: "Services Not Ready",
-        description: "Please ensure you are logged in and the event is loaded.",
+        description: "Firebase services are still initializing or authentication is missing.",
       });
+      return;
+    }
+
+    if (!isStorageConfigured) {
+      setStorageError("Firebase Storage is not configured in your project settings.");
       return;
     }
     
     if (files.length === 0) {
-      toast({ title: "No files", description: "Select photos first." });
+      toast({ title: "No files selected", description: "Please select photos to upload first." });
       return;
     }
 
@@ -95,7 +101,7 @@ export default function GalleryUploadPage() {
     try {
       for (let i = 0; i < files.length; i++) {
         const fileItem = files[i];
-        if (fileItem.status === 'completed') continue;
+        if (fileItem.status === 'completed' || fileItem.status === 'error') continue;
 
         const fileId = fileItem.id;
         const updateStatus = (status: UploadStep, error?: string) => {
@@ -103,7 +109,6 @@ export default function GalleryUploadPage() {
         };
 
         try {
-          console.log(`UPLOAD_DEBUG: [${i+1}/${files.length}] Starting: ${fileItem.name}`);
           updateStatus('starting');
           setCurrentBatchStep(`Uploading ${fileItem.name}...`);
 
@@ -111,10 +116,10 @@ export default function GalleryUploadPage() {
           const storageRef = ref(storage, storagePath);
           const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
-          // 30 second timeout per file
           const uploadPromise = new Promise<string>((resolve, reject) => {
             const timeoutId = setTimeout(() => {
-              reject(new Error('Storage upload timed out after 30s'));
+              uploadTask.cancel();
+              reject(new Error('Storage upload timed out after 30s. This often happens if the Storage service is not enabled in the Firebase Console.'));
             }, 30000);
 
             uploadTask.on('state_changed', 
@@ -124,12 +129,15 @@ export default function GalleryUploadPage() {
               }, 
               (err) => {
                 clearTimeout(timeoutId);
+                // Check for common permission or initialization errors
+                if (err.code === 'storage/unauthorized' || err.code === 'storage/retry-limit-exceeded') {
+                  setStorageError("Firebase Storage is not enabled or permission was denied. Please ensure you have provisioned Storage in your Firebase Console and upgraded your plan if required.");
+                }
                 reject(err);
               }, 
               async () => {
                 try {
                   clearTimeout(timeoutId);
-                  console.log(`UPLOAD_DEBUG: [${i+1}/${files.length}] Storage success: ${fileItem.name}`);
                   updateStatus('generating-url');
                   const url = await getDownloadURL(uploadTask.snapshot.ref);
                   resolve(url);
@@ -152,17 +160,12 @@ export default function GalleryUploadPage() {
         } catch (err: any) {
           console.error(`UPLOAD_DEBUG: Error processing ${fileItem.name}:`, err);
           updateStatus(err.message.includes('timeout') ? 'timeout' : 'error', err.message);
-          toast({
-            variant: "destructive",
-            title: `Error uploading ${fileItem.name}`,
-            description: err.message
-          });
-          // Continue to next file
+          setIsUploading(false); // Stop the batch if a critical service error occurs
+          return;
         }
       }
 
       if (uploadedItems.length > 0) {
-        console.log(`UPLOAD_DEBUG: Syncing ${uploadedItems.length} items to Firestore...`);
         setCurrentBatchStep("Finalizing database sync...");
         const galleryRef = doc(firestore, 'galleries', id);
         
@@ -170,14 +173,12 @@ export default function GalleryUploadPage() {
           items: arrayUnion(...uploadedItems)
         });
 
-        console.log("UPLOAD_DEBUG: Firestore sync complete.");
         toast({
           title: "Gallery Updated",
           description: `Successfully added ${uploadedItems.length} photos.`,
         });
       }
     } catch (err: any) {
-      console.error("UPLOAD_DEBUG: Batch process failure:", err);
       if (err.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `galleries/${id}`,
@@ -188,19 +189,6 @@ export default function GalleryUploadPage() {
     } finally {
       setIsUploading(false);
       setCurrentBatchStep('');
-    }
-  };
-
-  const runAiHighlights = async () => {
-    if (!event || !event.items || event.items.length === 0) return;
-    setIsAiProcessing(true);
-    try {
-      await new Promise(r => setTimeout(r, 2000));
-      toast({ title: "AI Analysis Complete", description: "Highlight reel generated." });
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAiProcessing(false);
     }
   };
 
@@ -232,26 +220,14 @@ export default function GalleryUploadPage() {
             <p className="text-muted-foreground">Deliver your high-resolution memories.</p>
           </div>
         </div>
-        
-        {event.items && event.items.length > 0 && (
-          <Button 
-            variant="outline" 
-            className="border-primary text-primary hover:bg-primary/10 rounded-full gap-2"
-            onClick={runAiHighlights}
-            disabled={isAiProcessing}
-          >
-            {isAiProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            AI Highlights
-          </Button>
-        )}
       </div>
 
-      {!storage && (
+      {(storageError || !isStorageConfigured) && (
         <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive rounded-2xl">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Storage Offline</AlertTitle>
+          <AlertTitle>Firebase Storage Unavailable</AlertTitle>
           <AlertDescription>
-            Firebase Storage is not initialized. Please check your storageBucket configuration.
+            {storageError || "Firebase Storage is not configured. This app requires Firebase Storage to host and deliver high-resolution photos. Please ensure Storage is enabled in your Firebase Console."}
           </AlertDescription>
         </Alert>
       )}
@@ -271,7 +247,7 @@ export default function GalleryUploadPage() {
               multiple 
               className="absolute inset-0 opacity-0 cursor-pointer" 
               onChange={handleFileChange}
-              disabled={isUploading || !storage}
+              disabled={isUploading || !isStorageConfigured}
             />
             <div className="p-6 rounded-full bg-primary/10 mb-4 group-hover:scale-110 transition-transform">
               <Upload className="w-10 h-10 text-primary" />
@@ -285,10 +261,10 @@ export default function GalleryUploadPage() {
             <Button 
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-10 h-12 font-bold shadow-lg shadow-primary/20 min-w-[200px]"
               onClick={startUpload}
-              disabled={files.length === 0 || isUploading || !storage}
+              disabled={files.length === 0 || isUploading || !isStorageConfigured}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
-              {isUploading ? 'Processing Batch...' : 'Start Upload'}
+              {isUploading ? 'Processing...' : 'Start Upload'}
             </Button>
           </div>
         </div>
@@ -345,7 +321,7 @@ export default function GalleryUploadPage() {
 
       <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row gap-6 justify-between items-center">
         <p className="text-sm text-muted-foreground italic max-w-md">
-          Files are stored securely. You can manage access via the Event Management panel.
+          Files are stored securely. High-resolution delivery requires a functional Firebase Storage setup.
         </p>
         <Link href={`/events/${id}/manage`}>
           <Button className="rounded-full bg-white text-black hover:bg-white/90 font-bold gap-2 px-8 h-12">
