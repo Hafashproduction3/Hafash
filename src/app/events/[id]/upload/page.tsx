@@ -73,7 +73,7 @@ export default function GalleryUploadPage() {
       toast({ 
         variant: "destructive", 
         title: "Setup Error", 
-        description: "Services not initialized. Check console for details." 
+        description: "Services not initialized. Storage check: " + (!!storage ? 'OK' : 'MISSING')
       });
       return;
     }
@@ -84,6 +84,8 @@ export default function GalleryUploadPage() {
     }
 
     setIsUploading(true);
+    console.log(`[UPLOAD_START] User: ${user.uid}, Doc: galleries/${id}`);
+    
     const uploadedItems: any[] = [];
     const successfulFileIds: string[] = [];
 
@@ -102,20 +104,26 @@ export default function GalleryUploadPage() {
         const storageRef = ref(storage, `galleries/${id}/${fileId}_${fileItem.name}`);
         const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
-        const unsubscribe = uploadTask.on('state_changed', 
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            setFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
-          }
-        );
+        // Add 30s timeout per file
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Storage Upload Timeout')), 30000));
 
-        await uploadTask;
-        unsubscribe();
+        const uploadPromise = new Promise<void>((resolve, reject) => {
+          uploadTask.on('state_changed', 
+            (snapshot) => {
+              const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              setFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
+            },
+            (error) => reject(error),
+            () => resolve()
+          );
+        });
 
-        updateStep('uploading', 'Step 3: Firebase Storage Upload Complete', 100);
+        await Promise.race([uploadPromise, timeoutPromise]);
+
+        updateStep('uploading', 'Step 3: Storage Success', 100);
 
         const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
-        updateStep('uploading', 'Step 4: Download URL Generated', 100);
+        updateStep('uploading', 'Step 4: URL Generated', 100);
 
         uploadedItems.push({
           id: fileId,
@@ -127,25 +135,28 @@ export default function GalleryUploadPage() {
         successfulFileIds.push(fileId);
 
       } catch (err: any) {
+        console.error(`[STORAGE_FAIL] File: ${fileItem.name}, Error: ${err.message}`);
         updateStep('error', 'FAILED', 0, `Storage Error: ${err.message}`);
-        console.error("UPLOAD_STEP_FAILURE", err);
       }
     }
 
     if (uploadedItems.length > 0) {
       const galleryRef = doc(firestore, 'galleries', id);
       const updateData = { items: arrayUnion(...uploadedItems) };
+      console.log(`[FIRESTORE_UPDATE_ATTEMPT] User: ${user.uid}, Path: ${galleryRef.path}, Method: arrayUnion`);
 
       updateDoc(galleryRef, updateData)
         .then(() => {
+          console.log(`[FIRESTORE_UPDATE_SUCCESS] Path: ${galleryRef.path}`);
           setFiles(prev => prev.map(f => 
             successfulFileIds.includes(f.id) 
-              ? { ...f, status: 'completed', currentStep: 'Step 5: Firestore Updated' } 
+              ? { ...f, status: 'completed', currentStep: 'Step 5: Firestore Sync Success' } 
               : f
           ));
           toast({ title: "Delivery Complete", description: `${uploadedItems.length} photos synced to cloud.` });
         })
         .catch(async (err: any) => {
+          console.error(`[FIRESTORE_UPDATE_FAIL] Path: ${galleryRef.path}, Error: ${err.message}`);
           setFiles(prev => prev.map(f => 
             successfulFileIds.includes(f.id) 
               ? { ...f, status: 'error', error: `Step 5 Failed: ${err.message}` } 
@@ -159,11 +170,16 @@ export default function GalleryUploadPage() {
               requestResourceData: updateData,
             } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
+          } else {
+            toast({ variant: "destructive", title: "Sync Failed", description: `Path: ${galleryRef.path} - Error: ${err.message}` });
           }
+        })
+        .finally(() => {
+          setIsUploading(false);
         });
+    } else {
+      setIsUploading(false);
     }
-
-    setIsUploading(false);
   };
 
   if (authLoading || dataLoading) {
@@ -186,7 +202,7 @@ export default function GalleryUploadPage() {
           </Button>
           <div>
             <h1 className="text-3xl font-headline font-bold">Deliver: {event.title}</h1>
-            <p className="text-muted-foreground">Detailed telemetry for high-resolution delivery.</p>
+            <p className="text-muted-foreground">High-resolution delivery telemetry.</p>
           </div>
         </div>
       </div>
@@ -206,7 +222,7 @@ export default function GalleryUploadPage() {
               <Upload className="w-10 h-10 text-primary" />
             </div>
             <p className="text-lg font-headline font-bold">Select Masterpieces</p>
-            <p className="text-sm text-muted-foreground mt-2 font-mono">Real-time status tracking enabled.</p>
+            <p className="text-sm text-muted-foreground mt-2 font-mono">Telemetry Active.</p>
           </div>
 
           <div className="flex justify-end gap-4">
@@ -217,7 +233,7 @@ export default function GalleryUploadPage() {
               disabled={files.length === 0 || isUploading}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              {isUploading ? 'Processing Steps...' : 'Deliver Now'}
+              {isUploading ? 'Syncing...' : 'Deliver Now'}
             </Button>
           </div>
         </div>
@@ -225,7 +241,7 @@ export default function GalleryUploadPage() {
         <div className="bg-card border border-border/50 rounded-3xl p-6 h-[500px] flex flex-col shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-headline font-bold flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" /> Delivery Status
+              <Activity className="w-5 h-5 text-primary" /> Status Panel
             </h3>
             <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full font-bold tracking-widest">{files.length} ITEMS</span>
           </div>
@@ -262,7 +278,7 @@ export default function GalleryUploadPage() {
                   {file.error && (
                     <div className="mt-3 p-2 bg-destructive/10 rounded-lg border border-destructive/20">
                       <p className="text-[9px] text-destructive font-bold break-words uppercase">
-                        Error: {file.error}
+                        {file.error}
                       </p>
                     </div>
                   )}
@@ -276,7 +292,7 @@ export default function GalleryUploadPage() {
       <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row gap-6 justify-between items-center">
         <p className="text-sm text-muted-foreground italic max-w-md">
           <Info className="w-4 h-4 inline mr-2 text-primary" />
-          The status panel identifies the exact Firebase operation failing during Processing.
+          Debug Info: Collection=galleries, Path=galleries/{id}, User={user.uid}
         </p>
         <Link href={`/events/${id}/manage`}>
           <Button variant="outline" className="rounded-full font-bold gap-2 px-8 h-12 border-primary text-primary hover:bg-primary/5">

@@ -48,15 +48,6 @@ export default function EventManagementPage() {
 
   const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
-  useEffect(() => {
-    if (event) {
-      console.log(`MANAGE_DEBUG: Retrieved event: ${event.title}`, {
-        itemsCount: event.items?.length,
-        itemsSample: event.items?.slice(0, 2)
-      });
-    }
-  }, [event]);
-
   if (authLoading || dataLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 min-h-[50vh]">
@@ -90,14 +81,18 @@ export default function EventManagementPage() {
   };
 
   const handleDelete = () => {
-    if (!firestore || !confirm('Are you sure you want to delete this event?')) return;
+    if (!firestore || !user || !confirm('Are you sure you want to delete this event?')) return;
     const docRef = doc(firestore, 'galleries', id);
+    console.log(`[FIRESTORE_DELETE_ATTEMPT] Method: ManagePageDelete, User: ${user.uid}, Path: ${docRef.path}`);
+
     deleteDoc(docRef)
       .then(() => {
+        console.log(`[FIRESTORE_DELETE_SUCCESS] Path: ${docRef.path}`);
         toast({ title: "Event Deleted" });
         router.push('/dashboard');
       })
       .catch(async (err: any) => {
+        console.error(`[FIRESTORE_DELETE_FAIL] Path: ${docRef.path}, Error: ${err.message}`);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: docRef.path,
@@ -105,18 +100,24 @@ export default function EventManagementPage() {
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
         } else {
-          toast({ variant: "destructive", title: "Error", description: err.message });
+          toast({ variant: "destructive", title: "Error", description: `Path: ${docRef.path} - Error: ${err.message}` });
         }
       });
   };
 
   const toggleLock = (status: boolean) => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     const docRef = doc(firestore, 'galleries', id);
     const updateData = { isLocked: !status };
+    console.log(`[FIRESTORE_UPDATE_ATTEMPT] Method: toggleLock, User: ${user.uid}, Path: ${docRef.path}`);
 
     updateDoc(docRef, updateData)
+      .then(() => {
+        console.log(`[FIRESTORE_UPDATE_SUCCESS] Path: ${docRef.path}`);
+        toast({ title: "Updated", description: `Gallery ${status ? 'locked' : 'unlocked'}.` });
+      })
       .catch(async (err: any) => {
+        console.error(`[FIRESTORE_UPDATE_FAIL] Path: ${docRef.path}, Error: ${err.message}`);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: docRef.path,
@@ -125,7 +126,7 @@ export default function EventManagementPage() {
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
         } else {
-          toast({ variant: "destructive", title: "Error", description: err.message });
+          toast({ variant: "destructive", title: "Error", description: `Path: ${docRef.path} - Error: ${err.message}` });
         }
       });
   };

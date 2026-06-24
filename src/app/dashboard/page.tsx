@@ -59,14 +59,18 @@ export default function DashboardPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (!firestore || !confirm("Are you sure you want to delete this gallery?")) return;
+    if (!firestore || !user || !confirm("Are you sure you want to delete this gallery?")) return;
     
     const docRef = doc(firestore, 'galleries', id);
+    console.log(`[FIRESTORE_DELETE_ATTEMPT] User: ${user.uid}, Path: ${docRef.path}`);
+
     deleteDoc(docRef)
       .then(() => {
+        console.log(`[FIRESTORE_DELETE_SUCCESS] Path: ${docRef.path}`);
         toast({ title: "Deleted", description: "Gallery has been removed." });
       })
       .catch(async (err: any) => {
+        console.error(`[FIRESTORE_DELETE_FAIL] Path: ${docRef.path}, Error: ${err.message}`);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: docRef.path,
@@ -74,18 +78,24 @@ export default function DashboardPage() {
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
         } else {
-          toast({ variant: "destructive", title: "Error", description: err.message });
+          toast({ variant: "destructive", title: "Delete Failed", description: `Path: ${docRef.path} - Error: ${err.message}` });
         }
       });
   };
 
   const toggleLock = (id: string, currentStatus: boolean) => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
     const docRef = doc(firestore, 'galleries', id);
     const updateData = { isLocked: !currentStatus };
+    console.log(`[FIRESTORE_UPDATE_ATTEMPT] Method: toggleLock, User: ${user.uid}, Path: ${docRef.path}`);
 
     updateDoc(docRef, updateData)
+      .then(() => {
+        console.log(`[FIRESTORE_UPDATE_SUCCESS] Path: ${docRef.path}`);
+        toast({ title: "Updated", description: `Gallery ${currentStatus ? 'unlocked' : 'locked'}.` });
+      })
       .catch(async (err: any) => {
+        console.error(`[FIRESTORE_UPDATE_FAIL] Path: ${docRef.path}, Error: ${err.message}`);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: docRef.path,
@@ -94,7 +104,7 @@ export default function DashboardPage() {
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
         } else {
-          toast({ variant: "destructive", title: "Error", description: err.message });
+          toast({ variant: "destructive", title: "Update Failed", description: `Path: ${docRef.path} - Error: ${err.message}` });
         }
       });
   };

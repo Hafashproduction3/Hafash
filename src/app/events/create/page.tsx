@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -83,8 +84,11 @@ export default function CreateEventPage() {
       createdAt: new Date().toISOString()
     };
 
+    console.log(`[FIRESTORE_CREATE_ATTEMPT] User: ${user.uid}, Path: ${newDocRef.path}`);
+
     setDoc(newDocRef, newGallery)
       .then(() => {
+        console.log(`[FIRESTORE_CREATE_SUCCESS] Path: ${newDocRef.path}`);
         toast({
           title: "Gallery Created",
           description: "Proceeding to upload center...",
@@ -92,6 +96,7 @@ export default function CreateEventPage() {
         router.push(`/events/${newId}/upload`);
       })
       .catch(async (err) => {
+        console.error(`[FIRESTORE_CREATE_FAIL] Path: ${newDocRef.path}, Error: ${err.message}`);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: newDocRef.path,
@@ -102,8 +107,8 @@ export default function CreateEventPage() {
         } else {
           toast({
             variant: "destructive",
-            title: "Error",
-            description: err.message || "Could not save event."
+            title: "Create Failed",
+            description: `Path: ${newDocRef.path} - Error: ${err.message}`
           });
         }
       })
@@ -207,7 +212,7 @@ export default function CreateEventPage() {
               {loading ? "Creating..." : "Continue to Upload"}
             </Button>
             <p className="text-center text-xs text-muted-foreground mt-4">
-              Unique gallery link will be generated automatically.
+              Telemetry Active: Trace creating/updating Path: galleries/*
             </p>
           </div>
         </form>
