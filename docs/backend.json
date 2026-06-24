@@ -34,6 +34,19 @@
         "userId": { "type": "string" }
       },
       "required": ["id", "slug", "title", "clientName", "date", "category", "coverImage", "items", "isLocked", "viewCount", "userId"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Photographer studio settings",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "studioName": { "type": "string" },
+        "photographerName": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "studioLogo": { "type": "string" }
+      },
+      "required": ["userId", "studioName", "whatsappNumber"]
     }
   },
   "auth": {
@@ -43,6 +56,10 @@
     "/galleries/{galleryId}": {
       "schema": "#/entities/EventGallery",
       "description": "Individual event galleries"
+    },
+    "/users/{userId}": {
+      "schema": "#/entities/UserProfile",
+      "description": "Photographer profiles and settings"
     }
   }
 }
