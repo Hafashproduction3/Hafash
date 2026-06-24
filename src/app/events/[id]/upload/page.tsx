@@ -1,10 +1,12 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc, useUser } from '@/firebase';
+import { useFirestore, useDoc, useUser, useStorage } from '@/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle } from 'lucide-react';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, CloudOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
@@ -14,7 +16,7 @@ import Link from 'next/link';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 
-type UploadStep = 'queued' | 'simulating' | 'syncing' | 'completed' | 'error';
+type UploadStep = 'queued' | 'uploading' | 'url' | 'syncing' | 'completed' | 'error';
 
 interface FileItem {
   id: string;
@@ -22,18 +24,21 @@ interface FileItem {
   progress: number;
   name: string;
   status: UploadStep;
+  error?: string;
 }
 
 export default function GalleryUploadPage() {
   const router = useRouter();
   const { id } = useParams() as { id: string };
   const firestore = useFirestore();
+  const storage = useStorage();
   const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
   
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [currentBatchStep, setCurrentBatchStep] = useState<string>('');
+  const [storageError, setStorageError] = useState<boolean>(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -65,8 +70,8 @@ export default function GalleryUploadPage() {
     setFiles(prev => prev.filter(f => f.id !== fileId));
   };
 
-  const startMockUpload = async () => {
-    if (!firestore || !user || !event) return;
+  const startUpload = async () => {
+    if (!firestore || !storage || !user || !event) return;
     
     if (files.length === 0) {
       toast({ title: "No files selected" });
@@ -74,7 +79,8 @@ export default function GalleryUploadPage() {
     }
 
     setIsUploading(true);
-    const mockItems: any[] = [];
+    setStorageError(false);
+    const uploadedItems: any[] = [];
 
     try {
       for (let i = 0; i < files.length; i++) {
@@ -82,49 +88,82 @@ export default function GalleryUploadPage() {
         if (fileItem.status === 'completed') continue;
 
         const fileId = fileItem.id;
-        const updateStatus = (status: UploadStep, progress: number = 0) => {
-          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status, progress } : f));
+        const updateStatus = (status: UploadStep, progress: number = 0, errorMsg?: string) => {
+          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status, progress, error: errorMsg } : f));
         };
 
-        setCurrentBatchStep(`Processing ${fileItem.name}...`);
-        updateStatus('simulating', 0);
+        try {
+          // 1. Upload to Storage
+          setCurrentBatchStep(`Uploading ${fileItem.name}...`);
+          updateStatus('uploading', 0);
+          
+          const storageRef = ref(storage, `galleries/${id}/${fileId}_${fileItem.name}`);
+          const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
-        // Simulate upload progress
-        await new Promise(r => setTimeout(r, 800));
-        updateStatus('simulating', 100);
+          await new Promise<void>((resolve, reject) => {
+            uploadTask.on('state_changed', 
+              (snapshot) => {
+                const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                updateStatus('uploading', progress);
+              }, 
+              (error) => {
+                console.error("UPLOAD_DEBUG: Storage error", error);
+                if (error.code === 'storage/unauthorized' || error.code === 'storage/project-not-found') {
+                  setStorageError(true);
+                }
+                reject(error);
+              }, 
+              () => resolve()
+            );
+          });
 
-        // Create a realistic placeholder based on the file ID to keep it consistent
-        mockItems.push({
-          id: fileId,
-          url: `https://picsum.photos/seed/${fileId}/1200/800`,
-          type: 'image',
-          isFavorite: false,
-          fileName: fileItem.name
-        });
-        
-        updateStatus('completed', 100);
+          // 2. Get Download URL
+          updateStatus('url', 100);
+          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+
+          uploadedItems.push({
+            id: fileId,
+            url: downloadUrl,
+            type: 'image',
+            isFavorite: false,
+            fileName: fileItem.name
+          });
+          
+          updateStatus('completed', 100);
+        } catch (err: any) {
+          updateStatus('error', 0, err.message);
+          // If storage fails, we stop the whole batch to avoid partial ghost uploads
+          throw err;
+        }
       }
 
-      if (mockItems.length > 0) {
-        setCurrentBatchStep("Syncing to Studio Cloud...");
+      if (uploadedItems.length > 0) {
+        setCurrentBatchStep("Finalizing Gallery...");
         const galleryRef = doc(firestore, 'galleries', id);
         
         await updateDoc(galleryRef, {
-          items: arrayUnion(...mockItems)
+          items: arrayUnion(...uploadedItems)
         });
 
         toast({
-          title: "Gallery Updated",
-          description: `Successfully simulated ${mockItems.length} photo uploads.`,
+          title: "Success",
+          description: `${uploadedItems.length} photos added to gallery.`,
         });
       }
     } catch (err: any) {
+      console.error("UPLOAD_DEBUG: Batch failed", err);
       if (err.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `galleries/${id}`,
           operation: 'update',
           requestResourceData: { items: 'arrayUnion(...)' },
         }));
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Upload Interrupted",
+          description: storageError ? "Firebase Storage is not enabled. Please check console." : err.message,
+        });
       }
     } finally {
       setIsUploading(false);
@@ -132,11 +171,32 @@ export default function GalleryUploadPage() {
     }
   };
 
+  const startMockUpload = async () => {
+    // Fallback for demo purposes if real storage isn't ready
+    setIsUploading(true);
+    const mockItems: any[] = [];
+    for (const file of files) {
+      const fileId = Math.random().toString(36).substr(2, 9);
+      mockItems.push({
+        id: fileId,
+        url: `https://picsum.photos/seed/${fileId}/1200/800`,
+        type: 'image',
+        isFavorite: false,
+        fileName: file.name
+      });
+    }
+    const galleryRef = doc(firestore!, 'galleries', id);
+    await updateDoc(galleryRef, { items: arrayUnion(...mockItems) });
+    setFiles([]);
+    setIsUploading(false);
+    toast({ title: "Demo Mode Active", description: "Simulated assets added successfully." });
+  };
+
   if (authLoading || dataLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Initializing demo environment...</p>
+        <p className="mt-4 text-muted-foreground italic">Connecting to Studio Cloud...</p>
       </div>
     );
   }
@@ -151,19 +211,24 @@ export default function GalleryUploadPage() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-headline font-bold">Upload to {event.title}</h1>
-            <p className="text-muted-foreground">MVP Demo Mode: Simulating high-res uploads.</p>
+            <h1 className="text-3xl font-headline font-bold">Deliver: {event.title}</h1>
+            <p className="text-muted-foreground">Upload your high-resolution masterpieces.</p>
           </div>
         </div>
       </div>
 
-      <Alert className="bg-primary/10 border-primary/20 text-primary rounded-2xl">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>MVP Testing Mode Active</AlertTitle>
-        <AlertDescription>
-          Firebase Storage is currently unconfigured. We are using ultra-high resolution demo assets to showcase the client gallery experience.
-        </AlertDescription>
-      </Alert>
+      {storageError && (
+        <Alert variant="destructive" className="rounded-2xl bg-destructive/5 border-destructive/20">
+          <CloudOff className="h-4 w-4" />
+          <AlertTitle>Storage Service Unavailable</AlertTitle>
+          <AlertDescription className="flex flex-col gap-4">
+            <p>Firebase Storage has not been enabled for this project. To use real uploads, please visit the Firebase Console and click "Get Started" in the Storage tab.</p>
+            <Button variant="outline" size="sm" className="w-fit rounded-xl border-destructive/50 text-destructive hover:bg-destructive/10" onClick={startMockUpload}>
+              Use Demo Mode Instead
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
 
       {currentBatchStep && (
         <div className="bg-primary/10 border border-primary/20 p-4 rounded-2xl flex items-center gap-3 text-primary animate-pulse">
@@ -178,6 +243,7 @@ export default function GalleryUploadPage() {
             <input 
               type="file" 
               multiple 
+              accept="image/*"
               className="absolute inset-0 opacity-0 cursor-pointer" 
               onChange={handleFileChange}
               disabled={isUploading}
@@ -185,32 +251,32 @@ export default function GalleryUploadPage() {
             <div className="p-6 rounded-full bg-primary/10 mb-4 group-hover:scale-110 transition-transform">
               <Upload className="w-10 h-10 text-primary" />
             </div>
-            <p className="text-lg font-headline font-bold">Drop files or click to add</p>
-            <p className="text-sm text-muted-foreground mt-2">Simulated upload for visual testing.</p>
+            <p className="text-lg font-headline font-bold">Drop your high-res photos</p>
+            <p className="text-sm text-muted-foreground mt-2">Maximum quality for premium delivery.</p>
           </div>
 
           <div className="flex justify-end gap-4">
             <Button variant="ghost" className="rounded-full px-8" onClick={() => setFiles([])} disabled={isUploading}>Clear Queue</Button>
             <Button 
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-10 h-12 font-bold shadow-lg shadow-primary/20 min-w-[200px]"
-              onClick={startMockUpload}
+              onClick={startUpload}
               disabled={files.length === 0 || isUploading}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              {isUploading ? 'Syncing...' : 'Simulate Upload'}
+              {isUploading ? 'Processing...' : 'Deliver Now'}
             </Button>
           </div>
         </div>
 
         <div className="bg-card border border-border/50 rounded-3xl p-6 h-[500px] flex flex-col shadow-xl">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-headline font-bold">Queue</h3>
+            <h3 className="text-xl font-headline font-bold">Upload Queue</h3>
             <span className="text-xs bg-primary/10 text-primary px-3 py-1 rounded-full font-bold">{files.length} Files</span>
           </div>
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
             {files.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm italic opacity-50">
-                No files in queue.
+                No items selected.
               </div>
             ) : (
               files.map(file => (
@@ -219,7 +285,8 @@ export default function GalleryUploadPage() {
                     <span className="truncate pr-4">{file.name}</span>
                     <div className="flex items-center gap-2">
                       {file.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                      {file.status === 'simulating' && <span className="text-primary text-xs font-bold">{Math.round(file.progress)}%</span>}
+                      {file.status === 'uploading' && <span className="text-primary text-xs font-bold">{Math.round(file.progress)}%</span>}
+                      {file.status === 'error' && <AlertTriangle className="w-4 h-4 text-destructive" />}
                       {!isUploading && file.status === 'queued' && (
                         <button onClick={() => removeFile(file.id)} className="text-muted-foreground hover:text-destructive">
                            <X className="w-4 h-4" />
@@ -228,6 +295,7 @@ export default function GalleryUploadPage() {
                     </div>
                   </div>
                   <Progress value={file.progress} className="h-1.5 bg-border/30" />
+                  {file.error && <p className="text-[10px] text-destructive truncate">{file.error}</p>}
                 </div>
               ))
             )}
@@ -238,7 +306,7 @@ export default function GalleryUploadPage() {
       <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row gap-6 justify-between items-center">
         <p className="text-sm text-muted-foreground italic max-w-md">
           <Info className="w-4 h-4 inline mr-2 text-primary" />
-          Mock mode creates persistent links in your Firestore database using high-quality demo seeds.
+          Hafash utilizes Google's edge delivery network for blazing fast gallery loads.
         </p>
         <Link href={`/events/${id}/manage`}>
           <Button variant="outline" className="rounded-full font-bold gap-2 px-8 h-12 border-primary text-primary hover:bg-primary/5">
