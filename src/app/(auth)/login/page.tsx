@@ -72,7 +72,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-10">
           <Link href="/" className="inline-block mb-6">
-            <span className="text-4xl font-headline font-bold text-primary italic">Hafash.pk</span>
+            <img src="/hafash-logo.png" alt="Hafash.pk" className="h-16 w-auto object-contain mx-auto" />
           </Link>
           <h1 className="text-2xl font-headline font-bold">Welcome Back</h1>
           <p className="text-muted-foreground mt-2">Access your studio dashboard</p>
