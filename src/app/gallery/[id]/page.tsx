@@ -77,7 +77,7 @@ export default function ClientGalleryPage() {
   const handleFavorite = (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
     const gRef = doc(firestore, 'galleries', galleryId);
-    const updatedItems = gallery.items.map((item: any) => 
+    const updatedItems = (gallery.items || []).map((item: any) => 
       item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
     );
     const updateData = { items: updatedItems };
@@ -132,12 +132,12 @@ export default function ClientGalleryPage() {
       toast({
         variant: "destructive",
         title: "Configuration Incomplete",
-        description: "Please configure your studio WhatsApp number.",
+        description: "The photographer hasn't configured their WhatsApp contact yet.",
       });
       return;
     }
     
-    const whatsapp = profile.whatsappNumber;
+    const whatsapp = profile.whatsappNumber.replace(/\D/g, '');
     const message = `Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and I'd like to discuss my selection.`;
     window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`, '_blank');
   };
