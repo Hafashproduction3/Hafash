@@ -6,17 +6,15 @@ import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser, useStorage } from '@/firebase';
 import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, CloudOff, Layers } from 'lucide-react';
+import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import Link from 'next/link';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn } from '@/lib/utils';
 
-type UploadStep = 'queued' | 'uploading' | 'url' | 'syncing' | 'completed' | 'error';
+type UploadStep = 'queued' | 'uploading' | 'completed' | 'error';
 
 interface FileItem {
   id: string;
@@ -37,8 +35,6 @@ export default function GalleryUploadPage() {
   
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [currentBatchStep, setCurrentBatchStep] = useState<string>('');
-  const [storageError, setStorageError] = useState<boolean>(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -79,7 +75,6 @@ export default function GalleryUploadPage() {
     }
 
     setIsUploading(true);
-    setStorageError(false);
     const uploadedItems: any[] = [];
 
     try {
@@ -95,38 +90,25 @@ export default function GalleryUploadPage() {
         try {
           updateStatus('uploading', 0);
           
-          // Check if Storage bucket is configured
-          if (!storage.app.options.storageBucket) {
-             throw new Error("Storage bucket not configured in Firebase project.");
-          }
-
           const storageRef = ref(storage, `galleries/${id}/${fileId}_${fileItem.name}`);
           const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
           await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error("Upload timed out (30s)")), 30000);
-            
             uploadTask.on('state_changed', 
               (snapshot) => {
                 const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
                 updateStatus('uploading', progress);
               }, 
               (error) => {
-                clearTimeout(timeout);
                 console.error("UPLOAD_DEBUG: Storage error", error);
-                if (error.code === 'storage/unauthorized' || error.code === 'storage/project-not-found') {
-                  setStorageError(true);
-                }
                 reject(error);
               }, 
               () => {
-                clearTimeout(timeout);
                 resolve();
               }
             );
           });
 
-          updateStatus('url', 100);
           const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
 
           uploadedItems.push({
@@ -146,54 +128,30 @@ export default function GalleryUploadPage() {
 
       if (uploadedItems.length > 0) {
         const galleryRef = doc(firestore, 'galleries', id);
-        await updateDoc(galleryRef, { items: arrayUnion(...uploadedItems) });
+        updateDoc(galleryRef, { 
+          items: arrayUnion(...uploadedItems) 
+        }).catch(async (err) => {
+           if (err.code === 'permission-denied') {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: `galleries/${id}`,
+              operation: 'update',
+              requestResourceData: { items: 'arrayUnion(...)' },
+            }));
+          }
+        });
+        
         toast({ title: "Success", description: `${uploadedItems.length} photos delivered.` });
         setFiles([]);
       }
     } catch (err: any) {
       console.error("UPLOAD_DEBUG: Batch failed", err);
-      if (err.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `galleries/${id}`,
-          operation: 'update',
-          requestResourceData: { items: 'arrayUnion(...)' },
-        }));
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Service Unavailable",
-          description: "Firebase Storage is not enabled. Real uploads require a configured bucket.",
-        });
-        setStorageError(true);
-      }
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: err.message || "An unexpected error occurred during upload.",
+      });
     } finally {
       setIsUploading(false);
-    }
-  };
-
-  const startDemoUpload = async () => {
-    if (!firestore || !event) return;
-    setIsUploading(true);
-    setCurrentBatchStep("Simulating Luxury Delivery...");
-    
-    const demoItems = files.map(f => ({
-      id: Math.random().toString(36).substr(2, 9),
-      url: `https://picsum.photos/seed/${Math.random()}/1200/800`,
-      type: 'image',
-      isFavorite: false,
-      fileName: f.name
-    }));
-
-    try {
-      const galleryRef = doc(firestore, 'galleries', id);
-      await updateDoc(galleryRef, { items: arrayUnion(...demoItems) });
-      toast({ title: "Demo Mode Active", description: "Successfully simulated delivery with placeholder assets." });
-      setFiles([]);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Demo Error", description: err.message });
-    } finally {
-      setIsUploading(false);
-      setCurrentBatchStep('');
     }
   };
 
@@ -222,32 +180,6 @@ export default function GalleryUploadPage() {
         </div>
       </div>
 
-      {(storageError || !storage?.app.options.storageBucket) && (
-        <Alert variant="destructive" className="rounded-2xl bg-destructive/5 border-destructive/20 p-6">
-          <div className="flex gap-4">
-            <CloudOff className="h-6 w-6 text-destructive shrink-0" />
-            <div className="space-y-3 flex-1">
-              <AlertTitle className="text-lg font-bold">Real Storage Not Configured</AlertTitle>
-              <AlertDescription className="text-sm opacity-80 leading-relaxed">
-                Firebase Storage is not enabled for this project. Real file uploads require storage configuration. 
-                <br /><br />
-                <strong>MVP Testing:</strong> You can use "Demo Delivery" below to populate the gallery with high-quality simulated assets to test the client experience.
-              </AlertDescription>
-              <Button variant="outline" size="sm" className="rounded-xl border-destructive/50 text-destructive hover:bg-destructive/10 gap-2 font-bold" onClick={startDemoUpload} disabled={files.length === 0 || isUploading}>
-                <Layers className="w-4 h-4" /> Start Demo Delivery
-              </Button>
-            </div>
-          </div>
-        </Alert>
-      )}
-
-      {currentBatchStep && (
-        <div className="bg-primary/10 border border-primary/20 p-4 rounded-2xl flex items-center gap-3 text-primary animate-pulse">
-          <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="font-bold text-sm tracking-tight uppercase">{currentBatchStep}</span>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="relative h-80 border-2 border-dashed border-border/50 rounded-3xl flex flex-col items-center justify-center bg-card/30 group hover:border-primary/50 transition-all">
@@ -271,7 +203,7 @@ export default function GalleryUploadPage() {
             <Button 
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-10 h-12 font-bold shadow-lg shadow-primary/20 min-w-[200px]"
               onClick={startUpload}
-              disabled={files.length === 0 || isUploading || storageError}
+              disabled={files.length === 0 || isUploading}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
               {isUploading ? 'Processing...' : 'Deliver Now'}
