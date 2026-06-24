@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -60,7 +61,8 @@ export default function GalleryUploadPage() {
 
     try {
       for (const fileItem of files) {
-        const storagePath = `galleries/${id}/${fileItem.id}_${fileItem.file.name}`;
+        const fileId = fileItem.id;
+        const storagePath = `galleries/${id}/${fileId}_${fileItem.file.name}`;
         const storageRef = ref(storage, storagePath);
         const uploadTask = uploadBytesResumable(storageRef, fileItem.file);
 
@@ -68,7 +70,7 @@ export default function GalleryUploadPage() {
           uploadTask.on('state_changed', 
             (snapshot) => {
               const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-              setFiles(prev => prev.map(f => f.id === fileItem.id ? { ...f, progress } : f));
+              setFiles(prev => prev.map(f => f.id === fileId ? { ...f, progress } : f));
             }, 
             (error) => {
               console.error("Upload error:", error);
@@ -76,8 +78,9 @@ export default function GalleryUploadPage() {
             }, 
             async () => {
               const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log(`File uploaded: ${fileItem.name} -> ${downloadURL}`);
               uploadedItems.push({
-                id: fileItem.id,
+                id: fileId,
                 url: downloadURL,
                 type: 'image',
                 isFavorite: false
@@ -88,18 +91,22 @@ export default function GalleryUploadPage() {
         });
       }
 
-      const galleryRef = doc(firestore, 'galleries', id);
-      await updateDoc(galleryRef, {
-        items: arrayUnion(...uploadedItems)
-      });
+      if (uploadedItems.length > 0) {
+        const galleryRef = doc(firestore, 'galleries', id);
+        await updateDoc(galleryRef, {
+          items: arrayUnion(...uploadedItems)
+        });
+        
+        toast({
+          title: "Upload Complete",
+          description: `Successfully uploaded ${uploadedItems.length} photos.`,
+        });
+      }
       
       setIsUploading(false);
       setFiles([]);
-      toast({
-        title: "Upload Complete",
-        description: `Successfully uploaded ${uploadedItems.length} photos.`,
-      });
     } catch (err: any) {
+      console.error("Batch upload failed:", err);
       toast({
         variant: "destructive",
         title: "Upload Failed",

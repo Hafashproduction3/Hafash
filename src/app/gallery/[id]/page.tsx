@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore } from '@/firebase';
@@ -33,25 +34,31 @@ export default function ClientGalleryPage() {
     async function fetchGallery() {
       if (!firestore || !galleryParam) return;
       
+      console.log(`Fetching gallery: ${galleryParam}`);
       setLoading(true);
       try {
+        // First try to fetch by Document ID
         const docRef = doc(firestore, 'galleries', galleryParam);
         const docSnap = await getDoc(docRef);
         
         if (docSnap.exists()) {
           const data = { ...docSnap.data(), id: docSnap.id };
+          console.log("Gallery found by ID:", data.title, "Items count:", data.items?.length);
           setGallery(data);
           updateDoc(docRef, { viewCount: increment(1) });
         } else {
+          // Fallback to searching by slug
           const q = query(collection(firestore, 'galleries'), where('slug', '==', galleryParam));
           const querySnapshot = await getDocs(q);
           
           if (!querySnapshot.empty) {
             const result = querySnapshot.docs[0];
             const data = { ...result.data(), id: result.id };
+            console.log("Gallery found by Slug:", data.title, "Items count:", data.items?.length);
             setGallery(data);
             updateDoc(doc(firestore, 'galleries', result.id), { viewCount: increment(1) });
           } else {
+            console.error("No gallery found with param:", galleryParam);
             setGallery(null);
           }
         }
@@ -107,7 +114,8 @@ export default function ClientGalleryPage() {
   };
 
   const handleContactStudio = () => {
-    const phoneNumber = gallery?.studioPhone || "923000000000"; // Placeholder or from gallery data
+    // Standard WhatsApp format for Pakistan or international numbers
+    const phoneNumber = "923330000000"; 
     const message = encodeURIComponent(`Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and would like to request download access for high-resolution images.`);
     window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
   };
@@ -192,47 +200,55 @@ export default function ClientGalleryPage() {
           </div>
         ) : (
           <div className="columns-1 md:columns-2 lg:columns-3 gap-10 space-y-10">
-            {gallery.items.map((item: any) => (
-              <div 
-                key={item.id} 
-                className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 shadow-2xl transition-all duration-700 hover:border-primary/40 hover:shadow-primary/5"
-                onClick={() => setSelectedImage(item.url)}
-              >
-                <div className="relative overflow-hidden cursor-zoom-in">
-                  <img 
-                    src={item.url} 
-                    alt="Gallery Item" 
-                    className="w-full h-auto object-cover transform transition-transform duration-[2000ms] ease-out group-hover:scale-110"
-                    loading="lazy"
-                  />
-                  {gallery.isLocked && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
-                      <div className="watermark-text text-3xl tracking-[1em] font-headline select-none">HAFASH STUDIO</div>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-transparent to-background/30 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-                    <div className="absolute bottom-10 left-0 right-0 px-10 flex justify-center gap-6 animate-in slide-in-from-bottom-4 duration-500">
-                      <Button 
-                        size="icon" 
-                        variant="secondary" 
-                        className={`rounded-full h-16 w-16 bg-background/40 backdrop-blur-3xl border border-white/10 hover:bg-primary transition-all duration-500 ${item.isFavorite ? 'bg-primary text-primary-foreground shadow-2xl shadow-primary/40' : 'text-white'}`}
-                        onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, item.isFavorite); }}
-                      >
-                        <Heart className={`w-7 h-7 ${item.isFavorite ? 'fill-current' : ''}`} />
-                      </Button>
-                      <Button 
-                        size="icon" 
-                        variant="secondary" 
-                        className={`rounded-full h-16 w-16 bg-background/40 backdrop-blur-3xl border border-white/10 hover:bg-primary transition-all duration-500 text-white ${gallery.isLocked ? 'opacity-40 cursor-not-allowed grayscale' : 'hover:scale-110'}`}
-                        onClick={(e) => handleDownloadAttempt(e, item.url)}
-                      >
-                        <Download className="w-7 h-7" />
-                      </Button>
+            {gallery.items.map((item: any, idx: number) => {
+              // Fallback if item structure is slightly different
+              const imageUrl = typeof item === 'string' ? item : item.url;
+              const itemId = item.id || `item-${idx}`;
+              
+              if (!imageUrl) return null;
+
+              return (
+                <div 
+                  key={itemId} 
+                  className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 shadow-2xl transition-all duration-700 hover:border-primary/40 hover:shadow-primary/5"
+                  onClick={() => setSelectedImage(imageUrl)}
+                >
+                  <div className="relative overflow-hidden cursor-zoom-in">
+                    <img 
+                      src={imageUrl} 
+                      alt={`Gallery Item ${idx + 1}`} 
+                      className="w-full h-auto object-cover transform transition-transform duration-[2000ms] ease-out group-hover:scale-110"
+                      loading="lazy"
+                    />
+                    {gallery.isLocked && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
+                        <div className="watermark-text text-3xl tracking-[1em] font-headline select-none">HAFASH STUDIO</div>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/95 via-transparent to-background/30 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                      <div className="absolute bottom-10 left-0 right-0 px-10 flex justify-center gap-6 animate-in slide-in-from-bottom-4 duration-500">
+                        <Button 
+                          size="icon" 
+                          variant="secondary" 
+                          className={`rounded-full h-16 w-16 bg-background/40 backdrop-blur-3xl border border-white/10 hover:bg-primary transition-all duration-500 ${item.isFavorite ? 'bg-primary text-primary-foreground shadow-2xl shadow-primary/40' : 'text-white'}`}
+                          onClick={(e) => { e.stopPropagation(); handleFavorite(itemId, !!item.isFavorite); }}
+                        >
+                          <Heart className={`w-7 h-7 ${item.isFavorite ? 'fill-current' : ''}`} />
+                        </Button>
+                        <Button 
+                          size="icon" 
+                          variant="secondary" 
+                          className={`rounded-full h-16 w-16 bg-background/40 backdrop-blur-3xl border border-white/10 hover:bg-primary transition-all duration-500 text-white ${gallery.isLocked ? 'opacity-40 cursor-not-allowed grayscale' : 'hover:scale-110'}`}
+                          onClick={(e) => handleDownloadAttempt(e, imageUrl)}
+                        >
+                          <Download className="w-7 h-7" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
