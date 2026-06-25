@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
@@ -6,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -32,22 +31,38 @@ export default function ClientGalleryPage() {
   const [searching, setSearching] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showLockDialog, setShowLockDialog] = useState(false);
+  
+  // Track if view has been incremented to prevent double-counting (Strict Mode or re-renders)
+  const viewIncremented = useRef<string | null>(null);
 
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) return;
+      
+      // If we've already tracked a view for this specific galleryParam in this visit, stop.
+      // This solves the double-increment issue caused by React Strict Mode in development.
+      if (viewIncremented.current === galleryParam) return;
+
       setSearching(true);
       try {
         const q = query(collection(firestore, 'galleries'), where('slug', '==', galleryParam));
         const querySnapshot = await getDocs(q);
+        
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
           setGalleryId(foundId);
           
-          const gRef = doc(firestore, 'galleries', foundId);
-          updateDoc(gRef, { viewCount: increment(1) })
-            .catch(() => {});
+          // Mark as incremented before the actual call to be safe with async execution
+          if (viewIncremented.current !== galleryParam) {
+            viewIncremented.current = galleryParam;
+            const gRef = doc(firestore, 'galleries', foundId);
+            updateDoc(gRef, { viewCount: increment(1) })
+              .catch(() => {
+                // If it fails, we might want to allow a retry on next render, but for MVP we skip
+              });
+          }
         } else {
+          // If slug search fails, assume it might be a direct document ID visit
           setGalleryId(galleryParam);
         }
       } catch (err) {
@@ -176,11 +191,9 @@ export default function ClientGalleryPage() {
           className="absolute inset-0 w-full h-full object-cover opacity-85 brightness-90 transition-all duration-[3000ms] ease-out animate-in zoom-in-110" 
           alt="Gallery Cover" 
         />
-        {/* Lighter overlays to ensure image pop while maintaining text readability */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
         <div className="absolute inset-0 bg-black/10" />
         
-        {/* Studio Branding Overlay */}
         <div className="absolute top-12 left-0 right-0 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-1000">
           {profile?.studioLogo && (
             <img src={profile.studioLogo} className="h-16 md:h-20 w-auto mb-4 object-contain drop-shadow-2xl" alt="Studio Logo" />
@@ -190,7 +203,6 @@ export default function ClientGalleryPage() {
           </span>
         </div>
 
-        {/* Hero Metadata */}
         <div className="relative z-10 text-center px-6 max-w-5xl animate-in fade-in zoom-in-95 duration-1000 delay-300">
           <div className="mb-8 h-px w-16 md:w-24 bg-primary/80 mx-auto" />
           <h1 className="text-4xl md:text-9xl font-headline font-bold mb-6 md:mb-8 uppercase tracking-[0.1em] leading-tight text-white drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)]">
@@ -217,14 +229,12 @@ export default function ClientGalleryPage() {
           </div>
         </div>
 
-        {/* Scroll Indicator */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center opacity-80 animate-bounce">
           <span className="text-[8px] uppercase tracking-[0.5em] font-bold mb-4 text-white drop-shadow-md">Discover Gallery</span>
           <div className="h-12 w-px bg-gradient-to-b from-primary to-transparent" />
         </div>
       </div>
 
-      {/* Photo Grid Section */}
       <div className="max-w-7xl mx-auto px-6 mt-12 relative z-10">
         {!gallery.items || gallery.items.length === 0 ? (
           <div className="text-center py-40 bg-card/30 backdrop-blur-3xl border border-dashed border-border/30 rounded-[3rem] shadow-2xl">
@@ -241,7 +251,9 @@ export default function ClientGalleryPage() {
               >
                 <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
                 
-                {gallery.isLocked && (
+                {!gallery.isLocked ? (
+                  null
+                ) : (
                   <>
                     <div className="absolute inset-0 watermark-overlay pointer-events-none" />
                     <div className="watermark-text">HAFASH PREVIEW</div>
@@ -276,7 +288,6 @@ export default function ClientGalleryPage() {
         )}
       </div>
 
-      {/* Footer Branding */}
       <div className="max-w-4xl mx-auto text-center mt-20 px-6 py-12 border-t border-border/20">
         <h3 className="text-2xl font-headline font-bold mb-4 text-primary">Crafted by {profile?.studioName || 'Professional Studio'}</h3>
         <p className="text-muted-foreground italic mb-8">Contact photographer for original high-resolution master files.</p>
@@ -288,7 +299,6 @@ export default function ClientGalleryPage() {
         </div>
       </div>
 
-      {/* Fullscreen Preview Modal */}
       {selectedImage && (
         <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
@@ -304,7 +314,6 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
-      {/* Download Lock Notification */}
       <AlertDialog open={showLockDialog} onOpenChange={setShowLockDialog}>
         <AlertDialogContent className="bg-card border-border/50 rounded-[3rem] p-12 shadow-2xl max-w-xl">
           <AlertDialogHeader className="text-center">
