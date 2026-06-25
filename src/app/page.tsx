@@ -8,7 +8,7 @@ export default function LandingPage() {
       {/* Navigation */}
       <header className="px-6 lg:px-12 h-24 flex items-center justify-between border-b border-border/50 sticky top-0 bg-background/80 backdrop-blur-md z-50">
         <div className="flex items-center gap-6">
-          <img src="/logo.png" alt="Hafash Platform" className="h-10 w-auto" />
+          <img src="/hafash-logo.png" alt="Hafash Platform" className="h-10 w-auto" />
           <Link href="/" className="flex items-center">
             <span className="text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
           </Link>
