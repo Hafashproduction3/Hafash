@@ -7,8 +7,8 @@ export default function LandingPage() {
     <div className="flex flex-col min-h-screen bg-background">
       {/* Navigation */}
       <header className="px-6 lg:px-12 h-24 flex items-center justify-between border-b border-border/50 sticky top-0 bg-background/80 backdrop-blur-md z-50">
-        <div className="flex items-center gap-10">
-          <img src="/hafash-logo.png" alt="Hafash Platform" className="h-[38px] lg:h-[44px] w-auto" />
+        <div className="flex items-center gap-3">
+          <img src="/hafash-logo.png" alt="Hafash Platform" className="h-[48px] lg:h-[56px] w-auto" />
           <Link href="/" className="flex items-center">
             <span className="text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
           </Link>

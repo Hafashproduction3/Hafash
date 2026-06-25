@@ -82,11 +82,13 @@ export default function SignupPage() {
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-10 flex flex-col items-center gap-6">
-          <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[38px] lg:h-[44px] w-auto" />
-          <Link href="/" className="inline-block">
-            <span className="text-4xl font-headline font-bold text-primary italic">Hafash.pk</span>
-          </Link>
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center gap-3 mb-6">
+            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[48px] lg:h-[56px] w-auto" />
+            <Link href="/" className="inline-block">
+              <span className="text-4xl font-headline font-bold text-primary italic">Hafash.pk</span>
+            </Link>
+          </div>
           <div className="mt-2">
             <h1 className="text-2xl font-headline font-bold">Start Your Studio</h1>
             <p className="text-muted-foreground mt-1">Join the luxury platform for photographers</p>
