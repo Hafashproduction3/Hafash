@@ -50,8 +50,8 @@ export function DashboardSidebar() {
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
-      <div className="p-8 flex items-center gap-2">
-        <img src="/hafash-logo.png" alt="Hafash Platform" className="h-[52px] lg:h-[64px] w-auto" />
+      <div className="p-8 flex items-center gap-1">
+        <img src="/hafash-logo.png" alt="Hafash Platform" className="h-[57px] lg:h-[70px] w-auto" />
         <Link href="/dashboard" className="flex items-center">
           <span className="text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
         </Link>

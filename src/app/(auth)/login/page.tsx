@@ -59,7 +59,9 @@ export default function LoginPage() {
 
   if (authLoading) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      <div className="text-center">
+        <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
+      </div>
     </div>
   );
 
@@ -71,8 +73,8 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[52px] lg:h-[64px] w-auto" />
+          <div className="flex items-center justify-center gap-1 mb-6">
+            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
             <Link href="/" className="inline-block">
               <span className="text-4xl font-headline font-bold text-primary italic">Hafash.pk</span>
             </Link>
