@@ -83,8 +83,8 @@ export default function SignupPage() {
 
       <div className="w-full max-w-md relative z-10">
         <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[48px] lg:h-[56px] w-auto" />
+          <div className="flex items-center justify-center gap-2 mb-6">
+            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[52px] lg:h-[64px] w-auto" />
             <Link href="/" className="inline-block">
               <span className="text-4xl font-headline font-bold text-primary italic">Hafash.pk</span>
             </Link>
