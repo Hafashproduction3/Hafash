@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -82,12 +83,15 @@ export default function SignupPage() {
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-10">
-          <Link href="/" className="inline-block mb-6">
+        <div className="text-center mb-10 flex flex-col items-center gap-6">
+          <img src="/logo.png" alt="Hafash Logo" className="h-12 w-auto" />
+          <Link href="/" className="inline-block">
             <span className="text-4xl font-headline font-bold text-primary italic">Hafash.pk</span>
           </Link>
-          <h1 className="text-2xl font-headline font-bold">Start Your Studio</h1>
-          <p className="text-muted-foreground mt-2">Join the luxury platform for photographers</p>
+          <div className="mt-2">
+            <h1 className="text-2xl font-headline font-bold">Start Your Studio</h1>
+            <p className="text-muted-foreground mt-1">Join the luxury platform for photographers</p>
+          </div>
         </div>
 
         <div className="bg-card border border-border/50 rounded-3xl p-8 lg:p-10 shadow-2xl">

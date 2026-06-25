@@ -7,10 +7,13 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* Navigation */}
-      <header className="px-6 lg:px-12 h-20 flex items-center justify-between border-b border-border/50 sticky top-0 bg-background/80 backdrop-blur-md z-50">
-        <Link href="/" className="flex items-center gap-2">
-          <span className="text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
-        </Link>
+      <header className="px-6 lg:px-12 h-24 flex items-center justify-between border-b border-border/50 sticky top-0 bg-background/80 backdrop-blur-md z-50">
+        <div className="flex items-center gap-8">
+          <img src="/logo.png" alt="Hafash Logo" className="h-10 w-auto" />
+          <Link href="/" className="flex items-center">
+            <span className="text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
+          </Link>
+        </div>
         <nav className="hidden md:flex gap-8">
           <Link href="#features" className="text-sm font-medium hover:text-primary transition-colors">Features</Link>
           <Link href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">Pricing</Link>
