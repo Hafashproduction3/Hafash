@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -52,7 +51,7 @@ export function DashboardSidebar() {
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
       <div className="p-8 flex flex-col gap-8">
-        <img src="/logo.png" alt="Hafash Logo" className="h-10 w-auto self-start" />
+        <img src="/logo.png" alt="Hafash Platform" className="h-10 w-auto self-start" />
         <Link href="/dashboard" className="flex items-center">
           <span className="text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
         </Link>
