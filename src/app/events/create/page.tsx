@@ -79,6 +79,7 @@ export default function CreateEventPage() {
       coverImage: `https://picsum.photos/seed/${newId}/800/600`,
       items: [],
       isLocked: true,
+      isPaid: false,
       viewCount: 0,
       userId: user.uid,
       createdAt: new Date().toISOString(),

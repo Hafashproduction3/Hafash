@@ -3,7 +3,7 @@
 
 import { useFirestore, useDoc } from '@/firebase';
 import { useParams } from 'next/navigation';
-import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon } from 'lucide-react';
+import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -12,6 +12,8 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import JSZip from 'jszip';
+import { saveAs } from 'file-saver';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,6 +34,8 @@ export default function ClientGalleryPage() {
   const [searching, setSearching] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showLockDialog, setShowLockDialog] = useState(false);
+  const [isZipping, setIsZipping] = useState(false);
+  const [zipMessage, setZipMessage] = useState("");
   
   const viewIncremented = useRef<string | null>(null);
 
@@ -111,7 +115,7 @@ export default function ClientGalleryPage() {
 
   const handleDownloadAttempt = async (e: React.MouseEvent, url: string, filename: string) => {
     e.stopPropagation();
-    if (gallery?.isLocked) {
+    if (!gallery?.isPaid) {
       setShowLockDialog(true);
       return;
     }
@@ -129,6 +133,58 @@ export default function ClientGalleryPage() {
       window.URL.revokeObjectURL(link.href);
     } catch (error) {
       window.open(url, '_blank');
+    }
+  };
+
+  const handleDownloadAll = async () => {
+    if (isZipping || !gallery) return;
+    if (!gallery.isPaid) {
+      setShowLockDialog(true);
+      return;
+    }
+
+    setIsZipping(true);
+    setZipMessage("Preparing your download package...");
+
+    try {
+      const zip = new JSZip();
+      const items = gallery.items || [];
+      
+      if (items.length === 0) {
+        toast({ title: "Empty Gallery", description: "There are no photos to download." });
+        setIsZipping(false);
+        return;
+      }
+
+      // Concurrently fetch blobs to speed up the process, but limit concurrency if needed
+      const downloadPromises = items.map(async (item: any, index: number) => {
+        const response = await fetch(item.url);
+        if (!response.ok) throw new Error(`Failed to fetch image ${index + 1}`);
+        const blob = await response.blob();
+        const extension = item.url.split('.').pop()?.split('?')[0] || 'jpg';
+        zip.file(`${gallery.title}-${index + 1}.${extension}`, blob);
+      });
+
+      await Promise.all(downloadPromises);
+      
+      setZipMessage("Compressing masterpieces...");
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `${gallery.title.replace(/\s+/g, '_')}_all_photos.zip`);
+
+      toast({ 
+        title: "Download Ready", 
+        description: "Your masterpieces are ready. The temporary ZIP has been generated and delivered." 
+      });
+    } catch (error: any) {
+      console.error("ZIP_ERROR:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Download Failed", 
+        description: "We encountered an error while preparing your ZIP. Please try again." 
+      });
+    } finally {
+      setIsZipping(false);
+      setZipMessage("");
     }
   };
 
@@ -219,6 +275,23 @@ export default function ClientGalleryPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-12 relative z-10">
+        <div className="flex justify-between items-center mb-12">
+          <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
+          {gallery.items && gallery.items.length > 0 && (
+            <Button 
+              className={cn(
+                "rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2",
+                isZipping && "opacity-70 cursor-wait"
+              )}
+              onClick={handleDownloadAll}
+              disabled={isZipping}
+            >
+              {isZipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isZipping ? zipMessage : "Download All Masterpieces"}
+            </Button>
+          )}
+        </div>
+
         {!gallery.items || gallery.items.length === 0 ? (
           <div className="text-center py-40 bg-card/30 backdrop-blur-3xl border border-dashed border-border/30 rounded-[3rem] shadow-2xl">
              <Camera className="w-12 h-12 text-primary/20 mx-auto mb-6" />
@@ -229,7 +302,7 @@ export default function ClientGalleryPage() {
             {gallery.items.map((item: any) => (
               <div key={item.id} className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-2xl transition-all hover:border-primary/30" onClick={() => setSelectedImage(item.url)}>
                 <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
-                {gallery.isLocked && (
+                {!gallery.isPaid && (
                   <>
                     <div className="absolute inset-0 watermark-overlay pointer-events-none" />
                     <div className="watermark-text">HAFASH PREVIEW</div>
@@ -264,7 +337,7 @@ export default function ClientGalleryPage() {
         <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
             <img src={selectedImage} className="max-w-full max-h-[92vh] object-contain shadow-2xl rounded-2xl" alt="Fullscreen" />
-            {gallery.isLocked && <div className="watermark-text">HAFASH PREVIEW</div>}
+            {!gallery.isPaid && <div className="watermark-text">HAFASH PREVIEW</div>}
           </div>
           <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-primary hover:bg-primary/10 rounded-full h-12 w-12 bg-background/50 backdrop-blur-md">
             <X className="w-8 h-8" />

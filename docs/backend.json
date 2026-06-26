@@ -30,6 +30,7 @@
           "items": { "$ref": "#/entities/GalleryItem" }
         },
         "isLocked": { "type": "boolean" },
+        "isPaid": { "type": "boolean" },
         "viewCount": { "type": "number" },
         "userId": { "type": "string" },
         "albumStatus": { 

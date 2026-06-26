@@ -18,7 +18,8 @@ import {
   Copy,
   Check,
   ShieldCheck,
-  Heart
+  Heart,
+  CreditCard
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -91,7 +92,15 @@ export default function EventManagementPage() {
       });
   };
 
-  const totalItemsCount = Array.isArray(event.items) ? event.items.length : 1;
+  const togglePayment = () => {
+    if (!eventRef) return;
+    const newStatus = !event.isPaid;
+    updateDoc(eventRef, { isPaid: newStatus });
+    toast({ 
+      title: newStatus ? "Payment Confirmed" : "Payment Revoked", 
+      description: newStatus ? "High-resolution downloads unlocked for client." : "Downloads and master files restricted." 
+    });
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -156,18 +165,21 @@ export default function EventManagementPage() {
           <Card className="bg-primary/5 border-primary/20 rounded-3xl p-8 flex items-center justify-between group overflow-hidden relative">
             <div className="relative z-10 flex items-center gap-6">
               <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <Heart className="w-8 h-8 text-primary fill-current" />
+                <CreditCard className="w-8 h-8 text-primary" />
               </div>
               <div>
-                <h4 className="text-xl font-headline font-bold">Fulfillment Workflow</h4>
-                <p className="text-sm text-muted-foreground italic">Client has favorited {favoritesCount} masterpieces. Manage the selection workflow in the Favorites hub.</p>
+                <h4 className="text-xl font-headline font-bold">Payment & Protection</h4>
+                <p className="text-sm text-muted-foreground italic">Unlock high-resolution downloads and temporary ZIP generation for this client.</p>
               </div>
             </div>
-            <Link href="/favorites" className="relative z-10">
-              <Button className="rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold px-8">
-                Manage Selection <ChevronRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            <div className="flex items-center gap-4 bg-background/50 p-4 rounded-2xl border border-primary/20 relative z-10">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Payment Received</span>
+              <Switch 
+                checked={!!event.isPaid} 
+                onCheckedChange={togglePayment}
+                className="data-[state=checked]:bg-primary"
+              />
+            </div>
           </Card>
         </div>
 
@@ -187,7 +199,7 @@ export default function EventManagementPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Public Downloads</span>
-                    <p className="text-[8px] text-muted-foreground italic mt-0.5">Allow users to grab high-res files</p>
+                    <p className="text-[8px] text-muted-foreground italic mt-0.5">Global access override</p>
                   </div>
                   <Switch 
                     checked={!event.isLocked} 
