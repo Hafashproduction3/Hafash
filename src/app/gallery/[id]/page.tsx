@@ -14,15 +14,6 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
 export default function ClientGalleryPage() {
   const params = useParams();
@@ -33,7 +24,6 @@ export default function ClientGalleryPage() {
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [searching, setSearching] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [showLockDialog, setShowLockDialog] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
   const [zipMessage, setZipMessage] = useState("");
   
@@ -84,6 +74,15 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
+  // Core Access Logic
+  const canDownload = useMemo(() => {
+    return gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
+  }, [gallery?.isLocked, gallery?.isPaid]);
+
+  const showWatermark = useMemo(() => {
+    return gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
+  }, [gallery?.isLocked, gallery?.isPaid]);
+
   const handleFavorite = (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
     const gRef = doc(firestore, 'galleries', galleryId);
@@ -115,15 +114,10 @@ export default function ClientGalleryPage() {
 
   const handleDownloadAttempt = async (e: React.MouseEvent, item: any) => {
     e.stopPropagation();
-    if (gallery?.isLocked) return;
+    if (!canDownload) return;
     
-    if (!gallery?.isPaid) {
-      setShowLockDialog(true);
-      return;
-    }
-
     const downloadUrl = item.masterUrl || item.url;
-    const filename = item.fileName || `${gallery.title}-${item.id}.jpg`;
+    const filename = item.fileName || `${gallery?.title || 'hafash'}-${item.id}.jpg`;
 
     try {
       toast({ title: "Preparing Download", description: "Fetching high-resolution master file..." });
@@ -142,13 +136,8 @@ export default function ClientGalleryPage() {
   };
 
   const handleDownloadAll = async () => {
-    if (isZipping || !gallery || gallery.isLocked) return;
+    if (isZipping || !gallery || !canDownload) return;
     
-    if (!gallery.isPaid) {
-      setShowLockDialog(true);
-      return;
-    }
-
     setIsZipping(true);
     setZipMessage("Preparing your download package...");
 
@@ -291,7 +280,7 @@ export default function ClientGalleryPage() {
       <div className="max-w-7xl mx-auto px-6 mt-12 relative z-10">
         <div className="flex justify-between items-center mb-12">
           <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
-          {!gallery.isLocked && gallery.items && gallery.items.length > 0 && (
+          {canDownload && gallery.items && gallery.items.length > 0 && (
             <Button 
               className={cn(
                 "rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2",
@@ -313,30 +302,37 @@ export default function ClientGalleryPage() {
           </div>
         ) : (
           <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
-            {gallery.items.map((item: any) => (
-              <div key={item.id} className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-2xl transition-all hover:border-primary/30" onClick={() => setSelectedImage(item.url)}>
-                <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
-                {!gallery.isPaid && (
-                  <>
-                    <div className="absolute inset-0 watermark-overlay pointer-events-none" />
-                    <div className="watermark-text">HAFASH PREVIEW</div>
-                  </>
-                )}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6 backdrop-blur-[2px]">
-                  <div className="flex gap-4">
-                    <Button size="icon" className={cn("rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110 shadow-xl", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/10 text-white")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
-                      <Heart className={cn("w-6 h-6", item.isFavorite ? "fill-current" : "")} />
-                    </Button>
-                    {!gallery.isLocked && (
-                      <Button size="icon" className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" onClick={(e) => handleDownloadAttempt(e, item)}>
-                        <Download className="w-6 h-6" />
+            {gallery.items.map((item: any) => {
+              const displayUrl = canDownload && item.masterUrl ? item.masterUrl : item.url;
+              return (
+                <div 
+                  key={item.id} 
+                  className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-2xl transition-all hover:border-primary/30" 
+                  onClick={() => setSelectedImage(displayUrl)}
+                >
+                  <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
+                  {showWatermark && (
+                    <>
+                      <div className="absolute inset-0 watermark-overlay pointer-events-none" />
+                      <div className="watermark-text">HAFASH PREVIEW</div>
+                    </>
+                  )}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6 backdrop-blur-[2px]">
+                    <div className="flex gap-4">
+                      <Button size="icon" className={cn("rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110 shadow-xl", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/10 text-white")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
+                        <Heart className={cn("w-6 h-6", item.isFavorite ? "fill-current" : "")} />
                       </Button>
-                    )}
+                      {canDownload && (
+                        <Button size="icon" className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" onClick={(e) => handleDownloadAttempt(e, item)}>
+                          <Download className="w-6 h-6" />
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/70">Luxury Experience</p>
                   </div>
-                  <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/70">Luxury Experience</p>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -353,32 +349,13 @@ export default function ClientGalleryPage() {
         <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
             <img src={selectedImage} className="max-w-full max-h-[92vh] object-contain shadow-2xl rounded-2xl" alt="Fullscreen" />
-            {!gallery.isPaid && <div className="watermark-text">HAFASH PREVIEW</div>}
+            {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
           </div>
           <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-primary hover:bg-primary/10 rounded-full h-12 w-12 bg-background/50 backdrop-blur-md">
             <X className="w-8 h-8" />
           </Button>
         </div>
       )}
-
-      <AlertDialog open={showLockDialog} onOpenChange={setShowLockDialog}>
-        <AlertDialogContent className="bg-card border-border/50 rounded-[3rem] p-12 shadow-2xl max-w-xl">
-          <AlertDialogHeader className="text-center">
-            <div className="mx-auto bg-primary/10 h-24 w-24 rounded-full flex items-center justify-center mb-8">
-              <Lock className="w-12 h-12 text-primary" />
-            </div>
-            <AlertDialogTitle className="text-4xl font-headline font-bold italic tracking-tighter">Payment Required</AlertDialogTitle>
-            <AlertDialogDescription className="text-lg mt-6 leading-relaxed text-muted-foreground">
-              Master high-resolution downloads are currently restricted. Please complete the final payment to the studio to unlock your original masterpieces.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="mt-12">
-            <Button className="rounded-full h-16 w-full bg-primary text-primary-foreground font-bold text-xl" onClick={handleWhatsAppContact}>
-              Contact via WhatsApp
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
