@@ -21,7 +21,8 @@ import {
   Copy,
   Check,
   ShieldCheck,
-  History
+  History,
+  Archive
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +33,14 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 import { useMemo, useEffect, useState } from 'react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn } from '@/lib/utils';
 
 export default function EventManagementPage() {
   const params = useParams();
@@ -60,7 +69,7 @@ export default function EventManagementPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading event telemetry...</p>
+        <p className="mt-4 text-muted-foreground font-bold tracking-widest uppercase text-[10px]">Accessing Studio Workflow...</p>
       </div>
     );
   }
@@ -99,12 +108,18 @@ export default function EventManagementPage() {
 
     updateDoc(eventRef!, updateData)
       .then(() => {
-        toast({ title: "Success", description: "Hafash Album Package generated." });
+        toast({ title: "Success", description: "Secure Album Package generated." });
       })
       .catch((err) => {
         toast({ variant: "destructive", title: "Generation Failed", description: err.message });
       })
       .finally(() => setIsGenerating(false));
+  };
+
+  const updateStatus = (val: string) => {
+    if (!firestore || !user || !eventRef) return;
+    updateDoc(eventRef, { albumStatus: val });
+    toast({ title: "Status Updated", description: `Workflow status set to: ${val}` });
   };
 
   const toggleAlbumLink = (status: boolean) => {
@@ -113,10 +128,10 @@ export default function EventManagementPage() {
   };
 
   const handleDelete = () => {
-    if (!firestore || !user || !confirm('Are you sure you want to delete this event?')) return;
+    if (!firestore || !user || !confirm('Are you sure you want to delete this event? This will permanently remove all associated telemetry.')) return;
     deleteDoc(eventRef!)
       .then(() => {
-        toast({ title: "Event Deleted" });
+        toast({ title: "Event Purged" });
         router.push('/dashboard');
       });
   };
@@ -129,18 +144,22 @@ export default function EventManagementPage() {
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-headline font-bold">{event.title}</h1>
-            <p className="text-muted-foreground">Master asset management and delivery telemetry.</p>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[9px] uppercase tracking-[0.3em] font-bold text-primary">Master Telemetry</span>
+              <div className="h-1 w-1 bg-primary rounded-full" />
+              <span className="text-[9px] uppercase tracking-[0.3em] font-bold text-muted-foreground">{event.category}</span>
+            </div>
+            <h1 className="text-3xl font-headline font-bold tracking-tight">{event.title}</h1>
           </div>
         </div>
         <div className="flex gap-3">
           <Link href={`/gallery/${event.slug || event.id}`} target="_blank">
-             <Button variant="outline" className="rounded-full gap-2 border-primary text-primary hover:bg-primary/10">
-               <Eye className="w-4 h-4" /> Preview Gallery
+             <Button variant="outline" className="rounded-full gap-2 border-primary/30 text-primary hover:bg-primary/10 px-6 font-bold">
+               <Eye className="w-4 h-4" /> Preview
              </Button>
           </Link>
-          <Button variant="destructive" className="rounded-full gap-2" onClick={handleDelete}>
-             <Trash2 className="w-4 h-4" /> Delete Event
+          <Button variant="destructive" className="rounded-full gap-2 h-10 px-6 font-bold" onClick={handleDelete}>
+             <Trash2 className="w-4 h-4" /> Purge
           </Button>
         </div>
       </div>
@@ -148,22 +167,39 @@ export default function EventManagementPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           {/* Album Selections Section */}
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-xl ring-1 ring-primary/20">
+          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-xl ring-1 ring-primary/10">
             <CardHeader className="border-b border-border/30 bg-primary/5 px-8 py-6">
-              <CardTitle className="text-xl font-headline font-bold flex items-center justify-between">
-                <span className="flex items-center gap-2 text-primary">
-                  <BookOpen className="w-5 h-5" /> Album Selections Workflow
-                </span>
-                <span className="text-[10px] uppercase tracking-widest bg-primary/20 text-primary px-3 py-1 rounded-full font-bold">
-                  {favoritesCount} Masterpieces Selected
-                </span>
-              </CardTitle>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <CardTitle className="text-xl font-headline font-bold flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <BookOpen className="w-5 h-5 text-primary" />
+                  </div>
+                  Workflow Management
+                </CardTitle>
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Selection Status:</span>
+                  <Select value={event.albumStatus || "New Selection"} onValueChange={updateStatus}>
+                    <SelectTrigger className="w-[200px] h-9 rounded-full bg-background border-border/50 font-bold text-[10px] uppercase tracking-wider">
+                      <SelectValue placeholder="Select Status" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-card border-border/50">
+                      <SelectItem value="New Selection" className="text-[10px] uppercase font-bold">New Selection</SelectItem>
+                      <SelectItem value="Album Package Generated" className="text-[10px] uppercase font-bold">Package Generated</SelectItem>
+                      <SelectItem value="Shared with Album Designer" className="text-[10px] uppercase font-bold">Shared with Designer</SelectItem>
+                      <SelectItem value="Completed" className="text-[10px] uppercase font-bold text-green-500">Completed</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
               {!event.albumLinkToken ? (
-                <div className="text-center py-8 space-y-6">
-                  <div className="bg-background/50 p-6 rounded-2xl border border-border/30 italic text-muted-foreground">
-                    "Group and package client favorites into a secure high-resolution workspace for your album designer."
+                <div className="text-center py-12 space-y-6">
+                  <div className="max-w-md mx-auto space-y-2">
+                    <h4 className="text-xl font-headline font-bold">Synchronize Selection</h4>
+                    <p className="text-sm text-muted-foreground italic">
+                      Group the client's {favoritesCount} favorites into a secure designer portal. This gives external collaborators access to original high-resolution master files.
+                    </p>
                   </div>
                   <Button 
                     className="h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 px-10 shadow-lg shadow-primary/20"
@@ -171,69 +207,100 @@ export default function EventManagementPage() {
                     disabled={favoritesCount === 0 || isGenerating}
                   >
                     {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-                    Generate Album Package
+                    Generate Secure Package
                   </Button>
                   {favoritesCount === 0 && (
-                    <p className="text-xs text-destructive font-bold uppercase tracking-widest">Wait for client selection to begin</p>
+                    <div className="flex items-center justify-center gap-2 text-destructive">
+                      <Lock className="w-3 h-3" />
+                      <span className="text-[9px] font-bold uppercase tracking-[0.2em]">Client has not selected favorites</span>
+                    </div>
                   )}
                 </div>
               ) : (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between p-6 bg-background rounded-2xl border border-border/30">
-                    <div className="space-y-1">
-                      <h4 className="text-lg font-bold flex items-center gap-2">
-                        {event.albumLinkEnabled ? <ShieldCheck className="w-5 h-5 text-green-500" /> : <Lock className="w-5 h-5 text-destructive" />}
-                        Secure Designer Link
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        {event.albumLinkEnabled ? "Designer has full access to master files." : "Link access is currently restricted."}
-                      </p>
-                    </div>
-                    <Switch 
-                      checked={event.albumLinkEnabled} 
-                      onCheckedChange={() => toggleAlbumLink(event.albumLinkEnabled)} 
-                      className="data-[state=checked]:bg-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-4">
-                    <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                      <LinkIcon className="w-3 h-3" /> Designer Portal URL
-                    </label>
-                    <div className="flex gap-2">
-                      <div className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-3 text-sm truncate opacity-80 text-primary/80 font-mono">
-                        {typeof window !== 'undefined' ? window.location.origin : ''}/album/{event.albumLinkToken}
+                <div className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 bg-background rounded-2xl border border-border/30 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <h4 className="text-sm font-bold flex items-center gap-2">
+                          {event.albumLinkEnabled ? <ShieldCheck className="w-4 h-4 text-green-500" /> : <Lock className="w-4 h-4 text-destructive" />}
+                          Access Control
+                        </h4>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                          {event.albumLinkEnabled ? "Designer Portal Active" : "Portal Access Restricted"}
+                        </p>
                       </div>
-                      <Button 
-                        size="icon" 
-                        variant="outline"
-                        className="rounded-xl border-primary/30 text-primary hover:bg-primary/10" 
-                        onClick={() => handleCopyLink(`${window.location.origin}/album/${event.albumLinkToken}`)}
-                      >
-                        {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+                      <Switch 
+                        checked={event.albumLinkEnabled} 
+                        onCheckedChange={() => toggleAlbumLink(event.albumLinkEnabled)} 
+                        className="data-[state=checked]:bg-primary"
+                      />
+                    </div>
+                    
+                    <div className="p-6 bg-background rounded-2xl border border-border/30 flex items-center justify-between">
+                       <div className="space-y-1">
+                        <h4 className="text-sm font-bold flex items-center gap-2">
+                          <Archive className="w-4 h-4 text-primary" /> Workflow Phase
+                        </h4>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                          {event.albumStatus || "New Selection"}
+                        </p>
+                      </div>
+                      <Button variant="outline" size="sm" className="rounded-full text-[9px] font-bold uppercase tracking-widest h-8" onClick={() => updateStatus("Completed")}>
+                        Mark Done
                       </Button>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.3em] flex items-center gap-2 ml-1">
+                      <LinkIcon className="w-3 h-3" /> Designer Portal Security Token
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-3 text-sm truncate opacity-80 text-primary/80 font-mono flex items-center">
+                        {typeof window !== 'undefined' ? window.location.origin : ''}/album/{event.albumLinkToken}
+                      </div>
+                      <Button 
+                        className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 px-6 font-bold gap-2" 
+                        onClick={() => handleCopyLink(`${window.location.origin}/album/${event.albumLinkToken}`)}
+                      >
+                        {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                        Copy Link
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-4 pt-4">
                     <Button 
                       variant="outline" 
-                      className="h-12 rounded-xl border-border/50 font-bold gap-2"
+                      className="h-11 rounded-xl border-border/50 font-bold gap-2 text-xs flex-1"
                       onClick={generateAlbumPackage}
                       disabled={isGenerating}
                     >
-                      <History className="w-4 h-4" /> Regenerate Secure Token
+                      <History className="w-4 h-4" /> Regenerate Token
                     </Button>
-                    <Link href={`/album/${event.albumLinkToken}`} target="_blank" className="block w-full">
-                      <Button className="h-12 rounded-xl w-full bg-primary text-primary-foreground font-bold gap-2">
-                        <Eye className="w-4 h-4" /> View Designer Portal
+                    <Link href={`/album/${event.albumLinkToken}`} target="_blank" className="flex-1">
+                      <Button variant="outline" className="h-11 rounded-xl border-primary/30 text-primary hover:bg-primary/5 font-bold gap-2 text-xs w-full">
+                        <Eye className="w-4 h-4" /> View Portal
                       </Button>
                     </Link>
                   </div>
 
-                  <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold flex items-center gap-2">
-                    <ShieldCheck className="w-3 h-3 text-primary" />
-                    Package Security: Only favorites are visible. Original files are exposed for download.
+                  <div className="bg-muted/30 p-4 rounded-xl border border-border/20">
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground uppercase tracking-widest font-bold mb-2">
+                      <ImageIcon className="w-3 h-3 text-primary" /> {favoritesCount} Selected Masterpieces
+                    </div>
+                    <div className="flex -space-x-2 overflow-hidden">
+                      {event.items?.filter((i: any) => i.isFavorite).slice(0, 10).map((item: any, idx: number) => (
+                        <div key={idx} className="inline-block h-8 w-8 rounded-full ring-2 ring-card overflow-hidden bg-muted">
+                          <img src={item.url} className="w-full h-full object-cover" alt="Selected" />
+                        </div>
+                      ))}
+                      {favoritesCount > 10 && (
+                        <div className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary ring-2 ring-card">
+                          +{favoritesCount - 10}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -242,28 +309,28 @@ export default function EventManagementPage() {
 
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-xl">
             <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
-              <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
+              <CardTitle className="text-xl font-headline font-bold flex items-center gap-3">
                 <Share2 className="w-5 h-5 text-primary" /> Delivery Suite
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
               <div className="space-y-4">
-                <label className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Client Gallery Link</label>
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.3em] ml-1">Client Preview URL</label>
                 <div className="flex gap-2">
-                  <div className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-3 text-sm truncate opacity-80 text-primary/80 font-mono">
+                  <div className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-3 text-sm truncate opacity-80 text-primary/80 font-mono flex items-center">
                     {typeof window !== 'undefined' ? window.location.origin : ''}/gallery/{event.slug || event.id}
                   </div>
-                  <Button size="icon" className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90" onClick={() => handleCopyLink(`${window.location.origin}/gallery/${event.slug || event.id}`)}>
+                  <Button size="icon" className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 h-11 w-11" onClick={() => handleCopyLink(`${window.location.origin}/gallery/${event.slug || event.id}`)}>
                     <LinkIcon className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button className="h-14 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold gap-3" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Check out your luxury gallery: ${window.location.origin}/gallery/${event.slug || event.id}`)}`, '_blank')}>
-                  <MessageCircle className="w-5 h-5" /> Share via WhatsApp
+                <Button className="h-14 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold gap-3 shadow-lg shadow-[#25D366]/10" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Check out your luxury gallery: ${window.location.origin}/gallery/${event.slug || event.id}`)}`, '_blank')}>
+                  <MessageCircle className="w-5 h-5" /> WhatsApp Delivery
                 </Button>
-                <Button className="h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3" onClick={() => handleCopyLink(`${window.location.origin}/gallery/${event.slug || event.id}`)}>
+                <Button className="h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-lg shadow-primary/10" onClick={() => handleCopyLink(`${window.location.origin}/gallery/${event.slug || event.id}`)}>
                   <LinkIcon className="w-5 h-5" /> Copy Gallery Link
                 </Button>
               </div>
@@ -274,28 +341,59 @@ export default function EventManagementPage() {
         <div className="space-y-8">
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-lg">
             <CardHeader className="border-b border-border/30 bg-background/30 px-6 py-4">
-              <CardTitle className="text-sm uppercase tracking-widest text-primary font-bold">Quick Actions</CardTitle>
+              <CardTitle className="text-[10px] uppercase tracking-[0.3em] text-primary font-bold">Studio Telemetry</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-2">
               <Link href={`/events/${id}/upload`} className="block">
-                <Button variant="ghost" className="w-full justify-between hover:bg-primary/10 hover:text-primary rounded-xl h-12">
-                  <span className="flex items-center gap-3"><ImageIcon className="w-4 h-4" /> Add More Media</span>
-                  <ChevronRight className="w-4 h-4" />
+                <Button variant="ghost" className="w-full justify-between hover:bg-primary/5 hover:text-primary rounded-xl h-12 px-4 group">
+                  <span className="flex items-center gap-3 font-bold text-xs"><ImageIcon className="w-4 h-4" /> Add Media</span>
+                  <ChevronRight className="w-4 h-4 opacity-30 group-hover:opacity-100 transition-opacity" />
                 </Button>
               </Link>
-              <div className="pt-4 mt-4 border-t border-border/30 px-2">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Public Downloads</span>
+              <div className="pt-4 mt-4 border-t border-border/30 px-2 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Public Downloads</span>
+                    <p className="text-[8px] text-muted-foreground italic mt-0.5">Allow users to grab high-res files</p>
+                  </div>
                   <Switch 
                     checked={!event.isLocked} 
                     onCheckedChange={() => updateDoc(eventRef!, { isLocked: !event.isLocked })}
                   />
                 </div>
-                <p className="text-[9px] text-muted-foreground italic leading-relaxed">
-                  Controls if public gallery users can download high-res files.
-                </p>
+                
+                <div className="p-4 bg-muted/20 rounded-xl space-y-3">
+                   <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                      <span>View Count</span>
+                      <span className="text-primary">{event.viewCount || 0}</span>
+                   </div>
+                   <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                      <span>Favorites</span>
+                      <span className="text-primary">{favoritesCount}</span>
+                   </div>
+                   <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
+                      <span>Workflow Status</span>
+                      <span className="text-primary">{event.albumStatus || 'Idle'}</span>
+                   </div>
+                </div>
               </div>
             </CardContent>
+          </Card>
+
+          <Card className="bg-primary/5 border-primary/20 rounded-3xl p-6 relative overflow-hidden group">
+            <div className="relative z-10 space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-[0.3em] text-primary">Selection Analytics</h4>
+              <p className="text-[10px] leading-relaxed italic text-muted-foreground">
+                Hafash telemetry tracks selection activity in real-time. Use these insights to optimize your studio's fulfillment cycle.
+              </p>
+              <div className="h-1.5 w-full bg-primary/10 rounded-full overflow-hidden">
+                <div className="h-full bg-primary animate-in slide-in-from-left duration-1000" style={{ width: `${(favoritesCount / (event.items?.length || 1)) * 100}%` }} />
+              </div>
+              <p className="text-[8px] font-bold uppercase tracking-widest text-primary/60">
+                {Math.round((favoritesCount / (event.items?.length || 1)) * 100)}% Conversion Rate
+              </p>
+            </div>
+            <Sparkles className="absolute -bottom-4 -right-4 w-20 h-20 text-primary/5 group-hover:scale-110 transition-transform" />
           </Card>
         </div>
       </div>
