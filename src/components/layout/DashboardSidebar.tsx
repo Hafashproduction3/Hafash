@@ -51,16 +51,26 @@ export function DashboardSidebar() {
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
-      <div className="p-8 flex flex-col items-center">
-        <div className="flex flex-col items-center gap-1 mb-2">
-          <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
-          <Link href="/dashboard" className="flex items-center">
-            <span className="text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
-          </Link>
-        </div>
+      {/* Premium Branding Section */}
+      <div className="py-12 px-4 flex flex-col items-center justify-center border-b border-border/20">
+        <Link href="/dashboard" className="group flex flex-col items-center text-center">
+          <img 
+            src="/hafash-logo.png" 
+            alt="Hafash Logo" 
+            className="h-[75px] w-auto drop-shadow-2xl transition-transform group-hover:scale-105 duration-500" 
+          />
+          <div className="mt-1 space-y-0">
+            <span className="block text-3xl font-headline font-bold text-primary tracking-tighter italic leading-none drop-shadow-md">
+              Hafash.pk
+            </span>
+            <span className="block text-[8px] uppercase tracking-[0.6em] font-bold text-muted-foreground mt-2 opacity-60">
+              Luxury Studio
+            </span>
+          </div>
+        </Link>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2">
+      <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
