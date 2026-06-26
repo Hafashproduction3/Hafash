@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 import { collection, query, where } from 'firebase/firestore';
+import { cn } from '@/lib/utils';
 
 export default function AlbumSelectionsPage() {
   const firestore = useFirestore();
@@ -31,8 +32,8 @@ export default function AlbumSelectionsPage() {
 
   // Only show galleries that have favorites or have an album workflow initiated
   const selections = useMemo(() => {
-    if (!galleries) return [];
-    return galleries.filter(g => (g.items && g.items.some((i: any) => i.isFavorite)) || g.albumStatus);
+    if (!galleries || !Array.isArray(galleries)) return [];
+    return galleries.filter(g => (Array.isArray(g.items) && g.items.some((i: any) => i.isFavorite)) || g.albumStatus);
   }, [galleries]);
 
   if (authLoading || (dataLoading && !galleries)) {
@@ -72,7 +73,9 @@ export default function AlbumSelectionsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {selections.map(selection => {
-            const favoritesCount = selection.items?.filter((i: any) => i.isFavorite).length || 0;
+            const favoritesCount = Array.isArray(selection.items) 
+              ? selection.items.filter((i: any) => i.isFavorite).length 
+              : 0;
             const status = selection.albumStatus || "New Selection";
             
             return (
@@ -80,7 +83,9 @@ export default function AlbumSelectionsPage() {
                 <CardContent className="p-0">
                   <div className="flex flex-col md:flex-row items-stretch">
                     <div className="w-full md:w-32 bg-muted relative overflow-hidden group-hover:opacity-80 transition-opacity">
-                      <img src={selection.coverImage} className="w-full h-full object-cover absolute inset-0" alt={selection.title} />
+                      {selection.coverImage && (
+                        <img src={selection.coverImage} className="w-full h-full object-cover absolute inset-0" alt={selection.title || "Gallery"} />
+                      )}
                       <div className="absolute inset-0 bg-black/40 md:hidden" />
                     </div>
                     
@@ -105,10 +110,10 @@ export default function AlbumSelectionsPage() {
                         </div>
                         
                         <div>
-                          <h3 className="text-xl font-headline font-bold group-hover:text-primary transition-colors">{selection.title}</h3>
+                          <h3 className="text-xl font-headline font-bold group-hover:text-primary transition-colors">{selection.title || "Untitled Gallery"}</h3>
                           <div className="flex flex-wrap items-center gap-4 mt-1 text-muted-foreground text-[10px] font-bold uppercase tracking-widest">
-                            <span className="flex items-center gap-1.5"><User className="w-3 h-3 text-primary" /> {selection.clientName}</span>
-                            <span className="flex items-center gap-1.5"><Calendar className="w-3 h-3 text-primary" /> {selection.date}</span>
+                            <span className="flex items-center gap-1.5"><User className="w-3 h-3 text-primary" /> {selection.clientName || "Unknown Client"}</span>
+                            <span className="flex items-center gap-1.5"><Calendar className="w-3 h-3 text-primary" /> {selection.date || "N/A"}</span>
                             <span className="flex items-center gap-1.5 text-primary"><Clock className="w-3 h-3" /> {favoritesCount} Masterpieces</span>
                           </div>
                         </div>

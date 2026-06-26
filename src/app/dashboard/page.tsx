@@ -156,7 +156,9 @@ export default function DashboardPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {galleries?.map((event) => {
-              const favoritesCount = event.items?.filter((i: any) => i.isFavorite).length || 0;
+              const favoritesCount = Array.isArray(event.items) 
+                ? event.items.filter((i: any) => i.isFavorite).length 
+                : 0;
               return (
                 <Card key={event.id} className="overflow-hidden border-border/30 bg-card/50 group hover:border-primary/50 transition-all duration-300">
                   <div className="aspect-[16/9] relative overflow-hidden">

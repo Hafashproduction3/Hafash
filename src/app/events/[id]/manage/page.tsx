@@ -65,6 +65,11 @@ export default function EventManagementPage() {
 
   const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
+  const favoritesCount = useMemo(() => {
+    if (!event || !Array.isArray(event.items)) return 0;
+    return event.items.filter((i: any) => i.isFavorite).length;
+  }, [event?.items]);
+
   if (authLoading || dataLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 min-h-[50vh]">
@@ -85,8 +90,6 @@ export default function EventManagementPage() {
     );
   }
 
-  const favoritesCount = event.items?.filter((i: any) => i.isFavorite).length || 0;
-
   const handleCopyLink = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
@@ -95,7 +98,7 @@ export default function EventManagementPage() {
   };
 
   const generateAlbumPackage = () => {
-    if (!firestore || !user || favoritesCount === 0) return;
+    if (!firestore || !user || !eventRef || favoritesCount === 0) return;
     setIsGenerating(true);
 
     const token = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -106,7 +109,7 @@ export default function EventManagementPage() {
       albumStatus: "Album Package Generated"
     };
 
-    updateDoc(eventRef!, updateData)
+    updateDoc(eventRef, updateData)
       .then(() => {
         toast({ title: "Success", description: "Secure Album Package generated." });
       })
@@ -128,13 +131,16 @@ export default function EventManagementPage() {
   };
 
   const handleDelete = () => {
-    if (!firestore || !user || !confirm('Are you sure you want to delete this event? This will permanently remove all associated telemetry.')) return;
-    deleteDoc(eventRef!)
+    if (!firestore || !user || !eventRef || !confirm('Are you sure you want to delete this event? This will permanently remove all associated telemetry.')) return;
+    deleteDoc(eventRef)
       .then(() => {
         toast({ title: "Event Purged" });
         router.push('/dashboard');
       });
   };
+
+  const selectedItems = Array.isArray(event.items) ? event.items.filter((i: any) => i.isFavorite) : [];
+  const totalItemsCount = Array.isArray(event.items) ? event.items.length : 1;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -290,7 +296,7 @@ export default function EventManagementPage() {
                       <ImageIcon className="w-3 h-3 text-primary" /> {favoritesCount} Selected Masterpieces
                     </div>
                     <div className="flex -space-x-2 overflow-hidden">
-                      {event.items?.filter((i: any) => i.isFavorite).slice(0, 10).map((item: any, idx: number) => (
+                      {selectedItems.slice(0, 10).map((item: any, idx: number) => (
                         <div key={idx} className="inline-block h-8 w-8 rounded-full ring-2 ring-card overflow-hidden bg-muted">
                           <img src={item.url} className="w-full h-full object-cover" alt="Selected" />
                         </div>
@@ -387,10 +393,10 @@ export default function EventManagementPage() {
                 Hafash telemetry tracks selection activity in real-time. Use these insights to optimize your studio's fulfillment cycle.
               </p>
               <div className="h-1.5 w-full bg-primary/10 rounded-full overflow-hidden">
-                <div className="h-full bg-primary animate-in slide-in-from-left duration-1000" style={{ width: `${(favoritesCount / (event.items?.length || 1)) * 100}%` }} />
+                <div className="h-full bg-primary animate-in slide-in-from-left duration-1000" style={{ width: `${(favoritesCount / totalItemsCount) * 100}%` }} />
               </div>
               <p className="text-[8px] font-bold uppercase tracking-widest text-primary/60">
-                {Math.round((favoritesCount / (event.items?.length || 1)) * 100)}% Conversion Rate
+                {Math.round((favoritesCount / totalItemsCount) * 100)}% Conversion Rate
               </p>
             </div>
             <Sparkles className="absolute -bottom-4 -right-4 w-20 h-20 text-primary/5 group-hover:scale-110 transition-transform" />
