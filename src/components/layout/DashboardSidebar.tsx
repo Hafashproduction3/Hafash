@@ -57,7 +57,7 @@ export function DashboardSidebar() {
           <img 
             src="/hafash-logo.png" 
             alt="Hafash Logo" 
-            className="h-[64px] w-auto transition-transform duration-500 group-hover:scale-105" 
+            className="w-[64px] h-[64px] min-w-[64px] min-h-[64px] shrink-0 object-contain transition-transform duration-500 group-hover:scale-105" 
           />
           <span className="text-[24px] font-headline font-bold text-primary italic tracking-tighter">
             Hafash.pk
