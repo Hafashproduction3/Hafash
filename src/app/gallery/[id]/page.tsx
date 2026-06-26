@@ -115,12 +115,13 @@ export default function ClientGalleryPage() {
 
   const handleDownloadAttempt = async (e: React.MouseEvent, item: any) => {
     e.stopPropagation();
+    if (gallery?.isLocked) return;
+    
     if (!gallery?.isPaid) {
       setShowLockDialog(true);
       return;
     }
 
-    // Prioritize master high-resolution URL
     const downloadUrl = item.masterUrl || item.url;
     const filename = item.fileName || `${gallery.title}-${item.id}.jpg`;
 
@@ -141,7 +142,8 @@ export default function ClientGalleryPage() {
   };
 
   const handleDownloadAll = async () => {
-    if (isZipping || !gallery) return;
+    if (isZipping || !gallery || gallery.isLocked) return;
+    
     if (!gallery.isPaid) {
       setShowLockDialog(true);
       return;
@@ -161,13 +163,11 @@ export default function ClientGalleryPage() {
       }
 
       const downloadPromises = items.map(async (item: any, index: number) => {
-        // ALWAYS use masterUrl for original high-resolution access in ZIP
         const originalUrl = item.masterUrl || item.url;
         const response = await fetch(originalUrl);
         if (!response.ok) throw new Error(`Failed to fetch original image ${index + 1}`);
         const blob = await response.blob();
         
-        // Detect extension correctly, fallback to jpg
         let extension = 'jpg';
         if (item.fileName && item.fileName.includes('.')) {
           extension = item.fileName.split('.').pop() || 'jpg';
@@ -291,7 +291,7 @@ export default function ClientGalleryPage() {
       <div className="max-w-7xl mx-auto px-6 mt-12 relative z-10">
         <div className="flex justify-between items-center mb-12">
           <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
-          {gallery.items && gallery.items.length > 0 && (
+          {!gallery.isLocked && gallery.items && gallery.items.length > 0 && (
             <Button 
               className={cn(
                 "rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2",
@@ -327,9 +327,11 @@ export default function ClientGalleryPage() {
                     <Button size="icon" className={cn("rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110 shadow-xl", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/10 text-white")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
                       <Heart className={cn("w-6 h-6", item.isFavorite ? "fill-current" : "")} />
                     </Button>
-                    <Button size="icon" className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" onClick={(e) => handleDownloadAttempt(e, item)}>
-                      <Download className="w-6 h-6" />
-                    </Button>
+                    {!gallery.isLocked && (
+                      <Button size="icon" className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" onClick={(e) => handleDownloadAttempt(e, item)}>
+                        <Download className="w-6 h-6" />
+                      </Button>
+                    )}
                   </div>
                   <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/70">Luxury Experience</p>
                 </div>
@@ -365,9 +367,9 @@ export default function ClientGalleryPage() {
             <div className="mx-auto bg-primary/10 h-24 w-24 rounded-full flex items-center justify-center mb-8">
               <Lock className="w-12 h-12 text-primary" />
             </div>
-            <AlertDialogTitle className="text-4xl font-headline font-bold italic tracking-tighter">High-Resolution Restricted</AlertDialogTitle>
+            <AlertDialogTitle className="text-4xl font-headline font-bold italic tracking-tighter">Payment Required</AlertDialogTitle>
             <AlertDialogDescription className="text-lg mt-6 leading-relaxed text-muted-foreground">
-              Original downloads are locked by the photographer. Please contact the studio to finalize your package and unlock master file access.
+              Master high-resolution downloads are currently restricted. Please complete the final payment to the studio to unlock your original masterpieces.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="mt-12">
