@@ -113,26 +113,30 @@ export default function ClientGalleryPage() {
       });
   };
 
-  const handleDownloadAttempt = async (e: React.MouseEvent, url: string, filename: string) => {
+  const handleDownloadAttempt = async (e: React.MouseEvent, item: any) => {
     e.stopPropagation();
     if (!gallery?.isPaid) {
       setShowLockDialog(true);
       return;
     }
 
+    // Prioritize master high-resolution URL
+    const downloadUrl = item.masterUrl || item.url;
+    const filename = item.fileName || `${gallery.title}-${item.id}.jpg`;
+
     try {
       toast({ title: "Preparing Download", description: "Fetching high-resolution master file..." });
-      const response = await fetch(url);
+      const response = await fetch(downloadUrl);
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = window.URL.createObjectURL(blob);
-      link.download = filename || 'hafash-memory.jpg';
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(link.href);
     } catch (error) {
-      window.open(url, '_blank');
+      window.open(downloadUrl, '_blank');
     }
   };
 
@@ -156,13 +160,23 @@ export default function ClientGalleryPage() {
         return;
       }
 
-      // Concurrently fetch blobs to speed up the process, but limit concurrency if needed
       const downloadPromises = items.map(async (item: any, index: number) => {
-        const response = await fetch(item.url);
-        if (!response.ok) throw new Error(`Failed to fetch image ${index + 1}`);
+        // ALWAYS use masterUrl for original high-resolution access in ZIP
+        const originalUrl = item.masterUrl || item.url;
+        const response = await fetch(originalUrl);
+        if (!response.ok) throw new Error(`Failed to fetch original image ${index + 1}`);
         const blob = await response.blob();
-        const extension = item.url.split('.').pop()?.split('?')[0] || 'jpg';
-        zip.file(`${gallery.title}-${index + 1}.${extension}`, blob);
+        
+        // Detect extension correctly, fallback to jpg
+        let extension = 'jpg';
+        if (item.fileName && item.fileName.includes('.')) {
+          extension = item.fileName.split('.').pop() || 'jpg';
+        } else if (!originalUrl.includes('picsum.photos')) {
+          extension = originalUrl.split('.').pop()?.split('?')[0] || 'jpg';
+        }
+        
+        const fileName = item.fileName || `${gallery.title}-${index + 1}.${extension}`;
+        zip.file(fileName, blob);
       });
 
       await Promise.all(downloadPromises);
@@ -173,14 +187,14 @@ export default function ClientGalleryPage() {
 
       toast({ 
         title: "Download Ready", 
-        description: "Your masterpieces are ready. The temporary ZIP has been generated and delivered." 
+        description: "Your masterpieces are ready. High-resolution originals delivered." 
       });
     } catch (error: any) {
       console.error("ZIP_ERROR:", error);
       toast({ 
         variant: "destructive", 
         title: "Download Failed", 
-        description: "We encountered an error while preparing your ZIP. Please try again." 
+        description: "We encountered an error while preparing your original ZIP. Please try again." 
       });
     } finally {
       setIsZipping(false);
@@ -313,7 +327,7 @@ export default function ClientGalleryPage() {
                     <Button size="icon" className={cn("rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110 shadow-xl", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/10 text-white")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
                       <Heart className={cn("w-6 h-6", item.isFavorite ? "fill-current" : "")} />
                     </Button>
-                    <Button size="icon" className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" onClick={(e) => handleDownloadAttempt(e, item.url, `${gallery.title}-${item.id}.jpg`)}>
+                    <Button size="icon" className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" onClick={(e) => handleDownloadAttempt(e, item)}>
                       <Download className="w-6 h-6" />
                     </Button>
                   </div>

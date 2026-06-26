@@ -62,10 +62,13 @@ export default function AlbumDesignerViewPage() {
     return (gallery?.items || []).filter((item: any) => item.isFavorite);
   }, [gallery?.items]);
 
-  const handleDownloadOriginal = async (url: string, filename: string) => {
+  const handleDownloadOriginal = async (item: any) => {
+    const downloadUrl = item.masterUrl || item.url;
+    const filename = item.fileName || `${gallery?.title || 'hafash'}-master-${item.id}.jpg`;
+
     try {
       toast({ title: "Fetching Asset", description: "Directing download for original high-resolution master file." });
-      const response = await fetch(url);
+      const response = await fetch(downloadUrl);
       const blob = await response.blob();
       const link = document.createElement('a');
       link.href = window.URL.createObjectURL(blob);
@@ -73,8 +76,9 @@ export default function AlbumDesignerViewPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      window.URL.revokeObjectURL(link.href);
     } catch (error) {
-      window.open(url, '_blank');
+      window.open(downloadUrl, '_blank');
     }
   };
 
@@ -126,7 +130,7 @@ export default function AlbumDesignerViewPage() {
             <Button 
               className="flex-1 md:flex-none h-14 px-10 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-bold gap-3 shadow-xl shadow-primary/20"
               onClick={() => {
-                toast({ title: "Coming Soon", description: "Batch downloading of original assets is in development." });
+                toast({ title: "Coming Soon", description: "Batch downloading of high-resolution master assets is in development." });
               }}
             >
               <Download className="w-5 h-5" /> Download Full Selection
@@ -149,7 +153,7 @@ export default function AlbumDesignerViewPage() {
                    <Button 
                     size="icon" 
                     className="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-2xl scale-75 group-hover:scale-100 transition-transform"
-                    onClick={() => handleDownloadOriginal(item.url, `${gallery.title}-master-${item.id}.jpg`)}
+                    onClick={() => handleDownloadOriginal(item)}
                    >
                      <Download className="w-6 h-6" />
                    </Button>
@@ -164,7 +168,7 @@ export default function AlbumDesignerViewPage() {
                   variant="ghost" 
                   size="sm" 
                   className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-tighter"
-                  onClick={() => handleDownloadOriginal(item.url, `${gallery.title}-master-${item.id}.jpg`)}
+                  onClick={() => handleDownloadOriginal(item)}
                 >
                   Download <ChevronRight className="w-3 h-3" />
                 </Button>

@@ -8,6 +8,8 @@
       "properties": {
         "id": { "type": "string" },
         "url": { "type": "string" },
+        "masterUrl": { "type": "string", "description": "High-resolution original file URL" },
+        "fileName": { "type": "string" },
         "type": { "type": "string", "enum": ["image", "video"] },
         "isFavorite": { "type": "boolean" }
       },

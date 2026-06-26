@@ -97,11 +97,15 @@ export default function GalleryUploadPage() {
 
       // Step 4: Generating Secure URL (Demo Mode)
       updateStep('uploading', 'Step 4: Finalizing Asset', 90);
-      const demoUrl = `https://picsum.photos/seed/${fileId}/1600/1200`;
+      
+      // We simulate an original high-res URL and a preview URL
+      const previewUrl = `https://picsum.photos/seed/${fileId}/1600/1200`;
+      const masterUrl = `https://picsum.photos/seed/${fileId}/4000/3000`; // Higher resolution for original
       
       uploadedItems.push({
         id: fileId,
-        url: demoUrl,
+        url: previewUrl,
+        masterUrl: masterUrl,
         type: 'image',
         isFavorite: false,
         fileName: fileItem.name,
@@ -174,7 +178,7 @@ export default function GalleryUploadPage() {
         <Info className="h-5 w-5 text-primary" />
         <AlertTitle className="font-bold text-primary">MVP Demo Mode Active</AlertTitle>
         <AlertDescription className="text-primary/80">
-          Real file uploads are currently restricted. Using high-quality sample masterpieces for demonstration.
+          Real file uploads are currently restricted. Using high-quality sample masterpieces (Preview & Master) for demonstration.
         </AlertDescription>
       </Alert>
 
