@@ -57,13 +57,13 @@ export function DashboardSidebar() {
           <img 
             src="/hafash-logo.png" 
             alt="Hafash Logo" 
-            className="h-[75px] w-auto drop-shadow-2xl transition-transform group-hover:scale-105 duration-500" 
+            className="h-[80px] w-auto drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] transition-transform group-hover:scale-105 duration-500" 
           />
-          <div className="mt-1 space-y-0">
-            <span className="block text-3xl font-headline font-bold text-primary tracking-tighter italic leading-none drop-shadow-md">
+          <div className="mt-0 space-y-0">
+            <span className="block text-4xl font-headline font-bold text-primary tracking-tighter italic leading-none drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]">
               Hafash.pk
             </span>
-            <span className="block text-[8px] uppercase tracking-[0.6em] font-bold text-muted-foreground mt-2 opacity-60">
+            <span className="block text-[8px] uppercase tracking-[0.8em] font-bold text-muted-foreground mt-3 opacity-50">
               Luxury Studio
             </span>
           </div>
