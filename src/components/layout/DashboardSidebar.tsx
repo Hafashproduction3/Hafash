@@ -17,6 +17,10 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
+/**
+ * Dashboard Sidebar - Updated for precise branding and cache-resilience.
+ * Note: Visible only on 'lg' screens (1024px+).
+ */
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: PlusCircle, label: 'Create Event', href: '/events/create' },
@@ -51,11 +55,11 @@ export function DashboardSidebar() {
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
-      {/* Updated Original Branding Layout with precise sizes */}
+      {/* Branding Section - Updated with precise 64px sizing and cache busting */}
       <div className="p-8 border-b border-border/20">
         <Link href="/dashboard" className="flex items-center justify-center gap-2 group">
           <img 
-            src="/hafash-logo.png" 
+            src="/hafash-logo.png?v=2" 
             alt="Hafash Logo" 
             className="w-[64px] h-[64px] min-w-[64px] min-h-[64px] shrink-0 object-contain transition-transform duration-500 group-hover:scale-105" 
           />
