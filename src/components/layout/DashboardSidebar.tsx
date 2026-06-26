@@ -51,15 +51,15 @@ export function DashboardSidebar() {
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
-      {/* Restored Original Branding Layout */}
+      {/* Updated Original Branding Layout with precise sizes */}
       <div className="p-8 border-b border-border/20">
-        <Link href="/dashboard" className="flex items-center justify-center gap-1 group">
+        <Link href="/dashboard" className="flex items-center justify-center gap-2 group">
           <img 
             src="/hafash-logo.png" 
             alt="Hafash Logo" 
-            className="h-14 w-auto transition-transform duration-500 group-hover:scale-105" 
+            className="h-[64px] w-auto transition-transform duration-500 group-hover:scale-105" 
           />
-          <span className="text-3xl font-headline font-bold text-primary italic tracking-tighter">
+          <span className="text-[24px] font-headline font-bold text-primary italic tracking-tighter">
             Hafash.pk
           </span>
         </Link>
