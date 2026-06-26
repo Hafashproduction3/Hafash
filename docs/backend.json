@@ -31,7 +31,14 @@
         },
         "isLocked": { "type": "boolean" },
         "viewCount": { "type": "number" },
-        "userId": { "type": "string" }
+        "userId": { "type": "string" },
+        "albumStatus": { 
+          "type": "string", 
+          "enum": ["New Selection", "Album Package Generated", "Shared with Album Designer", "Completed"] 
+        },
+        "albumLinkEnabled": { "type": "boolean" },
+        "albumLinkCreated": { "type": "string" },
+        "albumLinkToken": { "type": "string" }
       },
       "required": ["id", "slug", "title", "clientName", "date", "category", "coverImage", "items", "isLocked", "viewCount", "userId"]
     },

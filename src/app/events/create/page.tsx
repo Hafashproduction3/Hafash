@@ -81,7 +81,11 @@ export default function CreateEventPage() {
       isLocked: true,
       viewCount: 0,
       userId: user.uid,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      albumStatus: "New Selection",
+      albumLinkEnabled: false,
+      albumLinkToken: "",
+      albumLinkCreated: ""
     };
 
     console.log(`[FIRESTORE_CREATE_ATTEMPT] User: ${user.uid}, Path: ${newDocRef.path}`);
