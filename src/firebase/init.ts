@@ -1,7 +1,7 @@
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, Firestore } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { firebaseConfig } from './config';
@@ -9,6 +9,9 @@ import { firebaseConfig } from './config';
 /**
  * Initializes Firebase services and returns the instances.
  * Isolated from index.ts to prevent circular dependencies.
+ * 
+ * Note: Uses experimentalForceLongPolling to resolve connectivity issues
+ * in specialized development environments like Cloud Workstations.
  */
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
@@ -18,7 +21,18 @@ export function initializeFirebase(): {
 } {
   // Ensure we don't initialize multiple times
   const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  const firestore = getFirestore(firebaseApp);
+  
+  // Use initializeFirestore with optimized settings for connectivity resilience
+  let firestore: Firestore;
+  try {
+    firestore = initializeFirestore(firebaseApp, {
+      experimentalForceLongPolling: true,
+    });
+  } catch (e) {
+    // If already initialized, fallback to getFirestore
+    firestore = getFirestore(firebaseApp);
+  }
+
   const auth = getAuth(firebaseApp);
   const storage = getStorage(firebaseApp);
 
