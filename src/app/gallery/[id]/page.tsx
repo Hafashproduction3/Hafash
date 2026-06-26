@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
@@ -32,15 +33,11 @@ export default function ClientGalleryPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [showLockDialog, setShowLockDialog] = useState(false);
   
-  // Track if view has been incremented to prevent double-counting (Strict Mode or re-renders)
   const viewIncremented = useRef<string | null>(null);
 
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) return;
-      
-      // If we've already tracked a view for this specific galleryParam in this visit, stop.
-      // This solves the double-increment issue caused by React Strict Mode in development.
       if (viewIncremented.current === galleryParam) return;
 
       setSearching(true);
@@ -52,17 +49,12 @@ export default function ClientGalleryPage() {
           const foundId = querySnapshot.docs[0].id;
           setGalleryId(foundId);
           
-          // Mark as incremented before the actual call to be safe with async execution
           if (viewIncremented.current !== galleryParam) {
             viewIncremented.current = galleryParam;
             const gRef = doc(firestore, 'galleries', foundId);
-            updateDoc(gRef, { viewCount: increment(1) })
-              .catch(() => {
-                // If it fails, we might want to allow a retry on next render, but for MVP we skip
-              });
+            updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          // If slug search fails, assume it might be a direct document ID visit
           setGalleryId(galleryParam);
         }
       } catch (err) {
@@ -136,7 +128,6 @@ export default function ClientGalleryPage() {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(link.href);
     } catch (error) {
-      console.error('Download error:', error);
       window.open(url, '_blank');
     }
   };
@@ -184,13 +175,8 @@ export default function ClientGalleryPage() {
 
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
-      {/* Cinematic Gallery Cover */}
       <div className="h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card">
-        <img 
-          src={coverImageUrl} 
-          className="absolute inset-0 w-full h-full object-cover opacity-85 brightness-90 transition-all duration-[3000ms] ease-out animate-in zoom-in-110" 
-          alt="Gallery Cover" 
-        />
+        <img src={coverImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-85 brightness-90 transition-all duration-[3000ms] ease-out animate-in zoom-in-110" alt="Gallery Cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
         <div className="absolute inset-0 bg-black/10" />
         
@@ -205,9 +191,11 @@ export default function ClientGalleryPage() {
 
         <div className="relative z-10 text-center px-6 max-w-5xl animate-in fade-in zoom-in-95 duration-1000 delay-300">
           <div className="mb-8 h-px w-16 md:w-24 bg-primary/80 mx-auto" />
-          <h1 className="text-4xl md:text-9xl font-headline font-bold mb-6 md:mb-8 uppercase tracking-[0.1em] leading-tight text-white drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)]">
-            {gallery.title}
-          </h1>
+          <div className="flex items-center justify-center gap-1 mb-6">
+            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
+            <span className="text-4xl md:text-9xl font-headline font-bold uppercase tracking-[0.1em] leading-tight text-white drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)] italic">Hafash.pk</span>
+          </div>
+          <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight">{gallery.title}</h1>
           <div className="space-y-4">
              <p className="text-xl md:text-4xl italic text-primary font-headline lowercase tracking-widest drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
               {gallery.clientName}
@@ -228,11 +216,6 @@ export default function ClientGalleryPage() {
             </Button>
           </div>
         </div>
-
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center opacity-80 animate-bounce">
-          <span className="text-[8px] uppercase tracking-[0.5em] font-bold mb-4 text-white drop-shadow-md">Discover Gallery</span>
-          <div className="h-12 w-px bg-gradient-to-b from-primary to-transparent" />
-        </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-12 relative z-10">
@@ -244,39 +227,20 @@ export default function ClientGalleryPage() {
         ) : (
           <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
             {gallery.items.map((item: any) => (
-              <div 
-                key={item.id} 
-                className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-2xl transition-all hover:border-primary/30"
-                onClick={() => setSelectedImage(item.url)}
-              >
+              <div key={item.id} className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-2xl transition-all hover:border-primary/30" onClick={() => setSelectedImage(item.url)}>
                 <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
-                
-                {!gallery.isLocked ? (
-                  null
-                ) : (
+                {gallery.isLocked && (
                   <>
                     <div className="absolute inset-0 watermark-overlay pointer-events-none" />
                     <div className="watermark-text">HAFASH PREVIEW</div>
                   </>
                 )}
-
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6 backdrop-blur-[2px]">
                   <div className="flex gap-4">
-                    <Button 
-                      size="icon" 
-                      className={cn(
-                        "rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110 shadow-xl",
-                        item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/10 text-white"
-                      )} 
-                      onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}
-                    >
+                    <Button size="icon" className={cn("rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110 shadow-xl", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/10 text-white")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
                       <Heart className={cn("w-6 h-6", item.isFavorite ? "fill-current" : "")} />
                     </Button>
-                    <Button 
-                      size="icon" 
-                      className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" 
-                      onClick={(e) => handleDownloadAttempt(e, item.url, `${gallery.title}-${item.id}.jpg`)}
-                    >
+                    <Button size="icon" className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" onClick={(e) => handleDownloadAttempt(e, item.url, `${gallery.title}-${item.id}.jpg`)}>
                       <Download className="w-6 h-6" />
                     </Button>
                   </div>
@@ -294,9 +258,6 @@ export default function ClientGalleryPage() {
         <Button className="rounded-full px-12 h-16 bg-primary font-bold shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-transform text-lg" onClick={handleWhatsAppContact}>
           Finalize My Selection
         </Button>
-        <div className="mt-12 text-[10px] uppercase tracking-[0.5em] text-muted-foreground/30 font-bold">
-          Delivered via Hafash Luxury Network
-        </div>
       </div>
 
       {selectedImage && (
@@ -308,9 +269,6 @@ export default function ClientGalleryPage() {
           <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-primary hover:bg-primary/10 rounded-full h-12 w-12 bg-background/50 backdrop-blur-md">
             <X className="w-8 h-8" />
           </Button>
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 bg-card/80 backdrop-blur-md px-10 py-4 rounded-full border border-border/50 text-[10px] font-bold uppercase tracking-[0.5em] text-primary">
-            Hafash Luxury Viewing
-          </div>
         </div>
       )}
 
@@ -322,16 +280,13 @@ export default function ClientGalleryPage() {
             </div>
             <AlertDialogTitle className="text-4xl font-headline font-bold italic tracking-tighter">High-Resolution Restricted</AlertDialogTitle>
             <AlertDialogDescription className="text-lg mt-6 leading-relaxed text-muted-foreground">
-              Original downloads are locked by the photographer. Please contact {profile?.photographerName || 'the studio'} to finalize your package and unlock high-resolution master file access.
+              Original downloads are locked by the photographer. Please contact the studio to finalize your package and unlock master file access.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="mt-12 flex flex-col gap-4">
-            <Button className="rounded-full h-16 w-full bg-primary text-primary-foreground font-bold text-xl shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-transform" onClick={handleWhatsAppContact}>
+          <AlertDialogFooter className="mt-12">
+            <Button className="rounded-full h-16 w-full bg-primary text-primary-foreground font-bold text-xl" onClick={handleWhatsAppContact}>
               Contact via WhatsApp
             </Button>
-            <AlertDialogAction className="rounded-full h-12 w-full border-none bg-transparent text-muted-foreground hover:bg-background/50 font-medium" onClick={() => setShowLockDialog(false)}>
-              I Understand
-            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

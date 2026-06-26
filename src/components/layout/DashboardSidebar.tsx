@@ -11,8 +11,7 @@ import {
   Heart, 
   HardDrive, 
   Settings, 
-  LogOut,
-  BookOpen
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -21,8 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: PlusCircle, label: 'Create Event', href: '/events/create' },
-  { icon: Heart, label: 'Favorites', href: '/favorites' },
-  { icon: BookOpen, label: 'Album Selections', href: '/album-selections' },
+  { icon: Heart, label: 'Favorites & Workflow', href: '/favorites' },
   { icon: HardDrive, label: 'Storage', href: '/storage' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ];
