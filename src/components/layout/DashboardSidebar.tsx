@@ -51,22 +51,17 @@ export function DashboardSidebar() {
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
-      {/* Premium Branding Section */}
-      <div className="py-16 px-4 flex flex-col items-center justify-center border-b border-border/20">
-        <Link href="/dashboard" className="group flex flex-col items-center text-center">
+      {/* Restored Original Branding Layout */}
+      <div className="p-8 border-b border-border/20">
+        <Link href="/dashboard" className="flex items-center justify-center gap-1 group">
           <img 
             src="/hafash-logo.png" 
             alt="Hafash Logo" 
-            className="h-[80px] w-auto drop-shadow-[0_15px_20px_rgba(0,0,0,0.6)] transition-all duration-700 group-hover:scale-105 mb-6" 
+            className="h-14 w-auto transition-transform duration-500 group-hover:scale-105" 
           />
-          <div className="space-y-2">
-            <span className="block text-4xl font-headline font-bold text-primary tracking-tighter uppercase leading-none drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]">
-              HAFASH.PK
-            </span>
-            <span className="block text-[12px] uppercase tracking-[0.4em] font-bold text-muted-foreground/60 leading-tight px-2">
-              Professional Photography Platform
-            </span>
-          </div>
+          <span className="text-3xl font-headline font-bold text-primary italic tracking-tighter">
+            Hafash.pk
+          </span>
         </Link>
       </div>
 
