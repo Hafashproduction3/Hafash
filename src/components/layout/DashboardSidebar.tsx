@@ -52,19 +52,19 @@ export function DashboardSidebar() {
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
       {/* Premium Branding Section */}
-      <div className="py-12 px-4 flex flex-col items-center justify-center border-b border-border/20">
+      <div className="py-16 px-4 flex flex-col items-center justify-center border-b border-border/20">
         <Link href="/dashboard" className="group flex flex-col items-center text-center">
           <img 
             src="/hafash-logo.png" 
             alt="Hafash Logo" 
-            className="h-[80px] w-auto drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)] transition-transform group-hover:scale-105 duration-500" 
+            className="h-[80px] w-auto drop-shadow-[0_15px_20px_rgba(0,0,0,0.6)] transition-all duration-700 group-hover:scale-105 mb-6" 
           />
-          <div className="mt-0 space-y-0">
-            <span className="block text-4xl font-headline font-bold text-primary tracking-tighter italic leading-none drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]">
-              Hafash.pk
+          <div className="space-y-2">
+            <span className="block text-4xl font-headline font-bold text-primary tracking-tighter uppercase leading-none drop-shadow-[0_4px_4px_rgba(0,0,0,0.5)]">
+              HAFASH.PK
             </span>
-            <span className="block text-[8px] uppercase tracking-[0.8em] font-bold text-muted-foreground mt-3 opacity-50">
-              Luxury Studio
+            <span className="block text-[12px] uppercase tracking-[0.4em] font-bold text-muted-foreground/60 leading-tight px-2">
+              Professional Photography Platform
             </span>
           </div>
         </Link>
