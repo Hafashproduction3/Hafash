@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth } from '@/firebase';
 import { sendEmailVerification, signOut } from 'firebase/auth';
-import { Mail, Loader2, RefreshCw, LogOut } from 'lucide-react';
+import { Mail, Loader2, RefreshCw, LogOut, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
@@ -40,25 +40,22 @@ export default function VerifyEmailPage() {
     
     setResending(true);
     try {
-      console.log("[VERIFY_DEBUG] Initiating email resend...");
       await sendEmailVerification(user);
       
       toast({
         title: "Verification Sent",
-        description: "A fresh verification link has been delivered to your inbox.",
+        description: "Verification email sent successfully. Please check your Inbox, Spam or Promotions folder.",
       });
       
-      setCooldown(60); // Start 60s cooldown
+      setCooldown(60); 
     } catch (error: any) {
-      console.error("[VERIFY_DEBUG] Resend failed:", error);
-      
       if (error.code === 'auth/too-many-requests') {
         toast({
           variant: "destructive",
           title: "Rate Limit Exceeded",
           description: "We recently sent a verification email. Please wait a moment before trying again.",
         });
-        setCooldown(120); // Extra cooldown for rate limit
+        setCooldown(120); 
       } else {
         toast({
           variant: "destructive",
@@ -75,7 +72,6 @@ export default function VerifyEmailPage() {
     if (!user) return;
     setRefreshing(true);
     try {
-      console.log("[VERIFY_DEBUG] Refreshing auth status...");
       await user.reload();
       if (user.emailVerified) {
         toast({
@@ -89,7 +85,6 @@ export default function VerifyEmailPage() {
         });
       }
     } catch (error: any) {
-      console.error("[VERIFY_DEBUG] Refresh failed:", error);
       toast({
         variant: "destructive",
         title: "Sync Error",
@@ -129,11 +124,18 @@ export default function VerifyEmailPage() {
             <Mail className="w-10 h-10 text-primary" />
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-4">
             <h1 className="text-3xl font-headline font-bold">Verify Your Identity</h1>
             <p className="text-muted-foreground">
-              We've sent a secure verification link to <span className="text-primary font-bold">{user?.email}</span>. Please verify your email to unlock your studio.
+              A verification email has been sent to your email address.
             </p>
+            
+            <div className="bg-primary/5 rounded-2xl p-4 border border-primary/10 flex items-start gap-3 text-left">
+              <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                If you don't see the email within 2 minutes, please check your <span className="text-primary font-bold">Spam</span> or <span className="text-primary font-bold">Promotions</span> folder.
+              </p>
+            </div>
           </div>
 
           <div className="space-y-4 pt-4">
