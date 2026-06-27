@@ -70,11 +70,11 @@
   "firestore": {
     "/galleries/{galleryId}": {
       "schema": "#/entities/EventGallery",
-      "description": "Individual event galleries. Publicly readable by clients if isPublic is true. Allows querying by slug or albumLinkToken for shared delivery. Non-public galleries require authentication."
+      "description": "Individual event galleries. Publicly readable by clients if isPublic is true. Allows querying by slug or albumLinkToken for shared delivery. Non-public galleries require owner authentication."
     },
     "/users/{userId}": {
       "schema": "#/entities/UserProfile",
-      "description": "Photographer profiles. Public branding info (name, logo, whatsapp) is readable to everyone. Private studio settings require owner authentication."
+      "description": "Photographer profiles. Private studio settings require owner authentication."
     }
   }
 }
