@@ -5,22 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
   Heart, 
   Download, 
-  Camera, 
-  ShieldAlert, 
   Loader2, 
   X, 
   Lock, 
   MessageCircle, 
   Share2, 
-  ImageIcon, 
-  Sparkles, 
-  AlertTriangle, 
-  Activity, 
-  CheckCircle2,
-  ShieldCheck,
-  ChevronRight,
-  Globe,
-  ShieldAlert as ShieldIcon
+  ShieldAlert,
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -46,7 +37,7 @@ import {
 
 export default function ClientGalleryPage() {
   const params = useParams();
-  const galleryParam = params?.id as string;
+  const galleryParam = (params?.id as string) || "";
   const firestore = useFirestore();
   const { toast } = useToast();
   const router = useRouter();
@@ -55,7 +46,6 @@ export default function ClientGalleryPage() {
   const [isResolving, setIsResolving] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isZipping, setIsZipping] = useState(false);
-  const [zipMessage, setZipMessage] = useState("");
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   
   const viewIncremented = useRef<string | null>(null);
@@ -72,6 +62,7 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
+        // Try slug resolution first
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
@@ -85,9 +76,11 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
+          // If no slug matches, use the param as a direct ID
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
+        // Fallback to direct ID if slug query is restricted
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -105,7 +98,6 @@ export default function ClientGalleryPage() {
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
-    // CRITICAL FIX: Corrected collection name from 'galleries' to 'users'
     return doc(firestore, 'users', gallery.userId);
   }, [firestore, gallery?.userId]);
 
@@ -135,10 +127,7 @@ export default function ClientGalleryPage() {
 
     updateDoc(gRef, updateData)
       .then(() => {
-        toast({ 
-          title: isCurrentlyFavorite ? "Removed" : "Favorited", 
-          description: "Syncing selection with studio." 
-        });
+        toast({ title: isCurrentlyFavorite ? "Removed" : "Favorited" });
       })
       .catch(async (err: any) => {
         if (err.code === 'permission-denied') {
@@ -152,28 +141,6 @@ export default function ClientGalleryPage() {
       });
   };
 
-  const handleDownloadAttempt = async (e: React.MouseEvent, item: any) => {
-    e.stopPropagation();
-    if (!canDownload) return;
-    
-    const downloadUrl = item.masterUrl || item.url;
-    const filename = item.fileName || `${gallery?.title || 'hafash'}-${item.id}.jpg`;
-
-    try {
-      const response = await fetch(downloadUrl);
-      const blob = await response.blob();
-      const link = document.createElement('a');
-      link.href = window.URL.createObjectURL(blob);
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(link.href);
-    } catch (error) {
-      window.open(downloadUrl, '_blank');
-    }
-  };
-
   const handleDownloadAll = async () => {
     if (isZipping || !gallery || !canDownload) return;
     const items = gallery.items || [];
@@ -184,41 +151,21 @@ export default function ClientGalleryPage() {
     }
     
     setIsZipping(true);
-    setZipMessage("Preparing your masterpieces...");
-
     try {
       const zip = new JSZip();
-      const downloadPromises = items.map(async (item: any, index: number) => {
-        const originalUrl = item.masterUrl || item.url;
-        const response = await fetch(originalUrl);
-        const blob = await response.blob();
-        const extension = item.fileName?.split('.').pop() || 'jpg';
-        const fileName = item.fileName || `${gallery.title}-${index + 1}.${extension}`;
-        zip.file(fileName, blob);
-      });
-
-      await Promise.all(downloadPromises);
+      await Promise.all(items.map(async (item: any, index: number) => {
+        const url = item.masterUrl || item.url;
+        const res = await fetch(url);
+        const blob = await res.blob();
+        zip.file(item.fileName || `photo-${index + 1}.jpg`, blob);
+      }));
       const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${gallery.title.replace(/\s+/g, '_')}_all_photos.zip`);
-      toast({ title: "Success", description: "All photos downloaded." });
-    } catch (error: any) {
+      saveAs(content, `${gallery.title || 'gallery'}.zip`);
+    } catch (error) {
       toast({ variant: "destructive", title: "Download Failed" });
     } finally {
       setIsZipping(false);
-      setZipMessage("");
     }
-  };
-
-  const handleWhatsAppContact = () => {
-    if (!profile?.whatsappNumber) return;
-    const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
-    const message = `Hi, I'm viewing the "${gallery?.title}" gallery and would like to contact you.`;
-    window.open(`https://wa.me/${cleanedNumber}?text=${encodeURIComponent(message)}`, '_blank');
-  };
-
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    toast({ title: "Link Copied" });
   };
 
   if (isResolving || docLoading) return (
@@ -244,14 +191,12 @@ export default function ClientGalleryPage() {
             : 'We couldn\'t find the requested gallery. It may have been deleted or the link is incorrect.'}
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
-        {galleryError && (
-          <p className="mt-8 text-[9px] font-mono text-muted-foreground/50 uppercase">
-            Error Signature: {galleryError.message}
-          </p>
-        )}
       </div>
     );
   }
+
+  // Absolute guard for data presence
+  if (!gallery) return null;
 
   const coverImageUrl = gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
 
@@ -286,11 +231,11 @@ export default function ClientGalleryPage() {
           
           <div className="mt-14 flex flex-wrap justify-center gap-4">
             {profile?.whatsappNumber && (
-              <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={handleWhatsAppContact}>
+              <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={() => window.open(`https://wa.me/${profile.whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
                 <MessageCircle className="w-5 h-5" /> Contact Studio
               </Button>
             )}
-            <Button variant="outline" className="rounded-full px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md" onClick={handleShare}>
+            <Button variant="outline" className="rounded-full px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}>
               <Share2 className="w-5 h-5" /> Share Gallery
             </Button>
           </div>
@@ -334,11 +279,6 @@ export default function ClientGalleryPage() {
                   <Button size="icon" className={cn("rounded-full h-12 w-12 border-none", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
                     <Heart className={cn("w-5 h-5", item.isFavorite ? "fill-current" : "")} />
                   </Button>
-                  {canDownload && (
-                    <Button size="icon" className="rounded-full h-12 w-12 bg-white/20 text-white hover:bg-white/30 border-none" onClick={(e) => handleDownloadAttempt(e, item)}>
-                      <Download className="w-5 h-5" />
-                    </Button>
-                  )}
                 </div>
               </div>
             </div>
@@ -363,7 +303,7 @@ export default function ClientGalleryPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-2xl font-headline">Upgrade Required</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground">
-              Your studio's current plan allows ZIP packages up to {photographerPlan.zipLimitGb} GB. This gallery exceeds that limit. Upgrade your storage plan to generate larger ZIP packages.
+              Your studio's current plan allows ZIP packages up to {photographerPlan.zipLimitGb} GB. This gallery exceeds that limit.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
