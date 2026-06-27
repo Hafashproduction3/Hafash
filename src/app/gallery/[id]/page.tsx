@@ -76,11 +76,12 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          // If no slug matches, use the param as a direct ID
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        // Fallback to direct ID if slug query is restricted
+        // Log the exact error for production debugging
+        console.error(`[GALLERY_RESOLUTION_ERROR] Code: ${err.code}, Message: ${err.message}`);
+        // Fallback to direct ID if slug query fails (common for anonymous list permissions)
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -175,27 +176,41 @@ export default function ClientGalleryPage() {
     </div>
   );
 
-  if (galleryError || !gallery || (gallery && !gallery.isPublic)) {
-    const isPrivate = gallery && !gallery.isPublic;
+  // Distinguish between access denied and missing document
+  if (galleryError) {
+    const isPermissionDenied = galleryError.message?.includes('permission-denied') || galleryError.message?.includes('insufficient permissions');
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
-          {isPrivate ? <Lock className="w-12 h-12 text-destructive" /> : <ShieldAlert className="w-12 h-12 text-destructive" />}
+          <ShieldAlert className="w-12 h-12 text-destructive" />
         </div>
         <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">
-          {isPrivate ? 'Gallery Restricted' : 'Gallery Unavailable'}
+          {isPermissionDenied ? 'Access Restricted' : 'Gallery Unavailable'}
         </h1>
         <p className="text-muted-foreground mb-8 max-w-sm">
-          {isPrivate 
+          {isPermissionDenied 
             ? 'This event has been set to private by the photographer. Please contact the studio for access.' 
-            : 'We couldn\'t find the requested gallery. It may have been deleted or the link is incorrect.'}
+            : 'An unexpected error occurred while loading this gallery. Please try again later.'}
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
       </div>
     );
   }
 
-  // Absolute guard for data presence
+  if (!gallery && !docLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+        <div className="bg-destructive/10 p-6 rounded-full mb-8">
+          <Lock className="w-12 h-12 text-destructive" />
+        </div>
+        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Not Found</h1>
+        <p className="text-muted-foreground mb-8 max-w-sm">We couldn't find the requested gallery. It may have been deleted or the link is incorrect.</p>
+        <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
+      </div>
+    );
+  }
+
+  // Safety guard against rendering partial state
   if (!gallery) return null;
 
   const coverImageUrl = gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');

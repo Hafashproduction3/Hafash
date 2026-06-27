@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   DocumentReference, 
   onSnapshot, 
@@ -20,23 +20,13 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Track the current path to detect changes during render
-  const lastPath = useRef<string | null>(null);
-  const currentPath = docRef?.path ?? null;
-
-  // Immediately reset state if the path changes to avoid "stale state" render frames
-  if (currentPath !== lastPath.current) {
-    lastPath.current = currentPath;
+  useEffect(() => {
+    // Reset state immediately when the reference changes to prevent stale data display
     setData(null);
     setError(null);
     setLoading(!!docRef);
-  }
 
-  useEffect(() => {
     if (!docRef) {
-      setData(null);
-      setError(null);
-      setLoading(false);
       return;
     }
 
@@ -68,7 +58,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [currentPath]);
+  }, [docRef?.path]); // Use path for stable dependency tracking
 
   return { data, loading, error };
 }
