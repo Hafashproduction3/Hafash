@@ -20,7 +20,6 @@ import {
   Heart,
   CreditCard,
   Globe,
-  Lock as LockIcon,
   Smartphone
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,6 +32,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 import { useMemo, useEffect, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 export default function EventManagementPage() {
   const params = useParams();
@@ -89,14 +89,16 @@ export default function EventManagementPage() {
   );
 
   const handleCopyLink = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    toast({ title: "Copied!" });
-    setTimeout(() => setCopied(false), 2000);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast({ title: "Copied!" });
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const handleDelete = () => {
-    if (!confirm('Are you sure you want to delete this event?')) return;
+    if (typeof window !== 'undefined' && !window.confirm('Are you sure you want to delete this event?')) return;
     deleteDoc(eventRef!)
       .then(() => {
         toast({ title: "Event Deleted" });
@@ -152,7 +154,7 @@ export default function EventManagementPage() {
   };
 
   const handleWhatsAppDelivery = () => {
-    if (!profile?.whatsappNumber) return;
+    if (!profile?.whatsappNumber || typeof window === 'undefined') return;
     const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
     const message = `Check out your luxury gallery: ${origin}/gallery/${event.slug || event.id}`;
     window.open(`https://wa.me/${cleanedNumber}?text=${encodeURIComponent(message)}`, '_blank');
@@ -223,7 +225,7 @@ export default function EventManagementPage() {
                   "h-16 w-16 rounded-2xl flex items-center justify-center transition-colors",
                   event.isPublic ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                 )}>
-                  {event.isPublic ? <Globe className="w-8 h-8" /> : <LockIcon className="w-8 h-8" />}
+                  {event.isPublic ? <Globe className="w-8 h-8" /> : <Lock className="w-8 h-8" />}
                 </div>
                 <div>
                   <h4 className="text-xl font-headline font-bold">Public Visibility</h4>
