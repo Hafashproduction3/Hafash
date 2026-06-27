@@ -159,7 +159,7 @@ export default function SignupPage() {
                   className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
                   required 
                   value={studioName}
-                  onChange={(e) => setFormData ? null : setStudioName(e.target.value)}
+                  onChange={(e) => setStudioName(e.target.value)}
                 />
               </div>
             </div>

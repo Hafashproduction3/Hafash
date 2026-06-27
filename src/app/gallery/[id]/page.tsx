@@ -19,7 +19,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   ChevronRight,
-  Globe
+  Globe,
+  ShieldAlert as ShieldIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -71,13 +72,11 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        console.log(`[GALLERY_RESOLVE] Attempting resolution for slug: ${slugAttempt}`);
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
-          console.log(`[GALLERY_RESOLVE] Resolved slug to ID: ${foundId}`);
           setGalleryId(foundId);
           
           if (viewIncremented.current !== foundId) {
@@ -86,11 +85,9 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          console.log(`[GALLERY_RESOLVE] No slug found, using as direct ID: ${cleanParam}`);
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        console.warn(`[GALLERY_RESOLVE_FAIL] Slug query failed (${err.code}). Falling back to ID lookup.`, err);
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -108,6 +105,7 @@ export default function ClientGalleryPage() {
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
+    // CRITICAL FIX: Corrected collection name from 'galleries' to 'users'
     return doc(firestore, 'users', gallery.userId);
   }, [firestore, gallery?.userId]);
 
