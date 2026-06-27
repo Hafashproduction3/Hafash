@@ -1,6 +1,6 @@
 "use client";
 
-import { useFirestore, useDoc } from '@/firebase';
+import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   Heart, 
@@ -12,9 +12,7 @@ import {
   Share2, 
   ShieldAlert,
   Globe,
-  CheckCircle2,
   Clock,
-  Zap,
   ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -43,6 +41,7 @@ export default function ClientGalleryPage() {
   const params = useParams();
   const galleryParam = (params?.id as string) || "";
   const firestore = useFirestore();
+  const { user } = useUser();
   const { toast } = useToast();
   const router = useRouter();
   
@@ -67,13 +66,11 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        console.log(`[GALLERY_RESOLUTION] Attempting slug: ${slugAttempt}`);
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
-          console.log(`[GALLERY_RESOLUTION_SUCCESS] Found via slug: ${foundId}`);
           setGalleryId(foundId);
           
           if (viewIncremented.current !== foundId) {
@@ -82,11 +79,10 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          console.log(`[GALLERY_RESOLUTION_FALLBACK] No slug found, using as ID: ${cleanParam}`);
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        console.error(`[GALLERY_RESOLUTION_FAIL] Error: ${err.code}. Fallback to ID.`);
+        // Fallback to direct ID if slug query fails (e.g. permission restriction on list)
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -102,11 +98,15 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
+  // Determine if current user is the owner to avoid permission errors when reading the users collection
+  const isOwner = useMemo(() => !!user && !!gallery && user.uid === gallery.userId, [user, gallery]);
+
   const photographerRef = useMemo(() => {
-    if (!firestore || !gallery?.userId) return null;
-    // CRITICAL FIX: Fetch from 'users' collection, not 'galleries'
+    // Only attempt to read the profile if we are authenticated as the owner.
+    // Anonymous clients do not have permission to read the users collection.
+    if (!firestore || !isOwner || !gallery?.userId) return null;
     return doc(firestore, 'users', gallery.userId);
-  }, [firestore, gallery?.userId]);
+  }, [firestore, isOwner, gallery?.userId]);
 
   const { data: profile } = useDoc(photographerRef);
 
@@ -161,16 +161,15 @@ export default function ClientGalleryPage() {
     setIsPreparing(true);
     setPreparationStep('Validating Cache...');
     
-    // 24-Hour Cache Check Logic
     const cacheKey = `hafash_zip_cache_${galleryId}`;
-    const cachedData = localStorage.getItem(cacheKey);
+    const cachedData = typeof window !== 'undefined' ? localStorage.getItem(cacheKey) : null;
     const now = new Date().getTime();
     
     if (cachedData) {
       const cache = JSON.parse(cachedData);
       if (now - cache.timestamp < 24 * 60 * 60 * 1000) {
         setPreparationStep('Retrieving from Cache (Instant)...');
-        await new Promise(r => setTimeout(r, 800)); // Smooth transition
+        await new Promise(r => setTimeout(r, 800));
       } else {
         localStorage.removeItem(cacheKey);
         await executePrioritizedPreparation();
@@ -192,8 +191,9 @@ export default function ClientGalleryPage() {
       setPreparationStep('Compiling Secure Package...');
       const content = await zip.generateAsync({ type: 'blob' });
       
-      // Save to cache
-      localStorage.setItem(cacheKey, JSON.stringify({ timestamp: now }));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(cacheKey, JSON.stringify({ timestamp: now }));
+      }
       
       saveAs(content, `${gallery.title || 'gallery'}.zip`);
       toast({ title: "Ready", description: "Your package is ready and downloading." });
@@ -206,8 +206,6 @@ export default function ClientGalleryPage() {
   };
 
   const executePrioritizedPreparation = async () => {
-    // Priority processing simulation
-    // Business: 2s, Pro: 5s, Starter: 10s
     const priorityTimes = { Business: 2000, 'High Priority': 5000, Standard: 10000 };
     const waitTime = priorityTimes[photographerPlan.priorityLabel as keyof typeof priorityTimes] || 10000;
     
@@ -228,12 +226,12 @@ export default function ClientGalleryPage() {
     </div>
   );
 
-  if (galleryError) {
-    const isPermissionDenied = galleryError.message?.includes('permission-denied') || galleryError.message?.includes('insufficient permissions');
+  if (galleryError || !gallery) {
+    const isPermissionDenied = galleryError?.message?.includes('permission-denied') || galleryError?.message?.includes('insufficient permissions');
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
-          <ShieldAlert className="w-12 h-12 text-destructive" />
+          {isPermissionDenied ? <Lock className="w-12 h-12 text-destructive" /> : <ShieldAlert className="w-12 h-12 text-destructive" />}
         </div>
         <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">
           {isPermissionDenied ? 'Access Restricted' : 'Gallery Unavailable'}
@@ -241,22 +239,8 @@ export default function ClientGalleryPage() {
         <p className="text-muted-foreground mb-8 max-w-sm">
           {isPermissionDenied 
             ? 'This event has been set to private by the photographer. Please contact the studio for access.' 
-            : 'An unexpected error occurred while loading this gallery.'}
+            : 'The requested gallery could not be found or is currently unavailable.'}
         </p>
-        <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
-      </div>
-    );
-  }
-
-  // ABSOLUTE GUARD: Final null check before rendering properties to prevent rendering crashes
-  if (!gallery) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-        <div className="bg-destructive/10 p-6 rounded-full mb-8">
-          <Lock className="w-12 h-12 text-destructive" />
-        </div>
-        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Not Found</h1>
-        <p className="text-muted-foreground mb-8 max-w-sm">We couldn't find the requested gallery. It may have been deleted or the link is incorrect.</p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
       </div>
     );
