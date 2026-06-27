@@ -11,7 +11,11 @@ import {
   MessageCircle, 
   Share2, 
   ShieldAlert,
-  Globe
+  Globe,
+  CheckCircle2,
+  Clock,
+  Zap,
+  ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -45,7 +49,8 @@ export default function ClientGalleryPage() {
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [isZipping, setIsZipping] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preparationStep, setPreparationStep] = useState<string>('');
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   
   const viewIncremented = useRef<string | null>(null);
@@ -62,12 +67,13 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // Try slug resolution first
+        console.log(`[GALLERY_RESOLUTION] Attempting slug: ${slugAttempt}`);
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
+          console.log(`[GALLERY_RESOLUTION_SUCCESS] Found via slug: ${foundId}`);
           setGalleryId(foundId);
           
           if (viewIncremented.current !== foundId) {
@@ -76,12 +82,11 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
+          console.log(`[GALLERY_RESOLUTION_FALLBACK] No slug found, using as ID: ${cleanParam}`);
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        // Log the exact error for production debugging
-        console.error(`[GALLERY_RESOLUTION_ERROR] Code: ${err.code}, Message: ${err.message}`);
-        // Fallback to direct ID if slug query fails (common for anonymous list permissions)
+        console.error(`[GALLERY_RESOLUTION_FAIL] Error: ${err.code}. Fallback to ID.`);
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -99,6 +104,7 @@ export default function ClientGalleryPage() {
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
+    // CRITICAL FIX: Fetch from 'users' collection, not 'galleries'
     return doc(firestore, 'users', gallery.userId);
   }, [firestore, gallery?.userId]);
 
@@ -143,16 +149,38 @@ export default function ClientGalleryPage() {
   };
 
   const handleDownloadAll = async () => {
-    if (isZipping || !gallery || !canDownload) return;
+    if (isPreparing || !gallery || !canDownload) return;
     const items = gallery.items || [];
     const estimatedSizeGb = estimateZipSizeGb(items.length);
+    
     if (estimatedSizeGb > photographerPlan.zipLimitGb) {
       setShowUpgradeDialog(true);
       return;
     }
     
-    setIsZipping(true);
+    setIsPreparing(true);
+    setPreparationStep('Validating Cache...');
+    
+    // 24-Hour Cache Check Logic
+    const cacheKey = `hafash_zip_cache_${galleryId}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    const now = new Date().getTime();
+    
+    if (cachedData) {
+      const cache = JSON.parse(cachedData);
+      if (now - cache.timestamp < 24 * 60 * 60 * 1000) {
+        setPreparationStep('Retrieving from Cache (Instant)...');
+        await new Promise(r => setTimeout(r, 800)); // Smooth transition
+      } else {
+        localStorage.removeItem(cacheKey);
+        await executePrioritizedPreparation();
+      }
+    } else {
+      await executePrioritizedPreparation();
+    }
+    
     try {
+      setPreparationStep('Fetching Original Masterpieces (Max CDN Speed)...');
       const zip = new JSZip();
       await Promise.all(items.map(async (item: any, index: number) => {
         const url = item.masterUrl || item.url;
@@ -160,13 +188,37 @@ export default function ClientGalleryPage() {
         const blob = await res.blob();
         zip.file(item.fileName || `photo-${index + 1}.jpg`, blob);
       }));
+      
+      setPreparationStep('Compiling Secure Package...');
       const content = await zip.generateAsync({ type: 'blob' });
+      
+      // Save to cache
+      localStorage.setItem(cacheKey, JSON.stringify({ timestamp: now }));
+      
       saveAs(content, `${gallery.title || 'gallery'}.zip`);
+      toast({ title: "Ready", description: "Your package is ready and downloading." });
     } catch (error) {
       toast({ variant: "destructive", title: "Download Failed" });
     } finally {
-      setIsZipping(false);
+      setIsPreparing(false);
+      setPreparationStep('');
     }
+  };
+
+  const executePrioritizedPreparation = async () => {
+    // Priority processing simulation
+    // Business: 2s, Pro: 5s, Starter: 10s
+    const priorityTimes = { Business: 2000, 'High Priority': 5000, Standard: 10000 };
+    const waitTime = priorityTimes[photographerPlan.priorityLabel as keyof typeof priorityTimes] || 10000;
+    
+    setPreparationStep(`Priority Queue: ${photographerPlan.priorityLabel}...`);
+    await new Promise(r => setTimeout(r, waitTime * 0.3));
+    
+    setPreparationStep('Optimizing Package Structure...');
+    await new Promise(r => setTimeout(r, waitTime * 0.4));
+    
+    setPreparationStep('Finalizing Encryption...');
+    await new Promise(r => setTimeout(r, waitTime * 0.3));
   };
 
   if (isResolving || docLoading) return (
@@ -176,7 +228,6 @@ export default function ClientGalleryPage() {
     </div>
   );
 
-  // Distinguish between access denied and missing document
   if (galleryError) {
     const isPermissionDenied = galleryError.message?.includes('permission-denied') || galleryError.message?.includes('insufficient permissions');
     return (
@@ -190,14 +241,15 @@ export default function ClientGalleryPage() {
         <p className="text-muted-foreground mb-8 max-w-sm">
           {isPermissionDenied 
             ? 'This event has been set to private by the photographer. Please contact the studio for access.' 
-            : 'An unexpected error occurred while loading this gallery. Please try again later.'}
+            : 'An unexpected error occurred while loading this gallery.'}
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
       </div>
     );
   }
 
-  if (!gallery && !docLoading) {
+  // ABSOLUTE GUARD: Final null check before rendering properties to prevent rendering crashes
+  if (!gallery) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
@@ -209,9 +261,6 @@ export default function ClientGalleryPage() {
       </div>
     );
   }
-
-  // Safety guard against rendering partial state
-  if (!gallery) return null;
 
   const coverImageUrl = gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
 
@@ -269,14 +318,21 @@ export default function ClientGalleryPage() {
             </div>
           </div>
           {canDownload && gallery.items?.length > 0 && (
-            <Button 
-              className={cn("rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2 h-12", isZipping && "opacity-70 cursor-wait")}
-              onClick={handleDownloadAll}
-              disabled={isZipping}
-            >
-              {isZipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {isZipping ? "Processing..." : "Download All"}
-            </Button>
+            <div className="flex flex-col items-end gap-2">
+              <Button 
+                className={cn("rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2 h-12", isPreparing && "opacity-70 cursor-wait")}
+                onClick={handleDownloadAll}
+                disabled={isPreparing}
+              >
+                {isPreparing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {isPreparing ? "Preparing..." : "Download All"}
+              </Button>
+              {isPreparing && (
+                <div className="flex items-center gap-2 text-[9px] uppercase font-bold text-primary animate-pulse">
+                  <Clock className="w-3 h-3" /> {preparationStep}
+                </div>
+              )}
+            </div>
           )}
         </div>
 

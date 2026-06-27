@@ -17,16 +17,17 @@ import { FirestorePermissionError } from '@/firebase/errors';
  */
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!docRef);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    // Reset state immediately when the reference changes to prevent stale data display
+    // Reset state strictly inside useEffect to avoid render-phase update loops
     setData(null);
     setError(null);
     setLoading(!!docRef);
 
     if (!docRef) {
+      setLoading(false);
       return;
     }
 
@@ -58,7 +59,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [docRef?.path]); // Use path for stable dependency tracking
+  }, [docRef?.path]); // Depend on path for stable ref transitions
 
   return { data, loading, error };
 }
