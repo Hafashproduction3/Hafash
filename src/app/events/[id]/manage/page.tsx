@@ -42,7 +42,14 @@ export default function EventManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [origin, setOrigin] = useState('');
   
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin);
+    }
+  }, []);
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
@@ -147,7 +154,7 @@ export default function EventManagementPage() {
   const handleWhatsAppDelivery = () => {
     if (!profile?.whatsappNumber) return;
     const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
-    const message = `Check out your luxury gallery: ${window.location.origin}/gallery/${event.slug || event.id}`;
+    const message = `Check out your luxury gallery: ${origin}/gallery/${event.slug || event.id}`;
     window.open(`https://wa.me/${cleanedNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -185,9 +192,9 @@ export default function EventManagementPage() {
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Client Preview URL</label>
                 <div className="flex gap-2">
                   <div className="flex-1 bg-background border border-border/50 rounded-xl px-4 py-3 text-sm truncate font-mono">
-                    {window.location.origin}/gallery/{event.slug || event.id}
+                    {origin}/gallery/{event.slug || event.id}
                   </div>
-                  <Button size="icon" className="rounded-xl" onClick={() => handleCopyLink(`${window.location.origin}/gallery/${event.slug || event.id}`)}>
+                  <Button size="icon" className="rounded-xl" onClick={() => handleCopyLink(`${origin}/gallery/${event.slug || event.id}`)}>
                     <LinkIcon className="w-4 h-4" />
                   </Button>
                 </div>
@@ -199,7 +206,7 @@ export default function EventManagementPage() {
                     <MessageCircle className="w-5 h-5" /> WhatsApp Delivery
                   </Button>
                 )}
-                <Button className="h-14 rounded-2xl bg-primary font-bold gap-3" onClick={() => handleCopyLink(`${window.location.origin}/gallery/${event.slug || event.id}`)}>
+                <Button className="h-14 rounded-2xl bg-primary font-bold gap-3" onClick={() => handleCopyLink(`${origin}/gallery/${event.slug || event.id}`)}>
                   <LinkIcon className="w-5 h-5" /> Copy Link
                 </Button>
               </div>
