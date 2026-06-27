@@ -1,13 +1,13 @@
 "use client";
 
-import { useUser, useFirestore, useDoc } from '@/firebase';
+import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
 import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
-import { doc } from 'firebase/firestore';
+import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN, calculateUsageGb } from '@/lib/plans';
+import { doc, collection, query, where } from 'firebase/firestore';
 
 export default function StoragePage() {
   const { user, loading: authLoading } = useUser();
@@ -27,12 +27,27 @@ export default function StoragePage() {
 
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
+  const galleriesQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
+  }, [firestore, user?.uid]);
+
+  const { data: galleries, loading: galleriesLoading } = useCollection(galleriesQuery);
+
   const currentPlan = useMemo(() => {
     const planId = (profile?.planId as PlanId) || 'starter';
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
-  if (authLoading || profileLoading) {
+  const usageGb = useMemo(() => {
+    return calculateUsageGb(galleries);
+  }, [galleries]);
+
+  const usagePercent = useMemo(() => {
+    return Math.min((usageGb / currentPlan.storageGb) * 100, 100);
+  }, [usageGb, currentPlan.storageGb]);
+
+  if (authLoading || profileLoading || (galleriesLoading && !galleries)) {
     return (
       <div className="flex justify-center items-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -41,10 +56,6 @@ export default function StoragePage() {
   }
 
   if (!user) return null;
-
-  // Mock usage data for demo (architecturally ready for real telemetry)
-  const usageGb = 12.5;
-  const usagePercent = (usageGb / currentPlan.storageGb) * 100;
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -82,8 +93,8 @@ export default function StoragePage() {
 
             <div className="space-y-4">
               <div className="flex justify-between text-sm font-bold uppercase tracking-widest">
-                <span>{usageGb} GB Used</span>
-                <span className="text-primary">{currentPlan.storageGb - usageGb} GB Remaining</span>
+                <span>{usageGb.toFixed(2)} GB Used</span>
+                <span className="text-primary">{Math.max(currentPlan.storageGb - usageGb, 0).toFixed(2)} GB Remaining</span>
               </div>
               <div className="h-4 w-full bg-background rounded-full overflow-hidden border border-border/50 p-1">
                 <div 

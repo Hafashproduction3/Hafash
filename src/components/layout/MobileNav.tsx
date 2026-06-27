@@ -1,16 +1,17 @@
-
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Menu, LogOut, LayoutDashboard, PlusCircle, Heart, HardDrive, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { useAuth } from '@/firebase';
+import { useAuth, useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { collection, query, where, doc } from 'firebase/firestore';
+import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -24,6 +25,8 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const auth = useAuth();
+  const firestore = useFirestore();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -45,6 +48,30 @@ export function MobileNav() {
       });
     }
   };
+
+  const galleriesQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
+  }, [firestore, user?.uid]);
+
+  const { data: galleries } = useCollection(galleriesQuery);
+
+  const profileRef = useMemo(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: profile } = useDoc(profileRef);
+
+  const currentPlan = useMemo(() => {
+    const planId = (profile?.planId as PlanId) || 'starter';
+    return HAFASH_PLANS[planId] || DEFAULT_PLAN;
+  }, [profile?.planId]);
+
+  const usageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
+  const usagePercent = useMemo(() => {
+    return Math.min((usageGb / currentPlan.storageGb) * 100, 100);
+  }, [usageGb, currentPlan.storageGb]);
 
   return (
     <div className="lg:hidden flex items-center justify-between p-4 border-b border-border/50 bg-background sticky top-0 z-40">
@@ -91,10 +118,10 @@ export function MobileNav() {
             <div className="bg-background/50 p-4 rounded-xl border border-border/50">
               <div className="flex items-center justify-between text-[10px] mb-2 font-bold uppercase tracking-wider">
                 <span className="text-muted-foreground">Storage</span>
-                <span className="text-primary">12.5GB / 50GB</span>
+                <span className="text-primary">{usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB</span>
               </div>
               <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                <div className="h-full bg-primary" style={{ width: '25%' }} />
+                <div className="h-full bg-primary" style={{ width: `${usagePercent}%` }} />
               </div>
             </div>
             

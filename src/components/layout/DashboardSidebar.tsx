@@ -1,9 +1,8 @@
-
 "use client";
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuth } from '@/firebase';
+import { useAuth, useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { signOut } from 'firebase/auth';
 import { 
   LayoutDashboard, 
@@ -16,11 +15,10 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { useMemo } from 'react';
+import { collection, query, where, doc } from 'firebase/firestore';
+import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
-/**
- * Dashboard Sidebar - Updated for precise branding and cache-resilience.
- * Note: Visible only on 'lg' screens (1024px+).
- */
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: PlusCircle, label: 'Create Event', href: '/events/create' },
@@ -32,6 +30,8 @@ const navItems = [
 export function DashboardSidebar() {
   const pathname = usePathname();
   const auth = useAuth();
+  const firestore = useFirestore();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -53,9 +53,32 @@ export function DashboardSidebar() {
     }
   };
 
+  const galleriesQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
+  }, [firestore, user?.uid]);
+
+  const { data: galleries } = useCollection(galleriesQuery);
+
+  const profileRef = useMemo(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: profile } = useDoc(profileRef);
+
+  const currentPlan = useMemo(() => {
+    const planId = (profile?.planId as PlanId) || 'starter';
+    return HAFASH_PLANS[planId] || DEFAULT_PLAN;
+  }, [profile?.planId]);
+
+  const usageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
+  const usagePercent = useMemo(() => {
+    return Math.min((usageGb / currentPlan.storageGb) * 100, 100);
+  }, [usageGb, currentPlan.storageGb]);
+
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
-      {/* Branding Section - Updated with precise 64px sizing and cache busting */}
       <div className="p-8 border-b border-border/20">
         <Link href="/dashboard" className="flex items-center justify-center gap-2 group">
           <img 
@@ -93,10 +116,10 @@ export function DashboardSidebar() {
         <div className="bg-background/50 p-4 rounded-xl border border-border/50">
           <div className="flex items-center justify-between text-xs mb-2">
             <span className="text-muted-foreground">Storage Used</span>
-            <span className="text-primary font-medium">12.5GB / 50GB</span>
+            <span className="text-primary font-medium">{usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB</span>
           </div>
           <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-            <div className="h-full bg-primary" style={{ width: '25%' }} />
+            <div className="h-full bg-primary" style={{ width: `${usagePercent}%` }} />
           </div>
         </div>
         
