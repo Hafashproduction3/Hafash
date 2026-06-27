@@ -70,11 +70,11 @@
   "firestore": {
     "/galleries/{galleryId}": {
       "schema": "#/entities/EventGallery",
-      "description": "Individual event galleries. Publicly readable by clients via ID or slug."
+      "description": "Individual event galleries. Publicly readable by clients via direct ID or slug query. No authentication required for reading shared galleries."
     },
     "/users/{userId}": {
       "schema": "#/entities/UserProfile",
-      "description": "Photographer profiles and settings. Basic info (name, logo) publicly readable for gallery branding."
+      "description": "Photographer profiles. Studio identity (name, logo, whatsapp) is publicly readable to allow gallery branding and client contact."
     }
   }
 }

@@ -66,37 +66,32 @@ export default function ClientGalleryPage() {
         return;
       }
 
-      console.log(`[GALLERY_DEBUG] Resolving gallery parameter: "${galleryParam}"`);
       setIsResolving(true);
-      
       const cleanParam = galleryParam.trim();
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // 1. Attempt to resolve via slug
-        // Note: collection queries often require 'list' permissions which public users may lack.
+        console.log(`[GALLERY_DEBUG] Resolving Slug: "${slugAttempt}" Path: galleries`);
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
-          console.log(`[GALLERY_DEBUG] Resolved via slug to ID: ${foundId}`);
+          console.log(`[GALLERY_DEBUG] Slug Match Found. Resolved ID: ${foundId}`);
           setGalleryId(foundId);
           
-          // Increment view count for the resolved ID
           if (viewIncremented.current !== foundId) {
             viewIncremented.current = foundId;
             const gRef = doc(firestore, 'galleries', foundId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          // 2. Fallback to direct ID
-          console.log(`[GALLERY_DEBUG] No slug match for "${slugAttempt}". Using original param as ID.`);
+          console.log(`[GALLERY_DEBUG] No Slug Match. Falling back to direct ID: ${cleanParam}`);
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        console.error(`[GALLERY_DEBUG] Resolution process error (Code: ${err?.code}):`, err);
-        // If query fails (likely permission denied for 'list'), we strictly fallback to using param as ID
+        console.error(`[GALLERY_DEBUG] Resolution Error Code: ${err?.code} Path: galleries`);
+        // If slug query is forbidden (common for anonymous users), fallback to direct ID lookup
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -117,6 +112,7 @@ export default function ClientGalleryPage() {
     return doc(firestore, 'users', gallery.userId);
   }, [firestore, gallery?.userId]);
 
+  // Profiles may be private/restricted, so we don't let a profile error block the gallery
   const { data: profile } = useDoc(photographerRef);
 
   const photographerPlan = useMemo(() => {
@@ -303,8 +299,8 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Explicitly handle permission errors separate from 404s
   if (galleryError) {
+    console.error(`[GALLERY_DEBUG] Firestore Fetch Error Code: ${(galleryError as any)?.code} Path: ${galleryRef?.path}`);
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
