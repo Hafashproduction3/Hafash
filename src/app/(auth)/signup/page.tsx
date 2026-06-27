@@ -73,40 +73,32 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      console.log("[SIGNUP_DEBUG] Initiating account creation...");
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const newUser = userCredential.user;
 
       if (newUser) {
-        // 1. Update Auth Profile
         await updateProfile(newUser, {
           displayName: studioName
         });
 
-        // 2. Create Firestore Profile
         const userProfile = {
           userId: newUser.uid,
           studioName,
           photographerName,
           whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
+          planId: 'starter',
           updatedAt: new Date().toISOString()
         };
         
         await setDoc(doc(firestore, 'users', newUser.uid), userProfile);
         
-        // 3. Send Email Verification (Awaited to ensure it is triggered)
-        console.log("[SIGNUP_DEBUG] Sending verification email...");
         try {
           await sendEmailVerification(newUser);
-          console.log("[SIGNUP_DEBUG] Verification email sent successfully.");
-          
           toast({
             title: "Account Created",
             description: "Verification email sent. Please check your inbox.",
           });
         } catch (verifyError: any) {
-          console.error("[SIGNUP_DEBUG] sendEmailVerification failed:", verifyError);
-          // We don't throw here so the user is still redirected to the verify-email page where they can try resending
           toast({
             variant: "destructive",
             title: "Verification Delayed",
@@ -117,7 +109,6 @@ export default function SignupPage() {
         router.push('/verify-email');
       }
     } catch (error: any) {
-      console.error("[SIGNUP_DEBUG] Signup error:", error);
       toast({
         variant: "destructive",
         title: "Signup Failed",
@@ -168,7 +159,7 @@ export default function SignupPage() {
                   className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
                   required 
                   value={studioName}
-                  onChange={(e) => setStudioName(e.target.value)}
+                  onChange={(e) => setFormData ? null : setStudioName(e.target.value)}
                 />
               </div>
             </div>
@@ -217,7 +208,6 @@ export default function SignupPage() {
                   onChange={(e) => setWhatsappNumber(e.target.value)}
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground italic px-1">Used for gallery delivery and client contact.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

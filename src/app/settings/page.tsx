@@ -3,16 +3,13 @@
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
-import { User, Shield, Camera, Save, Loader2, Briefcase, Phone, Image as ImageIcon, Check } from 'lucide-react';
+import { User, Shield, Camera, Save, Loader2, Briefcase, Phone, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SettingsPage() {
   const { user, loading: authLoading } = useUser();
@@ -34,12 +31,6 @@ export default function SettingsPage() {
     whatsappNumber: '',
     studioLogo: '',
   });
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
 
   useEffect(() => {
     if (profile) {
@@ -79,43 +70,33 @@ export default function SettingsPage() {
     }
 
     setSaving(true);
-    const updateData = {
-      ...formData,
-      userId: user.uid,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const docRef = doc(firestore, 'users', user.uid);
-    setDoc(docRef, updateData, { merge: true })
-      .then(() => {
-        toast({ title: "Settings Saved", description: "Your studio preferences have been updated." });
-      })
-      .catch(async (err: any) => {
-        if (err.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: docRef.path,
-            operation: 'update',
-            requestResourceData: updateData,
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        } else {
-          toast({ variant: "destructive", title: "Save Failed", description: err.message });
-        }
-      })
-      .finally(() => {
-        setSaving(false);
+    try {
+      await setDoc(doc(firestore, 'users', user.uid), {
+        ...formData,
+        userId: user.uid,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+      
+      toast({
+        title: "Settings Saved",
+        description: "Your studio profile has been updated.",
       });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to save settings.",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (authLoading || profileLoading) {
-    return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) return null;
+  if (authLoading || profileLoading) return (
+    <div className="flex items-center justify-center min-h-screen">
+      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+    </div>
+  );
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -125,12 +106,12 @@ export default function SettingsPage() {
           <p className="text-muted-foreground mt-2">Manage your professional profile and defaults.</p>
         </div>
         <Button 
-          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full gap-2 px-8 h-11 font-bold shadow-lg" 
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full gap-2 px-8 h-12 font-bold shadow-lg" 
           onClick={handleSave}
           disabled={saving}
         >
           {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? 'Saving...' : 'Save Changes'}
+          Save Changes
         </Button>
       </div>
 
@@ -151,7 +132,6 @@ export default function SettingsPage() {
                     onChange={(e) => setFormData({ ...formData, studioName: e.target.value })}
                     placeholder="e.g. Cinematic Memories" 
                     className="rounded-xl h-11 bg-background/50 border-border/50" 
-                    required
                   />
                 </div>
                 <div className="space-y-2">
@@ -163,7 +143,6 @@ export default function SettingsPage() {
                       onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
                       placeholder="e.g. +923001234567" 
                       className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
-                      required
                     />
                   </div>
                 </div>
@@ -200,45 +179,14 @@ export default function SettingsPage() {
           <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
             <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                <Shield className="w-5 h-5 text-primary" /> Account Status
+                <Shield className="w-5 h-5 text-primary" /> Security
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-               <div className="flex flex-col md:flex-row gap-6">
-                  <div className="flex-1 space-y-2">
-                    <Label>Authenticated Email</Label>
-                    <Input defaultValue={user.email || ""} readOnly className="h-11 rounded-xl bg-muted/30 border-border/50 opacity-70" />
-                  </div>
-                  <div className="flex items-center gap-3 bg-primary/5 px-6 py-3 rounded-2xl border border-primary/10">
-                    <Check className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Identity Verified</p>
-                      <p className="text-xs text-muted-foreground">Email: {user.emailVerified ? 'Verified' : 'Pending'}</p>
-                    </div>
-                  </div>
-               </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-8">
-           <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg">
-            <CardHeader className="border-b border-border/30 bg-background/30">
-              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">Studio Defaults</CardTitle>
-            </CardHeader>
-            <CardContent className="p-6 space-y-6">
-               <div className="flex items-center justify-between">
-                 <div className="space-y-1">
-                   <Label className="text-xs">Dynamic Watermark</Label>
-                   <p className="text-[9px] text-muted-foreground uppercase">Hafash Studio Standard</p>
-                 </div>
-                 <Switch defaultChecked disabled className="data-[state=checked]:bg-primary" />
-               </div>
-               <div className="pt-4 border-t border-border/30">
-                 <p className="text-[9px] text-muted-foreground italic leading-relaxed">
-                   Studio preferences are encrypted and synchronized with your photographer ID. Changes reflect instantly across all live galleries.
-                 </p>
-               </div>
+            <CardContent className="p-8">
+              <p className="text-sm text-muted-foreground mb-4">You are logged in as <strong>{user?.email}</strong></p>
+              <Button variant="outline" className="rounded-xl border-border/50" onClick={() => router.push('/verify-email')}>
+                Manage Verification
+              </Button>
             </CardContent>
           </Card>
         </div>

@@ -33,14 +33,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) {
-      toast({
-        variant: "destructive",
-        title: "Configuration Error",
-        description: "Firebase Auth is not initialized correctly.",
-      });
-      return;
-    }
+    if (!auth) return;
     
     setLoading(true);
     try {

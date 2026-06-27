@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
@@ -71,13 +70,11 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        console.log(`[GALLERY_DEBUG] Resolving Slug: "${slugAttempt}" Path: galleries`);
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
-          console.log(`[GALLERY_DEBUG] Slug Match Found. Resolved ID: ${foundId}`);
           setGalleryId(foundId);
           
           if (viewIncremented.current !== foundId) {
@@ -86,12 +83,9 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          console.log(`[GALLERY_DEBUG] No Slug Match. Falling back to direct ID: ${cleanParam}`);
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        console.error(`[GALLERY_DEBUG] Resolution Error Code: ${err?.code} Path: galleries`);
-        // If slug query is forbidden (common for anonymous users), fallback to direct ID lookup
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -112,7 +106,6 @@ export default function ClientGalleryPage() {
     return doc(firestore, 'users', gallery.userId);
   }, [firestore, gallery?.userId]);
 
-  // Profiles may be private/restricted, so we don't let a profile error block the gallery
   const { data: profile } = useDoc(photographerRef);
 
   const photographerPlan = useMemo(() => {
@@ -140,8 +133,8 @@ export default function ClientGalleryPage() {
     updateDoc(gRef, updateData)
       .then(() => {
         toast({ 
-          title: isCurrentlyFavorite ? "Removed from Selection" : "Added to Selection", 
-          description: "Your choices are synced with the photographer." 
+          title: isCurrentlyFavorite ? "Removed" : "Favorited", 
+          description: "Syncing selection with studio." 
         });
       })
       .catch(async (err: any) => {
@@ -152,8 +145,6 @@ export default function ClientGalleryPage() {
             requestResourceData: updateData,
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
-        } else {
-          toast({ variant: "destructive", title: "Action Failed" });
         }
       });
   };
@@ -166,7 +157,6 @@ export default function ClientGalleryPage() {
     const filename = item.fileName || `${gallery?.title || 'hafash'}-${item.id}.jpg`;
 
     try {
-      toast({ title: "Preparing Download", description: "Fetching high-resolution master file..." });
       const response = await fetch(downloadUrl);
       const blob = await response.blob();
       const link = document.createElement('a');
@@ -181,25 +171,9 @@ export default function ClientGalleryPage() {
     }
   };
 
-  const checkZipCache = () => {
-    if (typeof window === 'undefined' || !galleryId) return false;
-    const cacheKey = `zip_cache_${galleryId}`;
-    const cachedAt = localStorage.getItem(cacheKey);
-    if (!cachedAt) return false;
-    
-    const timePassed = Date.now() - parseInt(cachedAt);
-    return timePassed < 24 * 60 * 60 * 1000; 
-  };
-
   const handleDownloadAll = async () => {
     if (isZipping || !gallery || !canDownload) return;
-
     const items = gallery.items || [];
-    if (items.length === 0) {
-      toast({ title: "Empty Gallery", description: "There are no photos to download." });
-      return;
-    }
-
     const estimatedSizeGb = estimateZipSizeGb(items.length);
     if (estimatedSizeGb > photographerPlan.zipLimitGb) {
       setShowUpgradeDialog(true);
@@ -207,59 +181,25 @@ export default function ClientGalleryPage() {
     }
     
     setIsZipping(true);
-
-    const isCached = checkZipCache();
-    if (!isCached) {
-      const waitTime = photographerPlan.id === 'business' ? 2000 : photographerPlan.id === 'pro' ? 5000 : 10000;
-      setZipMessage(`Preparing your download (${photographerPlan.priorityLabel} Processing)...`);
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-    } else {
-      setZipMessage("Fetching from Priority Cache...");
-      await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    setZipMessage("Optimizing masterpieces...");
+    setZipMessage("Preparing your masterpieces...");
 
     try {
       const zip = new JSZip();
       const downloadPromises = items.map(async (item: any, index: number) => {
         const originalUrl = item.masterUrl || item.url;
         const response = await fetch(originalUrl);
-        if (!response.ok) throw new Error(`Failed to fetch original image ${index + 1}`);
         const blob = await response.blob();
-        
-        let extension = 'jpg';
-        if (item.fileName && item.fileName.includes('.')) {
-          extension = item.fileName.split('.').pop() || 'jpg';
-        } else if (!originalUrl.includes('picsum.photos')) {
-          extension = originalUrl.split('.').pop()?.split('?')[0] || 'jpg';
-        }
-        
+        const extension = item.fileName?.split('.').pop() || 'jpg';
         const fileName = item.fileName || `${gallery.title}-${index + 1}.${extension}`;
         zip.file(fileName, blob);
       });
 
       await Promise.all(downloadPromises);
-      
-      setZipMessage("Your download is ready.");
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${gallery.title.replace(/\s+/g, '_')}_all_photos.zip`);
-
-      if (typeof window !== 'undefined' && galleryId) {
-        localStorage.setItem(`zip_cache_${galleryId}`, Date.now().toString());
-      }
-
-      toast({ 
-        title: "Download Complete", 
-        description: "Your high-resolution masterpieces have been delivered." 
-      });
+      toast({ title: "Success", description: "All photos downloaded." });
     } catch (error: any) {
-      console.error("ZIP_ERROR:", error);
-      toast({ 
-        variant: "destructive", 
-        title: "Download Failed", 
-        description: "We encountered an error while preparing your original ZIP." 
-      });
+      toast({ variant: "destructive", title: "Download Failed" });
     } finally {
       setIsZipping(false);
       setZipMessage("");
@@ -267,225 +207,140 @@ export default function ClientGalleryPage() {
   };
 
   const handleWhatsAppContact = () => {
-    if (!profile?.whatsappNumber) {
-      toast({
-        variant: "destructive",
-        title: "Configuration Incomplete",
-        description: "The photographer hasn't configured their WhatsApp contact yet.",
-      });
-      return;
-    }
-    
+    if (!profile?.whatsappNumber) return;
     const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
-    const message = `Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and I'd like to discuss my selection.`;
+    const message = `Hi, I'm viewing the "${gallery?.title}" gallery and would like to contact you.`;
     window.open(`https://wa.me/${cleanedNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   const handleShare = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(window.location.href);
-      toast({ title: "Link Copied", description: "Gallery link is ready to share." });
-    }
+    navigator.clipboard.writeText(window.location.href);
+    toast({ title: "Link Copied" });
   };
 
-  const isLoading = isResolving || docLoading;
+  if (isResolving || docLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background">
+      <Loader2 className="w-10 h-10 animate-spin text-primary" />
+    </div>
+  );
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-primary font-bold italic tracking-widest uppercase text-xs">Curating Memories...</p>
-      </div>
-    );
-  }
-
-  if (galleryError) {
-    console.error(`[GALLERY_DEBUG] Firestore Fetch Error Code: ${(galleryError as any)?.code} Path: ${galleryRef?.path}`);
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-        <div className="bg-destructive/10 p-6 rounded-full mb-8">
-          <Lock className="w-12 h-12 text-destructive" />
-        </div>
-        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Access Restricted</h1>
-        <p className="text-muted-foreground mb-8 max-w-sm">This gallery is protected or your access has been restricted by the studio's security policy.</p>
-        <Link href="/"><Button className="rounded-full px-10 bg-primary">Hafash Home</Button></Link>
-      </div>
-    );
-  }
-
-  if (!gallery) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-        <ShieldAlert className="w-12 h-12 text-muted-foreground/30 mb-6" />
-        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Not Found</h1>
-        <p className="text-muted-foreground mb-8 max-w-sm">The requested gallery does not exist or has been removed from our secure servers.</p>
-        <Link href="/"><Button className="rounded-full px-10 bg-primary">Return Home</Button></Link>
-      </div>
-    );
-  }
+  if (galleryError || !gallery) return (
+    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+      <Lock className="w-12 h-12 text-destructive/30 mb-6" />
+      <h1 className="text-3xl font-headline font-bold mb-4 uppercase">Gallery Unavailable</h1>
+      <p className="text-muted-foreground mb-8 max-w-sm">This gallery is protected or does not exist.</p>
+      <Link href="/"><Button className="rounded-full px-10 bg-primary">Return Home</Button></Link>
+    </div>
+  );
 
   const coverImageUrl = gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
 
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
       <div className="h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card">
-        <img src={coverImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-85 brightness-90 transition-all duration-[3000ms] ease-out animate-in zoom-in-110" alt="Gallery Cover" />
+        <img src={coverImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-80" alt="Gallery Cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
-        <div className="absolute inset-0 bg-black/10" />
         
-        <div className="absolute top-12 left-0 right-0 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-1000">
+        <div className="absolute top-12 left-0 right-0 flex flex-col items-center">
           {profile?.studioLogo && (
-            <img src={profile.studioLogo} className="h-16 md:h-20 w-auto mb-4 object-contain drop-shadow-2xl" alt="Studio Logo" />
+            <img src={profile.studioLogo} className="h-16 md:h-20 w-auto mb-4 object-contain" alt="Studio Logo" />
           )}
-          <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase drop-shadow-[0_4px_4px_rgba(0,0,0,0.8)]">
+          <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase">
             {profile?.studioName || 'Professional Studio'}
           </span>
         </div>
 
-        <div className="relative z-10 text-center px-6 max-w-5xl animate-in fade-in zoom-in-95 duration-1000 delay-300">
-          <div className="mb-8 h-px w-16 md:w-24 bg-primary/80 mx-auto" />
+        <div className="relative z-10 text-center px-6 max-w-5xl">
           <div className="flex items-center justify-center gap-1 mb-6">
             <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
-            <span className="text-4xl md:text-9xl font-headline font-bold uppercase tracking-[0.1em] leading-tight text-white drop-shadow-[0_10px_20px_rgba(0,0,0,0.9)] italic">Hafash.pk</span>
+            <span className="text-4xl md:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
           </div>
-          <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight">{gallery.title}</h1>
+          <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase">{gallery.title}</h1>
           <div className="space-y-4">
-             <p className="text-xl md:text-4xl italic text-primary font-headline lowercase tracking-widest drop-shadow-[0_2px_10px_rgba(0,0,0,0.9)]">
-              {gallery.clientName}
-            </p>
-            <div className="flex items-center justify-center gap-4 text-white uppercase tracking-[0.3em] text-[10px] font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <p className="text-xl italic text-primary font-headline">{gallery.clientName}</p>
+            <div className="flex items-center justify-center gap-4 text-white uppercase tracking-[0.3em] text-[10px] font-bold">
               <span>{gallery.category}</span>
-              <span className="h-1 w-1 bg-primary rounded-full" />
               <span>{gallery.date}</span>
             </div>
           </div>
           
           <div className="mt-14 flex flex-wrap justify-center gap-4">
             {profile?.whatsappNumber && (
-              <Button className="rounded-full px-8 md:px-10 h-14 bg-primary text-primary-foreground font-bold gap-3 shadow-2xl shadow-primary/20 hover:scale-105 transition-transform" onClick={handleWhatsAppContact}>
+              <Button className="rounded-full px-10 h-14 bg-primary font-bold gap-3 shadow-2xl" onClick={handleWhatsAppContact}>
                 <MessageCircle className="w-5 h-5" /> Contact Studio
               </Button>
             )}
-            <Button variant="outline" className="rounded-full px-8 md:px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md shadow-xl" onClick={handleShare}>
-              <Share2 className="w-5 h-5" /> Share Gallery
+            <Button variant="outline" className="rounded-full px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md" onClick={handleShare}>
+              <Share2 className="w-5 h-5" /> Share
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 mt-12 relative z-10">
+      <div className="max-w-7xl mx-auto px-6 mt-12">
         <div className="flex justify-between items-center mb-12">
-          <div className="space-y-1">
-            <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
-            {isZipping && (
-              <p className="text-[10px] text-primary animate-pulse font-bold tracking-widest uppercase flex items-center gap-2">
-                <Activity className="w-3 h-3" /> {zipMessage}
-              </p>
-            )}
-          </div>
-          {canDownload && gallery.items && gallery.items.length > 0 && (
+          <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
+          {canDownload && gallery.items?.length > 0 && (
             <Button 
-              className={cn(
-                "rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2 h-12",
-                isZipping && "opacity-70 cursor-wait"
-              )}
+              className={cn("rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2", isZipping && "opacity-70 cursor-wait")}
               onClick={handleDownloadAll}
               disabled={isZipping}
             >
               {isZipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {isZipping ? "Processing..." : "Download All Masterpieces"}
+              {isZipping ? "Processing..." : "Download All"}
             </Button>
           )}
         </div>
 
-        {!gallery.items || gallery.items.length === 0 ? (
-          <div className="text-center py-40 bg-card/30 backdrop-blur-3xl border border-dashed border-border/30 rounded-[3rem] shadow-2xl">
-             <Camera className="w-12 h-12 text-primary/20 mx-auto mb-6" />
-             <p className="text-2xl text-muted-foreground font-headline italic">Your masterpieces are being prepared.</p>
-          </div>
-        ) : (
-          <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
-            {gallery.items.map((item: any) => {
-              const displayUrl = canDownload && item.masterUrl ? item.masterUrl : item.url;
-              return (
-                <div 
-                  key={item.id} 
-                  className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-2xl transition-all hover:border-primary/30" 
-                  onClick={() => setSelectedImage(displayUrl)}
-                >
-                  <img src={item.url} className="w-full h-auto object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110" alt="Gallery" />
-                  {showWatermark && (
-                    <>
-                      <div className="absolute inset-0 watermark-overlay pointer-events-none" />
-                      <div className="watermark-text">HAFASH PREVIEW</div>
-                    </>
+        <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
+          {gallery.items?.map((item: any) => (
+            <div 
+              key={item.id} 
+              className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in" 
+              onClick={() => setSelectedImage(item.url)}
+            >
+              <img src={item.url} className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105" alt="Gallery" />
+              {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-4">
+                <div className="flex gap-2">
+                  <Button size="icon" className={cn("rounded-full h-12 w-12", item.isFavorite ? "bg-primary" : "bg-white/20")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
+                    <Heart className={cn("w-5 h-5", item.isFavorite ? "fill-current" : "")} />
+                  </Button>
+                  {canDownload && (
+                    <Button size="icon" className="rounded-full h-12 w-12 bg-white/20" onClick={(e) => handleDownloadAttempt(e, item)}>
+                      <Download className="w-5 h-5" />
+                    </Button>
                   )}
-                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-6 backdrop-blur-[2px]">
-                    <div className="flex gap-4">
-                      <Button size="icon" className={cn("rounded-full h-14 w-14 backdrop-blur-xl transition-transform hover:scale-110 shadow-xl", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/10 text-white")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
-                        <Heart className={cn("w-6 h-6", item.isFavorite ? "fill-current" : "")} />
-                      </Button>
-                      {canDownload && (
-                        <Button size="icon" className="rounded-full h-14 w-14 bg-white/10 backdrop-blur-xl text-white transition-transform hover:scale-110 shadow-xl" onClick={(e) => handleDownloadAttempt(e, item)}>
-                          <Download className="w-6 h-6" />
-                        </Button>
-                      )}
-                    </div>
-                    <p className="text-[10px] uppercase tracking-[0.3em] font-bold text-white/70">Luxury Experience</p>
-                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="max-w-4xl mx-auto text-center mt-20 px-6 py-12 border-t border-border/20">
-        <h3 className="text-2xl font-headline font-bold mb-4 text-primary">Crafted by {profile?.studioName || 'Professional Studio'}</h3>
-        <p className="text-muted-foreground italic mb-8">Contact photographer for original high-resolution master files.</p>
-        {profile?.whatsappNumber && (
-          <Button className="rounded-full px-12 h-16 bg-primary font-bold shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-transform text-lg" onClick={handleWhatsAppContact}>
-            Finalize My Selection
-          </Button>
-        )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {selectedImage && (
-        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
+        <div className="fixed inset-0 z-[100] bg-background/95 flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
-            <img src={selectedImage} className="max-w-full max-h-[92vh] object-contain shadow-2xl rounded-2xl" alt="Fullscreen" />
+            <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" alt="Fullscreen" />
             {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
           </div>
-          <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-primary hover:bg-primary/10 rounded-full h-12 w-12 bg-background/50 backdrop-blur-md">
+          <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-white h-12 w-12">
             <X className="w-8 h-8" />
           </Button>
         </div>
       )}
 
-      {/* Upgrade Required Dialog */}
       <AlertDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] p-10 max-w-md">
-          <AlertDialogHeader className="text-center">
-            <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
-              <AlertTriangle className="w-10 h-10 text-primary" />
-            </div>
-            <AlertDialogTitle className="text-3xl font-headline font-bold mb-4">Upgrade Required</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground italic leading-relaxed text-base">
-              This gallery's high-resolution collection exceeds your current plan's delivery threshold of <strong>{photographerPlan.storageGb} GB</strong>.
-              <br /><br />
-              Upgrade your storage tier to generate larger masterpiece ZIP packages for your clients.
+        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-headline">Upgrade Required</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Your studio's current plan allows ZIP packages up to {photographerPlan.zipLimitGb} GB. This gallery exceeds that limit. Upgrade your storage plan to generate larger ZIP packages.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="mt-10 flex-col sm:flex-col gap-4">
-             <AlertDialogAction 
-              className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl font-bold shadow-xl shadow-primary/20"
-              onClick={() => router.push('/storage')}
-            >
-              Upgrade Storage Plan
-            </AlertDialogAction>
-            <AlertDialogCancel className="w-full h-14 rounded-2xl border-border/50 font-bold hover:bg-background/50">
-              Not Now
-            </AlertDialogCancel>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="rounded-xl bg-primary" onClick={() => router.push('/storage')}>Upgrade Plan</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
