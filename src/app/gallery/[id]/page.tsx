@@ -18,7 +18,8 @@ import {
   Activity, 
   CheckCircle2,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -70,11 +71,13 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
+        console.log(`[GALLERY_RESOLVE] Attempting resolution for slug: ${slugAttempt}`);
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
+          console.log(`[GALLERY_RESOLVE] Resolved slug to ID: ${foundId}`);
           setGalleryId(foundId);
           
           if (viewIncremented.current !== foundId) {
@@ -83,9 +86,11 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
+          console.log(`[GALLERY_RESOLVE] No slug found, using as direct ID: ${cleanParam}`);
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
+        console.warn(`[GALLERY_RESOLVE_FAIL] Slug query failed (${err.code}). Falling back to ID lookup.`, err);
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -221,17 +226,34 @@ export default function ClientGalleryPage() {
   if (isResolving || docLoading) return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-background">
       <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-primary/50">Resolving Luxury Gallery...</p>
     </div>
   );
 
-  if (galleryError || !gallery) return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-      <Lock className="w-12 h-12 text-destructive/30 mb-6" />
-      <h1 className="text-3xl font-headline font-bold mb-4 uppercase">Gallery Unavailable</h1>
-      <p className="text-muted-foreground mb-8 max-w-sm">This gallery is protected or does not exist.</p>
-      <Link href="/"><Button className="rounded-full px-10 bg-primary">Return Home</Button></Link>
-    </div>
-  );
+  if (galleryError || !gallery || (gallery && !gallery.isPublic)) {
+    const isPrivate = gallery && !gallery.isPublic;
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+        <div className="bg-destructive/10 p-6 rounded-full mb-8">
+          {isPrivate ? <Lock className="w-12 h-12 text-destructive" /> : <ShieldAlert className="w-12 h-12 text-destructive" />}
+        </div>
+        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">
+          {isPrivate ? 'Gallery Restricted' : 'Gallery Unavailable'}
+        </h1>
+        <p className="text-muted-foreground mb-8 max-w-sm">
+          {isPrivate 
+            ? 'This event has been set to private by the photographer. Please contact the studio for access.' 
+            : 'We couldn\'t find the requested gallery. It may have been deleted or the link is incorrect.'}
+        </p>
+        <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
+        {galleryError && (
+          <p className="mt-8 text-[9px] font-mono text-muted-foreground/50 uppercase">
+            Error Signature: {galleryError.message}
+          </p>
+        )}
+      </div>
+    );
+  }
 
   const coverImageUrl = gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
 
@@ -255,7 +277,7 @@ export default function ClientGalleryPage() {
             <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
             <span className="text-4xl md:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
           </div>
-          <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase">{gallery.title}</h1>
+          <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight">{gallery.title}</h1>
           <div className="space-y-4">
             <p className="text-xl italic text-primary font-headline">{gallery.clientName}</p>
             <div className="flex items-center justify-center gap-4 text-white uppercase tracking-[0.3em] text-[10px] font-bold">
@@ -266,23 +288,31 @@ export default function ClientGalleryPage() {
           
           <div className="mt-14 flex flex-wrap justify-center gap-4">
             {profile?.whatsappNumber && (
-              <Button className="rounded-full px-10 h-14 bg-primary font-bold gap-3 shadow-2xl" onClick={handleWhatsAppContact}>
+              <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={handleWhatsAppContact}>
                 <MessageCircle className="w-5 h-5" /> Contact Studio
               </Button>
             )}
             <Button variant="outline" className="rounded-full px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md" onClick={handleShare}>
-              <Share2 className="w-5 h-5" /> Share
+              <Share2 className="w-5 h-5" /> Share Gallery
             </Button>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-12">
-        <div className="flex justify-between items-center mb-12">
-          <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
+        <div className="flex justify-between items-center mb-12 border-b border-border/20 pb-8">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+              <Globe className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
+              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
+            </div>
+          </div>
           {canDownload && gallery.items?.length > 0 && (
             <Button 
-              className={cn("rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2", isZipping && "opacity-70 cursor-wait")}
+              className={cn("rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2 h-12", isZipping && "opacity-70 cursor-wait")}
               onClick={handleDownloadAll}
               disabled={isZipping}
             >
@@ -303,11 +333,11 @@ export default function ClientGalleryPage() {
               {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-4">
                 <div className="flex gap-2">
-                  <Button size="icon" className={cn("rounded-full h-12 w-12", item.isFavorite ? "bg-primary" : "bg-white/20")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
+                  <Button size="icon" className={cn("rounded-full h-12 w-12 border-none", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
                     <Heart className={cn("w-5 h-5", item.isFavorite ? "fill-current" : "")} />
                   </Button>
                   {canDownload && (
-                    <Button size="icon" className="rounded-full h-12 w-12 bg-white/20" onClick={(e) => handleDownloadAttempt(e, item)}>
+                    <Button size="icon" className="rounded-full h-12 w-12 bg-white/20 text-white hover:bg-white/30 border-none" onClick={(e) => handleDownloadAttempt(e, item)}>
                       <Download className="w-5 h-5" />
                     </Button>
                   )}
@@ -324,7 +354,7 @@ export default function ClientGalleryPage() {
             <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" alt="Fullscreen" />
             {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
           </div>
-          <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-white h-12 w-12">
+          <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-white h-12 w-12 hover:bg-white/10 rounded-full">
             <X className="w-8 h-8" />
           </Button>
         </div>

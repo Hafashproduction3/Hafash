@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -79,6 +78,7 @@ export default function CreateEventPage() {
       coverImage: `https://picsum.photos/seed/${newId}/800/600`,
       items: [],
       isLocked: true,
+      isPublic: true, // Default to true so shared links work immediately
       isPaid: false,
       viewCount: 0,
       userId: user.uid,
@@ -89,11 +89,8 @@ export default function CreateEventPage() {
       albumLinkCreated: ""
     };
 
-    console.log(`[FIRESTORE_CREATE_ATTEMPT] User: ${user.uid}, Path: ${newDocRef.path}`);
-
     setDoc(newDocRef, newGallery)
       .then(() => {
-        console.log(`[FIRESTORE_CREATE_SUCCESS] Path: ${newDocRef.path}`);
         toast({
           title: "Gallery Created",
           description: "Proceeding to upload center...",
@@ -101,7 +98,6 @@ export default function CreateEventPage() {
         router.push(`/events/${newId}/upload`);
       })
       .catch(async (err) => {
-        console.error(`[FIRESTORE_CREATE_FAIL] Path: ${newDocRef.path}, Error: ${err.message}`);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: newDocRef.path,
@@ -113,7 +109,7 @@ export default function CreateEventPage() {
           toast({
             variant: "destructive",
             title: "Create Failed",
-            description: `Path: ${newDocRef.path} - Error: ${err.message}`
+            description: err.message
           });
         }
       })
@@ -216,9 +212,6 @@ export default function CreateEventPage() {
               {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
               {loading ? "Creating..." : "Continue to Upload"}
             </Button>
-            <p className="text-center text-xs text-muted-foreground mt-4">
-              Telemetry Active: Trace creating/updating Path: galleries/*
-            </p>
           </div>
         </form>
       </div>
