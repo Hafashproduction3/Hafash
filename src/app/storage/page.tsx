@@ -15,7 +15,7 @@ export default function StoragePage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!authLoading && !user) {
       router.push('/login');
     }
   }, [user, authLoading, router]);
