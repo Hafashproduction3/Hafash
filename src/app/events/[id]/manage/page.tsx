@@ -7,20 +7,14 @@ import {
   MessageCircle, 
   Link as LinkIcon, 
   Lock, 
-  Unlock, 
   Trash2, 
   Image as ImageIcon,
   ArrowLeft,
-  ChevronRight,
   Eye,
   Loader2,
-  Copy,
-  Check,
   ShieldCheck,
-  Heart,
   CreditCard,
-  Globe,
-  Smartphone
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,7 +35,6 @@ export default function EventManagementPage() {
   const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
   const router = useRouter();
-  const [copied, setCopied] = useState(false);
   const [origin, setOrigin] = useState('');
   
   useEffect(() => {
@@ -91,9 +84,7 @@ export default function EventManagementPage() {
   const handleCopyLink = (text: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(text);
-      setCopied(true);
       toast({ title: "Copied!" });
-      setTimeout(() => setCopied(false), 2000);
     }
   };
 
