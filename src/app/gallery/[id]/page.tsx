@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
@@ -201,9 +200,10 @@ export default function ClientGalleryPage() {
       return;
     }
     
-    const whatsapp = profile.whatsappNumber.replace(/\D/g, '');
+    // Clean number for URL: remove +, spaces, dashes
+    const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
     const message = `Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and I'd like to discuss my selection.`;
-    window.open(`https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`, '_blank');
+    window.open(`https://wa.me/${cleanedNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   const handleShare = () => {
@@ -267,9 +267,11 @@ export default function ClientGalleryPage() {
           </div>
           
           <div className="mt-14 flex flex-wrap justify-center gap-4">
-            <Button className="rounded-full px-8 md:px-10 h-14 bg-primary text-primary-foreground font-bold gap-3 shadow-2xl shadow-primary/20 hover:scale-105 transition-transform" onClick={handleWhatsAppContact}>
-              <MessageCircle className="w-5 h-5" /> Contact Studio
-            </Button>
+            {profile?.whatsappNumber && (
+              <Button className="rounded-full px-8 md:px-10 h-14 bg-primary text-primary-foreground font-bold gap-3 shadow-2xl shadow-primary/20 hover:scale-105 transition-transform" onClick={handleWhatsAppContact}>
+                <MessageCircle className="w-5 h-5" /> Contact Studio
+              </Button>
+            )}
             <Button variant="outline" className="rounded-full px-8 md:px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md shadow-xl" onClick={handleShare}>
               <Share2 className="w-5 h-5" /> Share Gallery
             </Button>
@@ -340,9 +342,11 @@ export default function ClientGalleryPage() {
       <div className="max-w-4xl mx-auto text-center mt-20 px-6 py-12 border-t border-border/20">
         <h3 className="text-2xl font-headline font-bold mb-4 text-primary">Crafted by {profile?.studioName || 'Professional Studio'}</h3>
         <p className="text-muted-foreground italic mb-8">Contact photographer for original high-resolution master files.</p>
-        <Button className="rounded-full px-12 h-16 bg-primary font-bold shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-transform text-lg" onClick={handleWhatsAppContact}>
-          Finalize My Selection
-        </Button>
+        {profile?.whatsappNumber && (
+          <Button className="rounded-full px-12 h-16 bg-primary font-bold shadow-2xl shadow-primary/20 hover:scale-[1.02] transition-transform text-lg" onClick={handleWhatsAppContact}>
+            Finalize My Selection
+          </Button>
+        )}
       </div>
 
       {selectedImage && (

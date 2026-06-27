@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@/firebase';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
 import { Lock, Mail, Briefcase, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +24,11 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push('/dashboard');
+      if (user.emailVerified) {
+        router.push('/dashboard');
+      } else {
+        router.push('/verify-email');
+      }
     }
   }, [user, authLoading, router]);
 
@@ -41,24 +45,24 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
-      // Create user using the correct Firebase SDK method
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       
-      // Update display name with the Studio Name
       if (userCredential.user) {
         await updateProfile(userCredential.user, {
           displayName: studioName
         });
+        
+        // Feature 1: Send Email Verification
+        await sendEmailVerification(userCredential.user);
+        
+        toast({
+          title: "Account Created",
+          description: "Please check your email to verify your account.",
+        });
+        
+        router.push('/verify-email');
       }
-
-      toast({
-        title: "Account Created",
-        description: `Welcome to Hafash.pk, ${studioName}!`,
-      });
-      
-      router.push('/dashboard');
     } catch (error: any) {
-      // Surfacing the actual Firebase error message to help debugging
       toast({
         variant: "destructive",
         title: "Signup Failed",

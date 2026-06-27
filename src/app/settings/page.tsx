@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useUser, useFirestore, useDoc } from '@/firebase';
@@ -53,10 +52,35 @@ export default function SettingsPage() {
     }
   }, [profile]);
 
+  const validateWhatsApp = (number: string) => {
+    // Basic E.164 validation: +[country code][number]
+    const regex = /^\+?[1-9]\d{1,14}$/;
+    return regex.test(number.replace(/\s+/g, ''));
+  };
+
   const handleSave = async () => {
     if (!firestore || !user) return;
-    setSaving(true);
+    
+    // Feature 2: WhatsApp Validation
+    if (!formData.studioName || !formData.whatsappNumber) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Studio Name and WhatsApp Number are required.",
+      });
+      return;
+    }
 
+    if (!validateWhatsApp(formData.whatsappNumber)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid WhatsApp",
+        description: "Please enter a valid international number (e.g., +923001234567).",
+      });
+      return;
+    }
+
+    setSaving(true);
     const updateData = {
       ...formData,
       userId: user.uid,
@@ -123,23 +147,25 @@ export default function SettingsPage() {
             <CardContent className="p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label>Studio Name</Label>
+                  <Label>Studio Name *</Label>
                   <Input 
                     value={formData.studioName} 
                     onChange={(e) => setFormData({ ...formData, studioName: e.target.value })}
                     placeholder="e.g. Cinematic Memories" 
                     className="rounded-xl bg-background/50 border-border/50" 
+                    required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>WhatsApp Number</Label>
+                  <Label>WhatsApp Number * (International Format)</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 w-4 h-4 text-primary" />
                     <Input 
                       value={formData.whatsappNumber} 
                       onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
-                      placeholder="e.g. 923001234567" 
+                      placeholder="e.g. +923001234567" 
                       className="pl-10 rounded-xl bg-background/50 border-border/50" 
+                      required
                     />
                   </div>
                 </div>

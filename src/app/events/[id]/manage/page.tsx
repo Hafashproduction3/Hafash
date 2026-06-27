@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -51,6 +50,13 @@ export default function EventManagementPage() {
 
   const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
+  const photographerRef = useMemo(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: profile } = useDoc(photographerRef);
+
   const favoritesCount = useMemo(() => {
     if (!event || !Array.isArray(event.items)) return 0;
     return event.items.filter((i: any) => i.isFavorite).length;
@@ -100,6 +106,21 @@ export default function EventManagementPage() {
       title: newStatus ? "Payment Confirmed" : "Payment Revoked", 
       description: newStatus ? "High-resolution downloads unlocked for client." : "Downloads and master files restricted." 
     });
+  };
+
+  const handleWhatsAppDelivery = () => {
+    if (!profile?.whatsappNumber) {
+      toast({
+        variant: "destructive",
+        title: "WhatsApp Missing",
+        description: "Please configure your WhatsApp number in Settings first.",
+      });
+      return;
+    }
+
+    const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
+    const message = `Check out your luxury gallery: ${window.location.origin}/gallery/${event.slug || event.id}`;
+    window.open(`https://wa.me/${cleanedNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (
@@ -152,7 +173,7 @@ export default function EventManagementPage() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button className="h-14 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold gap-3 shadow-lg shadow-[#25D366]/10" onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Check out your luxury gallery: ${window.location.origin}/gallery/${event.slug || event.id}`)}`, '_blank')}>
+                <Button className="h-14 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold gap-3 shadow-lg shadow-[#25D366]/10" onClick={handleWhatsAppDelivery}>
                   <MessageCircle className="w-5 h-5" /> WhatsApp Delivery
                 </Button>
                 <Button className="h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-lg shadow-primary/10" onClick={() => handleCopyLink(`${window.location.origin}/gallery/${event.slug || event.id}`)}>
