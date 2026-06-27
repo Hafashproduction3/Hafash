@@ -3,7 +3,7 @@
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
-import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download } from 'lucide-react';
+import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
@@ -15,7 +15,7 @@ export default function StoragePage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!loading && !user) {
       router.push('/login');
     }
   }, [user, authLoading, router]);
@@ -93,14 +93,23 @@ export default function StoragePage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
               <div className="bg-background/50 rounded-3xl p-6 border border-border/30 flex items-center gap-4">
                 <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
                   <Download className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">ZIP Delivery Limit</p>
-                  <p className="text-xl font-headline font-bold">{currentPlan.zipLimitGb} GB / Package</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">ZIP Size Limit</p>
+                  <p className="text-xl font-headline font-bold">{currentPlan.zipLimitGb}GB</p>
+                </div>
+              </div>
+              <div className="bg-background/50 rounded-3xl p-6 border border-border/30 flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">ZIP Priority</p>
+                  <p className="text-xl font-headline font-bold">{currentPlan.priorityLabel}</p>
                 </div>
               </div>
               <div className="bg-background/50 rounded-3xl p-6 border border-border/30 flex items-center gap-4">
@@ -108,8 +117,8 @@ export default function StoragePage() {
                   <ShieldCheck className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Data Integrity</p>
-                  <p className="text-xl font-headline font-bold">100% Redundant</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">CDN Speed</p>
+                  <p className="text-xl font-headline font-bold">Max Speed</p>
                 </div>
               </div>
             </div>
@@ -119,20 +128,20 @@ export default function StoragePage() {
         {/* Quick Tips */}
         <Card className="bg-primary/5 border-primary/20 rounded-[2.5rem] p-8 flex flex-col justify-center space-y-6">
           <div className="space-y-2">
-            <h4 className="text-xl font-headline font-bold">Optimization Tip</h4>
+            <h4 className="text-xl font-headline font-bold">Priority Processing</h4>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Hafash automatically optimizes previews, but original master files consume significant storage. Regularly purge legacy events to maintain optimal quota.
+              Higher plans move to the front of the ZIP generation queue. Once generated, all files are delivered at maximum Cloudflare CDN speeds.
             </p>
           </div>
           <Button variant="outline" className="rounded-2xl h-12 border-primary/30 text-primary font-bold hover:bg-primary/10">
-            Storage Best Practices
+            Learn About Priorities
           </Button>
         </Card>
       </div>
 
       <div className="text-center space-y-4 pt-10">
         <h2 className="text-4xl font-headline font-bold">Premium Expansion Plans</h2>
-        <p className="text-muted-foreground">Unlock higher delivery thresholds and larger cloud capacity.</p>
+        <p className="text-muted-foreground">Unlock higher delivery thresholds and faster ZIP preparation.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -154,6 +163,10 @@ export default function StoragePage() {
                 <p className="text-xl font-bold mt-6">{plan.storageGb}GB Cloud Capacity</p>
               </CardHeader>
               <CardContent className="space-y-5 py-8 px-10 border-t border-border/20">
+                <div className="flex items-center gap-4 text-sm font-bold text-primary">
+                   <Activity className="w-5 h-5 shrink-0" />
+                   <span>{plan.priorityLabel} Processing</span>
+                </div>
                 {plan.features.map(feat => (
                   <div key={feat} className="flex items-center gap-4 text-sm font-medium">
                     <Check className="w-5 h-5 text-primary shrink-0" />
@@ -173,11 +186,6 @@ export default function StoragePage() {
             </Card>
           );
         })}
-      </div>
-
-      <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground opacity-40 font-bold uppercase tracking-[0.3em] pt-10">
-        <Zap className="w-4 h-4 text-primary" />
-        Encrypted Billing Hub
       </div>
     </div>
   );

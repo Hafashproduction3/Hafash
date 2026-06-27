@@ -1,6 +1,6 @@
 /**
  * Hafash Subscription Plan Definitions
- * Centralized configuration for storage and delivery limits.
+ * Centralized configuration for storage, delivery limits, and processing priority.
  */
 
 export type PlanId = 'starter' | 'pro' | 'business';
@@ -12,6 +12,8 @@ export interface HafashPlan {
   zipLimitGb: number;
   price: string;
   features: string[];
+  priorityLevel: number; // 1 (Highest), 2 (High), 3 (Standard)
+  priorityLabel: string;
 }
 
 export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
@@ -22,6 +24,8 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     zipLimitGb: 5,
     price: '$9',
     features: ['Up to 10 Galleries', 'Basic Watermarking', 'Social Sharing', '5GB ZIP Packages'],
+    priorityLevel: 3,
+    priorityLabel: 'Standard',
   },
   pro: {
     id: 'pro',
@@ -30,6 +34,8 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     zipLimitGb: 20,
     price: '$24',
     features: ['Unlimited Galleries', 'Custom Branding', 'Advanced Analytics', '20GB ZIP Packages'],
+    priorityLevel: 2,
+    priorityLabel: 'High Priority',
   },
   business: {
     id: 'business',
@@ -38,6 +44,8 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     zipLimitGb: 100,
     price: '$49',
     features: ['All Features', 'Priority Support', 'RAW Storage Add-on', '100GB ZIP Packages'],
+    priorityLevel: 1,
+    priorityLabel: 'Highest Priority',
   },
 };
 

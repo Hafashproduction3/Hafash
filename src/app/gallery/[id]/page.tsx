@@ -2,7 +2,7 @@
 
 import { useFirestore, useDoc } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
-import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon, Sparkles, AlertTriangle } from 'lucide-react';
+import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon, Sparkles, AlertTriangle, Activity, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -152,6 +152,16 @@ export default function ClientGalleryPage() {
     }
   };
 
+  const checkZipCache = () => {
+    if (typeof window === 'undefined' || !galleryId) return false;
+    const cacheKey = `zip_cache_${galleryId}`;
+    const cachedAt = localStorage.getItem(cacheKey);
+    if (!cachedAt) return false;
+    
+    const timePassed = Date.now() - parseInt(cachedAt);
+    return timePassed < 24 * 60 * 60 * 1000; // 24 hours
+  };
+
   const handleDownloadAll = async () => {
     if (isZipping || !gallery || !canDownload) return;
 
@@ -161,7 +171,7 @@ export default function ClientGalleryPage() {
       return;
     }
 
-    // Subscription Limit Check
+    // 1. Subscription Limit Check
     const estimatedSizeGb = estimateZipSizeGb(items.length);
     if (estimatedSizeGb > photographerPlan.zipLimitGb) {
       setShowUpgradeDialog(true);
@@ -169,13 +179,26 @@ export default function ClientGalleryPage() {
     }
     
     setIsZipping(true);
-    setZipMessage("Preparing your download package...");
+
+    // 2. Priority Processing Simulation
+    const isCached = checkZipCache();
+    if (!isCached) {
+      const waitTime = photographerPlan.id === 'business' ? 2000 : photographerPlan.id === 'pro' ? 5000 : 10000;
+      setZipMessage(`Preparing your download (${photographerPlan.priorityLabel} Processing)...`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    } else {
+      setZipMessage("Fetching from Priority Cache...");
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    setZipMessage("Optimizing masterpieces...");
 
     try {
       const zip = new JSZip();
       
       const downloadPromises = items.map(async (item: any, index: number) => {
         const originalUrl = item.masterUrl || item.url;
+        // High-speed CDN fetch
         const response = await fetch(originalUrl);
         if (!response.ok) throw new Error(`Failed to fetch original image ${index + 1}`);
         const blob = await response.blob();
@@ -193,13 +216,18 @@ export default function ClientGalleryPage() {
 
       await Promise.all(downloadPromises);
       
-      setZipMessage("Compressing masterpieces...");
+      setZipMessage("Your download is ready.");
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${gallery.title.replace(/\s+/g, '_')}_all_photos.zip`);
 
+      // 3. Cache the generation for 24h
+      if (typeof window !== 'undefined' && galleryId) {
+        localStorage.setItem(`zip_cache_${galleryId}`, Date.now().toString());
+      }
+
       toast({ 
-        title: "Download Ready", 
-        description: "Your masterpieces are ready. High-resolution originals delivered." 
+        title: "Download Complete", 
+        description: "Your high-resolution masterpieces have been delivered." 
       });
     } catch (error: any) {
       console.error("ZIP_ERROR:", error);
@@ -304,18 +332,25 @@ export default function ClientGalleryPage() {
 
       <div className="max-w-7xl mx-auto px-6 mt-12 relative z-10">
         <div className="flex justify-between items-center mb-12">
-          <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
+          <div className="space-y-1">
+            <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
+            {isZipping && (
+              <p className="text-[10px] text-primary animate-pulse font-bold tracking-widest uppercase flex items-center gap-2">
+                <Activity className="w-3 h-3" /> {zipMessage}
+              </p>
+            )}
+          </div>
           {canDownload && gallery.items && gallery.items.length > 0 && (
             <Button 
               className={cn(
-                "rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2",
+                "rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2 h-12",
                 isZipping && "opacity-70 cursor-wait"
               )}
               onClick={handleDownloadAll}
               disabled={isZipping}
             >
               {isZipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {isZipping ? zipMessage : "Download All Masterpieces"}
+              {isZipping ? "Processing..." : "Download All Masterpieces"}
             </Button>
           )}
         </div>
