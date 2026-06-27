@@ -73,37 +73,51 @@ export default function SignupPage() {
 
     setLoading(true);
     try {
+      console.log("[SIGNUP_DEBUG] Initiating account creation...");
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const uid = userCredential.user.uid;
+      const newUser = userCredential.user;
 
-      if (userCredential.user) {
+      if (newUser) {
         // 1. Update Auth Profile
-        await updateProfile(userCredential.user, {
+        await updateProfile(newUser, {
           displayName: studioName
         });
 
         // 2. Create Firestore Profile
         const userProfile = {
-          userId: uid,
+          userId: newUser.uid,
           studioName,
           photographerName,
           whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
           updatedAt: new Date().toISOString()
         };
         
-        await setDoc(doc(firestore, 'users', uid), userProfile);
+        await setDoc(doc(firestore, 'users', newUser.uid), userProfile);
         
-        // 3. Send Email Verification
-        await sendEmailVerification(userCredential.user);
-        
-        toast({
-          title: "Account Created",
-          description: "Verification email sent. Please verify your account.",
-        });
+        // 3. Send Email Verification (Awaited to ensure it is triggered)
+        console.log("[SIGNUP_DEBUG] Sending verification email...");
+        try {
+          await sendEmailVerification(newUser);
+          console.log("[SIGNUP_DEBUG] Verification email sent successfully.");
+          
+          toast({
+            title: "Account Created",
+            description: "Verification email sent. Please check your inbox.",
+          });
+        } catch (verifyError: any) {
+          console.error("[SIGNUP_DEBUG] sendEmailVerification failed:", verifyError);
+          // We don't throw here so the user is still redirected to the verify-email page where they can try resending
+          toast({
+            variant: "destructive",
+            title: "Verification Delayed",
+            description: "Account created, but we couldn't send the verification email. You can resend it from the next screen.",
+          });
+        }
         
         router.push('/verify-email');
       }
     } catch (error: any) {
+      console.error("[SIGNUP_DEBUG] Signup error:", error);
       toast({
         variant: "destructive",
         title: "Signup Failed",
@@ -125,7 +139,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
       <div className="absolute inset-0 z-0 opacity-10">
-        <img src="https://picsum.photos/seed/signup/1920/1080" className="w-full h-full object-cover grayscale" alt="Background" />
+        <img src="https://picsum.photos/seed/signup/1920/1080" className="w-full h-full object-cover grayscale" alt="Background" data-ai-hint="wedding background" />
       </div>
 
       <div className="w-full max-w-md relative z-10 my-10">

@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useAuth } from '@/firebase';
 import { sendEmailVerification, signOut } from 'firebase/auth';
-import { Mail, Loader2, RefreshCw, LogOut, CheckCircle2 } from 'lucide-react';
+import { Mail, Loader2, RefreshCw, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import Link from 'next/link';
 
 export default function VerifyEmailPage() {
   const { user, loading } = useUser();
@@ -16,6 +15,7 @@ export default function VerifyEmailPage() {
   const { toast } = useToast();
   const [resending, setResending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
   useEffect(() => {
     if (!loading) {
@@ -27,21 +27,45 @@ export default function VerifyEmailPage() {
     }
   }, [user, loading, router]);
 
+  // Cooldown timer effect
+  useEffect(() => {
+    if (cooldown > 0) {
+      const timer = setTimeout(() => setCooldown(prev => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [cooldown]);
+
   const handleResend = async () => {
-    if (!user) return;
+    if (!user || cooldown > 0) return;
+    
     setResending(true);
     try {
+      console.log("[VERIFY_DEBUG] Initiating email resend...");
       await sendEmailVerification(user);
+      
       toast({
         title: "Verification Sent",
-        description: "A new verification link has been sent to your email.",
+        description: "A fresh verification link has been delivered to your inbox.",
       });
+      
+      setCooldown(60); // Start 60s cooldown
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to resend verification email.",
-      });
+      console.error("[VERIFY_DEBUG] Resend failed:", error);
+      
+      if (error.code === 'auth/too-many-requests') {
+        toast({
+          variant: "destructive",
+          title: "Rate Limit Exceeded",
+          description: "We recently sent a verification email. Please wait a moment before trying again.",
+        });
+        setCooldown(120); // Extra cooldown for rate limit
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Delivery Error",
+          description: error.message || "We couldn't deliver the verification email. Please try again later.",
+        });
+      }
     } finally {
       setResending(false);
     }
@@ -51,23 +75,25 @@ export default function VerifyEmailPage() {
     if (!user) return;
     setRefreshing(true);
     try {
+      console.log("[VERIFY_DEBUG] Refreshing auth status...");
       await user.reload();
       if (user.emailVerified) {
         toast({
-          title: "Email Verified",
-          description: "Welcome to your studio dashboard!",
+          title: "Verification Confirmed",
+          description: "Welcome to your luxury studio dashboard!",
         });
         router.push('/dashboard');
       } else {
         toast({
-          description: "Email is still not verified. Please check your inbox.",
+          description: "Account still unverified. Please check your inbox (including spam).",
         });
       }
     } catch (error: any) {
+      console.error("[VERIFY_DEBUG] Refresh failed:", error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to refresh status.",
+        title: "Sync Error",
+        description: "Failed to synchronize status with server. Please try again.",
       });
     } finally {
       setRefreshing(false);
@@ -75,8 +101,12 @@ export default function VerifyEmailPage() {
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
-    router.push('/login');
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error: any) {
+      console.error("[VERIFY_DEBUG] Logout error:", error);
+    }
   };
 
   if (loading) {
@@ -90,7 +120,7 @@ export default function VerifyEmailPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
       <div className="absolute inset-0 z-0 opacity-10">
-        <img src="https://picsum.photos/seed/verify/1920/1080" className="w-full h-full object-cover grayscale" alt="Background" />
+        <img src="https://picsum.photos/seed/verify/1920/1080" className="w-full h-full object-cover grayscale" alt="Background" data-ai-hint="luxury studio" />
       </div>
 
       <div className="w-full max-w-md relative z-10">
@@ -100,9 +130,9 @@ export default function VerifyEmailPage() {
           </div>
           
           <div className="space-y-2">
-            <h1 className="text-3xl font-headline font-bold">Verify Your Email</h1>
+            <h1 className="text-3xl font-headline font-bold">Verify Your Identity</h1>
             <p className="text-muted-foreground">
-              We've sent a verification link to <span className="text-primary font-bold">{user?.email}</span>. Please verify your email to unlock your studio.
+              We've sent a secure verification link to <span className="text-primary font-bold">{user?.email}</span>. Please verify your email to unlock your studio.
             </p>
           </div>
 
@@ -113,7 +143,7 @@ export default function VerifyEmailPage() {
               disabled={refreshing}
             >
               {refreshing ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
-              Refresh Status
+              Check Verification Status
             </Button>
             
             <div className="grid grid-cols-2 gap-4">
@@ -121,10 +151,12 @@ export default function VerifyEmailPage() {
                 variant="outline" 
                 className="h-12 rounded-xl border-border/50 font-bold"
                 onClick={handleResend}
-                disabled={resending}
+                disabled={resending || cooldown > 0}
               >
-                {resending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Resend Email
+                {resending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : null}
+                {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Email'}
               </Button>
               <Button 
                 variant="ghost" 
