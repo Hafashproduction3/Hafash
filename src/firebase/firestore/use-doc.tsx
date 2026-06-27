@@ -20,16 +20,6 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Synchronization: When docRef changes, immediately update loading/data state 
-  // during the render phase to avoid "loading lag" frames that cause UI flickers.
-  const [currentPath, setCurrentPath] = useState<string | null>(null);
-  if (docRef?.path !== currentPath) {
-    setCurrentPath(docRef?.path || null);
-    setLoading(!!docRef);
-    setData(null);
-    setError(null);
-  }
-
   useEffect(() => {
     // Reset state if docRef is null
     if (!docRef) {
@@ -39,6 +29,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       return;
     }
 
+    // Set loading state when the docRef changes
     setLoading(true);
     setError(null);
 

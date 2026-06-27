@@ -55,7 +55,7 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // 1. First, attempt to resolve via slug (lowercase/trimmed)
+        // 1. First, attempt to resolve via slug
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
@@ -71,13 +71,12 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          // 2. If no slug matches, assume the parameter is a direct Document ID (case-sensitive)
+          // 2. Fallback to direct ID
           console.log(`[GALLERY_DEBUG] No slug match for "${slugAttempt}". Using original param as ID.`);
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        console.error("[GALLERY_DEBUG] Resolution process encountered an error:", err);
-        // Fallback to ID lookup even if query fails (e.g. permission denied for public querying)
+        console.error("[GALLERY_DEBUG] Resolution process error:", err);
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -101,7 +100,8 @@ export default function ClientGalleryPage() {
   const { data: profile } = useDoc(photographerRef);
 
   const photographerPlan = useMemo(() => {
-    const planId = (profile?.planId as PlanId) || 'starter';
+    const rawPlanId = profile?.planId || 'starter';
+    const planId = (typeof rawPlanId === 'string' ? rawPlanId.toLowerCase() : 'starter') as PlanId;
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
@@ -172,7 +172,7 @@ export default function ClientGalleryPage() {
     if (!cachedAt) return false;
     
     const timePassed = Date.now() - parseInt(cachedAt);
-    return timePassed < 24 * 60 * 60 * 1000; // 24 hours
+    return timePassed < 24 * 60 * 60 * 1000; 
   };
 
   const handleDownloadAll = async () => {
@@ -242,7 +242,7 @@ export default function ClientGalleryPage() {
       toast({ 
         variant: "destructive", 
         title: "Download Failed", 
-        description: "We encountered an error while preparing your original ZIP. Please try again." 
+        description: "We encountered an error while preparing your original ZIP." 
       });
     } finally {
       setIsZipping(false);
@@ -272,9 +272,6 @@ export default function ClientGalleryPage() {
     }
   };
 
-  const coverImageUrl = gallery?.coverImage || (gallery?.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
-
-  // Loading state management
   const isLoading = isResolving || docLoading;
 
   if (isLoading) {
@@ -287,7 +284,6 @@ export default function ClientGalleryPage() {
   }
 
   if (!gallery) {
-    console.log(`[GALLERY_DEBUG] Final result: Gallery Not Found for ID/Slug: ${galleryId || galleryParam}`);
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <ShieldAlert className="w-12 h-12 text-destructive mb-6" />
@@ -297,6 +293,8 @@ export default function ClientGalleryPage() {
       </div>
     );
   }
+
+  const coverImageUrl = gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
 
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
@@ -443,7 +441,7 @@ export default function ClientGalleryPage() {
             </div>
             <AlertDialogTitle className="text-3xl font-headline font-bold mb-4">Upgrade Required</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground italic leading-relaxed text-base">
-              This gallery's high-resolution collection exceeds your current plan's delivery threshold of <strong>{photographerPlan.zipLimitGb} GB</strong>.
+              This gallery's high-resolution collection exceeds your current plan's delivery threshold of <strong>{photographerPlan.storageGb} GB</strong>.
               <br /><br />
               Upgrade your storage tier to generate larger masterpiece ZIP packages for your clients.
             </AlertDialogDescription>
