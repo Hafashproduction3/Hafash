@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "GalleryItem": {
@@ -69,11 +70,11 @@
   "firestore": {
     "/galleries/{galleryId}": {
       "schema": "#/entities/EventGallery",
-      "description": "Individual event galleries"
+      "description": "Individual event galleries. Publicly readable by clients via ID or slug."
     },
     "/users/{userId}": {
       "schema": "#/entities/UserProfile",
-      "description": "Photographer profiles and settings"
+      "description": "Photographer profiles and settings. Basic info (name, logo) publicly readable for gallery branding."
     }
   }
 }

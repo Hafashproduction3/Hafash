@@ -1,8 +1,26 @@
+
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
-import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon, Sparkles, AlertTriangle, Activity, CheckCircle2 } from 'lucide-react';
+import { 
+  Heart, 
+  Download, 
+  Camera, 
+  ShieldAlert, 
+  Loader2, 
+  X, 
+  Lock, 
+  MessageCircle, 
+  Share2, 
+  ImageIcon, 
+  Sparkles, 
+  AlertTriangle, 
+  Activity, 
+  CheckCircle2,
+  ShieldCheck,
+  ChevronRight
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -55,7 +73,8 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // 1. First, attempt to resolve via slug
+        // 1. Attempt to resolve via slug
+        // Note: collection queries often require 'list' permissions which public users may lack.
         const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
@@ -76,7 +95,8 @@ export default function ClientGalleryPage() {
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        console.error("[GALLERY_DEBUG] Resolution process error:", err);
+        console.error(`[GALLERY_DEBUG] Resolution process error (Code: ${err?.code}):`, err);
+        // If query fails (likely permission denied for 'list'), we strictly fallback to using param as ID
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -90,7 +110,7 @@ export default function ClientGalleryPage() {
     return doc(firestore, 'galleries', galleryId);
   }, [firestore, galleryId]);
 
-  const { data: gallery, loading: docLoading } = useDoc(galleryRef);
+  const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
@@ -283,10 +303,24 @@ export default function ClientGalleryPage() {
     );
   }
 
+  // Explicitly handle permission errors separate from 404s
+  if (galleryError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+        <div className="bg-destructive/10 p-6 rounded-full mb-8">
+          <Lock className="w-12 h-12 text-destructive" />
+        </div>
+        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Access Restricted</h1>
+        <p className="text-muted-foreground mb-8 max-w-sm">This gallery is protected or your access has been restricted by the studio's security policy.</p>
+        <Link href="/"><Button className="rounded-full px-10 bg-primary">Hafash Home</Button></Link>
+      </div>
+    );
+  }
+
   if (!gallery) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-        <ShieldAlert className="w-12 h-12 text-destructive mb-6" />
+        <ShieldAlert className="w-12 h-12 text-muted-foreground/30 mb-6" />
         <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Not Found</h1>
         <p className="text-muted-foreground mb-8 max-w-sm">The requested gallery does not exist or has been removed from our secure servers.</p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary">Return Home</Button></Link>
