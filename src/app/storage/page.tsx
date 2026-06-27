@@ -1,40 +1,17 @@
-
 "use client";
 
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { HardDrive, Check, Zap, Loader2 } from 'lucide-react';
+import { useEffect, useMemo } from 'react';
+import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-
-const plans = [
-  { 
-    name: 'Starter', 
-    price: '$9', 
-    storage: '50GB', 
-    features: ['Up to 10 Galleries', 'Basic Watermarking', 'Social Sharing', 'Mobile PWA'],
-    current: true
-  },
-  { 
-    name: 'Studio', 
-    price: '$24', 
-    storage: '200GB', 
-    features: ['Unlimited Galleries', 'Custom Branding', 'Advanced Analytics', 'Client Favorite Sync'],
-    current: false,
-    highlight: true
-  },
-  { 
-    name: 'Pro', 
-    price: '$49', 
-    storage: '1TB', 
-    features: ['All Features', 'RAW Storage (Add-on)', 'Cloudflare R2 Direct Integration', 'Priority Concierge'],
-    current: false
-  },
-];
+import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
+import { doc } from 'firebase/firestore';
 
 export default function StoragePage() {
   const { user, loading: authLoading } = useUser();
+  const firestore = useFirestore();
   const router = useRouter();
 
   useEffect(() => {
@@ -43,7 +20,19 @@ export default function StoragePage() {
     }
   }, [user, authLoading, router]);
 
-  if (authLoading) {
+  const profileRef = useMemo(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user?.uid]);
+
+  const { data: profile, loading: profileLoading } = useDoc(profileRef);
+
+  const currentPlan = useMemo(() => {
+    const planId = (profile?.planId as PlanId) || 'starter';
+    return HAFASH_PLANS[planId] || DEFAULT_PLAN;
+  }, [profile?.planId]);
+
+  if (authLoading || profileLoading) {
     return (
       <div className="flex justify-center items-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -53,76 +42,142 @@ export default function StoragePage() {
 
   if (!user) return null;
 
-  return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="text-center max-w-3xl mx-auto space-y-4">
-        <h1 className="text-5xl font-headline font-bold">Scaling Your Studio</h1>
-        <p className="text-muted-foreground text-lg italic">Premium storage for premium craftsmanship. Never compromise on quality.</p>
-      </div>
+  // Mock usage data for demo (architecturally ready for real telemetry)
+  const usageGb = 12.5;
+  const usagePercent = (usageGb / currentPlan.storageGb) * 100;
 
-      <div className="bg-card border border-border/50 rounded-3xl p-8 lg:p-12">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex items-center gap-6">
-            <div className="p-6 bg-primary/10 rounded-3xl">
-              <HardDrive className="w-12 h-12 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-headline font-bold">Current Storage Usage</h2>
-              <p className="text-muted-foreground">You are using 12.5 GB of your 50 GB starter plan.</p>
-            </div>
-          </div>
-          <div className="w-full md:w-96 space-y-3">
-             <div className="flex justify-between text-sm font-bold">
-               <span>25% Used</span>
-               <span className="text-primary">37.5 GB Remaining</span>
-             </div>
-             <div className="h-3 w-full bg-background rounded-full overflow-hidden border border-border/50">
-               <div className="h-full bg-primary" style={{ width: '25%' }} />
-             </div>
-          </div>
+  return (
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-8">
+        <div>
+          <h1 className="text-5xl font-headline font-bold">Studio Storage & Quotas</h1>
+          <p className="text-muted-foreground mt-2 italic text-lg">Premium infrastructure for the world's finest photography studios.</p>
+        </div>
+        <div className="bg-primary/10 px-4 py-2 rounded-xl border border-primary/20 flex items-center gap-3">
+          <ShieldCheck className="w-4 h-4 text-primary" />
+          <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Enterprise Class R2 Storage Active</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {plans.map(plan => (
-          <Card key={plan.name} className={`relative overflow-hidden border-border/50 bg-card transition-all duration-300 hover:shadow-2xl hover:shadow-primary/10 ${plan.highlight ? 'ring-2 ring-primary scale-105 z-10' : ''}`}>
-            {plan.highlight && (
-              <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-4 py-1.5 rounded-bl-xl tracking-[0.2em]">
-                Most Popular
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Usage Card */}
+        <Card className="lg:col-span-2 bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+          <CardHeader className="bg-background/30 border-b border-border/30 p-8">
+            <CardTitle className="flex items-center gap-4 text-2xl font-headline font-bold">
+              <HardDrive className="w-8 h-8 text-primary" />
+              Current Utilization
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-10 space-y-10">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-8">
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground uppercase tracking-widest font-bold">Active Subscription</p>
+                <h3 className="text-4xl font-headline font-bold text-primary">{currentPlan.name} Plan</h3>
               </div>
-            )}
-            <CardHeader className="text-center pt-10">
-              <CardTitle className="text-sm uppercase tracking-[0.3em] text-muted-foreground mb-2">{plan.name}</CardTitle>
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-5xl font-headline font-bold text-primary">{plan.price}</span>
-                <span className="text-muted-foreground">/mo</span>
+              <div className="text-right space-y-2">
+                <p className="text-sm text-muted-foreground uppercase tracking-widest font-bold">Total Storage</p>
+                <h3 className="text-4xl font-headline font-bold">{currentPlan.storageGb} GB</h3>
               </div>
-              <p className="text-lg font-bold mt-4">{plan.storage} Premium Storage</p>
-            </CardHeader>
-            <CardContent className="space-y-4 py-8">
-              {plan.features.map(feat => (
-                <div key={feat} className="flex items-center gap-3 text-sm">
-                  <Check className="w-4 h-4 text-primary" />
-                  <span>{feat}</span>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex justify-between text-sm font-bold uppercase tracking-widest">
+                <span>{usageGb} GB Used</span>
+                <span className="text-primary">{currentPlan.storageGb - usageGb} GB Remaining</span>
+              </div>
+              <div className="h-4 w-full bg-background rounded-full overflow-hidden border border-border/50 p-1">
+                <div 
+                  className="h-full bg-primary rounded-full transition-all duration-1000" 
+                  style={{ width: `${usagePercent}%` }} 
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+              <div className="bg-background/50 rounded-3xl p-6 border border-border/30 flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <Download className="w-6 h-6 text-primary" />
                 </div>
-              ))}
-            </CardContent>
-            <CardFooter className="pb-10">
-              {plan.current ? (
-                <Button className="w-full h-12 rounded-full border-primary text-primary bg-primary/10 cursor-default hover:bg-primary/10">Current Plan</Button>
-              ) : (
-                <Button className={`w-full h-12 rounded-full font-bold shadow-lg ${plan.highlight ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20' : 'bg-white text-black hover:bg-white/90'}`}>
-                  Upgrade Now
-                </Button>
-              )}
-            </CardFooter>
-          </Card>
-        ))}
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">ZIP Delivery Limit</p>
+                  <p className="text-xl font-headline font-bold">{currentPlan.zipLimitGb} GB / Package</p>
+                </div>
+              </div>
+              <div className="bg-background/50 rounded-3xl p-6 border border-border/30 flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Data Integrity</p>
+                  <p className="text-xl font-headline font-bold">100% Redundant</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Quick Tips */}
+        <Card className="bg-primary/5 border-primary/20 rounded-[2.5rem] p-8 flex flex-col justify-center space-y-6">
+          <div className="space-y-2">
+            <h4 className="text-xl font-headline font-bold">Optimization Tip</h4>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Hafash automatically optimizes previews, but original master files consume significant storage. Regularly purge legacy events to maintain optimal quota.
+            </p>
+          </div>
+          <Button variant="outline" className="rounded-2xl h-12 border-primary/30 text-primary font-bold hover:bg-primary/10">
+            Storage Best Practices
+          </Button>
+        </Card>
       </div>
 
-      <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground opacity-60">
-        <Zap className="w-4 h-4" />
-        Payments secured by Hafash Luxury Finance
+      <div className="text-center space-y-4 pt-10">
+        <h2 className="text-4xl font-headline font-bold">Premium Expansion Plans</h2>
+        <p className="text-muted-foreground">Unlock higher delivery thresholds and larger cloud capacity.</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {Object.values(HAFASH_PLANS).map(plan => {
+          const isCurrent = currentPlan.id === plan.id;
+          return (
+            <Card key={plan.id} className={`relative overflow-hidden border-border/50 bg-card transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 rounded-[2.5rem] ${plan.id === 'pro' ? 'ring-2 ring-primary scale-105 z-10' : ''}`}>
+              {plan.id === 'pro' && (
+                <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-6 py-2 rounded-bl-3xl tracking-[0.2em]">
+                  Most Popular
+                </div>
+              )}
+              <CardHeader className="text-center pt-12 pb-8">
+                <CardTitle className="text-[10px] uppercase tracking-[0.4em] text-muted-foreground mb-4 font-bold">{plan.name} Tier</CardTitle>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-6xl font-headline font-bold text-primary">{plan.price}</span>
+                  <span className="text-muted-foreground font-bold">/mo</span>
+                </div>
+                <p className="text-xl font-bold mt-6">{plan.storageGb}GB Cloud Capacity</p>
+              </CardHeader>
+              <CardContent className="space-y-5 py-8 px-10 border-t border-border/20">
+                {plan.features.map(feat => (
+                  <div key={feat} className="flex items-center gap-4 text-sm font-medium">
+                    <Check className="w-5 h-5 text-primary shrink-0" />
+                    <span>{feat}</span>
+                  </div>
+                ))}
+              </CardContent>
+              <CardFooter className="pb-12 pt-6 px-10">
+                {isCurrent ? (
+                  <Button className="w-full h-14 rounded-2xl border-primary/30 text-primary bg-primary/10 cursor-default hover:bg-primary/10 font-bold uppercase tracking-widest text-xs">Active Subscription</Button>
+                ) : (
+                  <Button className={`w-full h-14 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-[1.02] ${plan.id === 'pro' ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20' : 'bg-white text-black hover:bg-gray-100'}`}>
+                    Upgrade Workspace
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground opacity-40 font-bold uppercase tracking-[0.3em] pt-10">
+        <Zap className="w-4 h-4 text-primary" />
+        Encrypted Billing Hub
       </div>
     </div>
   );

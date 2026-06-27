@@ -1,4 +1,3 @@
-
 {
   "entities": {
     "GalleryItem": {
@@ -54,7 +53,12 @@
         "studioName": { "type": "string" },
         "photographerName": { "type": "string" },
         "whatsappNumber": { "type": "string" },
-        "studioLogo": { "type": "string" }
+        "studioLogo": { "type": "string" },
+        "planId": { 
+          "type": "string", 
+          "enum": ["starter", "pro", "business"],
+          "description": "The active subscription tier for the photographer"
+        }
       },
       "required": ["userId", "studioName", "whatsappNumber"]
     }

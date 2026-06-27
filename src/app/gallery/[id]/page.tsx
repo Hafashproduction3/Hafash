@@ -1,8 +1,8 @@
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
-import { useParams } from 'next/navigation';
-import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon, Sparkles } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { Heart, Download, Camera, ShieldAlert, Loader2, X, Lock, MessageCircle, Share2, Image as ImageIcon, Sparkles, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -13,18 +13,31 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { HAFASH_PLANS, DEFAULT_PLAN, estimateZipSizeGb, type PlanId } from '@/lib/plans';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function ClientGalleryPage() {
   const params = useParams();
   const galleryParam = params?.id as string;
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [searching, setSearching] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isZipping, setIsZipping] = useState(false);
   const [zipMessage, setZipMessage] = useState("");
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   
   const viewIncremented = useRef<string | null>(null);
 
@@ -72,6 +85,11 @@ export default function ClientGalleryPage() {
   }, [firestore, gallery?.userId]);
 
   const { data: profile } = useDoc(photographerRef);
+
+  const photographerPlan = useMemo(() => {
+    const planId = (profile?.planId as PlanId) || 'starter';
+    return HAFASH_PLANS[planId] || DEFAULT_PLAN;
+  }, [profile?.planId]);
 
   // Core Access Logic
   const canDownload = useMemo(() => {
@@ -136,20 +154,26 @@ export default function ClientGalleryPage() {
 
   const handleDownloadAll = async () => {
     if (isZipping || !gallery || !canDownload) return;
+
+    const items = gallery.items || [];
+    if (items.length === 0) {
+      toast({ title: "Empty Gallery", description: "There are no photos to download." });
+      return;
+    }
+
+    // Subscription Limit Check
+    const estimatedSizeGb = estimateZipSizeGb(items.length);
+    if (estimatedSizeGb > photographerPlan.zipLimitGb) {
+      setShowUpgradeDialog(true);
+      return;
+    }
     
     setIsZipping(true);
     setZipMessage("Preparing your download package...");
 
     try {
       const zip = new JSZip();
-      const items = gallery.items || [];
       
-      if (items.length === 0) {
-        toast({ title: "Empty Gallery", description: "There are no photos to download." });
-        setIsZipping(false);
-        return;
-      }
-
       const downloadPromises = items.map(async (item: any, index: number) => {
         const originalUrl = item.masterUrl || item.url;
         const response = await fetch(originalUrl);
@@ -200,7 +224,6 @@ export default function ClientGalleryPage() {
       return;
     }
     
-    // Clean number for URL: remove +, spaces, dashes
     const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
     const message = `Hi, I'm viewing the "${gallery?.title}" gallery on Hafash.pk and I'd like to discuss my selection.`;
     window.open(`https://wa.me/${cleanedNumber}?text=${encodeURIComponent(message)}`, '_blank');
@@ -360,6 +383,34 @@ export default function ClientGalleryPage() {
           </Button>
         </div>
       )}
+
+      {/* Upgrade Required Dialog */}
+      <AlertDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] p-10 max-w-md">
+          <AlertDialogHeader className="text-center">
+            <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <AlertTriangle className="w-10 h-10 text-primary" />
+            </div>
+            <AlertDialogTitle className="text-3xl font-headline font-bold mb-4">Upgrade Required</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground italic leading-relaxed text-base">
+              This gallery's high-resolution collection exceeds your current plan's delivery threshold of <strong>{photographerPlan.zipLimitGb} GB</strong>.
+              <br /><br />
+              Upgrade your storage tier to generate larger masterpiece ZIP packages for your clients.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="mt-10 flex-col sm:flex-col gap-4">
+             <AlertDialogAction 
+              className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl font-bold shadow-xl shadow-primary/20"
+              onClick={() => router.push('/storage')}
+            >
+              Upgrade Storage Plan
+            </AlertDialogAction>
+            <AlertDialogCancel className="w-full h-14 rounded-2xl border-border/50 font-bold hover:bg-background/50">
+              Not Now
+            </AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
