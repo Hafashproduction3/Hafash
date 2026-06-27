@@ -1,9 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Galleries: Public read if isPublic is true, otherwise requires owner authentication
+    // Galleries: Public read if isPublic is true (defaults to true if missing), otherwise requires owner authentication
     match /galleries/{galleryId} {
-      allow read: if (resource != null && resource.data.isPublic == true) || (request.auth != null && request.auth.uid == resource.data.userId);
+      allow read: if (resource != null && resource.data.get('isPublic', true) == true) || (request.auth != null && request.auth.uid == resource.data.userId);
       allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
     }

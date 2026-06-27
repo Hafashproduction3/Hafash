@@ -56,6 +56,13 @@ export default function EventManagementPage() {
 
   const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
+  // Field Repair Logic: Ensure isPublic is set if missing
+  useEffect(() => {
+    if (event && event.isPublic === undefined && eventRef) {
+      updateDoc(eventRef, { isPublic: true });
+    }
+  }, [event, eventRef]);
+
   const photographerRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
