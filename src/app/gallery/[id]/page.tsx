@@ -33,7 +33,7 @@ export default function ClientGalleryPage() {
   const router = useRouter();
   
   const [galleryId, setGalleryId] = useState<string | null>(null);
-  const [searching, setSearching] = useState(true);
+  const [isResolving, setIsResolving] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isZipping, setIsZipping] = useState(false);
   const [zipMessage, setZipMessage] = useState("");
@@ -43,30 +43,44 @@ export default function ClientGalleryPage() {
 
   useEffect(() => {
     async function resolveGallery() {
-      if (!firestore || !galleryParam) return;
-      if (viewIncremented.current === galleryParam) return;
+      if (!firestore || !galleryParam) {
+        setIsResolving(false);
+        return;
+      }
 
-      setSearching(true);
+      console.log(`[GALLERY_DEBUG] Resolving gallery parameter: "${galleryParam}"`);
+      setIsResolving(true);
+      
+      const cleanParam = galleryParam.trim();
+      const slugAttempt = cleanParam.toLowerCase();
+
       try {
-        const q = query(collection(firestore, 'galleries'), where('slug', '==', galleryParam));
+        // 1. First, attempt to resolve via slug (lowercase/trimmed)
+        const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
+          console.log(`[GALLERY_DEBUG] Resolved via slug to ID: ${foundId}`);
           setGalleryId(foundId);
           
-          if (viewIncremented.current !== galleryParam) {
-            viewIncremented.current = galleryParam;
+          // Increment view count for the resolved ID
+          if (viewIncremented.current !== foundId) {
+            viewIncremented.current = foundId;
             const gRef = doc(firestore, 'galleries', foundId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          setGalleryId(galleryParam);
+          // 2. If no slug matches, assume the parameter is a direct Document ID (case-sensitive)
+          console.log(`[GALLERY_DEBUG] No slug match for "${slugAttempt}". Using original param as ID.`);
+          setGalleryId(cleanParam);
         }
-      } catch (err) {
-        console.error("GALLERY_DEBUG: Resolution error:", err);
+      } catch (err: any) {
+        console.error("[GALLERY_DEBUG] Resolution process encountered an error:", err);
+        // Fallback to ID lookup even if query fails (e.g. permission denied for public querying)
+        setGalleryId(cleanParam);
       } finally {
-        setSearching(false);
+        setIsResolving(false);
       }
     }
     resolveGallery();
@@ -91,7 +105,6 @@ export default function ClientGalleryPage() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
-  // Core Access Logic
   const canDownload = useMemo(() => {
     return gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
   }, [gallery?.isLocked, gallery?.isPaid]);
@@ -171,7 +184,6 @@ export default function ClientGalleryPage() {
       return;
     }
 
-    // 1. Subscription Limit Check
     const estimatedSizeGb = estimateZipSizeGb(items.length);
     if (estimatedSizeGb > photographerPlan.zipLimitGb) {
       setShowUpgradeDialog(true);
@@ -180,7 +192,6 @@ export default function ClientGalleryPage() {
     
     setIsZipping(true);
 
-    // 2. Priority Processing Simulation
     const isCached = checkZipCache();
     if (!isCached) {
       const waitTime = photographerPlan.id === 'business' ? 2000 : photographerPlan.id === 'pro' ? 5000 : 10000;
@@ -195,10 +206,8 @@ export default function ClientGalleryPage() {
 
     try {
       const zip = new JSZip();
-      
       const downloadPromises = items.map(async (item: any, index: number) => {
         const originalUrl = item.masterUrl || item.url;
-        // High-speed CDN fetch
         const response = await fetch(originalUrl);
         if (!response.ok) throw new Error(`Failed to fetch original image ${index + 1}`);
         const blob = await response.blob();
@@ -220,7 +229,6 @@ export default function ClientGalleryPage() {
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${gallery.title.replace(/\s+/g, '_')}_all_photos.zip`);
 
-      // 3. Cache the generation for 24h
       if (typeof window !== 'undefined' && galleryId) {
         localStorage.setItem(`zip_cache_${galleryId}`, Date.now().toString());
       }
@@ -266,7 +274,10 @@ export default function ClientGalleryPage() {
 
   const coverImageUrl = gallery?.coverImage || (gallery?.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
 
-  if (searching || docLoading) {
+  // Loading state management
+  const isLoading = isResolving || docLoading;
+
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -275,13 +286,17 @@ export default function ClientGalleryPage() {
     );
   }
 
-  if (!gallery) return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-      <ShieldAlert className="w-12 h-12 text-destructive mb-6" />
-      <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Not Found</h1>
-      <Link href="/"><Button className="rounded-full px-10 bg-primary">Return Home</Button></Link>
-    </div>
-  );
+  if (!gallery) {
+    console.log(`[GALLERY_DEBUG] Final result: Gallery Not Found for ID/Slug: ${galleryId || galleryParam}`);
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+        <ShieldAlert className="w-12 h-12 text-destructive mb-6" />
+        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Not Found</h1>
+        <p className="text-muted-foreground mb-8 max-w-sm">The requested gallery does not exist or has been removed from our secure servers.</p>
+        <Link href="/"><Button className="rounded-full px-10 bg-primary">Return Home</Button></Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
