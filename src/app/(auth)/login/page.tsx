@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { Lock, User, Loader2 } from 'lucide-react';
+import { Lock, User, Loader2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,7 +23,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push('/dashboard');
+      if (user.emailVerified) {
+        router.push('/dashboard');
+      } else {
+        router.push('/verify-email');
+      }
     }
   }, [user, authLoading, router]);
 
@@ -40,12 +44,21 @@ export default function LoginPage() {
     
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      toast({
-        title: "Success",
-        description: "Welcome back!",
-      });
-      router.push('/dashboard');
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      
+      if (!userCredential.user.emailVerified) {
+        toast({
+          title: "Verify Your Email",
+          description: "Please verify your email before entering the dashboard.",
+        });
+        router.push('/verify-email');
+      } else {
+        toast({
+          title: "Success",
+          description: "Welcome back!",
+        });
+        router.push('/dashboard');
+      }
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -85,7 +98,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="bg-card border border-border/50 rounded-3xl p-8 lg:p-10 shadow-2xl">
+        <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 lg:p-10 shadow-2xl">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
@@ -123,7 +136,7 @@ export default function LoginPage() {
             </div>
 
             <Button type="submit" className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold rounded-2xl shadow-lg shadow-primary/20" disabled={loading}>
-              {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ArrowRight className="w-5 h-5 mr-2" />}
               {loading ? "Authenticating..." : "Login to Studio"}
             </Button>
           </form>

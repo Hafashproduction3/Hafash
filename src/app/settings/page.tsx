@@ -3,7 +3,7 @@
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
-import { User, Shield, Camera, Save, Loader2, Briefcase, Phone, Image as ImageIcon } from 'lucide-react';
+import { User, Shield, Camera, Save, Loader2, Briefcase, Phone, Image as ImageIcon, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,7 +53,6 @@ export default function SettingsPage() {
   }, [profile]);
 
   const validateWhatsApp = (number: string) => {
-    // Basic E.164 validation: +[country code][number]
     const regex = /^\+?[1-9]\d{1,14}$/;
     return regex.test(number.replace(/\s+/g, ''));
   };
@@ -61,7 +60,6 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!firestore || !user) return;
     
-    // Feature 2: WhatsApp Validation
     if (!formData.studioName || !formData.whatsappNumber) {
       toast({
         variant: "destructive",
@@ -127,7 +125,7 @@ export default function SettingsPage() {
           <p className="text-muted-foreground mt-2">Manage your professional profile and defaults.</p>
         </div>
         <Button 
-          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full gap-2 px-8" 
+          className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full gap-2 px-8 h-11 font-bold shadow-lg" 
           onClick={handleSave}
           disabled={saving}
         >
@@ -138,8 +136,8 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-xl">
-            <CardHeader className="border-b border-border/30 bg-background/30">
+          <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
+            <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
                 <Briefcase className="w-5 h-5 text-primary" /> Studio Identity
               </CardTitle>
@@ -152,19 +150,19 @@ export default function SettingsPage() {
                     value={formData.studioName} 
                     onChange={(e) => setFormData({ ...formData, studioName: e.target.value })}
                     placeholder="e.g. Cinematic Memories" 
-                    className="rounded-xl bg-background/50 border-border/50" 
+                    className="rounded-xl h-11 bg-background/50 border-border/50" 
                     required
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>WhatsApp Number * (International Format)</Label>
+                  <Label>WhatsApp Number *</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-3 w-4 h-4 text-primary" />
                     <Input 
                       value={formData.whatsappNumber} 
                       onChange={(e) => setFormData({ ...formData, whatsappNumber: e.target.value })}
                       placeholder="e.g. +923001234567" 
-                      className="pl-10 rounded-xl bg-background/50 border-border/50" 
+                      className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
                       required
                     />
                   </div>
@@ -179,19 +177,19 @@ export default function SettingsPage() {
                       value={formData.photographerName} 
                       onChange={(e) => setFormData({ ...formData, photographerName: e.target.value })}
                       placeholder="Your Name" 
-                      className="pl-10 rounded-xl bg-background/50 border-border/50" 
+                      className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Studio Logo URL (Optional)</Label>
+                  <Label>Studio Logo URL</Label>
                   <div className="relative">
                     <ImageIcon className="absolute left-3 top-3 w-4 h-4 text-primary" />
                     <Input 
                       value={formData.studioLogo} 
                       onChange={(e) => setFormData({ ...formData, studioLogo: e.target.value })}
                       placeholder="https://..." 
-                      className="pl-10 rounded-xl bg-background/50 border-border/50" 
+                      className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
                     />
                   </div>
                 </div>
@@ -199,17 +197,24 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden shadow-xl">
-            <CardHeader className="border-b border-border/30 bg-background/30">
+          <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
+            <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                <Shield className="w-5 h-5 text-primary" /> Account Security
+                <Shield className="w-5 h-5 text-primary" /> Account Status
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label>Studio Email</Label>
-                    <Input defaultValue={user.email || ""} readOnly className="rounded-xl bg-background/50 border-border/50 opacity-70" />
+               <div className="flex flex-col md:flex-row gap-6">
+                  <div className="flex-1 space-y-2">
+                    <Label>Authenticated Email</Label>
+                    <Input defaultValue={user.email || ""} readOnly className="h-11 rounded-xl bg-muted/30 border-border/50 opacity-70" />
+                  </div>
+                  <div className="flex items-center gap-3 bg-primary/5 px-6 py-3 rounded-2xl border border-primary/10">
+                    <Check className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-primary">Identity Verified</p>
+                      <p className="text-xs text-muted-foreground">Email: {user.emailVerified ? 'Verified' : 'Pending'}</p>
+                    </div>
                   </div>
                </div>
             </CardContent>
@@ -217,20 +222,22 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-8">
-           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
+           <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg">
             <CardHeader className="border-b border-border/30 bg-background/30">
-              <CardTitle className="text-sm uppercase tracking-widest text-primary font-bold">Preferences</CardTitle>
+              <CardTitle className="text-[10px] uppercase tracking-[0.2em] text-primary font-bold">Studio Defaults</CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
                <div className="flex items-center justify-between">
-                 <div className="space-y-0.5">
-                   <Label>Auto-Watermark</Label>
-                   <p className="text-xs text-muted-foreground">Enabled for all previews</p>
+                 <div className="space-y-1">
+                   <Label className="text-xs">Dynamic Watermark</Label>
+                   <p className="text-[9px] text-muted-foreground uppercase">Hafash Studio Standard</p>
                  </div>
                  <Switch defaultChecked disabled className="data-[state=checked]:bg-primary" />
                </div>
                <div className="pt-4 border-t border-border/30">
-                 <p className="text-[10px] text-muted-foreground italic">Studio configuration is encrypted and synced across your photographer account.</p>
+                 <p className="text-[9px] text-muted-foreground italic leading-relaxed">
+                   Studio preferences are encrypted and synchronized with your photographer ID. Changes reflect instantly across all live galleries.
+                 </p>
                </div>
             </CardContent>
           </Card>
