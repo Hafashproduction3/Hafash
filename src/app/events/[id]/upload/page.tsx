@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -196,7 +195,7 @@ export default function GalleryUploadPage() {
             <div className="p-6 rounded-full bg-primary/10 mb-4 group-hover:scale-110 transition-transform">
               <Upload className="w-10 h-10 text-primary" />
             </div>
-            <p className="text-lg font-headline font-bold">Select Masterpieces</p>
+            <p className="text-lg font-headline font-bold">Select Photos</p>
             <p className="text-sm text-muted-foreground mt-2 font-mono italic">Studio Telemetry Active.</p>
           </div>
 
@@ -208,7 +207,7 @@ export default function GalleryUploadPage() {
               disabled={files.length === 0 || isUploading}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              {isUploading ? 'Finalizing...' : 'Deliver Masterpieces'}
+              {isUploading ? 'Finalizing...' : 'Deliver Gallery'}
             </Button>
           </div>
         </div>
@@ -269,7 +268,7 @@ export default function GalleryUploadPage() {
         </div>
         <Link href={`/events/${id}/manage`}>
           <Button variant="outline" className="rounded-full font-bold gap-2 px-8 h-12 border-primary text-primary hover:bg-primary/5">
-            Return to Management
+            Continue
             <ArrowRight className="w-4 h-4" />
           </Button>
         </Link>
