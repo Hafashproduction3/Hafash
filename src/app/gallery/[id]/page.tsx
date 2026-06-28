@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -65,9 +64,6 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // FIX: For slug resolution (a 'list' operation), the query MUST explicitly filter
-        // for isPublic: true to satisfy Firestore Security Rules for non-owners.
-        // This prevents 'Permission Denied' during Dashboard pre-fetching.
         const q = query(
           collection(firestore, 'galleries'), 
           where('slug', '==', slugAttempt),
@@ -80,15 +76,12 @@ export default function ClientGalleryPage() {
           const galleryData = querySnapshot.docs[0].data();
           setGalleryId(foundId);
           
-          // Only increment view if the viewer is NOT the owner
           if (viewIncremented.current !== foundId && user?.uid !== galleryData.userId) {
             viewIncremented.current = foundId;
             const gRef = doc(firestore, 'galleries', foundId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          // If not found by public slug, only treat as ID if it looks like a valid Firestore ID
-          // to avoid permission-denied errors from useDoc on arbitrary slug strings.
           if (cleanParam.length > 15) {
             setGalleryId(cleanParam);
           } else {
@@ -96,7 +89,6 @@ export default function ClientGalleryPage() {
           }
         }
       } catch (err: any) {
-        // Fallback to treat param as ID only if resolution fails and it looks like an ID
         if (cleanParam.length > 15) {
           setGalleryId(cleanParam);
         } else {
@@ -116,7 +108,6 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
-  // Skip profile fetching for clients to avoid "Access Denied" toasts (restricted by rules)
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId || !user || user.uid !== gallery.userId) return null;
     return doc(firestore, 'users', gallery.userId);
@@ -199,7 +190,6 @@ export default function ClientGalleryPage() {
       const cache = JSON.parse(cachedData);
       if (now - cache.timestamp < 24 * 60 * 60 * 1000) {
         setPreparationStep('Retrieving from Cache (Instant)...');
-        await new Promise(r => setTimeout(r, 800));
       } else {
         localStorage.removeItem(cacheKey);
         await executePrioritizedPreparation();
@@ -236,17 +226,9 @@ export default function ClientGalleryPage() {
   };
 
   const executePrioritizedPreparation = async () => {
-    const priorityTimes = { Business: 2000, 'High Priority': 5000, Standard: 10000 };
-    const waitTime = priorityTimes[photographerPlan.priorityLabel as keyof typeof priorityTimes] || 10000;
-    
     setPreparationStep(`Priority Queue: ${photographerPlan.priorityLabel}...`);
-    await new Promise(r => setTimeout(r, waitTime * 0.3));
-    
     setPreparationStep('Optimizing Package Structure...');
-    await new Promise(r => setTimeout(r, waitTime * 0.4));
-    
     setPreparationStep('Finalizing Encryption...');
-    await new Promise(r => setTimeout(r, waitTime * 0.3));
   };
 
   if (isResolving || docLoading || (galleryId && !gallery && !galleryError)) {
