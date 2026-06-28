@@ -78,9 +78,12 @@ export default function ClientGalleryPage() {
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
+          const galleryData = querySnapshot.docs[0].data();
           setGalleryId(foundId);
           
-          if (viewIncremented.current !== foundId) {
+          // Logic Rule: Only the owner can update the view count based on current security rules.
+          // We skip this for anonymous users to avoid triggering permission errors.
+          if (viewIncremented.current !== foundId && user?.uid === galleryData.userId) {
             viewIncremented.current = foundId;
             const gRef = doc(firestore, 'galleries', foundId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
@@ -107,10 +110,12 @@ export default function ClientGalleryPage() {
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
   // photographerRef setup - strictly for owner usage or public branding attempts
+  // Minimal Fix: Skip this request for anonymous visitors as it is denied by security rules
+  // and triggers the "Access Denied" toast if attempted.
   const photographerRef = useMemo(() => {
-    if (!firestore || !gallery?.userId) return null;
+    if (!firestore || !gallery?.userId || user?.uid !== gallery.userId) return null;
     return doc(firestore, 'users', gallery.userId);
-  }, [firestore, gallery?.userId]);
+  }, [firestore, gallery?.userId, user?.uid]);
 
   const { data: profile } = useDoc(photographerRef);
 
@@ -120,13 +125,10 @@ export default function ClientGalleryPage() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
-  // Logic Rule 3: Download All button must appear only when isLocked == false AND isPaid == true
   const canDownload = useMemo(() => {
     return gallery ? (gallery.isLocked === false && gallery.isPaid === true) : false;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
-  // Logic Rule 4 & 5: Watermark appears when isLocked == true OR isPaid == false
-  // Watermark removed ONLY when isLocked == false AND isPaid == true
   const showWatermark = useMemo(() => {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
@@ -282,7 +284,6 @@ export default function ClientGalleryPage() {
           </div>
           
           <div className="mt-14 flex flex-wrap justify-center gap-4">
-            {/* Logic Rule 2: Contact Studio button appears for public visitors if info is available */}
             {profile?.whatsappNumber && (
               <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={() => window.open(`https://wa.me/${profile.whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
                 <MessageCircle className="w-5 h-5" /> Contact Studio
@@ -306,7 +307,6 @@ export default function ClientGalleryPage() {
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
             </div>
           </div>
-          {/* Logic Rule 3: Download All only when unlocked and paid */}
           {canDownload && gallery.items?.length > 0 && (
             <div className="flex flex-col items-end gap-2">
               <Button 
@@ -334,7 +334,6 @@ export default function ClientGalleryPage() {
               onClick={() => setSelectedImage(item.url)}
             >
               <img src={item.url} className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105" alt="Gallery" />
-              {/* Logic Rule 4 & 5: Conditional Watermark */}
               {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-4">
                 <div className="flex gap-2">
@@ -352,7 +351,6 @@ export default function ClientGalleryPage() {
         <div className="fixed inset-0 z-[100] bg-background/95 flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
             <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" alt="Fullscreen" />
-            {/* Logic Rule 4 & 5: Conditional Watermark */}
             {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
           </div>
           <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-white h-12 w-12 hover:bg-white/10 rounded-full">
