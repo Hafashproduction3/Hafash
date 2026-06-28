@@ -1,6 +1,8 @@
+
 import Link from 'next/link';
-import { Camera, Shield, Heart, Share2, ArrowRight } from 'lucide-react';
+import { Camera, Shield, Heart, Share2, ArrowRight, Check, Users, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { HAFASH_PLANS } from '@/lib/plans';
 
 export default function LandingPage() {
   return (
@@ -16,7 +18,7 @@ export default function LandingPage() {
         <nav className="hidden md:flex gap-8">
           <Link href="#features" className="text-sm font-medium hover:text-primary transition-colors">Features</Link>
           <Link href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">Pricing</Link>
-          <Link href="/about" className="text-sm font-medium hover:text-primary transition-colors">About</Link>
+          <Link href="#about" className="text-sm font-medium hover:text-primary transition-colors">About</Link>
         </nav>
         <div className="flex items-center gap-4">
           <Link href="/login">
@@ -36,6 +38,7 @@ export default function LandingPage() {
               src="https://picsum.photos/seed/hafash-hero/1920/1080" 
               alt="Luxury Wedding" 
               className="w-full h-full object-cover opacity-30 grayscale hover:grayscale-0 transition-all duration-1000"
+              data-ai-hint="luxury wedding"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
           </div>
@@ -92,15 +95,56 @@ export default function LandingPage() {
                 description="One-click sharing via WhatsApp or direct links for an effortless client experience."
               />
               <FeatureCard 
-                icon={<ArrowRight className="w-8 h-8 text-primary" />}
+                icon={<Users className="w-8 h-8 text-primary" />}
                 title="Role-Based Access"
                 description="Tailored experiences for both photographers managing assets and clients enjoying them."
               />
               <FeatureCard 
-                icon={<Shield className="w-8 h-8 text-primary" />}
+                icon={<Sparkles className="w-8 h-8 text-primary" />}
                 title="Storage Plans"
-                description="Flexible storage options from 50GB to 1TB to grow with your photography business."
+                description="Flexible storage options from 50GB to 500GB to grow with your photography business."
               />
+            </div>
+          </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section id="pricing" className="py-24 px-6 bg-background">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl md:text-5xl font-headline mb-4">Choose Your Tier</h2>
+              <p className="text-muted-foreground text-lg">Scalable storage and processing for studios of all sizes.</p>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {Object.values(HAFASH_PLANS).map((plan) => (
+                <PricingCard key={plan.id} plan={plan} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* About Section */}
+        <section id="about" className="py-24 px-6 bg-card">
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-4xl md:text-5xl font-headline mb-8">Our Vision</h2>
+            <div className="space-y-8 text-lg text-muted-foreground leading-relaxed">
+              <p>
+                Hafash is more than just a delivery tool; it is a premium ecosystem crafted exclusively for professional photographers. We believe that the moment of delivery should be as impactful as the event itself.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left mt-12">
+                <div className="space-y-4">
+                  <h4 className="text-primary font-bold uppercase tracking-widest text-sm">Who It's For</h4>
+                  <p className="text-sm">Wedding, event, and portrait photographers who demand excellence and want to provide their clients with a high-end digital experience.</p>
+                </div>
+                <div className="space-y-4">
+                  <h4 className="text-primary font-bold uppercase tracking-widest text-sm">Why Hafash?</h4>
+                  <p className="text-sm">Because generic cloud storage isn't enough. Your work deserves specialized tools like dynamic watermarking, curated client favoriting, and blazing fast mobile-first galleries.</p>
+                </div>
+              </div>
+              <p className="mt-12 pt-12 border-t border-border/30 italic">
+                "To become the gold standard for high-end photography delivery, empowering artists to reflect the true value of their craft."
+              </p>
             </div>
           </div>
         </section>
@@ -139,6 +183,39 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode, titl
       </div>
       <h4 className="text-xl font-headline font-bold mb-4">{title}</h4>
       <p className="text-muted-foreground leading-relaxed">{description}</p>
+    </div>
+  );
+}
+
+function PricingCard({ plan }: { plan: any }) {
+  return (
+    <div className="flex flex-col p-8 rounded-3xl border border-border/30 bg-card/50 hover:border-primary/50 transition-all duration-500 relative group overflow-hidden">
+      {plan.id === 'pro' && (
+        <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-bold px-4 py-1 rounded-bl-xl uppercase tracking-widest">
+          Recommended
+        </div>
+      )}
+      <div className="mb-8">
+        <h4 className="text-xl font-headline font-bold mb-1">{plan.name}</h4>
+        <div className="flex items-baseline gap-1 mt-4">
+          <span className="text-4xl font-headline font-bold text-primary">{plan.price}</span>
+          <span className="text-muted-foreground text-sm">/mo</span>
+        </div>
+        <p className="mt-4 text-sm font-bold text-muted-foreground uppercase tracking-wider">{plan.storageGb}GB Storage Capacity</p>
+      </div>
+      <ul className="flex-1 space-y-4 mb-8">
+        {plan.features.map((feature: string) => (
+          <li key={feature} className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Check className="w-4 h-4 text-primary shrink-0" />
+            <span>{feature}</span>
+          </li>
+        ))}
+      </ul>
+      <Link href="/signup">
+        <Button className="w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-12">
+          Start Your Studio
+        </Button>
+      </Link>
     </div>
   );
 }
