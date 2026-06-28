@@ -158,31 +158,24 @@ export default function EventManagementPage() {
       });
   };
 
-  const updatePaymentStatus = (isPaid: boolean) => {
+  const updatePaymentAndLockStatus = (isPaid: boolean) => {
     if (!eventRef) return;
-    const updateData = { isPaid };
-    updateDoc(eventRef, updateData)
-      .then(() => {
-        toast({ title: "Payment Updated", description: `Downloads are now ${isPaid ? 'unlocked' : 'restricted'}.` });
-      })
-      .catch((err) => {
-        if (err.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: eventRef.path,
-            operation: 'update',
-            requestResourceData: updateData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        }
-      });
-  };
+    // Sync logic as requested: 
+    // ON: isPaid = true, isLocked = false
+    // OFF: isPaid = false, isLocked = true
+    const updateData = { 
+      isPaid: isPaid,
+      isLocked: !isPaid 
+    };
 
-  const updateLockStatus = (isLocked: boolean) => {
-    if (!eventRef) return;
-    const updateData = { isLocked };
     updateDoc(eventRef, updateData)
       .then(() => {
-        toast({ title: "Lock Updated", description: `Gallery is now ${isLocked ? 'Locked' : 'Unlocked'}.` });
+        toast({ 
+          title: "Status Updated", 
+          description: isPaid 
+            ? "Payment Received. Downloads are now UNLOCKED." 
+            : "Payment Pending. Downloads are now LOCKED." 
+        });
       })
       .catch((err) => {
         if (err.code === 'permission-denied') {
@@ -259,7 +252,7 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card className={cn(
               "rounded-3xl p-6 flex flex-col justify-between space-y-4 transition-all",
               event.isPublic ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-border/50"
@@ -299,44 +292,17 @@ export default function EventManagementPage() {
                   <CreditCard className="w-6 h-6" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-headline font-bold">Payments</h4>
+                  <h4 className="text-sm font-headline font-bold">Payment Status</h4>
                   <p className="text-[10px] text-muted-foreground">
-                    {event.isPaid ? 'Paid' : 'Unpaid'}
+                    {event.isPaid ? 'Paid & Unlocked' : 'Pending & Locked'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest">Paid</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest">Received</span>
                 <Switch 
                   checked={!!event.isPaid} 
-                  onCheckedChange={updatePaymentStatus}
-                />
-              </div>
-            </Card>
-
-            <Card className={cn(
-              "rounded-3xl p-6 flex flex-col justify-between space-y-4 transition-all",
-              !event.isLocked ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-border/50"
-            )}>
-              <div className="flex items-center gap-4">
-                <div className={cn(
-                  "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
-                  !event.isLocked ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                )}>
-                  {!event.isLocked ? <Unlock className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
-                </div>
-                <div>
-                  <h4 className="text-sm font-headline font-bold">Gallery Lock</h4>
-                  <p className="text-[10px] text-muted-foreground">
-                    {event.isLocked ? 'Locked' : 'Unlocked'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-widest">Restricted</span>
-                <Switch 
-                  checked={!!event.isLocked} 
-                  onCheckedChange={updateLockStatus}
+                  onCheckedChange={updatePaymentAndLockStatus}
                 />
               </div>
             </Card>
