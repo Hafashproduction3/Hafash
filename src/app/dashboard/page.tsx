@@ -104,7 +104,7 @@ export default function DashboardPage() {
       });
   };
 
-  if (authLoading || dataLoading || !galleries) {
+  if (authLoading || dataLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -113,7 +113,8 @@ export default function DashboardPage() {
     );
   }
 
-  const totalViews = galleries.reduce((acc, curr) => acc + (curr.viewCount || 0), 0);
+  const safeGalleries = galleries || [];
+  const totalViews = safeGalleries.reduce((acc, curr) => acc + (curr.viewCount || 0), 0);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -133,12 +134,12 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard 
           title="Total Galleries" 
-          value={String(galleries.length)} 
+          value={String(safeGalleries.length)} 
           icon={<ImageIcon className="w-5 h-5 text-primary" />} 
         />
         <StatCard 
           title="Total Clients" 
-          value={String(galleries.length)} 
+          value={String(safeGalleries.length)} 
           icon={<Users className="w-5 h-5 text-primary" />} 
         />
         <StatCard 
@@ -151,7 +152,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <h2 className="text-2xl font-headline font-bold border-b border-border/50 pb-4">Recent Events</h2>
         
-        {galleries.length === 0 ? (
+        {safeGalleries.length === 0 ? (
           <div className="py-20 text-center bg-card/30 rounded-3xl border border-dashed border-border/50">
             <p className="text-muted-foreground italic">You haven't created any events yet.</p>
             <Link href="/events/create">
@@ -160,7 +161,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {galleries.map((event) => {
+            {safeGalleries.map((event) => {
               const favoritesCount = Array.isArray(event.items) 
                 ? event.items.filter((i: any) => i.isFavorite).length 
                 : 0;
