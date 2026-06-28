@@ -65,13 +65,14 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // For anonymous visitors, query MUST include isPublic: true to satisfy Security Rules
-        const constraints = [where('slug', '==', slugAttempt)];
-        if (!user) {
-          constraints.push(where('isPublic', '==', true));
-        }
-        
-        const q = query(collection(firestore, 'galleries'), ...constraints);
+        // FIX: For slug resolution (a 'list' operation), the query MUST explicitly filter
+        // for isPublic: true to satisfy Firestore Security Rules for non-owners.
+        // This prevents 'Permission Denied' during Dashboard pre-fetching.
+        const q = query(
+          collection(firestore, 'galleries'), 
+          where('slug', '==', slugAttempt),
+          where('isPublic', '==', true)
+        );
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
@@ -86,11 +87,21 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          setGalleryId(cleanParam);
+          // If not found by public slug, only treat as ID if it looks like a valid Firestore ID
+          // to avoid permission-denied errors from useDoc on arbitrary slug strings.
+          if (cleanParam.length > 15) {
+            setGalleryId(cleanParam);
+          } else {
+            setGalleryId(null);
+          }
         }
       } catch (err: any) {
-        // Fallback to treat param as ID if query fails
-        setGalleryId(cleanParam);
+        // Fallback to treat param as ID only if resolution fails and it looks like an ID
+        if (cleanParam.length > 15) {
+          setGalleryId(cleanParam);
+        } else {
+          setGalleryId(null);
+        }
       } finally {
         setIsResolving(false);
       }
@@ -113,7 +124,6 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // Favor embedded gallery metadata for branding (synced by photographer on Manage page)
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
@@ -124,12 +134,10 @@ export default function ClientGalleryPage() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
-  // Restored conditions: Downloads available only when Unlocked AND Paid
   const canDownload = useMemo(() => {
     return gallery ? (gallery.isLocked === false && gallery.isPaid === true) : false;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
-  // Restored conditions: Watermark appears when Locked OR Unpaid
   const showWatermark = useMemo(() => {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
@@ -320,7 +328,6 @@ export default function ClientGalleryPage() {
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
             </div>
           </div>
-          {/* Download All appears only when unlocked and paid */}
           {canDownload && gallery.items?.length > 0 && (
             <div className="flex flex-col items-end gap-2">
               <Button 
@@ -354,7 +361,6 @@ export default function ClientGalleryPage() {
                   <Button size="icon" className={cn("rounded-full h-12 w-12 border-none", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
                     <Heart className={cn("w-5 h-5", item.isFavorite ? "fill-current" : "")} />
                   </Button>
-                  {/* Individual Download appears only when unlocked and paid */}
                   {canDownload && (
                     <Button size="icon" className="rounded-full h-12 w-12 bg-white text-black hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); handleDownloadSingle(item); }}>
                       <Download className="w-5 h-5" />
