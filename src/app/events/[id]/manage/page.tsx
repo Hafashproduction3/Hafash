@@ -7,6 +7,7 @@ import {
   MessageCircle, 
   Link as LinkIcon, 
   Lock, 
+  Unlock,
   Trash2, 
   Image as ImageIcon,
   ArrowLeft,
@@ -57,7 +58,6 @@ export default function EventManagementPage() {
   const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
   // Field Repair Logic: Ensure isPublic is set if missing
-  // This helps migrate existing galleries to the new visibility logic.
   useEffect(() => {
     if (event && event.isPublic === undefined && eventRef) {
       updateDoc(eventRef, { isPublic: true });
@@ -152,6 +152,25 @@ export default function EventManagementPage() {
       });
   };
 
+  const updateLockStatus = (isLocked: boolean) => {
+    if (!eventRef) return;
+    const updateData = { isLocked };
+    updateDoc(eventRef, updateData)
+      .then(() => {
+        toast({ title: "Lock Updated", description: `Gallery is now ${isLocked ? 'Locked' : 'Unlocked'}.` });
+      })
+      .catch((err) => {
+        if (err.code === 'permission-denied') {
+          const permissionError = new FirestorePermissionError({
+            path: eventRef.path,
+            operation: 'update',
+            requestResourceData: updateData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        }
+      });
+  };
+
   const handleWhatsAppDelivery = () => {
     if (!profile?.whatsappNumber || typeof window === 'undefined') return;
     const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
@@ -214,27 +233,27 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className={cn(
-              "rounded-3xl p-8 flex flex-col justify-between space-y-6 transition-all",
+              "rounded-3xl p-6 flex flex-col justify-between space-y-4 transition-all",
               event.isPublic ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-border/50"
             )}>
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-4">
                 <div className={cn(
-                  "h-16 w-16 rounded-2xl flex items-center justify-center transition-colors",
+                  "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
                   event.isPublic ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
                 )}>
-                  {event.isPublic ? <Globe className="w-8 h-8" /> : <Lock className="w-8 h-8" />}
+                  {event.isPublic ? <Globe className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
                 </div>
                 <div>
-                  <h4 className="text-xl font-headline font-bold">Public Visibility</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {event.isPublic ? 'Accessible to everyone with the link.' : 'Only you can see this gallery.'}
+                  <h4 className="text-sm font-headline font-bold">Visibility</h4>
+                  <p className="text-[10px] text-muted-foreground">
+                    {event.isPublic ? 'Public' : 'Private'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-widest">Enable Public Access</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest">Public</span>
                 <Switch 
                   checked={!!event.isPublic} 
                   onCheckedChange={updateVisibility}
@@ -243,28 +262,55 @@ export default function EventManagementPage() {
             </Card>
 
             <Card className={cn(
-              "rounded-3xl p-8 flex flex-col justify-between space-y-6 transition-all",
+              "rounded-3xl p-6 flex flex-col justify-between space-y-4 transition-all",
               event.isPaid ? "bg-green-500/5 border-green-500/20" : "bg-muted/30 border-border/50"
             )}>
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-4">
                 <div className={cn(
-                  "h-16 w-16 rounded-2xl flex items-center justify-center transition-colors",
+                  "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
                   event.isPaid ? "bg-green-500/10 text-green-500" : "bg-muted text-muted-foreground"
                 )}>
-                  <CreditCard className="w-8 h-8" />
+                  <CreditCard className="w-6 h-6" />
                 </div>
                 <div>
-                  <h4 className="text-xl font-headline font-bold">Payment Status</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {event.isPaid ? 'Full downloads unlocked for client.' : 'Downloads restricted until paid.'}
+                  <h4 className="text-sm font-headline font-bold">Payments</h4>
+                  <p className="text-[10px] text-muted-foreground">
+                    {event.isPaid ? 'Paid' : 'Unpaid'}
                   </p>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-widest">Payment Received</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest">Paid</span>
                 <Switch 
                   checked={!!event.isPaid} 
                   onCheckedChange={updatePaymentStatus}
+                />
+              </div>
+            </Card>
+
+            <Card className={cn(
+              "rounded-3xl p-6 flex flex-col justify-between space-y-4 transition-all",
+              !event.isLocked ? "bg-primary/5 border-primary/20" : "bg-muted/30 border-border/50"
+            )}>
+              <div className="flex items-center gap-4">
+                <div className={cn(
+                  "h-12 w-12 rounded-xl flex items-center justify-center transition-colors",
+                  !event.isLocked ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                )}>
+                  {!event.isLocked ? <Unlock className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
+                </div>
+                <div>
+                  <h4 className="text-sm font-headline font-bold">Gallery Lock</h4>
+                  <p className="text-[10px] text-muted-foreground">
+                    {event.isLocked ? 'Locked' : 'Unlocked'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-widest">Restricted</span>
+                <Switch 
+                  checked={!!event.isLocked} 
+                  onCheckedChange={updateLockStatus}
                 />
               </div>
             </Card>

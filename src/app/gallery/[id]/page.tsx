@@ -12,8 +12,7 @@ import {
   Share2, 
   ShieldAlert,
   Globe,
-  Clock,
-  ShieldCheck
+  Clock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -43,7 +42,6 @@ export default function ClientGalleryPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
-  const router = useRouter();
   
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(true);
@@ -66,8 +64,6 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // For anonymous users, the query MUST be restricted to isPublic: true
-        // to comply with Firestore Security Rules.
         const constraints = [where('slug', '==', slugAttempt)];
         if (!user) {
           constraints.push(where('isPublic', '==', true));
@@ -81,19 +77,15 @@ export default function ClientGalleryPage() {
           const galleryData = querySnapshot.docs[0].data();
           setGalleryId(foundId);
           
-          // Logic Rule: Only the owner can update the view count based on current security rules.
-          // We skip this for anonymous users to avoid triggering permission errors.
           if (viewIncremented.current !== foundId && user?.uid === galleryData.userId) {
             viewIncremented.current = foundId;
             const gRef = doc(firestore, 'galleries', foundId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          // Fallback to direct ID resolution
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        // Fallback to direct ID resolution if query fails
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -109,9 +101,6 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
-  // photographerRef setup - strictly for owner usage or public branding attempts
-  // Minimal Fix: Skip this request for anonymous visitors as it is denied by security rules
-  // and triggers the "Access Denied" toast if attempted.
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId || user?.uid !== gallery.userId) return null;
     return doc(firestore, 'users', gallery.userId);
@@ -155,6 +144,18 @@ export default function ClientGalleryPage() {
           errorEmitter.emit('permission-error', permissionError);
         }
       });
+  };
+
+  const handleDownloadSingle = async (item: any) => {
+    if (!canDownload) return;
+    try {
+      const url = item.masterUrl || item.url;
+      const res = await fetch(url);
+      const blob = await res.blob();
+      saveAs(blob, item.fileName || `photo-${item.id}.jpg`);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Download Failed" });
+    }
   };
 
   const handleDownloadAll = async () => {
@@ -340,6 +341,11 @@ export default function ClientGalleryPage() {
                   <Button size="icon" className={cn("rounded-full h-12 w-12 border-none", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
                     <Heart className={cn("w-5 h-5", item.isFavorite ? "fill-current" : "")} />
                   </Button>
+                  {canDownload && (
+                    <Button size="icon" className="rounded-full h-12 w-12 bg-white text-black hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); handleDownloadSingle(item); }}>
+                      <Download className="w-5 h-5" />
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -374,5 +380,26 @@ export default function ClientGalleryPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function ShieldAlert({ className }: { className?: string }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="24" 
+      height="24" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      className={className}
+    >
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </svg>
   );
 }
