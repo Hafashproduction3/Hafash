@@ -22,7 +22,8 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     if (!query) {
       setData(null);
       setError(null);
-      setLoading(false);
+      // We do not set loading to false here. 
+      // A null query means we are still waiting for the query to be initialized (e.g. waiting for user auth).
       return;
     }
 
@@ -45,9 +46,6 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
             path: 'collection_query',
             operation: 'list',
           });
-          // Handle specific permission error locally. 
-          // We do not emit to global errorEmitter for reads to prevent 
-          // incorrect "Access Denied" popups during pre-fetching or transitive reads.
           setError(permissionError);
         } else {
           setError(err);
@@ -57,7 +55,7 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [query]); // Note: parent should memoize query
+  }, [query]);
 
   return { data, loading, error };
 }

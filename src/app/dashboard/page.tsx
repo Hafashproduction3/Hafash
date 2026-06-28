@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useUser, useCollection, useAuth } from '@/firebase';
@@ -60,14 +59,11 @@ export default function DashboardPage() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    // Intercept browser back button
     const handlePopState = (e: PopStateEvent) => {
-      // Prevent navigation and show dialog
       window.history.pushState(null, '', window.location.pathname);
       setShowExitDialog(true);
     };
 
-    // Push state to the history to enable popstate interception
     window.history.pushState(null, '', window.location.pathname);
     window.addEventListener('popstate', handlePopState);
 
@@ -152,11 +148,11 @@ export default function DashboardPage() {
     }
   };
 
-  if (authLoading || (dataLoading && !galleries)) {
+  if (authLoading || dataLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Loading your studio...</p>
+        <p className="mt-4 text-muted-foreground font-bold tracking-widest uppercase text-xs">Syncing Studio Data...</p>
       </div>
     );
   }
@@ -291,7 +287,6 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Exit Confirmation Dialog */}
       <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
         <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem]">
           <AlertDialogHeader>
@@ -309,7 +304,6 @@ export default function DashboardPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Gallery Confirmation Dialog */}
       <AlertDialog open={!!galleryToDelete} onOpenChange={(open) => !open && setGalleryToDelete(null)}>
         <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] max-w-md">
           <AlertDialogHeader>

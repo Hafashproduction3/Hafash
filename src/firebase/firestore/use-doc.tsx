@@ -17,19 +17,18 @@ import { FirestorePermissionError } from '@/firebase/errors';
  */
 export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(!!docRef);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    // Reset state strictly inside useEffect to avoid render-phase update loops
-    setData(null);
-    setError(null);
-    setLoading(!!docRef);
-
     if (!docRef) {
-      setLoading(false);
+      setData(null);
+      setError(null);
+      // Keep loading as true while waiting for a valid reference
       return;
     }
+
+    setLoading(true);
 
     const unsubscribe = onSnapshot(
       docRef,
@@ -48,9 +47,6 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
             path: docRef.path,
             operation: 'get',
           });
-          // Handle specific permission error locally.
-          // We do not emit to global errorEmitter for reads to prevent
-          // incorrect "Access Denied" popups during pre-fetching or resolution fallbacks.
           setError(permissionError);
         } else {
           setError(err);
@@ -61,7 +57,7 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
     );
 
     return () => unsubscribe();
-  }, [docRef?.path]); // Depend on path for stable ref transitions
+  }, [docRef?.path]);
 
   return { data, loading, error };
 }
