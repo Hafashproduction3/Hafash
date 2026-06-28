@@ -199,13 +199,20 @@ export default function ClientGalleryPage() {
     }
     
     try {
-      setPreparationStep('Fetching Original Masterpieces (Max CDN Speed)...');
       const zip = new JSZip();
+      const totalItems = items.length;
+      let completed = 0;
+
+      setPreparationStep(`Fetching Masterpieces: 0 / ${totalItems}`);
+      
       await Promise.all(items.map(async (item: any, index: number) => {
         const url = item.masterUrl || item.url;
         const res = await fetch(url);
         const blob = await res.blob();
         zip.file(item.fileName || `photo-${index + 1}.jpg`, blob);
+        
+        completed++;
+        setPreparationStep(`Fetching Masterpieces: ${completed} / ${totalItems}`);
       }));
       
       setPreparationStep('Compiling Secure Package...');
