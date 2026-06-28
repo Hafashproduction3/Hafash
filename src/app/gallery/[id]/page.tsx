@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -54,6 +55,13 @@ export default function ClientGalleryPage() {
   
   const viewIncremented = useRef<string | null>(null);
 
+  // Debug Logging for Production Telemetry
+  useEffect(() => {
+    if (galleryId) {
+      console.log(`[GALLERY_DEBUG] Active Gallery ID: ${galleryId}`);
+    }
+  }, [galleryId]);
+
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) {
@@ -66,11 +74,20 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        const q = query(collection(firestore, 'galleries'), where('slug', '==', slugAttempt));
+        console.log(`[GALLERY_DEBUG] Attempting slug resolution for: ${slugAttempt}`);
+        
+        // Security Rules Note: Anonymous users can only query if the query is restricted to isPublic: true
+        const constraints = [where('slug', '==', slugAttempt)];
+        if (!user) {
+          constraints.push(where('isPublic', '==', true));
+        }
+        
+        const q = query(collection(firestore, 'galleries'), ...constraints);
         const querySnapshot = await getDocs(q);
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
+          console.log(`[GALLERY_DEBUG] Slug resolved to ID: ${foundId}`);
           setGalleryId(foundId);
           
           if (viewIncremented.current !== foundId) {
@@ -79,21 +96,24 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
+          console.log(`[GALLERY_DEBUG] No slug match found. Falling back to direct ID: ${cleanParam}`);
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        // Fallback to direct ID if slug query fails (e.g. permission restriction on list)
+        console.error(`[GALLERY_DEBUG] Slug resolution failed (likely permission restriction). Falling back to ID: ${cleanParam}`, err);
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
       }
     }
     resolveGallery();
-  }, [firestore, galleryParam]);
+  }, [firestore, galleryParam, user]);
 
   const galleryRef = useMemo(() => {
     if (!firestore || !galleryId) return null;
-    return doc(firestore, 'galleries', galleryId);
+    const ref = doc(firestore, 'galleries', galleryId);
+    console.log(`[GALLERY_DEBUG] Requesting Gallery Doc: ${ref.path}`);
+    return ref;
   }, [firestore, galleryId]);
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
@@ -102,10 +122,12 @@ export default function ClientGalleryPage() {
   const isOwner = useMemo(() => !!user && !!gallery && user.uid === gallery.userId, [user, gallery]);
 
   const photographerRef = useMemo(() => {
-    // Only attempt to read the profile if we are authenticated as the owner.
-    // Anonymous clients do not have permission to read the users collection.
+    // SECURITY: Anonymous clients do not have permission to read the users collection.
+    // We only create this ref if the user is authenticated as the gallery owner.
     if (!firestore || !isOwner || !gallery?.userId) return null;
-    return doc(firestore, 'users', gallery.userId);
+    const ref = doc(firestore, 'users', gallery.userId);
+    console.log(`[GALLERY_DEBUG] Requesting Photographer Profile: ${ref.path}`);
+    return ref;
   }, [firestore, isOwner, gallery?.userId]);
 
   const { data: profile } = useDoc(photographerRef);
@@ -219,15 +241,20 @@ export default function ClientGalleryPage() {
     await new Promise(r => setTimeout(r, waitTime * 0.3));
   };
 
-  if (isResolving || docLoading) return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-primary/50">Resolving Luxury Gallery...</p>
-    </div>
-  );
+  // Improved UI Guarding: Avoid showing "Access Restricted" during transition frames
+  if (isResolving || docLoading || (galleryId && !gallery && !galleryError)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-primary/50">Resolving Luxury Gallery...</p>
+      </div>
+    );
+  }
 
   if (galleryError || !gallery) {
     const isPermissionDenied = galleryError?.message?.includes('permission-denied') || galleryError?.message?.includes('insufficient permissions');
+    console.error(`[GALLERY_DEBUG] Rendering error state. Error:`, galleryError);
+    
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
