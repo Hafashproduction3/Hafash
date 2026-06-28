@@ -1,9 +1,10 @@
+
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useUser } from '@/firebase';
-import { collection, doc, setDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
 import { Calendar as CalendarIcon, User, Camera, ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,59 +64,65 @@ export default function CreateEventPage() {
     }
 
     setLoading(true);
-    const galleriesRef = collection(firestore, 'galleries');
-    const newDocRef = doc(galleriesRef);
-    const newId = newDocRef.id;
-    const slug = generateSlug(formData.title);
-    
-    const newGallery = {
-      id: newId,
-      slug: slug,
-      title: formData.title,
-      clientName: formData.clientName,
-      date: formData.date,
-      category: formData.category,
-      coverImage: `https://picsum.photos/seed/${newId}/800/600`,
-      items: [],
-      isLocked: true,
-      isPublic: true, // Default to true for shared gallery links
-      isPaid: false,
-      viewCount: 0,
-      userId: user.uid,
-      createdAt: new Date().toISOString(),
-      albumStatus: "New Selection",
-      albumLinkEnabled: false,
-      albumLinkToken: "",
-      albumLinkCreated: ""
-    };
 
-    setDoc(newDocRef, newGallery)
-      .then(() => {
-        toast({
-          title: "Gallery Created",
-          description: "Proceeding to upload center...",
-        });
-        router.push(`/events/${newId}/upload`);
-      })
-      .catch(async (err) => {
-        if (err.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: newDocRef.path,
-            operation: 'create',
-            requestResourceData: newGallery,
-          });
-          errorEmitter.emit('permission-error', permissionError);
-        } else {
-          toast({
-            variant: "destructive",
-            title: "Create Failed",
-            description: err.message
-          });
-        }
-      })
-      .finally(() => {
-        setLoading(false);
+    try {
+      // Fetch studio profile to embed branding
+      const profileRef = doc(firestore, 'users', user.uid);
+      const profileSnap = await getDoc(profileRef);
+      const profileData = profileSnap.exists() ? profileSnap.data() : {};
+
+      const galleriesRef = collection(firestore, 'galleries');
+      const newDocRef = doc(galleriesRef);
+      const newId = newDocRef.id;
+      const slug = generateSlug(formData.title);
+      
+      const newGallery = {
+        id: newId,
+        slug: slug,
+        title: formData.title,
+        clientName: formData.clientName,
+        date: formData.date,
+        category: formData.category,
+        coverImage: `https://picsum.photos/seed/${newId}/800/600`,
+        items: [],
+        isLocked: true,
+        isPublic: true, 
+        isPaid: false,
+        viewCount: 0,
+        userId: user.uid,
+        createdAt: new Date().toISOString(),
+        albumStatus: "New Selection",
+        albumLinkEnabled: false,
+        albumLinkToken: "",
+        albumLinkCreated: "",
+        // Embed studio branding for public views
+        studioName: profileData.studioName || "",
+        whatsappNumber: profileData.whatsappNumber || "",
+        studioLogo: profileData.studioLogo || ""
+      };
+
+      await setDoc(newDocRef, newGallery);
+      toast({
+        title: "Gallery Created",
+        description: "Proceeding to upload center...",
       });
+      router.push(`/events/${newId}/upload`);
+    } catch (err: any) {
+      if (err.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'galleries',
+          operation: 'create',
+        }));
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Create Failed",
+          description: err.message
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (authLoading) {

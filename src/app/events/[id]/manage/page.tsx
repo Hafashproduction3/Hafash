@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -57,19 +58,43 @@ export default function EventManagementPage() {
 
   const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
-  // Field Repair Logic: Ensure isPublic is set if missing
-  useEffect(() => {
-    if (event && event.isPublic === undefined && eventRef) {
-      updateDoc(eventRef, { isPublic: true });
-    }
-  }, [event, eventRef]);
-
   const photographerRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user?.uid]);
 
   const { data: profile } = useDoc(photographerRef);
+
+  // Field Repair & Metadata Sync Logic
+  useEffect(() => {
+    if (event && eventRef) {
+      const updates: any = {};
+      
+      // 1. Ensure isPublic is set
+      if (event.isPublic === undefined) {
+        updates.isPublic = true;
+      }
+      
+      // 2. Sync Studio Branding for Public Access (Clients can't read users collection)
+      if (profile) {
+        if (event.studioName !== profile.studioName) updates.studioName = profile.studioName || "";
+        if (event.whatsappNumber !== profile.whatsappNumber) updates.whatsappNumber = profile.whatsappNumber || "";
+        if (event.studioLogo !== profile.studioLogo) updates.studioLogo = profile.studioLogo || "";
+      }
+
+      if (Object.keys(updates).length > 0) {
+        updateDoc(eventRef, updates).catch((err) => {
+          if (err.code === 'permission-denied') {
+             errorEmitter.emit('permission-error', new FirestorePermissionError({
+               path: eventRef.path,
+               operation: 'update',
+               requestResourceData: updates
+             }));
+          }
+        });
+      }
+    }
+  }, [event, eventRef, profile]);
 
   const favoritesCount = useMemo(() => {
     if (!event || !Array.isArray(event.items)) return 0;
@@ -172,8 +197,9 @@ export default function EventManagementPage() {
   };
 
   const handleWhatsAppDelivery = () => {
-    if (!profile?.whatsappNumber || typeof window === 'undefined') return;
-    const cleanedNumber = profile.whatsappNumber.replace(/\D/g, '');
+    const whatsapp = event.whatsappNumber || profile?.whatsappNumber;
+    if (!whatsapp || typeof window === 'undefined') return;
+    const cleanedNumber = whatsapp.replace(/\D/g, '');
     const message = `Check out your luxury gallery: ${origin}/gallery/${event.slug || event.id}`;
     window.open(`https://wa.me/${cleanedNumber}?text=${encodeURIComponent(message)}`, '_blank');
   };
@@ -221,7 +247,7 @@ export default function EventManagementPage() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {profile?.whatsappNumber && (
+                {(event.whatsappNumber || profile?.whatsappNumber) && (
                   <Button className="h-14 rounded-2xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold gap-3" onClick={handleWhatsAppDelivery}>
                     <MessageCircle className="w-5 h-5" /> WhatsApp Delivery
                   </Button>

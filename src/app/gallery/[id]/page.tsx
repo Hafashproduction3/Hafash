@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -64,6 +65,7 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
+        // For anonymous visitors, query MUST include isPublic: true to satisfy Security Rules
         const constraints = [where('slug', '==', slugAttempt)];
         if (!user) {
           constraints.push(where('isPublic', '==', true));
@@ -77,7 +79,8 @@ export default function ClientGalleryPage() {
           const galleryData = querySnapshot.docs[0].data();
           setGalleryId(foundId);
           
-          if (viewIncremented.current !== foundId && user?.uid === galleryData.userId) {
+          // Only increment view if the viewer is NOT the owner
+          if (viewIncremented.current !== foundId && user?.uid !== galleryData.userId) {
             viewIncremented.current = foundId;
             const gRef = doc(firestore, 'galleries', foundId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
@@ -86,6 +89,7 @@ export default function ClientGalleryPage() {
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
+        // Fallback to treat param as ID if query fails
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -101,12 +105,18 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
+  // Skip profile fetching for clients to avoid "Access Denied" toasts (restricted by rules)
   const photographerRef = useMemo(() => {
-    if (!firestore || !gallery?.userId || user?.uid !== gallery.userId) return null;
+    if (!firestore || !gallery?.userId || !user || user.uid !== gallery.userId) return null;
     return doc(firestore, 'users', gallery.userId);
   }, [firestore, gallery?.userId, user?.uid]);
 
   const { data: profile } = useDoc(photographerRef);
+
+  // Favor embedded gallery metadata for branding (synced by photographer on Manage page)
+  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
+  const studioLogo = gallery?.studioLogo || profile?.studioLogo;
+  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
 
   const photographerPlan = useMemo(() => {
     const rawPlanId = profile?.planId || 'starter';
@@ -114,10 +124,12 @@ export default function ClientGalleryPage() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
+  // Restored conditions: Downloads available only when Unlocked AND Paid
   const canDownload = useMemo(() => {
     return gallery ? (gallery.isLocked === false && gallery.isPaid === true) : false;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
+  // Restored conditions: Watermark appears when Locked OR Unpaid
   const showWatermark = useMemo(() => {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
@@ -262,11 +274,11 @@ export default function ClientGalleryPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
         
         <div className="absolute top-12 left-0 right-0 flex flex-col items-center">
-          {profile?.studioLogo && (
-            <img src={profile.studioLogo} className="h-16 md:h-20 w-auto mb-4 object-contain" alt="Studio Logo" />
+          {studioLogo && (
+            <img src={studioLogo} className="h-16 md:h-20 w-auto mb-4 object-contain" alt="Studio Logo" />
           )}
           <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase">
-            {profile?.studioName || 'Professional Studio'}
+            {studioName}
           </span>
         </div>
 
@@ -285,8 +297,8 @@ export default function ClientGalleryPage() {
           </div>
           
           <div className="mt-14 flex flex-wrap justify-center gap-4">
-            {profile?.whatsappNumber && (
-              <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={() => window.open(`https://wa.me/${profile.whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
+            {whatsappNumber && (
+              <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
                 <MessageCircle className="w-5 h-5" /> Contact Studio
               </Button>
             )}
@@ -308,6 +320,7 @@ export default function ClientGalleryPage() {
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
             </div>
           </div>
+          {/* Download All appears only when unlocked and paid */}
           {canDownload && gallery.items?.length > 0 && (
             <div className="flex flex-col items-end gap-2">
               <Button 
@@ -341,6 +354,7 @@ export default function ClientGalleryPage() {
                   <Button size="icon" className={cn("rounded-full h-12 w-12 border-none", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30")} onClick={(e) => { e.stopPropagation(); handleFavorite(item.id, !!item.isFavorite); }}>
                     <Heart className={cn("w-5 h-5", item.isFavorite ? "fill-current" : "")} />
                   </Button>
+                  {/* Individual Download appears only when unlocked and paid */}
                   {canDownload && (
                     <Button size="icon" className="rounded-full h-12 w-12 bg-white text-black hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); handleDownloadSingle(item); }}>
                       <Download className="w-5 h-5" />
