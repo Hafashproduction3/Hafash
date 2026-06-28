@@ -4,7 +4,7 @@
 import { useFirestore, useUser, useCollection } from '@/firebase';
 import { 
   Users, 
-  Image as ImageIcon, 
+  ImageIcon, 
   Eye, 
   Plus, 
   MoreVertical, 
@@ -64,15 +64,11 @@ export default function DashboardPage() {
     if (!firestore || !user || !confirm("Are you sure you want to delete this gallery?")) return;
     
     const docRef = doc(firestore, 'galleries', id);
-    console.log(`[FIRESTORE_DELETE_ATTEMPT] User: ${user.uid}, Path: ${docRef.path}`);
-
     deleteDoc(docRef)
       .then(() => {
-        console.log(`[FIRESTORE_DELETE_SUCCESS] Path: ${docRef.path}`);
         toast({ title: "Deleted", description: "Gallery has been removed." });
       })
       .catch(async (err: any) => {
-        console.error(`[FIRESTORE_DELETE_FAIL] Path: ${docRef.path}, Error: ${err.message}`);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: docRef.path,
@@ -80,7 +76,7 @@ export default function DashboardPage() {
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
         } else {
-          toast({ variant: "destructive", title: "Delete Failed", description: `Path: ${docRef.path} - Error: ${err.message}` });
+          toast({ variant: "destructive", title: "Delete Failed", description: err.message });
         }
       });
   };
@@ -89,15 +85,12 @@ export default function DashboardPage() {
     if (!firestore || !user) return;
     const docRef = doc(firestore, 'galleries', id);
     const updateData = { isLocked: !currentStatus };
-    console.log(`[FIRESTORE_UPDATE_ATTEMPT] Method: toggleLock, User: ${user.uid}, Path: ${docRef.path}`);
 
     updateDoc(docRef, updateData)
       .then(() => {
-        console.log(`[FIRESTORE_UPDATE_SUCCESS] Path: ${docRef.path}`);
         toast({ title: "Updated", description: `Gallery ${currentStatus ? 'unlocked' : 'locked'}.` });
       })
       .catch(async (err: any) => {
-        console.error(`[FIRESTORE_UPDATE_FAIL] Path: ${docRef.path}, Error: ${err.message}`);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: docRef.path,
@@ -106,12 +99,12 @@ export default function DashboardPage() {
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
         } else {
-          toast({ variant: "destructive", title: "Update Failed", description: `Path: ${docRef.path} - Error: ${err.message}` });
+          toast({ variant: "destructive", title: "Update Failed", description: err.message });
         }
       });
   };
 
-  if (authLoading || (dataLoading && !galleries)) {
+  if (authLoading || dataLoading || !galleries) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -120,7 +113,7 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user) return null;
+  const totalViews = galleries.reduce((acc, curr) => acc + (curr.viewCount || 0), 0);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -138,15 +131,27 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard title="Total Galleries" value={galleries?.length.toString() || "0"} icon={<ImageIcon className="w-5 h-5 text-primary" />} />
-        <StatCard title="Total Clients" value={galleries?.length.toString() || "0"} icon={<Users className="w-5 h-5 text-primary" />} />
-        <StatCard title="Gallery Views" value={galleries?.reduce((acc, curr) => acc + (curr.viewCount || 0), 0).toString() || "0"} icon={<Eye className="w-5 h-5 text-primary" />} />
+        <StatCard 
+          title="Total Galleries" 
+          value={String(galleries.length)} 
+          icon={<ImageIcon className="w-5 h-5 text-primary" />} 
+        />
+        <StatCard 
+          title="Total Clients" 
+          value={String(galleries.length)} 
+          icon={<Users className="w-5 h-5 text-primary" />} 
+        />
+        <StatCard 
+          title="Gallery Views" 
+          value={String(totalViews)} 
+          icon={<Eye className="w-5 h-5 text-primary" />} 
+        />
       </div>
 
       <div className="space-y-6">
         <h2 className="text-2xl font-headline font-bold border-b border-border/50 pb-4">Recent Events</h2>
         
-        {galleries?.length === 0 ? (
+        {galleries.length === 0 ? (
           <div className="py-20 text-center bg-card/30 rounded-3xl border border-dashed border-border/50">
             <p className="text-muted-foreground italic">You haven't created any events yet.</p>
             <Link href="/events/create">
@@ -155,7 +160,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {galleries?.map((event) => {
+            {galleries.map((event) => {
               const favoritesCount = Array.isArray(event.items) 
                 ? event.items.filter((i: any) => i.isFavorite).length 
                 : 0;
@@ -206,7 +211,6 @@ export default function DashboardPage() {
                       </DropdownMenu>
                     </div>
 
-                    {/* Per-Gallery Analytics */}
                     <div className="flex gap-4 mb-6 py-3 border-y border-border/30 text-[10px] uppercase font-bold tracking-wider text-muted-foreground">
                       <div className="flex items-center gap-1.5">
                         <Eye className="w-3 h-3 text-primary" />
