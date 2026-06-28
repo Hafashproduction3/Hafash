@@ -64,6 +64,7 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
+        // Updated query to explicitly include isPublic filter to satisfy Security Rules for anonymous reads
         const q = query(
           collection(firestore, 'galleries'), 
           where('slug', '==', slugAttempt),
@@ -76,12 +77,14 @@ export default function ClientGalleryPage() {
           const galleryData = querySnapshot.docs[0].data();
           setGalleryId(foundId);
           
+          // Only increment view if the user is NOT the owner to prevent self-inflation
           if (viewIncremented.current !== foundId && user?.uid !== galleryData.userId) {
             viewIncremented.current = foundId;
             const gRef = doc(firestore, 'galleries', foundId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
+          // Fallback if not found by slug (only if param looks like a doc ID)
           if (cleanParam.length > 15) {
             setGalleryId(cleanParam);
           } else {
@@ -108,6 +111,7 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
+  // Authenticated owner view for branding resolution
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId || !user || user.uid !== gallery.userId) return null;
     return doc(firestore, 'users', gallery.userId);
@@ -115,6 +119,7 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
+  // Use metadata synced into the gallery document to avoid reading the users collection (restricted)
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
@@ -180,8 +185,8 @@ export default function ClientGalleryPage() {
     }
     
     setIsPreparing(true);
-    setPreparationStep('Validating Cache...');
     
+    // Check cache
     const cacheKey = `hafash_zip_cache_${galleryId}`;
     const cachedData = typeof window !== 'undefined' ? localStorage.getItem(cacheKey) : null;
     const now = new Date().getTime();
@@ -203,6 +208,7 @@ export default function ClientGalleryPage() {
       const totalItems = items.length;
       let completed = 0;
 
+      // Start fetching all assets in parallel
       setPreparationStep(`Fetching Masterpieces: 0 / ${totalItems}`);
       
       await Promise.all(items.map(async (item: any, index: number) => {
@@ -234,6 +240,7 @@ export default function ClientGalleryPage() {
 
   const executePrioritizedPreparation = async () => {
     setPreparationStep(`Priority Queue: ${photographerPlan.priorityLabel}...`);
+    // Removed artificial subscription delays as requested
     setPreparationStep('Optimizing Package Structure...');
     setPreparationStep('Finalizing Encryption...');
   };
@@ -293,12 +300,32 @@ export default function ClientGalleryPage() {
             </div>
           </div>
           
-          <div className="mt-14 flex flex-wrap justify-center gap-4">
+          <div className="mt-14 flex flex-wrap justify-center items-center gap-4">
             {whatsappNumber && (
               <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
                 <MessageCircle className="w-5 h-5" /> Contact Studio
               </Button>
             )}
+
+            {/* Repositioned Download All Button */}
+            {canDownload && gallery.items?.length > 0 && (
+              <div className="flex flex-col items-center gap-2">
+                <Button 
+                  className={cn("rounded-full px-10 h-14 bg-primary/20 border border-primary/30 text-white hover:bg-primary/30 font-bold gap-3 shadow-2xl backdrop-blur-md", isPreparing && "opacity-70 cursor-wait")}
+                  onClick={handleDownloadAll}
+                  disabled={isPreparing}
+                >
+                  {isPreparing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                  {isPreparing ? "Preparing..." : "Download All"}
+                </Button>
+                {isPreparing && (
+                  <div className="flex items-center gap-2 text-[9px] uppercase font-bold text-primary animate-pulse">
+                    <Clock className="w-3 h-3" /> {preparationStep}
+                  </div>
+                )}
+              </div>
+            )}
+
             <Button variant="outline" className="rounded-full px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}>
               <Share2 className="w-5 h-5" /> Share Gallery
             </Button>
@@ -317,23 +344,6 @@ export default function ClientGalleryPage() {
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
             </div>
           </div>
-          {canDownload && gallery.items?.length > 0 && (
-            <div className="flex flex-col items-end gap-2">
-              <Button 
-                className={cn("rounded-full px-8 bg-primary/10 border border-primary/30 text-primary hover:bg-primary/20 font-bold gap-2 h-12", isPreparing && "opacity-70 cursor-wait")}
-                onClick={handleDownloadAll}
-                disabled={isPreparing}
-              >
-                {isPreparing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {isPreparing ? "Preparing..." : "Download All"}
-              </Button>
-              {isPreparing && (
-                <div className="flex items-center gap-2 text-[9px] uppercase font-bold text-primary animate-pulse">
-                  <Clock className="w-3 h-3" /> {preparationStep}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
