@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -55,13 +54,6 @@ export default function ClientGalleryPage() {
   
   const viewIncremented = useRef<string | null>(null);
 
-  // Debug Logging for Production Telemetry
-  useEffect(() => {
-    if (galleryId) {
-      console.log(`[GALLERY_DEBUG] Active Gallery ID: ${galleryId}`);
-    }
-  }, [galleryId]);
-
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) {
@@ -74,9 +66,8 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        console.log(`[GALLERY_DEBUG] Attempting slug resolution for: ${slugAttempt}`);
-        
-        // Security Rules Note: Anonymous users can only query if the query is restricted to isPublic: true
+        // For anonymous users, the query MUST be restricted to isPublic: true
+        // to comply with Firestore Security Rules.
         const constraints = [where('slug', '==', slugAttempt)];
         if (!user) {
           constraints.push(where('isPublic', '==', true));
@@ -87,7 +78,6 @@ export default function ClientGalleryPage() {
         
         if (!querySnapshot.empty) {
           const foundId = querySnapshot.docs[0].id;
-          console.log(`[GALLERY_DEBUG] Slug resolved to ID: ${foundId}`);
           setGalleryId(foundId);
           
           if (viewIncremented.current !== foundId) {
@@ -96,11 +86,11 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          console.log(`[GALLERY_DEBUG] No slug match found. Falling back to direct ID: ${cleanParam}`);
+          // Fallback to direct ID resolution
           setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        console.error(`[GALLERY_DEBUG] Slug resolution failed (likely permission restriction). Falling back to ID: ${cleanParam}`, err);
+        // Fallback to direct ID resolution if query fails
         setGalleryId(cleanParam);
       } finally {
         setIsResolving(false);
@@ -111,24 +101,16 @@ export default function ClientGalleryPage() {
 
   const galleryRef = useMemo(() => {
     if (!firestore || !galleryId) return null;
-    const ref = doc(firestore, 'galleries', galleryId);
-    console.log(`[GALLERY_DEBUG] Requesting Gallery Doc: ${ref.path}`);
-    return ref;
+    return doc(firestore, 'galleries', galleryId);
   }, [firestore, galleryId]);
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
-  // Determine if current user is the owner to avoid permission errors when reading the users collection
-  const isOwner = useMemo(() => !!user && !!gallery && user.uid === gallery.userId, [user, gallery]);
-
+  // photographerRef setup - strictly for owner usage or public branding attempts
   const photographerRef = useMemo(() => {
-    // SECURITY: Anonymous clients do not have permission to read the users collection.
-    // We only create this ref if the user is authenticated as the gallery owner.
-    if (!firestore || !isOwner || !gallery?.userId) return null;
-    const ref = doc(firestore, 'users', gallery.userId);
-    console.log(`[GALLERY_DEBUG] Requesting Photographer Profile: ${ref.path}`);
-    return ref;
-  }, [firestore, isOwner, gallery?.userId]);
+    if (!firestore || !gallery?.userId) return null;
+    return doc(firestore, 'users', gallery.userId);
+  }, [firestore, gallery?.userId]);
 
   const { data: profile } = useDoc(photographerRef);
 
@@ -138,12 +120,15 @@ export default function ClientGalleryPage() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
+  // Logic Rule 3: Download All button must appear only when isLocked == false AND isPaid == true
   const canDownload = useMemo(() => {
-    return gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
+    return gallery ? (gallery.isLocked === false && gallery.isPaid === true) : false;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
+  // Logic Rule 4 & 5: Watermark appears when isLocked == true OR isPaid == false
+  // Watermark removed ONLY when isLocked == false AND isPaid == true
   const showWatermark = useMemo(() => {
-    return gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
+    return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
   const handleFavorite = (itemId: string, isCurrentlyFavorite: boolean) => {
@@ -241,7 +226,6 @@ export default function ClientGalleryPage() {
     await new Promise(r => setTimeout(r, waitTime * 0.3));
   };
 
-  // Improved UI Guarding: Avoid showing "Access Restricted" during transition frames
   if (isResolving || docLoading || (galleryId && !gallery && !galleryError)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
@@ -252,21 +236,14 @@ export default function ClientGalleryPage() {
   }
 
   if (galleryError || !gallery) {
-    const isPermissionDenied = galleryError?.message?.includes('permission-denied') || galleryError?.message?.includes('insufficient permissions');
-    console.error(`[GALLERY_DEBUG] Rendering error state. Error:`, galleryError);
-    
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
-          {isPermissionDenied ? <Lock className="w-12 h-12 text-destructive" /> : <ShieldAlert className="w-12 h-12 text-destructive" />}
+          <ShieldAlert className="w-12 h-12 text-destructive" />
         </div>
-        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">
-          {isPermissionDenied ? 'Access Restricted' : 'Gallery Unavailable'}
-        </h1>
+        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Unavailable</h1>
         <p className="text-muted-foreground mb-8 max-w-sm">
-          {isPermissionDenied 
-            ? 'This event has been set to private by the photographer. Please contact the studio for access.' 
-            : 'The requested gallery could not be found or is currently unavailable.'}
+          The requested gallery could not be found or is currently restricted by the studio.
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
       </div>
@@ -305,6 +282,7 @@ export default function ClientGalleryPage() {
           </div>
           
           <div className="mt-14 flex flex-wrap justify-center gap-4">
+            {/* Logic Rule 2: Contact Studio button appears for public visitors if info is available */}
             {profile?.whatsappNumber && (
               <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={() => window.open(`https://wa.me/${profile.whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
                 <MessageCircle className="w-5 h-5" /> Contact Studio
@@ -328,6 +306,7 @@ export default function ClientGalleryPage() {
               <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
             </div>
           </div>
+          {/* Logic Rule 3: Download All only when unlocked and paid */}
           {canDownload && gallery.items?.length > 0 && (
             <div className="flex flex-col items-end gap-2">
               <Button 
@@ -355,6 +334,7 @@ export default function ClientGalleryPage() {
               onClick={() => setSelectedImage(item.url)}
             >
               <img src={item.url} className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105" alt="Gallery" />
+              {/* Logic Rule 4 & 5: Conditional Watermark */}
               {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-4">
                 <div className="flex gap-2">
@@ -372,6 +352,7 @@ export default function ClientGalleryPage() {
         <div className="fixed inset-0 z-[100] bg-background/95 flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative">
             <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" alt="Fullscreen" />
+            {/* Logic Rule 4 & 5: Conditional Watermark */}
             {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
           </div>
           <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-white h-12 w-12 hover:bg-white/10 rounded-full">

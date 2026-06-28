@@ -78,7 +78,7 @@ export default function CreateEventPage() {
       coverImage: `https://picsum.photos/seed/${newId}/800/600`,
       items: [],
       isLocked: true,
-      isPublic: true, // Critical: Default to true for shared gallery links
+      isPublic: true, // Default to true for shared gallery links
       isPaid: false,
       viewCount: 0,
       userId: user.uid,

@@ -57,6 +57,7 @@ export default function EventManagementPage() {
   const { data: event, loading: dataLoading, error } = useDoc(eventRef);
 
   // Field Repair Logic: Ensure isPublic is set if missing
+  // This helps migrate existing galleries to the new visibility logic.
   useEffect(() => {
     if (event && event.isPublic === undefined && eventRef) {
       updateDoc(eventRef, { isPublic: true });
