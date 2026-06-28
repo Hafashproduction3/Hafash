@@ -45,7 +45,9 @@ export function useCollection<T = DocumentData>(query: Query<T> | null) {
             path: 'collection_query',
             operation: 'list',
           });
-          errorEmitter.emit('permission-error', permissionError);
+          // Handle specific permission error locally. 
+          // We do not emit to global errorEmitter for reads to prevent 
+          // incorrect "Access Denied" popups during pre-fetching or transitive reads.
           setError(permissionError);
         } else {
           setError(err);

@@ -48,7 +48,9 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
             path: docRef.path,
             operation: 'get',
           });
-          errorEmitter.emit('permission-error', permissionError);
+          // Handle specific permission error locally.
+          // We do not emit to global errorEmitter for reads to prevent
+          // incorrect "Access Denied" popups during pre-fetching or resolution fallbacks.
           setError(permissionError);
         } else {
           setError(err);
