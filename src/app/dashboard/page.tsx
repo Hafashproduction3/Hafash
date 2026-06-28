@@ -14,7 +14,8 @@ import {
   Unlock,
   Loader2,
   Heart,
-  Download
+  Download,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -50,6 +51,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [showExitDialog, setShowExitDialog] = useState(false);
+  const [galleryToDelete, setGalleryToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -90,13 +92,14 @@ export default function DashboardPage() {
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!firestore || !user || !confirm("Are you sure you want to delete this gallery?")) return;
+  const confirmDelete = () => {
+    if (!firestore || !user || !galleryToDelete) return;
     
-    const docRef = doc(firestore, 'galleries', id);
+    const docRef = doc(firestore, 'galleries', galleryToDelete);
     deleteDoc(docRef)
       .then(() => {
         toast({ title: "Deleted", description: "Gallery has been removed." });
+        setGalleryToDelete(null);
       })
       .catch(async (err: any) => {
         if (err.code === 'permission-denied') {
@@ -108,6 +111,7 @@ export default function DashboardPage() {
         } else {
           toast({ variant: "destructive", title: "Delete Failed", description: err.message });
         }
+        setGalleryToDelete(null);
       });
   };
 
@@ -148,7 +152,7 @@ export default function DashboardPage() {
     }
   };
 
-  if (authLoading || dataLoading) {
+  if (authLoading || (dataLoading && !galleries)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh]">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -249,7 +253,7 @@ export default function DashboardPage() {
                               <ImageIcon className="w-4 h-4 mr-2" /> Add Photos
                             </Link>
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(event.id)}>
+                          <DropdownMenuItem className="text-destructive" onClick={() => setGalleryToDelete(event.id)}>
                             <Trash2 className="w-4 h-4 mr-2" /> Delete Event
                           </DropdownMenuItem>
                         </DropdownMenuContent>
@@ -287,18 +291,53 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Exit Confirmation Dialog */}
       <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
         <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-headline font-bold">Log Out?</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
+            <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Log Out?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-center">
               Are you sure you want to log out of Hafash?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction className="rounded-xl bg-primary text-primary-foreground font-bold" onClick={handleLogout}>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+            <AlertDialogCancel className="rounded-xl flex-1 mt-0">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="rounded-xl bg-primary text-primary-foreground font-bold flex-1" onClick={handleLogout}>
               Log Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Gallery Confirmation Dialog */}
+      <AlertDialog open={!!galleryToDelete} onOpenChange={(open) => !open && setGalleryToDelete(null)}>
+        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] max-w-md">
+          <AlertDialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="bg-destructive/10 p-4 rounded-full">
+                <AlertTriangle className="w-10 h-10 text-destructive" />
+              </div>
+            </div>
+            <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Delete Gallery?</AlertDialogTitle>
+            <div className="text-sm text-muted-foreground space-y-4 py-2">
+              <p className="font-bold text-foreground text-center">This action is permanent and cannot be undone.</p>
+              <div className="bg-muted/30 p-4 rounded-2xl space-y-3">
+                <p className="font-semibold text-xs uppercase tracking-widest text-primary">If you delete this gallery:</p>
+                <ul className="text-xs space-y-2 list-disc pl-4">
+                  <li>Clients will immediately lose access to the gallery.</li>
+                  <li>The gallery link will stop working.</li>
+                  <li>All gallery information associated with this gallery will be permanently removed.</li>
+                </ul>
+              </div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-6">
+            <AlertDialogCancel className="rounded-xl flex-1 mt-0">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold flex-1" 
+              onClick={confirmDelete}
+            >
+              Delete Gallery
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

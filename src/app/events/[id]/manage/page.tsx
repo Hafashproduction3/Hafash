@@ -16,12 +16,23 @@ import {
   Loader2,
   ShieldCheck,
   CreditCard,
-  Globe
+  Globe,
+  AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -38,6 +49,7 @@ export default function EventManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
   const [origin, setOrigin] = useState('');
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -121,9 +133,9 @@ export default function EventManagementPage() {
     }
   };
 
-  const handleDelete = () => {
-    if (typeof window !== 'undefined' && !window.confirm('Are you sure you want to delete this event?')) return;
-    deleteDoc(eventRef!)
+  const confirmDelete = () => {
+    if (!eventRef) return;
+    deleteDoc(eventRef)
       .then(() => {
         toast({ title: "Event Deleted" });
         router.push('/dashboard');
@@ -131,7 +143,7 @@ export default function EventManagementPage() {
       .catch((err) => {
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
-            path: eventRef!.path,
+            path: eventRef.path,
             operation: 'delete',
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
@@ -160,9 +172,7 @@ export default function EventManagementPage() {
 
   const updatePaymentAndLockStatus = (isPaid: boolean) => {
     if (!eventRef) return;
-    // Sync logic as requested: 
-    // ON: isPaid = true, isLocked = false
-    // OFF: isPaid = false, isLocked = true
+    // Sync logic: ON sets isPaid:true, isLocked:false
     const updateData = { 
       isPaid: isPaid,
       isLocked: !isPaid 
@@ -212,7 +222,7 @@ export default function EventManagementPage() {
                <Eye className="w-4 h-4" /> Preview
              </Button>
           </Link>
-          <Button variant="destructive" className="rounded-full gap-2" onClick={handleDelete}>
+          <Button variant="destructive" className="rounded-full gap-2" onClick={() => setShowDeleteDialog(true)}>
              <Trash2 className="w-4 h-4" /> Delete
           </Button>
         </div>
@@ -347,6 +357,40 @@ export default function EventManagementPage() {
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] max-w-md">
+          <AlertDialogHeader>
+            <div className="flex justify-center mb-4">
+              <div className="bg-destructive/10 p-4 rounded-full">
+                <AlertTriangle className="w-10 h-10 text-destructive" />
+              </div>
+            </div>
+            <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Delete Gallery?</AlertDialogTitle>
+            <div className="text-sm text-muted-foreground space-y-4 py-2">
+              <p className="font-bold text-foreground text-center">This action is permanent and cannot be undone.</p>
+              <div className="bg-muted/30 p-4 rounded-2xl space-y-3">
+                <p className="font-semibold text-xs uppercase tracking-widest text-primary">If you delete this gallery:</p>
+                <ul className="text-xs space-y-2 list-disc pl-4">
+                  <li>Clients will immediately lose access to the gallery.</li>
+                  <li>The gallery link will stop working.</li>
+                  <li>All gallery information associated with this gallery will be permanently removed.</li>
+                </ul>
+              </div>
+            </div>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-6">
+            <AlertDialogCancel className="rounded-xl flex-1 mt-0">Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold flex-1" 
+              onClick={confirmDelete}
+            >
+              Delete Gallery
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
