@@ -1,9 +1,10 @@
+
 "use client";
 
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
-import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download, Activity } from 'lucide-react';
+import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download, Activity, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN, calculateUsageGb } from '@/lib/plans';
@@ -60,9 +61,14 @@ export default function StoragePage() {
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-8">
-        <div>
-          <h1 className="text-5xl font-headline font-bold">Studio Storage & Quotas</h1>
-          <p className="text-muted-foreground mt-2 italic text-lg">Premium infrastructure for the world's finest photography studios.</p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-5xl font-headline font-bold">Studio Storage & Quotas</h1>
+            <p className="text-muted-foreground mt-2 italic text-lg">Premium infrastructure for the world's finest photography studios.</p>
+          </div>
         </div>
         <div className="bg-primary/10 px-4 py-2 rounded-xl border border-primary/20 flex items-center gap-3">
           <ShieldCheck className="w-4 h-4 text-primary" />
@@ -145,7 +151,7 @@ export default function StoragePage() {
             </p>
           </div>
           <Button variant="outline" className="rounded-2xl h-12 border-primary/30 text-primary font-bold hover:bg-primary/10">
-            Learn About Priorities
+            Log Out?
           </Button>
         </Card>
       </div>

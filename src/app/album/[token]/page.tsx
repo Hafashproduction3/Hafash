@@ -2,7 +2,7 @@
 "use client";
 
 import { useFirestore, useDoc } from '@/firebase';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { 
   Download, 
   Loader2, 
@@ -27,6 +27,7 @@ export default function AlbumDesignerViewPage() {
   const token = params?.token as string;
   const firestore = useFirestore();
   const { toast } = useToast();
+  const router = useRouter();
   
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [searching, setSearching] = useState(true);
@@ -110,11 +111,16 @@ export default function AlbumDesignerViewPage() {
       <div className="bg-card border-b border-border/50 py-12 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
           <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-primary/10 p-2 rounded-lg">
-                <BookOpen className="w-5 h-5 text-primary" />
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div className="flex items-center gap-3">
+                <div className="bg-primary/10 p-2 rounded-lg">
+                  <BookOpen className="w-5 h-5 text-primary" />
+                </div>
+                <span className="text-[10px] uppercase tracking-[0.4em] font-bold text-primary">Designer Workspace</span>
               </div>
-              <span className="text-[10px] uppercase tracking-[0.4em] font-bold text-primary">Designer Workspace</span>
             </div>
             <h1 className="text-4xl md:text-6xl font-headline font-bold tracking-tight">
               {gallery.title}

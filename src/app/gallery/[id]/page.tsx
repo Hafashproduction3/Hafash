@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -12,7 +13,8 @@ import {
   Share2, 
   ShieldAlert,
   Globe,
-  Clock
+  Clock,
+  ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +44,7 @@ export default function ClientGalleryPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const router = useRouter();
   
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(true);
@@ -64,7 +67,6 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // Updated query to explicitly include isPublic filter to satisfy Security Rules for anonymous reads
         const q = query(
           collection(firestore, 'galleries'), 
           where('slug', '==', slugAttempt),
@@ -77,14 +79,12 @@ export default function ClientGalleryPage() {
           const galleryData = querySnapshot.docs[0].data();
           setGalleryId(foundId);
           
-          // Only increment view if the user is NOT the owner to prevent self-inflation
           if (viewIncremented.current !== foundId && user?.uid !== galleryData.userId) {
             viewIncremented.current = foundId;
             const gRef = doc(firestore, 'galleries', foundId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          // Fallback if not found by slug (only if param looks like a doc ID)
           if (cleanParam.length > 15) {
             setGalleryId(cleanParam);
           } else {
@@ -111,7 +111,6 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
-  // Authenticated owner view for branding resolution
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId || !user || user.uid !== gallery.userId) return null;
     return doc(firestore, 'users', gallery.userId);
@@ -119,7 +118,6 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // Use metadata synced into the gallery document to avoid reading the users collection (restricted)
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
@@ -186,29 +184,11 @@ export default function ClientGalleryPage() {
     
     setIsPreparing(true);
     
-    // Check cache
-    const cacheKey = `hafash_zip_cache_${galleryId}`;
-    const cachedData = typeof window !== 'undefined' ? localStorage.getItem(cacheKey) : null;
-    const now = new Date().getTime();
-    
-    if (cachedData) {
-      const cache = JSON.parse(cachedData);
-      if (now - cache.timestamp < 24 * 60 * 60 * 1000) {
-        setPreparationStep('Retrieving from Cache (Instant)...');
-      } else {
-        localStorage.removeItem(cacheKey);
-        await executePrioritizedPreparation();
-      }
-    } else {
-      await executePrioritizedPreparation();
-    }
-    
     try {
       const zip = new JSZip();
       const totalItems = items.length;
       let completed = 0;
 
-      // Start fetching all assets in parallel
       setPreparationStep(`Fetching Masterpieces: 0 / ${totalItems}`);
       
       await Promise.all(items.map(async (item: any, index: number) => {
@@ -224,10 +204,6 @@ export default function ClientGalleryPage() {
       setPreparationStep('Compiling Secure Package...');
       const content = await zip.generateAsync({ type: 'blob' });
       
-      if (typeof window !== 'undefined') {
-        localStorage.setItem(cacheKey, JSON.stringify({ timestamp: now }));
-      }
-      
       saveAs(content, `${gallery.title || 'gallery'}.zip`);
       toast({ title: "Ready", description: "Your package is ready and downloading." });
     } catch (error) {
@@ -236,13 +212,6 @@ export default function ClientGalleryPage() {
       setIsPreparing(false);
       setPreparationStep('');
     }
-  };
-
-  const executePrioritizedPreparation = async () => {
-    setPreparationStep(`Priority Queue: ${photographerPlan.priorityLabel}...`);
-    // Removed artificial subscription delays as requested
-    setPreparationStep('Optimizing Package Structure...');
-    setPreparationStep('Finalizing Encryption...');
   };
 
   if (isResolving || docLoading || (galleryId && !gallery && !galleryError)) {
@@ -273,6 +242,16 @@ export default function ClientGalleryPage() {
 
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
+      {/* Floating Back Button */}
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        className="fixed top-8 left-8 z-[60] h-12 w-12 rounded-full bg-black/20 backdrop-blur-md text-white border border-white/20 hover:bg-white/10"
+        onClick={() => router.back()}
+      >
+        <ArrowLeft className="w-6 h-6" />
+      </Button>
+
       <div className="h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card">
         <img src={coverImageUrl} className="absolute inset-0 w-full h-full object-cover opacity-80" alt="Gallery Cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
@@ -307,7 +286,6 @@ export default function ClientGalleryPage() {
               </Button>
             )}
 
-            {/* Repositioned Download All Button */}
             {canDownload && gallery.items?.length > 0 && (
               <div className="flex flex-col items-center gap-2">
                 <Button 

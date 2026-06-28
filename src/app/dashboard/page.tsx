@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useFirestore, useUser, useCollection } from '@/firebase';
+import { useFirestore, useUser, useCollection, useAuth } from '@/firebase';
 import { 
   Users, 
   ImageIcon, 
@@ -24,25 +24,55 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { collection, query, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
+  const auth = useAuth();
   const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
   const router = useRouter();
+  const [showExitDialog, setShowExitDialog] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
     }
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    // Intercept browser back button
+    const handlePopState = (e: PopStateEvent) => {
+      // Prevent navigation and show dialog
+      window.history.pushState(null, '', window.location.pathname);
+      setShowExitDialog(true);
+    };
+
+    // Push state to the history to enable popstate interception
+    window.history.pushState(null, '', window.location.pathname);
+    window.addEventListener('popstate', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
@@ -102,6 +132,20 @@ export default function DashboardPage() {
           toast({ variant: "destructive", title: "Update Failed", description: err.message });
         }
       });
+  };
+
+  const handleLogout = async () => {
+    if (!auth) return;
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Logout Failed",
+        description: error.message
+      });
+    }
   };
 
   if (authLoading || dataLoading) {
@@ -242,6 +286,23 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      <AlertDialog open={showExitDialog} onOpenChange={setShowExitDialog}>
+        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-2xl font-headline font-bold">Log Out?</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              Are you sure you want to log out of Hafash?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="rounded-xl bg-primary text-primary-foreground font-bold" onClick={handleLogout}>
+              Log Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

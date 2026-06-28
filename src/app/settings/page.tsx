@@ -1,9 +1,10 @@
+
 "use client";
 
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
-import { User, Shield, Camera, Save, Loader2, Briefcase, Phone, Image as ImageIcon } from 'lucide-react';
+import { User, Shield, Camera, Save, Loader2, Briefcase, Phone, Image as ImageIcon, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -101,9 +102,14 @@ export default function SettingsPage() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-4xl font-headline font-bold">Studio Settings</h1>
-          <p className="text-muted-foreground mt-2">Manage your professional profile and defaults.</p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div>
+            <h1 className="text-4xl font-headline font-bold">Studio Settings</h1>
+            <p className="text-muted-foreground mt-2">Manage your professional profile and defaults.</p>
+          </div>
         </div>
         <Button 
           className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full gap-2 px-8 h-12 font-bold shadow-lg" 
