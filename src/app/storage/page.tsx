@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN, calculateUsageGb } from '@/lib/plans';
 import { doc, collection, query, where } from 'firebase/firestore';
+import Link from 'next/link';
 
 export default function StoragePage() {
   const { user, loading: authLoading } = useUser();
@@ -67,7 +69,7 @@ export default function StoragePage() {
   if (!user) return null;
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20 p-6 lg:p-12 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-8">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
@@ -221,9 +223,11 @@ export default function StoragePage() {
                 {isCurrent ? (
                   <Button className="w-full h-14 rounded-2xl border-primary/30 text-primary bg-primary/10 cursor-default hover:bg-primary/10 font-bold uppercase tracking-widest text-xs">Current Plan</Button>
                 ) : (
-                  <Button className={`w-full h-14 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-[1.02] ${plan.id === 'pro' ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20' : 'bg-white text-black hover:bg-gray-100'}`}>
-                    Upgrade Workspace
-                  </Button>
+                  <Link href={`/checkout/${plan.id}`} className="w-full">
+                    <Button className={`w-full h-14 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-[1.02] ${plan.id === 'pro' ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20' : 'bg-white text-black hover:bg-gray-100'}`}>
+                      Upgrade Workspace
+                    </Button>
+                  </Link>
                 )}
               </CardFooter>
             </Card>
