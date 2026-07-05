@@ -10,7 +10,8 @@ import {
   Heart, 
   HardDrive, 
   Settings, 
-  LogOut
+  LogOut,
+  Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,8 @@ import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: PlusCircle, label: 'Create Event', href: '/events/create' },
-  { icon: Heart, label: 'Favorites & Workflow', href: '/favorites' },
+  { icon: Package, label: 'Album Selections', href: '/album-selections' },
+  { icon: Heart, label: 'Workflow Portal', href: '/favorites' },
   { icon: HardDrive, label: 'Storage', href: '/storage' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ];
