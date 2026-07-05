@@ -191,7 +191,7 @@ export default function StoragePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {Object.values(HAFASH_PLANS).map(plan => {
           const isCurrent = currentPlan.id === plan.id;
-          const isUpgrade = plan.priorityLevel < currentPlan.priorityLevel;
+          const isUpgrade = plan.priorityLevel > currentPlan.priorityLevel;
           
           return (
             <Card key={plan.id} className={`relative overflow-hidden border-border/50 bg-card transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 rounded-[2.5rem] ${plan.id === 'pro' ? 'ring-2 ring-primary scale-105 z-10' : ''}`}>

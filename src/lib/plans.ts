@@ -12,7 +12,7 @@ export interface HafashPlan {
   zipLimitGb: number;
   price: string;
   features: string[];
-  priorityLevel: number; // 1 (Highest), 2 (High), 3 (Standard)
+  priorityLevel: number; // 1 (Starter), 2 (Pro), 3 (Studio)
   priorityLabel: string;
 }
 
@@ -24,7 +24,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     zipLimitGb: 5,
     price: '$9',
     features: ['Up to 10 Galleries', 'Basic Watermarking', 'Social Sharing', '5GB ZIP Packages'],
-    priorityLevel: 3,
+    priorityLevel: 1,
     priorityLabel: 'Standard',
   },
   pro: {
@@ -44,7 +44,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     zipLimitGb: 50,
     price: '$39',
     features: ['All Features', 'Priority Support', 'RAW Storage Add-on', '50GB ZIP Packages'],
-    priorityLevel: 1,
+    priorityLevel: 3,
     priorityLabel: 'Highest Priority',
   },
 };
