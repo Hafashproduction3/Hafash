@@ -3,9 +3,9 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useFirestore, useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
-import { Calendar as CalendarIcon, User, Camera, ArrowLeft, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Camera, ArrowLeft, Loader2, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33,6 +33,8 @@ export default function CreateEventPage() {
   const [formData, setFormData] = useState({
     title: '',
     clientName: '',
+    clientEmail: '',
+    clientPhone: '',
     date: '',
     category: 'Wedding' as EventCategory,
   });
@@ -66,7 +68,6 @@ export default function CreateEventPage() {
     setLoading(true);
 
     try {
-      // Fetch studio profile to embed branding
       const profileRef = doc(firestore, 'users', user.uid);
       const profileSnap = await getDoc(profileRef);
       const profileData = profileSnap.exists() ? profileSnap.data() : {};
@@ -81,12 +82,14 @@ export default function CreateEventPage() {
         slug: slug,
         title: formData.title,
         clientName: formData.clientName,
+        clientEmail: formData.clientEmail,
+        clientPhone: formData.clientPhone,
         date: formData.date,
         category: formData.category,
         coverImage: `https://picsum.photos/seed/${newId}/800/600`,
         items: [],
         mediaCount: 0,
-        deliveryProvider: 'demo', // Phase 1: Keep demo compatibility
+        deliveryProvider: 'demo',
         isLocked: true,
         isPublic: true, 
         isPaid: false,
@@ -97,7 +100,6 @@ export default function CreateEventPage() {
         albumLinkEnabled: false,
         albumLinkToken: "",
         albumLinkCreated: "",
-        // Embed studio branding for public views
         studioName: profileData.studioName || "",
         whatsappNumber: profileData.whatsappNumber || "",
         studioLogo: profileData.studioLogo || ""
@@ -165,33 +167,18 @@ export default function CreateEventPage() {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="client" className="text-muted-foreground font-bold">Client Name</Label>
-            <div className="relative">
-              <User className="absolute left-3 top-3 w-4 h-4 text-primary" />
-              <Input 
-                id="client" 
-                placeholder="Full Name" 
-                className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
-                required
-                value={formData.clientName}
-                onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-              />
-            </div>
-          </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="date" className="text-muted-foreground font-bold">Event Date</Label>
+              <Label htmlFor="client" className="text-muted-foreground font-bold">Client Name</Label>
               <div className="relative">
-                <CalendarIcon className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                <User className="absolute left-3 top-3 w-4 h-4 text-primary" />
                 <Input 
-                  id="date" 
-                  type="date"
+                  id="client" 
+                  placeholder="Full Name" 
                   className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
                   required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  value={formData.clientName}
+                  onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
                 />
               </div>
             </div>
@@ -213,6 +200,52 @@ export default function CreateEventPage() {
                   <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="clientEmail" className="text-muted-foreground font-bold">Client Email</Label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                <Input 
+                  id="clientEmail" 
+                  type="email"
+                  placeholder="client@example.com" 
+                  className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
+                  value={formData.clientEmail}
+                  onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="clientPhone" className="text-muted-foreground font-bold">Client Phone</Label>
+              <div className="relative">
+                <Phone className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                <Input 
+                  id="clientPhone" 
+                  placeholder="+92..." 
+                  className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
+                  value={formData.clientPhone}
+                  onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="date" className="text-muted-foreground font-bold">Event Date</Label>
+            <div className="relative">
+              <CalendarIcon className="absolute left-3 top-3 w-4 h-4 text-primary" />
+              <Input 
+                id="date" 
+                type="date"
+                className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
+                required
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+              />
             </div>
           </div>
 
