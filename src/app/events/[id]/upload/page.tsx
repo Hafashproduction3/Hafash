@@ -13,6 +13,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 type UploadStepStatus = 'queued' | 'uploading' | 'completed' | 'error';
 
@@ -298,11 +299,17 @@ export default function GalleryUploadPage() {
               </div>
             ) : (
               files.map(file => (
-                <div key={file.id} className={`bg-background/50 p-4 rounded-2xl border transition-all ${file.status === 'error' ? 'border-destructive/50' : 'border-border/30'}`}>
+                <div key={file.id} className={cn(
+                  "bg-background/50 p-4 rounded-2xl border transition-all",
+                  file.status === 'error' ? 'border-destructive/50' : 'border-border/30'
+                )}>
                   <div className="flex justify-between items-start mb-2">
                     <div className="truncate pr-4">
                       <p className="text-sm font-bold truncate">{file.name}</p>
-                      <p className={`text-[10px] font-mono mt-1 ${file.status === 'error' ? 'text-destructive' : 'text-primary'}`}>
+                      <p className={cn(
+                        "text-[10px] font-mono mt-1",
+                        file.status === 'error' ? 'text-destructive' : 'text-primary'
+                      )}>
                         {file.currentStep}
                       </p>
                     </div>
