@@ -1,0 +1,86 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Royal Gold: 45 61% 52% -> hsl(45, 61%, 52%) */
+    /* Deep Charcoal: 36 10% 9% -> hsl(36, 10%, 9%) */
+    --background: 36 10% 9%;
+    --foreground: 0 0% 100%;
+    
+    --card: 36 10% 12%;
+    --card-foreground: 0 0% 100%;
+    
+    --popover: 36 10% 9%;
+    --popover-foreground: 0 0% 100%;
+    
+    --primary: 45 61% 52%;
+    --primary-foreground: 36 10% 9%;
+    
+    --secondary: 36 10% 18%;
+    --secondary-foreground: 45 61% 52%;
+    
+    --muted: 36 10% 18%;
+    --muted-foreground: 45 10% 70%;
+    
+    --accent: 45 61% 40%;
+    --accent-foreground: 0 0% 100%;
+    
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 36 10% 20%;
+    --input: 36 10% 20%;
+    --ring: 45 61% 52%;
+    
+    --radius: 0.75rem;
+
+    --sidebar-background: 36 10% 7%;
+    --sidebar-foreground: 45 10% 90%;
+    --sidebar-primary: 45 61% 52%;
+    --sidebar-primary-foreground: 36 10% 9%;
+    --sidebar-accent: 36 10% 15%;
+    --sidebar-accent-foreground: 45 61% 52%;
+    --sidebar-border: 36 10% 15%;
+    --sidebar-ring: 45 61% 52%;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-headline;
+  }
+}
+
+/* Custom Watermark Overlay */
+.watermark-overlay {
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(212, 175, 55, 0.1) 0,
+    rgba(212, 175, 55, 0.1) 100px,
+    transparent 100px,
+    transparent 200px
+  );
+}
+
+.watermark-text {
+  @apply absolute inset-0 flex items-center justify-center opacity-30 select-none pointer-events-none;
+  font-family: 'Playfair Display', serif;
+  transform: rotate(-45deg);
+  font-size: 2rem;
+  color: #D4AF37;
+  white-space: nowrap;
+}
