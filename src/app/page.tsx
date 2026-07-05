@@ -1,4 +1,3 @@
-
 import Link from 'next/link';
 import { Camera, Shield, Heart, Share2, ArrowRight, Check, Users, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -102,7 +101,7 @@ export default function LandingPage() {
               <FeatureCard 
                 icon={<Sparkles className="w-8 h-8 text-primary" />}
                 title="Storage Plans"
-                description="Flexible storage options from 50GB to 500GB to grow with your photography business."
+                description="Flexible storage options from 50GB to 250GB to grow with your photography business."
               />
             </div>
           </div>

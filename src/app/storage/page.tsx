@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
@@ -220,7 +219,7 @@ export default function StoragePage() {
               </CardContent>
               <CardFooter className="pb-12 pt-6 px-10">
                 {isCurrent ? (
-                  <Button className="w-full h-14 rounded-2xl border-primary/30 text-primary bg-primary/10 cursor-default hover:bg-primary/10 font-bold uppercase tracking-widest text-xs">Active Subscription</Button>
+                  <Button className="w-full h-14 rounded-2xl border-primary/30 text-primary bg-primary/10 cursor-default hover:bg-primary/10 font-bold uppercase tracking-widest text-xs">Current Plan</Button>
                 ) : (
                   <Button className={`w-full h-14 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-[1.02] ${plan.id === 'pro' ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20' : 'bg-white text-black hover:bg-gray-100'}`}>
                     Upgrade Workspace
