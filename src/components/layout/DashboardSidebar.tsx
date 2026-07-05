@@ -13,7 +13,8 @@ import {
   Settings, 
   LogOut,
   Package,
-  Users
+  Users,
+  CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: PlusCircle, label: 'Create Event', href: '/events/create' },
   { icon: Users, label: 'Clients', href: '/clients' },
+  { icon: CreditCard, label: 'Payments', href: '/payments' },
   { icon: Package, label: 'Album Selections', href: '/album-selections' },
   { icon: Heart, label: 'Workflow Portal', href: '/favorites' },
   { icon: HardDrive, label: 'Storage', href: '/storage' },

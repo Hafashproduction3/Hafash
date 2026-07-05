@@ -4,7 +4,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, LogOut, LayoutDashboard, PlusCircle, Heart, HardDrive, Settings, Package, Users } from 'lucide-react';
+import { Menu, LogOut, LayoutDashboard, PlusCircle, Heart, HardDrive, Settings, Package, Users, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { useAuth, useUser, useFirestore, useCollection, useDoc } from '@/firebase';
@@ -18,6 +18,7 @@ const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: PlusCircle, label: 'Create Event', href: '/events/create' },
   { icon: Users, label: 'Clients', href: '/clients' },
+  { icon: CreditCard, label: 'Payments', href: '/payments' },
   { icon: Package, label: 'Album Selections', href: '/album-selections' },
   { icon: Heart, label: 'Workflow Portal', href: '/favorites' },
   { icon: HardDrive, label: 'Storage', href: '/storage' },
