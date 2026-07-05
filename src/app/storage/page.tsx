@@ -4,7 +4,7 @@
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
-import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download, Activity, ArrowLeft } from 'lucide-react';
+import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download, Activity, ArrowLeft, ImageIcon, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN, calculateUsageGb } from '@/lib/plans';
@@ -47,6 +47,15 @@ export default function StoragePage() {
   const usagePercent = useMemo(() => {
     return Math.min((usageGb / currentPlan.storageGb) * 100, 100);
   }, [usageGb, currentPlan.storageGb]);
+
+  const totalGalleries = useMemo(() => {
+    return Array.isArray(galleries) ? galleries.length : 0;
+  }, [galleries]);
+
+  const totalPhotos = useMemo(() => {
+    if (!galleries || !Array.isArray(galleries)) return 0;
+    return galleries.reduce((acc, g) => acc + (Array.isArray(g.items) ? g.items.length : 0), 0);
+  }, [galleries]);
 
   if (authLoading || profileLoading || (galleriesLoading && !galleries)) {
     return (
@@ -94,6 +103,24 @@ export default function StoragePage() {
               <div className="text-right space-y-2">
                 <p className="text-sm text-muted-foreground uppercase tracking-widest font-bold">Total Storage</p>
                 <h3 className="text-4xl font-headline font-bold">{currentPlan.storageGb} GB</h3>
+              </div>
+            </div>
+
+            {/* Sub-stats for Photos and Galleries */}
+            <div className="grid grid-cols-2 gap-4 pb-4">
+              <div className="bg-background/40 p-4 rounded-2xl border border-border/20 flex items-center gap-3">
+                <ImageIcon className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Total Photos</p>
+                  <p className="text-xl font-bold">{totalPhotos}</p>
+                </div>
+              </div>
+              <div className="bg-background/40 p-4 rounded-2xl border border-border/20 flex items-center gap-3">
+                <FolderOpen className="w-5 h-5 text-primary" />
+                <div>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Active Galleries</p>
+                  <p className="text-xl font-bold">{totalGalleries}</p>
+                </div>
               </div>
             </div>
 
@@ -150,8 +177,8 @@ export default function StoragePage() {
               Higher plans move to the front of the ZIP generation queue. Once generated, all files are delivered at maximum Cloudflare CDN speeds.
             </p>
           </div>
-          <Button variant="outline" className="rounded-2xl h-12 border-primary/30 text-primary font-bold hover:bg-primary/10">
-            Log Out?
+          <Button variant="outline" className="rounded-2xl h-12 border-primary/30 text-primary font-bold hover:bg-primary/10" onClick={() => router.push('/dashboard')}>
+            Back to Dashboard
           </Button>
         </Card>
       </div>
