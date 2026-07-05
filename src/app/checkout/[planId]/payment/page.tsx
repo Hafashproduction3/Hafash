@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore } from '@/firebase';
 import { HAFASH_PLANS, type PlanId } from '@/lib/plans';
 import { useEffect, useState } from 'react';
 import { 
@@ -17,12 +16,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { doc, updateDoc } from 'firebase/firestore';
 
 export default function PaymentGatewayPage() {
   const params = useParams();
   const planId = (params?.planId as PlanId) || 'pro';
   const router = useRouter();
   const { user, loading: authLoading } = useUser();
+  const firestore = useFirestore();
   const { toast } = useToast();
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -34,17 +35,46 @@ export default function PaymentGatewayPage() {
 
   const targetPlan = HAFASH_PLANS[planId] || HAFASH_PLANS.pro;
 
-  const handleSimulatePayment = () => {
+  const handleSimulatePayment = async () => {
+    if (!firestore || !user) return;
+    
     setIsProcessing(true);
-    // Simulating a payment gateway redirect/process
-    setTimeout(() => {
-      setIsProcessing(false);
-      toast({
-        title: "Order Processed",
-        description: "Your upgrade is currently being synced with your studio profile.",
+    
+    try {
+      // Simulate network delay for payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Update the user's subscription in Firestore
+      const userRef = doc(firestore, 'users', user.uid);
+      
+      // Calculate a placeholder renewal date (30 days from now)
+      const nextRenewal = new Date();
+      nextRenewal.setDate(nextRenewal.getDate() + 30);
+
+      await updateDoc(userRef, {
+        planId: planId,
+        subscriptionStatus: 'active',
+        subscriptionActivatedAt: new Date().toISOString(),
+        subscriptionNextRenewal: nextRenewal.toISOString(),
+        updatedAt: new Date().toISOString()
       });
+
+      toast({
+        title: "Subscription Activated",
+        description: `Your studio is now upgraded to ${targetPlan.name}.`,
+      });
+      
+      // Navigate to storage to see the new limits
       router.push('/storage');
-    }, 2500);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Activation Failed",
+        description: error.message || "An error occurred during subscription sync.",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (authLoading) return null;
@@ -103,7 +133,7 @@ export default function PaymentGatewayPage() {
               disabled={isProcessing}
             >
               {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Lock className="w-6 h-6" />}
-              {isProcessing ? "Processing Securely..." : `Pay ${targetPlan.price} Now`}
+              {isProcessing ? "Finalizing Subscription..." : `Pay ${targetPlan.price} Now`}
             </Button>
 
             <div className="flex items-center justify-center gap-2 text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
