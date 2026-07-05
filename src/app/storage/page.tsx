@@ -192,6 +192,8 @@ export default function StoragePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {Object.values(HAFASH_PLANS).map(plan => {
           const isCurrent = currentPlan.id === plan.id;
+          const isUpgrade = plan.priorityLevel < currentPlan.priorityLevel;
+          
           return (
             <Card key={plan.id} className={`relative overflow-hidden border-border/50 bg-card transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 rounded-[2.5rem] ${plan.id === 'pro' ? 'ring-2 ring-primary scale-105 z-10' : ''}`}>
               {plan.id === 'pro' && (
@@ -221,11 +223,11 @@ export default function StoragePage() {
               </CardContent>
               <CardFooter className="pb-12 pt-6 px-10">
                 {isCurrent ? (
-                  <Button className="w-full h-14 rounded-2xl border-primary/30 text-primary bg-primary/10 cursor-default hover:bg-primary/10 font-bold uppercase tracking-widest text-xs">Current Plan</Button>
+                  <Button disabled className="w-full h-14 rounded-2xl border-primary/30 text-primary bg-primary/10 font-bold uppercase tracking-widest text-xs">Current Plan</Button>
                 ) : (
                   <Link href={`/checkout/${plan.id}`} className="w-full">
                     <Button className={`w-full h-14 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-[1.02] ${plan.id === 'pro' ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20' : 'bg-white text-black hover:bg-gray-100'}`}>
-                      Upgrade Workspace
+                      {isUpgrade ? 'Upgrade Workspace' : 'Select Plan'}
                     </Button>
                   </Link>
                 )}
