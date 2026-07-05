@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
@@ -107,7 +106,6 @@ export default function StoragePage() {
               </div>
             </div>
 
-            {/* Sub-stats for Photos and Galleries */}
             <div className="grid grid-cols-2 gap-4 pb-4">
               <div className="bg-background/40 p-4 rounded-2xl border border-border/20 flex items-center gap-3">
                 <ImageIcon className="w-5 h-5 text-primary" />
@@ -184,6 +182,7 @@ export default function StoragePage() {
         </Card>
       </div>
 
+      {/* Subscription Plans Section */}
       <div className="text-center space-y-4 pt-10">
         <h2 className="text-4xl font-headline font-bold">Premium Expansion Plans</h2>
         <p className="text-muted-foreground">Unlock higher delivery thresholds and faster ZIP preparation.</p>
