@@ -2,15 +2,16 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useFirestore, useDoc, useUser } from '@/firebase';
-import { doc, updateDoc, arrayUnion } from 'firebase/firestore';
-import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, Activity, ShieldCheck } from 'lucide-react';
+import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
+import { doc, updateDoc, arrayUnion, collection, query, where } from 'firebase/firestore';
+import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, Activity, ShieldCheck, HardDrive } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 import Link from 'next/link';
 
 type UploadStepStatus = 'queued' | 'uploading' | 'completed' | 'error';
@@ -47,6 +48,27 @@ export default function GalleryUploadPage() {
   }, [firestore, id]);
 
   const { data: event, loading: dataLoading } = useDoc(eventRef);
+
+  // Fetch user profile for plan details
+  const profileRef = useMemo(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user?.uid]);
+  const { data: profile } = useDoc(profileRef);
+
+  // Fetch all galleries to calculate current usage
+  const galleriesQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
+  }, [firestore, user?.uid]);
+  const { data: galleries } = useCollection(galleriesQuery);
+
+  const currentPlan = useMemo(() => {
+    const planId = (profile?.planId as PlanId) || 'starter';
+    return HAFASH_PLANS[planId] || DEFAULT_PLAN;
+  }, [profile?.planId]);
+
+  const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -74,6 +96,19 @@ export default function GalleryUploadPage() {
       return;
     }
 
+    // Storage Limit Enforcement
+    const pendingSizeGb = files.reduce((acc, f) => acc + f.file.size, 0) / (1024 * 1024 * 1024);
+    const totalPotentialUsage = currentUsageGb + pendingSizeGb;
+
+    if (totalPotentialUsage > currentPlan.storageGb) {
+      toast({
+        variant: "destructive",
+        title: "Storage Limit Reached",
+        description: "Your pending upload exceeds your available storage. Please upgrade your plan to continue.",
+      });
+      return;
+    }
+
     setIsUploading(true);
     const uploadedItems: any[] = [];
     const successfulFileIds: string[] = [];
@@ -97,9 +132,8 @@ export default function GalleryUploadPage() {
       // Step 4: Generating Secure URL (Demo Mode)
       updateStep('uploading', 'Step 4: Finalizing Asset', 90);
       
-      // We simulate an original high-res URL and a preview URL
       const previewUrl = `https://picsum.photos/seed/${fileId}/1600/1200`;
-      const masterUrl = `https://picsum.photos/seed/${fileId}/4000/3000`; // Higher resolution for original
+      const masterUrl = `https://picsum.photos/seed/${fileId}/4000/3000`; 
       
       uploadedItems.push({
         id: fileId,
@@ -108,13 +142,13 @@ export default function GalleryUploadPage() {
         type: 'image',
         isFavorite: false,
         fileName: fileItem.name,
+        fileSize: fileItem.file.size,
         createdAt: new Date().toISOString()
       });
       successfulFileIds.push(fileId);
       updateStep('uploading', 'Step 4: Done', 100);
     }
 
-    // Step 5: Sync with Firestore
     const galleryRef = doc(firestore, 'galleries', id);
     const updateData = { items: arrayUnion(...uploadedItems) };
 
@@ -159,6 +193,9 @@ export default function GalleryUploadPage() {
 
   if (!user || !event) return null;
 
+  const pendingSizeGb = files.reduce((acc, f) => acc + f.file.size, 0) / (1024 * 1024 * 1024);
+  const isOverLimit = (currentUsageGb + pendingSizeGb) > currentPlan.storageGb;
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="flex justify-between items-center">
@@ -171,40 +208,74 @@ export default function GalleryUploadPage() {
             <p className="text-muted-foreground">High-resolution delivery telemetry.</p>
           </div>
         </div>
+
+        <div className="hidden md:flex items-center gap-3 bg-card border border-border/50 px-4 py-2 rounded-xl">
+          <HardDrive className="w-4 h-4 text-primary" />
+          <div className="text-[10px] font-bold uppercase tracking-widest">
+            <span className="text-muted-foreground">Quota: </span>
+            <span className={isOverLimit ? "text-destructive" : "text-primary"}>
+              {(currentUsageGb + pendingSizeGb).toFixed(2)} / {currentPlan.storageGb} GB
+            </span>
+          </div>
+        </div>
       </div>
 
-      <Alert className="bg-primary/10 border-primary/20 rounded-2xl">
-        <Info className="h-5 w-5 text-primary" />
-        <AlertTitle className="font-bold text-primary">MVP Demo Mode Active</AlertTitle>
-        <AlertDescription className="text-primary/80">
-          Real file uploads are currently restricted. Using high-quality sample masterpieces (Preview & Master) for demonstration.
-        </AlertDescription>
-      </Alert>
+      {isOverLimit && (
+        <Alert variant="destructive" className="rounded-2xl border-destructive/50 bg-destructive/5 animate-pulse">
+          <AlertTriangle className="h-5 w-5" />
+          <AlertTitle className="font-bold">Storage Limit Exceeded</AlertTitle>
+          <AlertDescription className="text-sm">
+            This upload would put you over your {currentPlan.storageGb}GB limit. Please remove some files or 
+            <Link href="/storage" className="ml-1 underline font-bold">upgrade your plan</Link>.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {!isOverLimit && (
+        <Alert className="bg-primary/10 border-primary/20 rounded-2xl">
+          <Info className="h-5 w-5 text-primary" />
+          <AlertTitle className="font-bold text-primary">MVP Demo Mode Active</AlertTitle>
+          <AlertDescription className="text-primary/80">
+            Real file uploads are currently restricted. Using high-quality sample masterpieces (Preview & Master) for demonstration.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="relative h-80 border-2 border-dashed border-border/50 rounded-3xl flex flex-col items-center justify-center bg-card/30 group hover:border-primary/50 transition-all">
+          <div className={cn(
+            "relative h-80 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center transition-all",
+            isOverLimit ? "border-destructive/30 bg-destructive/5 cursor-not-allowed" : "border-border/50 bg-card/30 group hover:border-primary/50 cursor-pointer"
+          )}>
             <input 
               type="file" 
               multiple 
               accept="image/*"
-              className="absolute inset-0 opacity-0 cursor-pointer" 
+              className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" 
               onChange={handleFileChange}
-              disabled={isUploading}
+              disabled={isUploading || isOverLimit}
             />
-            <div className="p-6 rounded-full bg-primary/10 mb-4 group-hover:scale-110 transition-transform">
-              <Upload className="w-10 h-10 text-primary" />
+            <div className={cn(
+              "p-6 rounded-full mb-4 transition-transform",
+              isOverLimit ? "bg-destructive/10" : "bg-primary/10 group-hover:scale-110"
+            )}>
+              <Upload className={cn("w-10 h-10", isOverLimit ? "text-destructive" : "text-primary")} />
             </div>
-            <p className="text-lg font-headline font-bold">Select Photos</p>
+            <p className="text-lg font-headline font-bold">
+              {isOverLimit ? "Limit Reached" : "Select Photos"}
+            </p>
             <p className="text-sm text-muted-foreground mt-2 font-mono italic">Studio Telemetry Active.</p>
           </div>
 
           <div className="flex justify-end gap-4">
             <Button variant="ghost" className="rounded-full px-8" onClick={() => setFiles([])} disabled={isUploading}>Clear Queue</Button>
             <Button 
-              className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-10 h-12 font-bold shadow-lg shadow-primary/20 min-w-[220px]"
+              className={cn(
+                "rounded-full px-10 h-12 font-bold shadow-lg min-w-[220px]",
+                isOverLimit ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
+              )}
               onClick={startDemoUpload}
-              disabled={files.length === 0 || isUploading}
+              disabled={files.length === 0 || isUploading || isOverLimit}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
               {isUploading ? 'Finalizing...' : 'Deliver Gallery'}
