@@ -36,6 +36,7 @@ export default function GalleryUploadPage() {
   
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDone, setIsDone] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -73,6 +74,7 @@ export default function GalleryUploadPage() {
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
+      setIsDone(false);
       const newFiles: FileItem[] = Array.from(e.target.files).map(f => ({
         id: Math.random().toString(36).substr(2, 9),
         file: f,
@@ -161,6 +163,7 @@ export default function GalleryUploadPage() {
             : f
         ));
         toast({ title: "Delivery Complete", description: `${uploadedItems.length} masterpieces delivered to cloud.` });
+        setIsDone(true);
       })
       .catch(async (err: any) => {
         setFiles(prev => prev.map(f => 
@@ -268,8 +271,10 @@ export default function GalleryUploadPage() {
             <p className="text-sm text-muted-foreground mt-2 font-mono italic">Studio Telemetry Active.</p>
           </div>
 
-          <div className="flex justify-end gap-4">
-            <Button variant="ghost" className="rounded-full px-8" onClick={() => setFiles([])} disabled={isUploading}>Clear Queue</Button>
+          <div className="flex flex-col sm:flex-row justify-end gap-4">
+            {!isDone && (
+              <Button variant="ghost" className="rounded-full px-8 h-12" onClick={() => setFiles([])} disabled={isUploading}>Clear Queue</Button>
+            )}
             <Button 
               className={cn(
                 "rounded-full px-10 h-12 font-bold shadow-lg min-w-[220px]",
@@ -279,8 +284,17 @@ export default function GalleryUploadPage() {
               disabled={files.length === 0 || isUploading || isOverLimit}
             >
               {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              {isUploading ? 'Finalizing...' : 'Deliver Gallery'}
+              {isUploading ? 'Finalizing...' : isDone ? 'Deliver More' : 'Deliver Gallery'}
             </Button>
+
+            {isDone && (
+              <Link href={`/events/${id}/manage`} className="w-full sm:w-auto">
+                <Button className="w-full sm:w-auto rounded-full font-bold gap-2 px-10 h-12 bg-white text-black hover:bg-gray-100 shadow-xl animate-in fade-in slide-in-from-left-4 duration-500">
+                  Continue
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -344,12 +358,6 @@ export default function GalleryUploadPage() {
           <ShieldCheck className="w-4 h-4 text-primary" />
           <span>Encrypted Delivery Channel Active</span>
         </div>
-        <Link href={`/events/${id}/manage`}>
-          <Button variant="outline" className="rounded-full font-bold gap-2 px-8 h-12 border-primary text-primary hover:bg-primary/5">
-            Continue
-            <ArrowRight className="w-4 h-4" />
-          </Button>
-        </Link>
       </div>
     </div>
   );
