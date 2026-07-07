@@ -14,7 +14,8 @@ import {
   ShieldAlert,
   Globe,
   Clock,
-  ArrowLeft
+  ArrowLeft,
+  Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -38,6 +39,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 // Memoized Gallery Item to prevent unnecessary re-renders in large lists
 const GalleryItem = memo(({ 
@@ -372,10 +380,47 @@ export default function ClientGalleryPage() {
           <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight">{gallery.title}</h1>
           
           {gallery.description && (
-            <div className="max-w-2xl mx-auto mb-10 px-4">
-              <p className="text-white/70 text-sm md:text-base leading-relaxed italic font-light">
-                {gallery.description}
-              </p>
+            <div className="max-w-md mx-auto mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl group hover:border-primary/20 transition-all">
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                      <Mail className="w-6 h-6" />
+                    </div>
+                    <div className="text-center space-y-1">
+                       <h3 className="font-headline font-bold text-xl text-white">Message from Photographer</h3>
+                       <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">A personal message has been left for you</p>
+                    </div>
+                    
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button className="rounded-full px-10 h-12 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm shadow-xl shadow-primary/10 mt-2">
+                          Read Message
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="bg-card border-border/50 rounded-[2.5rem] max-w-lg p-10">
+                        <DialogHeader>
+                          <div className="flex items-center gap-4 mb-6">
+                             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                               <Mail className="w-6 h-6" />
+                             </div>
+                             <div>
+                               <DialogTitle className="text-3xl font-headline font-bold">A Personal Note</DialogTitle>
+                               <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mt-1">Direct from the studio</p>
+                             </div>
+                          </div>
+                        </DialogHeader>
+                        <div className="max-h-[50vh] overflow-y-auto pr-4 custom-scrollbar">
+                           <div className="relative">
+                             <div className="absolute -left-4 top-0 bottom-0 w-1 bg-primary/20 rounded-full" />
+                             <p className="text-white/80 leading-relaxed whitespace-pre-wrap italic text-lg pl-2">
+                               {gallery.description}
+                             </p>
+                           </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+               </div>
             </div>
           )}
 
