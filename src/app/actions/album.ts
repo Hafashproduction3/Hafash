@@ -17,6 +17,15 @@ export async function resolveAlbumByToken(token: string) {
     };
   }
 
+  if (!adminDb) {
+    return {
+      __debug: true,
+      stage: "INIT_ERROR",
+      error: "Firebase Admin is not initialized. Please ensure FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL environment variables are set.",
+      token
+    };
+  }
+
   try {
     // Perform the high-privilege lookup
     const snapshot = await adminDb
@@ -46,7 +55,6 @@ export async function resolveAlbumByToken(token: string) {
     return {
       id: doc.id,
       ...data,
-      // Ensure we don't leak internal flags if not needed, but keep data intact for UI
     };
 
   } catch (error: any) {
