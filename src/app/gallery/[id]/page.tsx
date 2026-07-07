@@ -207,7 +207,7 @@ export default function ClientGalleryPage() {
     );
     const updateData = { items: updatedItems };
 
-    updateDoc(gRef, updatedItems)
+    updateDoc(gRef, { items: updatedItems })
       .then(() => {
         toast({ title: isCurrentlyFavorite ? "Removed" : "Favorited" });
       })
@@ -367,12 +367,12 @@ export default function ClientGalleryPage() {
                 alt="Studio Logo" 
               />
             )}
-            <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase mb-6">
+            <span className="block text-sm font-bold tracking-[0.5em] text-primary uppercase mb-4 relative z-20">
               {studioName}
             </span>
             <div className="flex items-center justify-center gap-1 mb-2">
               <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
-              <span className="text-4xl md:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
+              <span className="text-4xl md:text-9xl font-headline font-bold text-white italic leading-none">Hafash.pk</span>
             </div>
           </div>
           <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight">{gallery.title}</h1>
