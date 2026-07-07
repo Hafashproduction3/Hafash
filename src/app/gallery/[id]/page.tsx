@@ -45,6 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 
 // Memoized Gallery Item to prevent unnecessary re-renders in large lists
@@ -256,8 +257,6 @@ export default function ClientGalleryPage() {
     let failedCount = 0;
 
     try {
-      // Memory Optimization: Process sequentially to avoid browser tab crashes
-      // with massive concurrent blob storage.
       for (let i = 0; i < totalItems; i++) {
         const item = items[i];
         setPreparationStep(`Fetching Masterpieces: ${i + 1} / ${totalItems}`);
@@ -284,7 +283,7 @@ export default function ClientGalleryPage() {
       setPreparationStep('Compiling Secure Package...');
       const content = await zip.generateAsync({ 
         type: 'blob',
-        compression: "STORE", // Stream to blob for speed, let the browser handle final writes
+        compression: "STORE",
       });
       
       const zipName = `${gallery.title || 'gallery'}.zip`.replace(/[^a-z0-9.]/gi, '_');
@@ -397,25 +396,33 @@ export default function ClientGalleryPage() {
                           Read Message
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="bg-background border-border/50 rounded-[2.5rem] max-w-lg p-10 shadow-2xl overflow-hidden ring-0 backdrop-blur-none !backdrop-filter-none data-[state=open]:zoom-in-100 [transform:translateZ(0)]">
+                      <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-lg bg-card border-border/50 rounded-[2.5rem] p-10 md:p-14 shadow-2xl overflow-hidden ring-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-100 [transform:translateZ(0)]">
                         <DialogHeader>
-                          <div className="flex items-center gap-4 mb-6">
-                             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                               <Mail className="w-6 h-6" />
+                          <div className="flex flex-col items-center text-center gap-4 mb-8">
+                             <div className="h-16 w-16 rounded-3xl bg-primary/10 flex items-center justify-center text-primary">
+                               <Mail className="w-8 h-8" />
                              </div>
-                             <div>
+                             <div className="space-y-1">
                                <DialogTitle className="text-3xl font-headline font-bold">A Personal Note</DialogTitle>
-                               <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mt-1">Direct from the studio</p>
+                               <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Direct from the studio</p>
                              </div>
                           </div>
                         </DialogHeader>
-                        <div className="max-h-[50vh] overflow-y-auto overflow-x-hidden pr-4 custom-scrollbar">
-                           <div className="relative">
-                             <div className="absolute -left-4 top-0 bottom-0 w-1 bg-primary/20 rounded-full" />
-                             <p className="text-white leading-relaxed whitespace-pre-wrap break-words italic text-lg pl-2">
+                        
+                        <div className="max-h-[45vh] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
+                           <div className="relative text-center">
+                             <p className="text-foreground leading-relaxed whitespace-pre-wrap break-words italic text-xl px-2">
                                {gallery.description}
                              </p>
                            </div>
+                        </div>
+
+                        <div className="mt-10 flex justify-center">
+                          <DialogClose asChild>
+                            <Button variant="outline" className="rounded-full px-10 h-12 border-border/50 hover:bg-primary/5 hover:text-primary transition-all font-bold">
+                              Close Message
+                            </Button>
+                          </DialogClose>
                         </div>
                       </DialogContent>
                     </Dialog>
