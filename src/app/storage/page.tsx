@@ -1,9 +1,22 @@
+
 "use client";
 
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
-import { HardDrive, Check, Zap, Loader2, ShieldCheck, Download, Activity, ArrowLeft, ImageIcon, FolderOpen } from 'lucide-react';
+import { 
+  HardDrive, 
+  Check, 
+  Zap, 
+  Loader2, 
+  ShieldCheck, 
+  Download, 
+  Activity, 
+  ArrowLeft, 
+  ImageIcon, 
+  FolderOpen,
+  ArrowUpCircle 
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN, calculateUsageGb } from '@/lib/plans';
@@ -57,6 +70,13 @@ export default function StoragePage() {
     return galleries.reduce((acc, g) => acc + (Array.isArray(g.items) ? g.items.length : 0), 0);
   }, [galleries]);
 
+  // Determine logical next plan for the quick upgrade button
+  const nextPlanId = useMemo(() => {
+    if (currentPlan.id === 'starter') return 'pro';
+    if (currentPlan.id === 'pro') return 'business';
+    return null;
+  }, [currentPlan.id]);
+
   if (authLoading || profileLoading || (galleriesLoading && !galleries)) {
     return (
       <div className="flex justify-center items-center min-h-[50vh]">
@@ -87,12 +107,21 @@ export default function StoragePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Usage Card */}
-        <Card className="lg:col-span-2 bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+        <Card className="lg:col-span-2 bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-xl">
           <CardHeader className="bg-background/30 border-b border-border/30 p-8">
-            <CardTitle className="flex items-center gap-4 text-2xl font-headline font-bold">
-              <HardDrive className="w-8 h-8 text-primary" />
-              Current Utilization
-            </CardTitle>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <CardTitle className="flex items-center gap-4 text-2xl font-headline font-bold">
+                <HardDrive className="w-8 h-8 text-primary" />
+                Current Utilization
+              </CardTitle>
+              {nextPlanId && (
+                <Link href={`/checkout/${nextPlanId}`}>
+                  <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold rounded-xl gap-2 h-12 px-6 shadow-lg shadow-primary/20">
+                    <ArrowUpCircle className="w-4 h-4" /> Upgrade Workspace
+                  </Button>
+                </Link>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="p-10 space-y-10">
             <div className="flex flex-col md:flex-row items-center justify-between gap-8">
