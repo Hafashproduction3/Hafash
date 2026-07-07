@@ -409,10 +409,10 @@ export default function ClientGalleryPage() {
                              </div>
                           </div>
                         </DialogHeader>
-                        <div className="max-h-[50vh] overflow-y-auto pr-4 custom-scrollbar">
+                        <div className="max-h-[50vh] overflow-y-auto overflow-x-hidden pr-4 custom-scrollbar">
                            <div className="relative">
                              <div className="absolute -left-4 top-0 bottom-0 w-1 bg-primary/20 rounded-full" />
-                             <p className="text-white/80 leading-relaxed whitespace-pre-wrap italic text-lg pl-2">
+                             <p className="text-white/80 leading-relaxed whitespace-pre-wrap break-words italic text-lg pl-2">
                                {gallery.description}
                              </p>
                            </div>
