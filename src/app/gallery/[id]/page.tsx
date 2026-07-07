@@ -207,7 +207,7 @@ export default function ClientGalleryPage() {
     );
     const updateData = { items: updatedItems };
 
-    updateDoc(gRef, updateData)
+    updateDoc(gRef, updatedItems)
       .then(() => {
         toast({ title: isCurrentlyFavorite ? "Removed" : "Favorited" });
       })
@@ -396,7 +396,7 @@ export default function ClientGalleryPage() {
                           Read Message
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-lg bg-card border-border/50 rounded-[2.5rem] p-10 md:p-14 shadow-2xl overflow-hidden ring-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-100 [transform:translateZ(0)]">
+                      <DialogContent className="w-[95vw] max-w-xl bg-card border-border/50 rounded-[2.5rem] p-8 md:p-14 shadow-2xl overflow-hidden ring-0">
                         <DialogHeader>
                           <div className="flex flex-col items-center text-center gap-4 mb-8">
                              <div className="h-16 w-16 rounded-3xl bg-primary/10 flex items-center justify-center text-primary">
@@ -409,7 +409,7 @@ export default function ClientGalleryPage() {
                           </div>
                         </DialogHeader>
                         
-                        <div className="max-h-[45vh] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
+                        <div className="max-h-[50vh] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
                            <div className="relative text-center">
                              <p className="text-foreground leading-relaxed whitespace-pre-wrap break-words italic text-xl px-2">
                                {gallery.description}
