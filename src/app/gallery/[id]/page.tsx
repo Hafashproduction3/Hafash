@@ -370,6 +370,15 @@ export default function ClientGalleryPage() {
             <span className="text-4xl md:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
           </div>
           <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight">{gallery.title}</h1>
+          
+          {gallery.description && (
+            <div className="max-w-2xl mx-auto mb-10 px-4">
+              <p className="text-white/70 text-sm md:text-base leading-relaxed italic font-light">
+                {gallery.description}
+              </p>
+            </div>
+          )}
+
           <div className="space-y-4">
             <p className="text-xl italic text-primary font-headline">{gallery.clientName}</p>
             <div className="flex items-center justify-center gap-4 text-white uppercase tracking-[0.3em] text-[10px] font-bold">
