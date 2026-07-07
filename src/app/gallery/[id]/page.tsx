@@ -356,25 +356,24 @@ export default function ClientGalleryPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
         
-        <div className="absolute top-12 left-0 right-0 flex flex-col items-center">
-          {studioLogo && (
-            <Image 
-              src={studioLogo} 
-              width={200} 
-              height={80} 
-              className="h-16 md:h-20 w-auto mb-4 object-contain" 
-              alt="Studio Logo" 
-            />
-          )}
-          <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase">
-            {studioName}
-          </span>
-        </div>
-
         <div className="relative z-10 text-center px-6 max-w-5xl">
-          <div className="flex items-center justify-center gap-1 mb-6">
-            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
-            <span className="text-4xl md:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
+          <div className="flex flex-col items-center mb-6">
+            {studioLogo && (
+              <Image 
+                src={studioLogo} 
+                width={200} 
+                height={80} 
+                className="h-16 md:h-20 w-auto mb-4 object-contain" 
+                alt="Studio Logo" 
+              />
+            )}
+            <span className="text-sm font-bold tracking-[0.5em] text-primary uppercase mb-6">
+              {studioName}
+            </span>
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
+              <span className="text-4xl md:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
+            </div>
           </div>
           <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight">{gallery.title}</h1>
           
