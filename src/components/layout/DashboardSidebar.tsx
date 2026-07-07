@@ -14,7 +14,8 @@ import {
   LogOut,
   Package,
   Users,
-  CreditCard
+  CreditCard,
+  MessageSquare
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ const navItems = [
   { icon: PlusCircle, label: 'Create Event', href: '/events/create' },
   { icon: Users, label: 'Clients', href: '/clients' },
   { icon: CreditCard, label: 'Payments', href: '/payments' },
+  { icon: MessageSquare, label: 'Communications', href: '/communications' },
   { icon: Package, label: 'Album Selections', href: '/album-selections' },
   { icon: Heart, label: 'Workflow Portal', href: '/favorites' },
   { icon: HardDrive, label: 'Storage', href: '/storage' },
