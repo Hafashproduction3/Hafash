@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth, useUser } from '@/firebase';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { Lock, User, Loader2, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
@@ -60,6 +61,36 @@ export default function LoginPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({
+        variant: "destructive",
+        title: "Email Required",
+        description: "Please enter your email address first to reset your password.",
+      });
+      return;
+    }
+
+    if (!auth) return;
+
+    setResetLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast({
+        title: "Reset Email Sent",
+        description: "Password reset email has been sent. Please check your inbox.",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Reset Failed",
+        description: error.message || "Failed to send reset email. Please verify your email address.",
+      });
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -112,7 +143,14 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <Label htmlFor="password">Password</Label>
-                <Link href="#" className="text-xs text-primary hover:underline">Forgot password?</Link>
+                <button 
+                  type="button" 
+                  onClick={handleForgotPassword}
+                  disabled={resetLoading}
+                  className="text-xs text-primary font-bold hover:underline disabled:opacity-50"
+                >
+                  {resetLoading ? "Sending..." : "Forgot password?"}
+                </button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
