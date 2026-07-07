@@ -381,7 +381,7 @@ export default function ClientGalleryPage() {
           
           {gallery.description && (
             <div className="max-w-md mx-auto mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-               <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[2.5rem] p-8 shadow-2xl group hover:border-primary/20 transition-all">
+               <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl group hover:border-primary/20 transition-all">
                   <div className="flex flex-col items-center gap-4">
                     <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
                       <Mail className="w-6 h-6" />
@@ -397,7 +397,7 @@ export default function ClientGalleryPage() {
                           Read Message
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="bg-background border-border/50 rounded-[2.5rem] max-w-lg p-10 shadow-2xl overflow-hidden ring-1 ring-white/5 backdrop-blur-none !backdrop-filter-none">
+                      <DialogContent className="bg-background border-border/50 rounded-[2.5rem] max-w-lg p-10 shadow-2xl overflow-hidden ring-0 backdrop-blur-none !backdrop-filter-none data-[state=open]:zoom-in-100 [transform:translateZ(0)]">
                         <DialogHeader>
                           <div className="flex items-center gap-4 mb-6">
                              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
