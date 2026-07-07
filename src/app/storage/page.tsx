@@ -70,11 +70,9 @@ export default function StoragePage() {
     return galleries.reduce((acc, g) => acc + (Array.isArray(g.items) ? g.items.length : 0), 0);
   }, [galleries]);
 
-  // Determine logical next plan for the quick upgrade button
-  const nextPlanId = useMemo(() => {
-    if (currentPlan.id === 'starter') return 'pro';
-    if (currentPlan.id === 'pro') return 'business';
-    return null;
+  // Determine if user can upgrade (not on the highest plan)
+  const canUpgrade = useMemo(() => {
+    return currentPlan.id !== 'business';
   }, [currentPlan.id]);
 
   if (authLoading || profileLoading || (galleriesLoading && !galleries)) {
@@ -114,8 +112,8 @@ export default function StoragePage() {
                 <HardDrive className="w-8 h-8 text-primary" />
                 Current Utilization
               </CardTitle>
-              {nextPlanId && (
-                <Link href={`/checkout/${nextPlanId}`}>
+              {canUpgrade && (
+                <Link href="#plans-section">
                   <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold rounded-xl gap-2 h-12 px-6 shadow-lg shadow-primary/20">
                     <ArrowUpCircle className="w-4 h-4" /> Upgrade Workspace
                   </Button>
@@ -212,7 +210,7 @@ export default function StoragePage() {
       </div>
 
       {/* Subscription Plans Section */}
-      <div className="text-center space-y-4 pt-10">
+      <div id="plans-section" className="text-center space-y-4 pt-10">
         <h2 className="text-4xl font-headline font-bold">Premium Expansion Plans</h2>
         <p className="text-muted-foreground">Unlock higher delivery thresholds and professional studio branding.</p>
       </div>
@@ -224,8 +222,13 @@ export default function StoragePage() {
           
           return (
             <Card key={plan.id} className={`relative overflow-hidden border-border/50 bg-card transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 rounded-[2.5rem] ${plan.id === 'pro' ? 'ring-2 ring-primary scale-105 z-10' : ''}`}>
+              {isCurrent && (
+                <div className="absolute top-0 left-0 bg-green-500 text-white text-[10px] uppercase font-bold px-6 py-2 rounded-br-3xl tracking-[0.2em] z-20">
+                  Current Plan
+                </div>
+              )}
               {plan.id === 'pro' && (
-                <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-6 py-2 rounded-bl-3xl tracking-[0.2em]">
+                <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-6 py-2 rounded-bl-3xl tracking-[0.2em] z-20">
                   Most Popular
                 </div>
               )}
