@@ -20,7 +20,8 @@ import {
   AlertTriangle,
   Globe,
   Lock,
-  Zap
+  Zap,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,6 +87,10 @@ export default function SettingsPage() {
       setIsDirty(false);
     }
   }, [profile]);
+
+  const isCustomBrandingActive = useMemo(() => {
+    return profile?.planId && profile.planId !== 'starter';
+  }, [profile?.planId]);
 
   // Prevent accidental navigation
   useEffect(() => {
@@ -217,8 +222,23 @@ export default function SettingsPage() {
             <div className="lg:col-span-2 space-y-8">
               <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
                 <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
-                  <CardTitle className="text-xl font-headline font-bold">Studio Identity</CardTitle>
-                  <CardDescription className="text-xs lg:text-sm">Professional branding used across client-facing galleries.</CardDescription>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle className="text-xl font-headline font-bold">Studio Identity</CardTitle>
+                      <CardDescription className="text-xs lg:text-sm">Professional branding used across client-facing galleries.</CardDescription>
+                    </div>
+                    {isCustomBrandingActive ? (
+                      <Badge className="bg-primary/20 text-primary border-primary/30 gap-1.5 py-1 px-3">
+                        <Sparkles className="w-3 h-3" /> Custom Branding Active
+                      </Badge>
+                    ) : (
+                      <Link href="/storage">
+                        <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all cursor-pointer py-1 px-3">
+                          Upgrade to Unlock Branding
+                        </Badge>
+                      </Link>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="p-6 lg:p-8 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -246,13 +266,13 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Photographer Name</Label>
+                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Photographer Tagline</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-4 w-4 h-4 text-primary" />
                         <Input 
                           value={formData.photographerName} 
                           onChange={(e) => updateField('photographerName', e.target.value)}
-                          placeholder="Your Name" 
+                          placeholder="Professional Photographer" 
                           className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
                         />
                       </div>
@@ -270,18 +290,27 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Studio Logo URL</Label>
-                    <div className="relative">
+                  
+                  <div className="space-y-4 pt-4 border-t border-border/20">
+                    <div className="flex items-center justify-between">
+                       <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Studio Logo URL</Label>
+                       {!isCustomBrandingActive && <Badge variant="secondary" className="text-[8px] h-4">Premium</Badge>}
+                    </div>
+                    <div className={cn("relative transition-opacity", !isCustomBrandingActive && "opacity-50 pointer-events-none")}>
                       <ImageIcon className="absolute left-3 top-4 w-4 h-4 text-primary" />
                       <Input 
                         value={formData.studioLogo} 
                         onChange={(e) => updateField('studioLogo', e.target.value)}
                         placeholder="https://your-domain.com/logo.png" 
                         className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                        disabled={!isCustomBrandingActive}
                       />
                     </div>
-                    <p className="text-[9px] lg:text-[10px] text-muted-foreground italic ml-1">Recommended: 400x120px PNG with transparent background.</p>
+                    <p className="text-[9px] lg:text-[10px] text-muted-foreground italic ml-1">
+                      {isCustomBrandingActive 
+                        ? "Recommended: 400x120px PNG with transparent background. This logo will appear on your public galleries."
+                        : "Custom logo display is a Professional benefit. Upgrade your plan to apply your branding."}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -293,7 +322,7 @@ export default function SettingsPage() {
                   <CardTitle className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Live Branding Preview</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center text-center p-8 bg-background/40">
-                  {formData.studioLogo ? (
+                  {formData.studioLogo && isCustomBrandingActive ? (
                     <img src={formData.studioLogo} className="h-12 lg:h-16 w-auto mb-6 object-contain" alt="Logo Preview" />
                   ) : (
                     <div className="h-14 lg:h-16 w-14 lg:w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6">
@@ -302,6 +331,16 @@ export default function SettingsPage() {
                   )}
                   <h3 className="text-xl lg:text-2xl font-headline font-bold leading-tight">{formData.studioName || "Untitled Studio"}</h3>
                   <p className="text-xs lg:text-sm text-primary italic font-headline mt-1">{formData.photographerName || "Professional Photographer"}</p>
+                  
+                  {!isCustomBrandingActive && (
+                    <div className="mt-8 pt-6 border-t border-border/20 w-full">
+                       <p className="text-[8px] uppercase tracking-widest text-muted-foreground mb-3">Gallery Fallback</p>
+                       <div className="flex items-center justify-center gap-2 opacity-30">
+                          <img src="/hafash-logo.png" className="h-6 w-auto grayscale" alt="Hafash" />
+                          <span className="font-headline font-bold text-lg italic">Hafash.pk</span>
+                       </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

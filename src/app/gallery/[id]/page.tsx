@@ -174,21 +174,24 @@ export default function ClientGalleryPage() {
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
   const photographerRef = useMemo(() => {
-    if (!firestore || !gallery?.userId || !user || user.uid !== gallery.userId) return null;
+    if (!firestore || !gallery?.userId) return null;
     return doc(firestore, 'users', gallery.userId);
-  }, [firestore, gallery?.userId, user?.uid]);
+  }, [firestore, gallery?.userId]);
 
   const { data: profile } = useDoc(photographerRef);
-
-  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
-  const studioLogo = gallery?.studioLogo || profile?.studioLogo;
-  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
 
   const photographerPlan = useMemo(() => {
     const rawPlanId = profile?.planId || 'starter';
     const planId = (typeof rawPlanId === 'string' ? rawPlanId.toLowerCase() : 'starter') as PlanId;
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
+
+  const isCustomBrandingActive = photographerPlan.id !== 'starter';
+
+  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
+  const studioLogo = gallery?.studioLogo || profile?.studioLogo;
+  const tagline = profile?.photographerName;
+  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
 
   const canDownload = useMemo(() => {
     return gallery ? (gallery.isLocked === false && gallery.isPaid === true) : false;
@@ -351,24 +354,37 @@ export default function ClientGalleryPage() {
         
         <div className="relative z-10 text-center px-6 max-w-5xl">
           <div className="flex flex-col items-center mb-6">
-            {studioLogo && (
-              <Image 
-                src={studioLogo} 
-                width={200} 
-                height={80} 
-                className="h-12 lg:h-16 w-auto mb-4 object-contain" 
-                alt="Studio Logo" 
-              />
+            {/* Custom Branding Header (Premium Plans) */}
+            {isCustomBrandingActive ? (
+              <div className="flex flex-col items-center mb-8">
+                {studioLogo ? (
+                  <Image 
+                    src={studioLogo} 
+                    width={240} 
+                    height={100} 
+                    className="h-16 lg:h-20 w-auto mb-6 object-contain" 
+                    alt="Studio Logo" 
+                  />
+                ) : (
+                  <span className="text-3xl lg:text-5xl font-headline font-bold text-white uppercase tracking-tighter mb-4">{studioName}</span>
+                )}
+                {tagline && (
+                  <span className="text-[10px] lg:text-xs font-bold tracking-[0.4em] text-primary uppercase">{tagline}</span>
+                )}
+              </div>
+            ) : (
+              /* Hafash Default Header (Starter Plan) */
+              <div className="flex flex-col items-center mb-8">
+                <div className="flex items-center justify-center gap-1 mb-2">
+                  <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[40px] lg:h-[70px] w-auto" />
+                  <span className="text-3xl sm:text-5xl lg:text-9xl font-headline font-bold text-white italic leading-none">Hafash.pk</span>
+                </div>
+                <span className="text-[9px] lg:text-[10px] font-bold tracking-[0.5em] text-primary/70 uppercase">LUXURY GALLERY DELIVERY</span>
+              </div>
             )}
-            <span className="block text-[10px] lg:text-sm font-bold tracking-[0.5em] text-primary uppercase mb-4 relative z-20 leading-none">
-              {studioName}
-            </span>
-            <div className="flex items-center justify-center gap-1 mb-2">
-              <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[40px] lg:h-[70px] w-auto" />
-              <span className="text-3xl sm:text-5xl lg:text-9xl font-headline font-bold text-white italic leading-none">Hafash.pk</span>
-            </div>
           </div>
-          <h1 className="text-2xl sm:text-4xl lg:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight leading-tight">{gallery.title}</h1>
+
+          <h1 className="text-3xl sm:text-4xl lg:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight leading-tight">{gallery.title}</h1>
           
           {gallery.description && (
             <div className="max-w-sm lg:max-w-md mx-auto mb-10 lg:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -490,6 +506,25 @@ export default function ClientGalleryPage() {
           ))}
         </div>
       </div>
+
+      {/* Luxury Footer Branding */}
+      <footer className="mt-20 pt-16 border-t border-border/20 px-6">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="flex flex-col items-center gap-6">
+            {isCustomBrandingActive && (
+              <div className="space-y-2">
+                <h4 className="text-xl font-headline font-bold">{studioName}</h4>
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Original Coverage & Fulfillment</p>
+              </div>
+            )}
+            
+            <div className="flex items-center gap-3 opacity-40 hover:opacity-100 transition-opacity duration-500 mt-4">
+              <img src="/hafash-logo.png" alt="Hafash" className="h-6 w-auto grayscale" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.5em] text-muted-foreground">Powered by Hafash.pk</span>
+            </div>
+          </div>
+        </div>
+      </footer>
 
       {selectedImage && (
         <div className="fixed inset-0 z-[100] bg-background/95 flex items-center justify-center p-4 lg:p-6" onClick={() => setSelectedImage(null)}>
