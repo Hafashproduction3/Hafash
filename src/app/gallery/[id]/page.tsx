@@ -397,7 +397,7 @@ export default function ClientGalleryPage() {
                           Read Message
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="bg-background border-border/50 rounded-[2.5rem] max-w-lg p-10 shadow-2xl overflow-hidden ring-1 ring-white/5">
+                      <DialogContent className="bg-background border-border/50 rounded-[2.5rem] max-w-lg p-10 shadow-2xl overflow-hidden ring-1 ring-white/5 backdrop-blur-none !backdrop-filter-none">
                         <DialogHeader>
                           <div className="flex items-center gap-4 mb-6">
                              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
