@@ -325,7 +325,7 @@ export default function ClientGalleryPage() {
           <ShieldAlert className="w-12 h-12 text-destructive" />
         </div>
         <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Unavailable</h1>
-        <p className="text-muted-foreground mb-8 max-w-sm">
+        <p className="text-muted-foreground mb-8 max-sm">
           The requested gallery could not be found or is currently restricted by the studio.
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
@@ -397,7 +397,7 @@ export default function ClientGalleryPage() {
                           Read Message
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="bg-card border-border/50 rounded-[2.5rem] max-w-lg p-10">
+                      <DialogContent className="bg-background border-border/50 rounded-[2.5rem] max-w-lg p-10 shadow-2xl overflow-hidden ring-1 ring-white/5">
                         <DialogHeader>
                           <div className="flex items-center gap-4 mb-6">
                              <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
@@ -412,7 +412,7 @@ export default function ClientGalleryPage() {
                         <div className="max-h-[50vh] overflow-y-auto overflow-x-hidden pr-4 custom-scrollbar">
                            <div className="relative">
                              <div className="absolute -left-4 top-0 bottom-0 w-1 bg-primary/20 rounded-full" />
-                             <p className="text-white/80 leading-relaxed whitespace-pre-wrap break-words italic text-lg pl-2">
+                             <p className="text-white leading-relaxed whitespace-pre-wrap break-words italic text-lg pl-2">
                                {gallery.description}
                              </p>
                            </div>
