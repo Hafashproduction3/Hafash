@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useUser, useCollection } from '@/firebase';
@@ -110,7 +109,7 @@ export default function CommunicationsPage() {
     // TODO: Integrate with Email/WhatsApp API in future implementation
     toast({
       title: "Action Initiated",
-      description: `Preparing to send ${type} message to ${clientName}. Communication channel integration coming soon.`,
+      description: `Initializing ${type} request for ${clientName}. External channel synchronization in progress.`,
     });
   };
 

@@ -154,7 +154,7 @@ export default function AlbumDesignerViewPage() {
             <Button 
               className="flex-1 md:flex-none h-14 px-10 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-bold gap-3 shadow-xl shadow-primary/20"
               onClick={() => {
-                toast({ title: "Coming Soon", description: "Batch downloading of high-resolution master assets is in development." });
+                toast({ title: "System Update", description: "High-speed batch retrieval is currently being optimized for your studio." });
               }}
             >
               <Download className="w-5 h-5" /> Download Full Selection

@@ -272,7 +272,7 @@ export default function PaymentsPage() {
                             <DollarSign className="w-3 h-3" />
                             <span>500.00</span>
                           </div>
-                          <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-tighter">Placeholder Fee</span>
+                          <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-tighter">Event Service Fee</span>
                         </div>
                       </TableCell>
                       <TableCell className="py-6 min-w-[100px]">

@@ -434,7 +434,7 @@ export default function SettingsPage() {
                   </div>
                   
                   <div className="p-4 bg-primary/5 border border-dashed border-primary/20 rounded-2xl">
-                     <p className="text-[9px] lg:text-[10px] text-primary font-bold uppercase tracking-widest mb-1">Architectural Note</p>
+                     <p className="text-[9px] lg:text-[10px] text-primary font-bold uppercase tracking-widest mb-1">System Configuration Note</p>
                      <p className="text-[9px] lg:text-[10px] text-muted-foreground leading-relaxed italic">
                        Changing these defaults will not affect existing galleries. These settings only apply to future luxury events.
                      </p>

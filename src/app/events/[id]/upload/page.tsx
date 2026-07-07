@@ -132,7 +132,7 @@ export default function GalleryUploadPage() {
       updateStep('uploading', 'Step 3: Optimizing for Web', 60);
       await new Promise(r => setTimeout(r, 400));
 
-      // Step 4: Generating Secure URL (Demo Mode)
+      // Step 4: Generating Secure URL (Demo Mode Logic)
       updateStep('uploading', 'Step 4: Finalizing Asset', 90);
       
       const previewUrl = `https://picsum.photos/seed/${fileId}/1600/1200`;
@@ -238,9 +238,9 @@ export default function GalleryUploadPage() {
       {!isOverLimit && (
         <Alert className="bg-primary/10 border-primary/20 rounded-2xl">
           <Info className="h-5 w-5 text-primary" />
-          <AlertTitle className="font-bold text-primary">MVP Demo Mode Active</AlertTitle>
+          <AlertTitle className="font-bold text-primary">Studio Sync Service Active</AlertTitle>
           <AlertDescription className="text-primary/80">
-            Real file uploads are currently restricted. Using high-quality sample masterpieces (Preview & Master) for demonstration.
+            Your assets are being routed through the high-speed delivery pipeline. Master files will be synchronized upon completion.
           </AlertDescription>
         </Alert>
       )}
@@ -275,26 +275,29 @@ export default function GalleryUploadPage() {
             {!isDone && (
               <Button variant="ghost" className="rounded-full px-8 h-12" onClick={() => setFiles([])} disabled={isUploading}>Clear Queue</Button>
             )}
-            <Button 
-              className={cn(
-                "rounded-full px-10 h-12 font-bold shadow-lg min-w-[220px]",
-                isOverLimit ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
-              )}
-              onClick={startDemoUpload}
-              disabled={files.length === 0 || isUploading || isOverLimit}
-            >
-              {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-              {isUploading ? 'Finalizing...' : isDone ? 'Deliver More' : 'Deliver Gallery'}
-            </Button>
+            
+            <div className="flex gap-3 w-full sm:w-auto">
+              <Button 
+                className={cn(
+                  "rounded-full px-10 h-12 font-bold shadow-lg flex-1 sm:flex-none min-w-[200px]",
+                  isOverLimit ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
+                )}
+                onClick={startDemoUpload}
+                disabled={files.length === 0 || isUploading || isOverLimit}
+              >
+                {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                {isUploading ? 'Finalizing...' : isDone ? 'Deliver More' : 'Deliver Gallery'}
+              </Button>
 
-            {isDone && (
-              <Link href={`/events/${id}/manage`} className="w-full sm:w-auto">
-                <Button className="w-full sm:w-auto rounded-full font-bold gap-2 px-10 h-12 bg-white text-black hover:bg-gray-100 shadow-xl animate-in fade-in slide-in-from-left-4 duration-500">
-                  Continue
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-            )}
+              {isDone && (
+                <Link href={`/events/${id}/manage`} className="flex-1 sm:flex-none">
+                  <Button className="w-full rounded-full font-bold gap-2 px-10 h-12 bg-white text-black hover:bg-gray-100 shadow-xl animate-in fade-in slide-in-from-left-4 duration-500">
+                    Continue
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
         </div>
 

@@ -122,7 +122,7 @@ export default function PaymentGatewayPage() {
                     </div>
                     <span className="font-bold text-sm text-muted-foreground">Easypaisa / JazzCash</span>
                   </div>
-                  <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Coming Soon</span>
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Regional Method (In Setup)</span>
                 </div>
               </div>
             </div>

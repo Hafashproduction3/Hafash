@@ -283,7 +283,7 @@ export default function EventManagementPage() {
                       </Label>
                       <p className="text-[10px] text-muted-foreground">Protect unpaid preview assets.</p>
                     </div>
-                    <Switch checked={true} disabled /> {/* Placeholder as requested */}
+                    <Switch checked={true} disabled /> {/* Internal placeholder for future dynamic rendering */}
                   </div>
 
                   <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
@@ -464,7 +464,7 @@ export default function EventManagementPage() {
                   </Button>
                 </div>
                 {!selectionUrl && (
-                  <p className="text-[8px] text-primary font-bold uppercase italic">Generate in Workflow Portal to enable sharing.</p>
+                  <p className="text-[8px] text-primary font-bold uppercase italic">Initialize Designer Workflow to activate secure sharing.</p>
                 )}
               </div>
 
