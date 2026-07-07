@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -66,7 +65,7 @@ const GalleryItem = memo(({
 }) => {
   return (
     <div 
-      className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in" 
+      className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in mb-8" 
       onClick={() => onSelect(item.url)}
     >
       <Image 
@@ -312,7 +311,7 @@ export default function ClientGalleryPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-xs font-bold uppercase tracking-[0.2em] text-primary/50">Resolving Luxury Gallery...</p>
+        <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-primary/50">Resolving Luxury Gallery...</p>
       </div>
     );
   }
@@ -323,8 +322,8 @@ export default function ClientGalleryPage() {
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
           <ShieldAlert className="w-12 h-12 text-destructive" />
         </div>
-        <h1 className="text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Unavailable</h1>
-        <p className="text-muted-foreground mb-8 max-sm">
+        <h1 className="text-2xl lg:text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Unavailable</h1>
+        <p className="text-muted-foreground mb-8 max-w-xs mx-auto">
           The requested gallery could not be found or is currently restricted by the studio.
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
@@ -340,13 +339,13 @@ export default function ClientGalleryPage() {
       <Button 
         variant="ghost" 
         size="icon" 
-        className="fixed top-8 left-8 z-[60] h-12 w-12 rounded-full bg-black/20 backdrop-blur-md text-white border border-white/20 hover:bg-white/10"
+        className="fixed top-4 left-4 lg:top-8 lg:left-8 z-[60] h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-black/20 backdrop-blur-md text-white border border-white/20 hover:bg-white/10"
         onClick={() => router.back()}
       >
-        <ArrowLeft className="w-6 h-6" />
+        <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6" />
       </Button>
 
-      <div className="h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card">
+      <div className="h-[80vh] lg:h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card">
         <Image 
           src={coverImageUrl} 
           fill 
@@ -363,46 +362,46 @@ export default function ClientGalleryPage() {
                 src={studioLogo} 
                 width={200} 
                 height={80} 
-                className="h-16 md:h-20 w-auto mb-4 object-contain" 
+                className="h-12 lg:h-16 w-auto mb-4 object-contain" 
                 alt="Studio Logo" 
               />
             )}
-            <span className="block text-sm font-bold tracking-[0.5em] text-primary uppercase mb-4 relative z-20">
+            <span className="block text-[10px] lg:text-sm font-bold tracking-[0.5em] text-primary uppercase mb-4 relative z-20">
               {studioName}
             </span>
             <div className="flex items-center justify-center gap-1 mb-2">
-              <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
-              <span className="text-4xl md:text-9xl font-headline font-bold text-white italic leading-none">Hafash.pk</span>
+              <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[40px] lg:h-[70px] w-auto" />
+              <span className="text-3xl sm:text-5xl lg:text-9xl font-headline font-bold text-white italic leading-none">Hafash.pk</span>
             </div>
           </div>
-          <h1 className="text-3xl md:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight">{gallery.title}</h1>
+          <h1 className="text-2xl sm:text-4xl lg:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight leading-tight">{gallery.title}</h1>
           
           {gallery.description && (
-            <div className="max-w-md mx-auto mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-               <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl group hover:border-primary/20 transition-all">
+            <div className="max-w-sm lg:max-w-md mx-auto mb-10 lg:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+               <div className="bg-white/5 border border-white/10 rounded-[2rem] lg:rounded-[2.5rem] p-6 lg:p-8 shadow-2xl group hover:border-primary/20 transition-all">
                   <div className="flex flex-col items-center gap-4">
-                    <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                      <Mail className="w-6 h-6" />
+                    <div className="h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                      <Mail className="w-5 h-5 lg:w-6 lg:h-6" />
                     </div>
                     <div className="text-center space-y-1">
-                       <h3 className="font-headline font-bold text-xl text-white">Message from Photographer</h3>
-                       <p className="text-[10px] uppercase tracking-widest text-white/40 font-bold">A personal message has been left for you</p>
+                       <h3 className="font-headline font-bold text-lg lg:text-xl text-white">Message from Photographer</h3>
+                       <p className="text-[9px] lg:text-[10px] uppercase tracking-widest text-white/40 font-bold">A personal message has been left for you</p>
                     </div>
                     
                     <Dialog>
                       <DialogTrigger asChild>
-                        <Button className="rounded-full px-10 h-12 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm shadow-xl shadow-primary/10 mt-2">
+                        <Button className="rounded-full px-8 lg:px-10 h-10 lg:h-12 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs lg:text-sm shadow-xl shadow-primary/10 mt-2">
                           Read Message
                         </Button>
                       </DialogTrigger>
-                      <DialogContent className="w-[95vw] max-w-xl bg-card border-border/50 rounded-[2.5rem] p-8 md:p-14 shadow-2xl overflow-hidden ring-0">
+                      <DialogContent className="w-[95vw] max-w-xl bg-card border-border/50 rounded-[2rem] lg:rounded-[2.5rem] p-6 lg:p-14 shadow-2xl overflow-hidden ring-0">
                         <DialogHeader>
                           <div className="flex flex-col items-center text-center gap-4 mb-8">
-                             <div className="h-16 w-16 rounded-3xl bg-primary/10 flex items-center justify-center text-primary">
-                               <Mail className="w-8 h-8" />
+                             <div className="h-14 lg:h-16 w-14 lg:w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                               <Mail className="w-6 lg:w-8 h-6 lg:h-8" />
                              </div>
                              <div className="space-y-1">
-                               <DialogTitle className="text-3xl font-headline font-bold">A Personal Note</DialogTitle>
+                               <DialogTitle className="text-2xl lg:text-3xl font-headline font-bold">A Personal Note</DialogTitle>
                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Direct from the studio</p>
                              </div>
                           </div>
@@ -410,7 +409,7 @@ export default function ClientGalleryPage() {
                         
                         <div className="max-h-[50vh] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
                            <div className="relative text-center">
-                             <p className="text-foreground leading-relaxed whitespace-pre-wrap break-words italic text-xl px-2">
+                             <p className="text-foreground leading-relaxed whitespace-pre-wrap break-words italic text-lg lg:text-xl px-2">
                                {gallery.description}
                              </p>
                            </div>
@@ -418,7 +417,7 @@ export default function ClientGalleryPage() {
 
                         <div className="mt-10 flex justify-center">
                           <DialogClose asChild>
-                            <Button variant="outline" className="rounded-full px-10 h-12 border-border/50 hover:bg-primary/5 hover:text-primary transition-all font-bold">
+                            <Button variant="outline" className="rounded-full px-10 h-11 lg:h-12 border-border/50 hover:bg-primary/5 hover:text-primary transition-all font-bold text-xs lg:text-sm">
                               Close Message
                             </Button>
                           </DialogClose>
@@ -431,59 +430,59 @@ export default function ClientGalleryPage() {
           )}
 
           <div className="space-y-4">
-            <p className="text-xl italic text-primary font-headline">{gallery.clientName}</p>
-            <div className="flex items-center justify-center gap-4 text-white uppercase tracking-[0.3em] text-[10px] font-bold">
+            <p className="text-lg lg:text-xl italic text-primary font-headline">{gallery.clientName}</p>
+            <div className="flex items-center justify-center gap-4 text-white uppercase tracking-[0.3em] text-[9px] lg:text-[10px] font-bold">
               <span>{gallery.category}</span>
               <span>{gallery.date}</span>
             </div>
           </div>
           
-          <div className="mt-14 flex flex-wrap justify-center items-center gap-4">
+          <div className="mt-10 lg:mt-14 flex flex-wrap justify-center items-center gap-3 lg:gap-4">
             {whatsappNumber && (
-              <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
-                <MessageCircle className="w-5 h-5" /> Contact Studio
+              <Button className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl text-xs lg:text-sm" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
+                <MessageCircle className="w-4 h-4 lg:w-5 lg:h-5" /> Contact Studio
               </Button>
             )}
 
             {canDownload && gallery.items?.length > 0 && (
-              <div className="flex flex-col items-center gap-2">
+              <div className="flex flex-col items-center gap-2 flex-1 sm:flex-none">
                 <Button 
-                  className={cn("rounded-full px-10 h-14 bg-primary/20 border border-primary/30 text-white hover:bg-primary/30 font-bold gap-3 shadow-2xl backdrop-blur-md", isPreparing && "opacity-70 cursor-wait")}
+                  className={cn("w-full sm:w-auto rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-primary/20 border border-primary/30 text-white hover:bg-primary/30 font-bold gap-3 shadow-2xl backdrop-blur-md text-xs lg:text-sm", isPreparing && "opacity-70 cursor-wait")}
                   onClick={handleDownloadAll}
                   disabled={isPreparing}
                 >
-                  {isPreparing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                  {isPreparing ? <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" /> : <Download className="w-4 h-4 lg:w-5 lg:h-5" />}
                   {isPreparing ? "Preparing..." : "Download All"}
                 </Button>
                 {isPreparing && (
-                  <div className="flex items-center gap-2 text-[9px] uppercase font-bold text-primary animate-pulse">
+                  <div className="flex items-center gap-2 text-[8px] lg:text-[9px] uppercase font-bold text-primary animate-pulse">
                     <Clock className="w-3 h-3" /> {preparationStep}
                   </div>
                 )}
               </div>
             )}
 
-            <Button variant="outline" className="rounded-full px-10 h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}>
-              <Share2 className="w-5 h-5" /> Share Gallery
+            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md text-xs lg:text-sm" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}>
+              <Share2 className="w-4 h-4 lg:w-5 lg:h-5" /> Share
             </Button>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-12">
-        <div className="flex justify-between items-center mb-12 border-b border-border/20 pb-8">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-              <Globe className="w-6 h-6" />
+        <div className="flex justify-between items-center mb-10 lg:mb-12 border-b border-border/20 pb-8">
+          <div className="flex items-center gap-3 lg:gap-4">
+            <div className="h-10 lg:h-12 w-10 lg:w-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+              <Globe className="w-5 h-5 lg:w-6 lg:h-6" />
             </div>
             <div>
-              <h2 className="text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
-              <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
+              <h2 className="text-xl lg:text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
+              <p className="text-[8px] lg:text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
             </div>
           </div>
         </div>
 
-        <div className="columns-1 md:columns-2 lg:columns-3 gap-8 space-y-8">
+        <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 lg:gap-8 space-y-6 lg:space-y-8">
           {gallery.items?.map((item: any) => (
             <GalleryItem 
               key={item.id}
@@ -499,28 +498,28 @@ export default function ClientGalleryPage() {
       </div>
 
       {selectedImage && (
-        <div className="fixed inset-0 z-[100] bg-background/95 flex items-center justify-center p-6" onClick={() => setSelectedImage(null)}>
-          <div className="relative">
+        <div className="fixed inset-0 z-[100] bg-background/95 flex items-center justify-center p-4 lg:p-6" onClick={() => setSelectedImage(null)}>
+          <div className="relative w-full h-full flex items-center justify-center">
             <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" alt="Fullscreen" />
             {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
           </div>
-          <Button variant="ghost" size="icon" className="absolute top-8 right-8 text-white h-12 w-12 hover:bg-white/10 rounded-full">
-            <X className="w-8 h-8" />
+          <Button variant="ghost" size="icon" className="absolute top-4 right-4 lg:top-8 lg:right-8 text-white h-10 w-10 lg:h-12 lg:w-12 hover:bg-white/10 rounded-full">
+            <X className="w-6 h-6 lg:w-8 lg:h-8" />
           </Button>
         </div>
       )}
 
       <AlertDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem]">
+        <AlertDialogContent className="bg-card border-border/50 rounded-[2rem] lg:rounded-[2.5rem]">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-headline">Upgrade Required</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
+            <AlertDialogTitle className="text-xl lg:text-2xl font-headline">Upgrade Required</AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-sm lg:text-base">
               Your studio's current plan allows ZIP packages up to {photographerPlan.zipLimitGb} GB. This gallery exceeds that limit.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-            <AlertDialogAction className="rounded-xl bg-primary" onClick={() => router.push('/storage')}>Upgrade Plan</AlertDialogAction>
+            <AlertDialogCancel className="rounded-xl font-bold">Cancel</AlertDialogCancel>
+            <AlertDialogAction className="rounded-xl bg-primary font-bold" onClick={() => router.push('/storage')}>Upgrade Plan</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

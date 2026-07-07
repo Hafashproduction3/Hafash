@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -79,27 +78,27 @@ export function MobileNav() {
   }, [usageGb, currentPlan.storageGb]);
 
   return (
-    <div className="lg:hidden flex items-center justify-between p-4 border-b border-border/50 bg-background sticky top-0 z-40">
+    <div className="lg:hidden flex items-center justify-between p-4 border-b border-border/50 bg-background sticky top-0 z-40 h-20">
       <Link href="/dashboard" className="flex items-center gap-2">
-        <img src="/hafash-logo.png" alt="Hafash Logo" className="w-8 h-8 object-contain" />
+        <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 w-auto object-contain" />
         <span className="text-xl font-headline font-bold text-primary italic">Hafash.pk</span>
       </Link>
       
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10">
-            <Menu className="w-6 h-6" />
+          <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10 h-12 w-12 rounded-full">
+            <Menu className="w-7 h-7" />
           </Button>
         </SheetTrigger>
-        <SheetContent side="left" className="bg-card border-r border-border/50 p-0 flex flex-col w-72">
+        <SheetContent side="left" className="bg-card border-r border-border/50 p-0 flex flex-col w-72 lg:w-80">
           <SheetHeader className="p-6 border-b border-border/20 text-left">
-            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-2">
-              <img src="/hafash-logo.png" alt="Hafash Logo" className="w-12 h-12 object-contain" />
-              <SheetTitle className="text-2xl font-headline font-bold text-primary italic">Hafash.pk</SheetTitle>
+            <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-3">
+              <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 lg:h-12 w-auto object-contain" />
+              <SheetTitle className="text-xl lg:text-2xl font-headline font-bold text-primary italic">Hafash.pk</SheetTitle>
             </Link>
           </SheetHeader>
           
-          <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto">
+          <nav className="flex-1 px-4 py-8 space-y-1 overflow-y-auto custom-scrollbar">
             {navItems.map((item) => {
               const isActive = pathname === item.href;
               return (
@@ -107,8 +106,8 @@ export function MobileNav() {
                   <Button
                     variant="ghost"
                     className={cn(
-                      "w-full justify-start gap-3 h-12 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-xl transition-all",
-                      isActive && "bg-primary/10 text-primary font-semibold"
+                      "w-full justify-start gap-3 h-12 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-xl transition-all text-sm",
+                      isActive && "bg-primary/10 text-primary font-bold"
                     )}
                   >
                     <item.icon className="w-5 h-5" />
@@ -132,7 +131,7 @@ export function MobileNav() {
             
             <Button 
               variant="ghost" 
-              className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-xl"
+              className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 rounded-xl h-12 font-bold"
               onClick={handleLogout}
             >
               <LogOut className="w-5 h-5" />

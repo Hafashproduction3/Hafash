@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useUser, useCollection } from '@/firebase';
@@ -113,18 +112,18 @@ export default function ClientsPage() {
   if (!user) return null;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-10 lg:pb-0">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-8">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" className="rounded-full h-10 w-10" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
-            <h1 className="text-4xl font-headline font-bold">Client Management</h1>
-            <p className="text-muted-foreground mt-2">Manage your luxury studio's client database and event history.</p>
+            <h1 className="text-3xl lg:text-4xl font-headline font-bold">Client Management</h1>
+            <p className="text-muted-foreground mt-2 text-xs lg:text-sm">Manage your luxury studio's client database and event history.</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="hidden lg:flex items-center gap-3">
           <div className="bg-primary/10 px-4 py-2 rounded-xl border border-primary/20 flex items-center gap-3">
             <Users className="w-4 h-4 text-primary" />
             <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{filteredClients.length} Total Clients</span>
@@ -135,17 +134,17 @@ export default function ClientsPage() {
       {/* Toolbar */}
       <div className="flex flex-col xl:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-3.5 w-4 h-4 text-muted-foreground" />
           <Input 
-            placeholder="Search by client name or event..." 
-            className="pl-10 h-11 bg-card/50 border-border/50 rounded-xl"
+            placeholder="Search by client or event..." 
+            className="pl-10 h-12 bg-card/50 border-border/50 rounded-xl"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid grid-cols-2 lg:flex lg:flex-wrap items-center gap-3">
           <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-            <SelectTrigger className="w-[140px] h-11 bg-card/50 border-border/50 rounded-xl font-bold text-[10px] uppercase tracking-wider">
+            <SelectTrigger className="w-full lg:w-[140px] h-12 bg-card/50 border-border/50 rounded-xl font-bold text-[10px] uppercase tracking-wider">
               <SelectValue placeholder="Payment" />
             </SelectTrigger>
             <SelectContent>
@@ -156,7 +155,7 @@ export default function ClientsPage() {
           </Select>
 
           <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-[140px] h-11 bg-card/50 border-border/50 rounded-xl font-bold text-[10px] uppercase tracking-wider">
+            <SelectTrigger className="w-full lg:w-[140px] h-12 bg-card/50 border-border/50 rounded-xl font-bold text-[10px] uppercase tracking-wider">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -172,7 +171,7 @@ export default function ClientsPage() {
           <Button 
             variant="outline" 
             size="icon" 
-            className="h-11 w-11 rounded-xl border-border/50 bg-card/50"
+            className="h-12 w-12 rounded-xl border-border/50 bg-card/50 col-span-2 lg:col-span-1"
             onClick={() => setSortOrder(prev => prev === "desc" ? "asc" : "desc")}
             title="Toggle Sort Order"
           >
@@ -187,11 +186,11 @@ export default function ClientsPage() {
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow className="border-border/30 hover:bg-transparent">
-                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6">Client & Event</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6">Contact Info</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6">Timeline</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6">Status</TableHead>
-                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6 text-right">Gallery</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6 whitespace-nowrap">Client & Event</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6 whitespace-nowrap">Contact Info</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6 whitespace-nowrap">Timeline</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6 whitespace-nowrap">Status</TableHead>
+                <TableHead className="text-[10px] uppercase font-bold tracking-widest py-6 text-right whitespace-nowrap">Gallery</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -209,28 +208,28 @@ export default function ClientsPage() {
                   const storageUsed = (client.items?.length || 0) * 8 / 1024; // GB estimation
                   return (
                     <TableRow key={client.id} className="border-border/20 hover:bg-muted/10 transition-colors group">
-                      <TableCell className="py-6">
+                      <TableCell className="py-6 min-w-[200px]">
                         <div className="space-y-1">
-                          <p className="font-bold text-lg">{client.clientName || "Untitled Client"}</p>
+                          <p className="font-bold text-base lg:text-lg">{client.clientName || "Untitled Client"}</p>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-[8px] uppercase tracking-widest font-bold border-primary/30 text-primary">
                               {client.category}
                             </Badge>
-                            <span className="text-xs text-muted-foreground font-medium">{client.title}</span>
+                            <span className="text-[10px] lg:text-xs text-muted-foreground font-medium truncate max-w-[120px]">{client.title}</span>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="py-6">
+                      <TableCell className="py-6 min-w-[180px]">
                         <div className="space-y-1.5">
-                          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <p className="flex items-center gap-2 text-[10px] lg:text-xs text-muted-foreground">
                             <Mail className="w-3 h-3 text-primary" /> {client.clientEmail || "No Email"}
                           </p>
-                          <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <p className="flex items-center gap-2 text-[10px] lg:text-xs text-muted-foreground">
                             <Phone className="w-3 h-3 text-primary" /> {client.clientPhone || "No Phone"}
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell className="py-6">
+                      <TableCell className="py-6 min-w-[150px]">
                         <div className="space-y-1.5">
                           <p className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
                             <Calendar className="w-3 h-3 text-primary" /> {client.date}
@@ -240,11 +239,11 @@ export default function ClientsPage() {
                           </p>
                         </div>
                       </TableCell>
-                      <TableCell className="py-6">
+                      <TableCell className="py-6 min-w-[150px]">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <div className={cn("h-2 w-2 rounded-full", client.isPaid ? "bg-green-500" : "bg-amber-500")} />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">
+                            <span className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest">
                               {client.isPaid ? "Payment Received" : "Pending Payment"}
                             </span>
                           </div>
@@ -257,14 +256,14 @@ export default function ClientsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="py-6 text-right">
-                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex justify-end gap-2 lg:opacity-0 group-hover:opacity-100 transition-opacity">
                           <Link href={`/gallery/${client.slug || client.id}`} target="_blank">
                             <Button variant="ghost" size="icon" className="rounded-lg h-9 w-9 hover:bg-primary/10 hover:text-primary">
                               <ExternalLink className="w-4 h-4" />
                             </Button>
                           </Link>
                           <Link href={`/events/${client.id}/manage`}>
-                            <Button size="sm" className="rounded-lg h-9 gap-2 font-bold px-4">
+                            <Button size="sm" className="rounded-lg h-9 gap-2 font-bold px-3 lg:px-4 text-[10px] lg:text-xs">
                               Manage <ChevronRight className="w-3 h-3" />
                             </Button>
                           </Link>
@@ -280,9 +279,9 @@ export default function ClientsPage() {
       </div>
 
       {/* Footer Insight */}
-      <div className="bg-primary/5 border border-primary/10 rounded-3xl p-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+      <div className="bg-primary/5 border border-primary/10 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="flex items-center gap-4 text-center sm:text-left">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 hidden sm:flex">
             <CreditCard className="w-6 h-6" />
           </div>
           <div>
@@ -290,7 +289,7 @@ export default function ClientsPage() {
             <p className="text-xs text-muted-foreground italic">Total pending payments: {filteredClients.filter(c => !c.isPaid).length} clients</p>
           </div>
         </div>
-        <Button variant="outline" className="rounded-xl border-primary/30 text-primary font-bold hover:bg-primary/5" onClick={() => setPaymentFilter("unpaid")}>
+        <Button variant="outline" className="w-full sm:w-auto rounded-xl border-primary/30 text-primary font-bold hover:bg-primary/5" onClick={() => setPaymentFilter("unpaid")}>
           View Pending Only
         </Button>
       </div>

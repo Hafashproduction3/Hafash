@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useUser, useFirestore, useDoc } from '@/firebase';
@@ -166,14 +165,13 @@ export default function SettingsPage() {
       {/* Dynamic Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-border/50 pb-8">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 hover:bg-primary/10" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="space-y-1">
-            <h1 className="text-4xl font-headline font-bold tracking-tight">Studio Control Center</h1>
-            <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              <Settings className="w-3 h-3 text-primary" />
-              <span>Production Environment Active</span>
+            <h1 className="text-3xl lg:text-4xl font-headline font-bold tracking-tight">Studio Control Center</h1>
+            <div className="flex flex-wrap items-center gap-3 lg:gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              <span className="flex items-center gap-1.5"><Settings className="w-3 h-3 text-primary" /> Production Environment Active</span>
               {isDirty && (
                 <span className="flex items-center gap-1.5 text-amber-500">
                   <AlertTriangle className="w-3 h-3" /> Unsaved Changes
@@ -182,10 +180,10 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="w-full md:w-auto">
           <Button 
             className={cn(
-              "rounded-xl gap-2 px-8 h-12 font-bold shadow-lg transition-all",
+              "w-full md:w-auto rounded-xl gap-2 px-8 h-12 font-bold shadow-lg transition-all",
               isDirty ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20" : "bg-muted text-muted-foreground cursor-not-allowed"
             )} 
             onClick={handleSave}
@@ -198,18 +196,18 @@ export default function SettingsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-        <TabsList className="bg-card/50 border border-border/50 p-1 rounded-2xl h-auto flex flex-wrap lg:inline-flex">
-          <TabsTrigger value="studio" className="rounded-xl px-6 py-2.5 font-bold text-[10px] uppercase tracking-wider">
-            <Briefcase className="w-3.5 h-3.5 mr-2" /> Studio Profile
+        <TabsList className="bg-card/50 border border-border/50 p-1 rounded-2xl h-auto flex flex-wrap lg:inline-flex w-full lg:w-auto">
+          <TabsTrigger value="studio" className="flex-1 lg:flex-none rounded-xl px-4 lg:px-6 py-3 lg:py-2.5 font-bold text-[9px] lg:text-[10px] uppercase tracking-wider">
+            <Briefcase className="w-3.5 h-3.5 mr-1.5 lg:mr-2" /> Studio
           </TabsTrigger>
-          <TabsTrigger value="account" className="rounded-xl px-6 py-2.5 font-bold text-[10px] uppercase tracking-wider">
-            <User className="w-3.5 h-3.5 mr-2" /> Account & Storage
+          <TabsTrigger value="account" className="flex-1 lg:flex-none rounded-xl px-4 lg:px-6 py-3 lg:py-2.5 font-bold text-[9px] lg:text-[10px] uppercase tracking-wider">
+            <User className="w-3.5 h-3.5 mr-1.5 lg:mr-2" /> Account
           </TabsTrigger>
-          <TabsTrigger value="gallery" className="rounded-xl px-6 py-2.5 font-bold text-[10px] uppercase tracking-wider">
-            <Camera className="w-3.5 h-3.5 mr-2" /> Gallery Defaults
+          <TabsTrigger value="gallery" className="flex-1 lg:flex-none rounded-xl px-4 lg:px-6 py-3 lg:py-2.5 font-bold text-[9px] lg:text-[10px] uppercase tracking-wider">
+            <Camera className="w-3.5 h-3.5 mr-1.5 lg:mr-2" /> Defaults
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="rounded-xl px-6 py-2.5 font-bold text-[10px] uppercase tracking-wider">
-            <Bell className="w-3.5 h-3.5 mr-2" /> Notifications
+          <TabsTrigger value="notifications" className="flex-1 lg:flex-none rounded-xl px-4 lg:px-6 py-3 lg:py-2.5 font-bold text-[9px] lg:text-[10px] uppercase tracking-wider">
+            <Bell className="w-3.5 h-3.5 mr-1.5 lg:mr-2" /> Notifications
           </TabsTrigger>
         </TabsList>
 
@@ -218,11 +216,11 @@ export default function SettingsPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-                <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
+                <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
                   <CardTitle className="text-xl font-headline font-bold">Studio Identity</CardTitle>
-                  <CardDescription>Professional branding used across client-facing galleries.</CardDescription>
+                  <CardDescription className="text-xs lg:text-sm">Professional branding used across client-facing galleries.</CardDescription>
                 </CardHeader>
-                <CardContent className="p-8 space-y-6">
+                <CardContent className="p-6 lg:p-8 space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Studio Name *</Label>
@@ -283,7 +281,7 @@ export default function SettingsPage() {
                         className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
                       />
                     </div>
-                    <p className="text-[10px] text-muted-foreground italic ml-1">Recommended: 400x120px PNG with transparent background.</p>
+                    <p className="text-[9px] lg:text-[10px] text-muted-foreground italic ml-1">Recommended: 400x120px PNG with transparent background.</p>
                   </div>
                 </CardContent>
               </Card>
@@ -296,14 +294,14 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col items-center text-center p-8 bg-background/40">
                   {formData.studioLogo ? (
-                    <img src={formData.studioLogo} className="h-16 w-auto mb-6 object-contain" alt="Logo Preview" />
+                    <img src={formData.studioLogo} className="h-12 lg:h-16 w-auto mb-6 object-contain" alt="Logo Preview" />
                   ) : (
-                    <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6">
-                      <ImageIcon className="w-8 h-8" />
+                    <div className="h-14 lg:h-16 w-14 lg:w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6">
+                      <ImageIcon className="w-7 lg:w-8 h-7 lg:h-8" />
                     </div>
                   )}
-                  <h3 className="text-2xl font-headline font-bold">{formData.studioName || "Untitled Studio"}</h3>
-                  <p className="text-sm text-primary italic font-headline mt-1">{formData.photographerName || "Professional Photographer"}</p>
+                  <h3 className="text-xl lg:text-2xl font-headline font-bold leading-tight">{formData.studioName || "Untitled Studio"}</h3>
+                  <p className="text-xs lg:text-sm text-primary italic font-headline mt-1">{formData.photographerName || "Professional Photographer"}</p>
                 </CardContent>
               </Card>
             </div>
@@ -314,23 +312,23 @@ export default function SettingsPage() {
         <TabsContent value="account" className="animate-in fade-in slide-in-from-left-4 duration-300">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-              <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
+              <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
                 <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
                   <Shield className="w-5 h-5 text-primary" /> Security & Access
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-8 space-y-6">
+              <CardContent className="p-6 lg:p-8 space-y-6">
                 <div className="space-y-4">
                   <div>
                     <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Primary Email</Label>
-                    <div className="flex items-center justify-between mt-1 p-4 bg-background/50 rounded-2xl border border-border/30">
-                      <span className="font-mono text-sm">{user?.email}</span>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-1 p-4 bg-background/50 rounded-2xl border border-border/30 gap-4">
+                      <span className="font-mono text-xs lg:text-sm truncate max-w-full">{user?.email}</span>
                       {user?.emailVerified ? (
-                        <Badge className="bg-green-500/20 text-green-500 border-green-500/30 gap-1.5">
+                        <Badge className="w-fit bg-green-500/20 text-green-500 border-green-500/30 gap-1.5 text-[9px] py-0.5">
                           <CheckCircle2 className="w-3 h-3" /> Verified
                         </Badge>
                       ) : (
-                        <Badge variant="destructive" className="bg-destructive/20 text-destructive border-destructive/30">
+                        <Badge variant="destructive" className="w-fit bg-destructive/20 text-destructive border-destructive/30 text-[9px] py-0.5">
                           Unverified
                         </Badge>
                       )}
@@ -338,10 +336,10 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="pt-4 flex flex-col sm:flex-row gap-4">
-                    <Button variant="outline" className="rounded-xl font-bold h-12 border-border/50 flex-1" onClick={() => router.push('/verify-email')}>
+                    <Button variant="outline" className="rounded-xl font-bold h-12 border-border/50 flex-1 text-xs lg:text-sm" onClick={() => router.push('/verify-email')}>
                       Manage Verification
                     </Button>
-                    <Button variant="outline" className="rounded-xl font-bold h-12 border-border/50 flex-1" onClick={() => router.push('/login')}>
+                    <Button variant="outline" className="rounded-xl font-bold h-12 border-border/50 flex-1 text-xs lg:text-sm" onClick={() => router.push('/login')}>
                       <Lock className="w-4 h-4 mr-2" /> Reset Password
                     </Button>
                   </div>
@@ -350,29 +348,29 @@ export default function SettingsPage() {
             </Card>
 
             <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-              <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
+              <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
                 <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
                   <HardDrive className="w-5 h-5 text-primary" /> Storage & Plan
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-8 flex flex-col justify-between h-full">
+              <CardContent className="p-6 lg:p-8 flex flex-col justify-between h-full min-h-[250px]">
                 <div className="space-y-6">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Active Subscription</p>
-                      <h4 className="text-2xl font-headline font-bold text-primary">{profile?.planId?.toUpperCase() || 'STARTER'} TIER</h4>
+                      <h4 className="text-xl lg:text-2xl font-headline font-bold text-primary">{profile?.planId?.toUpperCase() || 'STARTER'} TIER</h4>
                     </div>
-                    <Badge variant="outline" className="border-primary/30 text-primary px-4 py-1">ACTIVE</Badge>
+                    <Badge variant="outline" className="border-primary/30 text-primary px-3 lg:px-4 py-1 text-[9px] font-bold">ACTIVE</Badge>
                   </div>
-                  <div className="p-6 bg-primary/5 border border-primary/20 rounded-2xl">
-                     <p className="text-xs text-muted-foreground leading-relaxed italic">
+                  <div className="p-5 lg:p-6 bg-primary/5 border border-primary/20 rounded-2xl">
+                     <p className="text-[11px] lg:text-xs text-muted-foreground leading-relaxed italic">
                        Enterprise-grade master asset storage active. Your high-resolution files are protected by end-to-end encryption.
                      </p>
                   </div>
                 </div>
                 <div className="mt-8">
                   <Link href="/storage">
-                    <Button className="w-full h-14 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg shadow-primary/20">
+                    <Button className="w-full h-12 lg:h-14 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg shadow-primary/20 text-xs lg:text-sm">
                       Upgrade Studio Quotas
                     </Button>
                   </Link>
@@ -384,20 +382,20 @@ export default function SettingsPage() {
 
         {/* Gallery Defaults Tab */}
         <TabsContent value="gallery" className="animate-in fade-in slide-in-from-left-4 duration-300">
-          <Card className="max-w-4xl bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-            <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
+          <Card className="max-w-4xl bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl mx-auto lg:mx-0">
+            <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold">New Event Defaults</CardTitle>
-              <CardDescription>Configure automatic settings for every new gallery you create.</CardDescription>
+              <CardDescription className="text-xs lg:text-sm">Configure automatic settings for every new gallery you create.</CardDescription>
             </CardHeader>
-            <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
-               <div className="space-y-8">
+            <CardContent className="p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
+               <div className="space-y-6 lg:space-y-8">
                   <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-bold flex items-center gap-2">
+                      <Label className="text-xs lg:text-sm font-bold flex items-center gap-2">
                         <Zap className="w-3.5 h-3.5 text-primary" />
                         Dynamic Watermark
                       </Label>
-                      <p className="text-[10px] text-muted-foreground">Always protect unpaid preview assets.</p>
+                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Always protect unpaid preview assets.</p>
                     </div>
                     <Switch 
                       checked={formData.defaultWatermark} 
@@ -407,11 +405,11 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-bold flex items-center gap-2">
+                      <Label className="text-xs lg:text-sm font-bold flex items-center gap-2">
                         <HardDrive className="w-3.5 h-3.5 text-primary" />
                         Allow Downloads
                       </Label>
-                      <p className="text-[10px] text-muted-foreground">Start with downloads enabled.</p>
+                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Start with downloads enabled.</p>
                     </div>
                     <Switch 
                       checked={formData.defaultAllowDownloads} 
@@ -420,14 +418,14 @@ export default function SettingsPage() {
                   </div>
                </div>
 
-               <div className="space-y-8">
+               <div className="space-y-6 lg:space-y-8">
                   <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
                     <div className="space-y-0.5">
-                      <Label className="text-sm font-bold flex items-center gap-2">
+                      <Label className="text-xs lg:text-sm font-bold flex items-center gap-2">
                         <Globe className="w-3.5 h-3.5 text-primary" />
                         Public Accessibility
                       </Label>
-                      <p className="text-[10px] text-muted-foreground">Galleries are public by default.</p>
+                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Galleries are public by default.</p>
                     </div>
                     <Switch 
                       checked={formData.defaultPublicLink} 
@@ -436,8 +434,8 @@ export default function SettingsPage() {
                   </div>
                   
                   <div className="p-4 bg-primary/5 border border-dashed border-primary/20 rounded-2xl">
-                     <p className="text-[10px] text-primary font-bold uppercase tracking-widest mb-1">Architectural Note</p>
-                     <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                     <p className="text-[9px] lg:text-[10px] text-primary font-bold uppercase tracking-widest mb-1">Architectural Note</p>
+                     <p className="text-[9px] lg:text-[10px] text-muted-foreground leading-relaxed italic">
                        Changing these defaults will not affect existing galleries. These settings only apply to future luxury events.
                      </p>
                   </div>
@@ -448,17 +446,17 @@ export default function SettingsPage() {
 
         {/* Notifications Tab */}
         <TabsContent value="notifications" className="animate-in fade-in slide-in-from-left-4 duration-300">
-           <Card className="max-w-4xl bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-            <CardHeader className="border-b border-border/30 bg-background/30 px-8 py-6">
+           <Card className="max-w-4xl bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl mx-auto lg:mx-0">
+            <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold">Communication Workflow</CardTitle>
-              <CardDescription>Manage how the Studio Flow notifies you of client interactions.</CardDescription>
+              <CardDescription className="text-xs lg:text-sm">Manage how the Studio Flow notifies you of client interactions.</CardDescription>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
+            <CardContent className="p-6 lg:p-8 space-y-6">
                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="flex items-center justify-between p-5 bg-background/50 rounded-2xl border border-border/30">
                     <div className="space-y-0.5 pr-4">
-                      <Label className="text-sm font-bold">New Favorites</Label>
-                      <p className="text-[10px] text-muted-foreground">Notify when a client hearts a photo.</p>
+                      <Label className="text-xs lg:text-sm font-bold">New Favorites</Label>
+                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Notify when a client hearts a photo.</p>
                     </div>
                     <Switch 
                       checked={formData.notifyNewFavorite} 
@@ -468,8 +466,8 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between p-5 bg-background/50 rounded-2xl border border-border/30">
                     <div className="space-y-0.5 pr-4">
-                      <Label className="text-sm font-bold">Gallery Access</Label>
-                      <p className="text-[10px] text-muted-foreground">Notify on first client view.</p>
+                      <Label className="text-xs lg:text-sm font-bold">Gallery Access</Label>
+                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Notify on first client view.</p>
                     </div>
                     <Switch 
                       checked={formData.notifyNewView} 
@@ -479,8 +477,8 @@ export default function SettingsPage() {
 
                   <div className="flex items-center justify-between p-5 bg-background/50 rounded-2xl border border-border/30">
                     <div className="space-y-0.5 pr-4">
-                      <Label className="text-sm font-bold">Payment Confirmations</Label>
-                      <p className="text-[10px] text-muted-foreground">Notify when status is marked paid.</p>
+                      <Label className="text-xs lg:text-sm font-bold">Payment Confirmations</Label>
+                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Notify when status is marked paid.</p>
                     </div>
                     <Switch 
                       checked={formData.notifyPaymentReceived} 

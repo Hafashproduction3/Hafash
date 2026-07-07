@@ -7,11 +7,11 @@ export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* Navigation */}
-      <header className="px-6 lg:px-12 h-24 flex items-center justify-between border-b border-border/50 sticky top-0 bg-background/80 backdrop-blur-md z-50">
+      <header className="px-4 lg:px-12 h-24 flex items-center justify-between border-b border-border/50 sticky top-0 bg-background/80 backdrop-blur-md z-50">
         <div className="flex items-center gap-1">
-          <img src="/hafash-logo.png" alt="Hafash Platform" className="h-[57px] lg:h-[70px] w-auto" />
+          <img src="/hafash-logo.png" alt="Hafash Platform" className="h-[50px] lg:h-[70px] w-auto" />
           <Link href="/" className="flex items-center">
-            <span className="text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
+            <span className="text-xl lg:text-2xl font-headline font-bold text-primary tracking-tighter italic">Hafash.pk</span>
           </Link>
         </div>
         <nav className="hidden md:flex gap-8">
@@ -19,19 +19,19 @@ export default function LandingPage() {
           <Link href="#pricing" className="text-sm font-medium hover:text-primary transition-colors">Pricing</Link>
           <Link href="#about" className="text-sm font-medium hover:text-primary transition-colors">About</Link>
         </nav>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 lg:gap-4">
           <Link href="/login">
-            <Button variant="ghost" className="text-sm font-medium">Login</Button>
+            <Button variant="ghost" className="text-xs lg:text-sm font-medium h-9 lg:h-10 px-3 lg:px-4">Login</Button>
           </Link>
           <Link href="/signup">
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 text-sm font-semibold">Join Now</Button>
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs lg:text-sm font-semibold h-9 lg:h-10 px-3 lg:px-4">Join Now</Button>
           </Link>
         </div>
       </header>
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative h-[90vh] flex items-center justify-center overflow-hidden">
+        <section className="relative h-[85vh] lg:h-[90vh] flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 z-0">
             <img 
               src="https://picsum.photos/seed/hafash-hero/1920/1080" 
@@ -42,21 +42,21 @@ export default function LandingPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
           </div>
           
-          <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-            <h1 className="text-5xl md:text-8xl font-headline font-bold mb-6 tracking-tight leading-tight">
+          <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
+            <h1 className="text-4xl sm:text-6xl lg:text-8xl font-headline font-bold mb-6 tracking-tight leading-[1.1]">
               Deliver Memories <span className="text-primary italic">Beautifully</span>
             </h1>
-            <p className="text-lg md:text-2xl text-muted-foreground mb-10 font-body max-w-2xl mx-auto">
+            <p className="text-base lg:text-2xl text-muted-foreground mb-10 font-body max-w-2xl mx-auto leading-relaxed">
               The luxury gallery delivery platform designed exclusively for wedding and event photographers.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/signup">
-                <Button size="lg" className="h-14 px-10 text-lg bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-bold">
+              <Link href="/signup" className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto h-14 px-10 text-lg bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-bold">
                   Start Your Studio
                 </Button>
               </Link>
-              <Link href="/gallery/demo">
-                <Button size="lg" variant="outline" className="h-14 px-10 text-lg border-primary text-primary hover:bg-primary/10 rounded-full font-bold">
+              <Link href="/gallery/demo" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-10 text-lg border-primary text-primary hover:bg-primary/10 rounded-full font-bold">
                   View Demo Gallery
                 </Button>
               </Link>
@@ -65,14 +65,14 @@ export default function LandingPage() {
         </section>
 
         {/* Features Grid */}
-        <section id="features" className="py-24 px-6 bg-card">
+        <section id="features" className="py-20 lg:py-24 px-6 bg-card">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-headline mb-4">Crafted for Excellence</h2>
+              <h2 className="text-3xl lg:text-5xl font-headline mb-4">Crafted for Excellence</h2>
               <p className="text-muted-foreground text-lg">Every feature built with luxury in mind.</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-12">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
               <FeatureCard 
                 icon={<Camera className="w-8 h-8 text-primary" />}
                 title="Cinematic Galleries"
@@ -108,10 +108,10 @@ export default function LandingPage() {
         </section>
 
         {/* Pricing Section */}
-        <section id="pricing" className="py-24 px-6 bg-background">
+        <section id="pricing" className="py-20 lg:py-24 px-6 bg-background">
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-5xl font-headline mb-4">Choose Your Tier</h2>
+              <h2 className="text-3xl lg:text-5xl font-headline mb-4">Choose Your Tier</h2>
               <p className="text-muted-foreground text-lg">Scalable storage and processing for studios of all sizes.</p>
             </div>
             
@@ -124,16 +124,16 @@ export default function LandingPage() {
         </section>
 
         {/* About Section */}
-        <section id="about" className="py-24 px-6 bg-card">
+        <section id="about" className="py-20 lg:py-24 px-6 bg-card">
           <div className="max-w-4xl mx-auto text-center">
-            <h2 className="text-4xl md:text-5xl font-headline mb-8">Our Vision</h2>
-            <div className="space-y-8 text-lg text-muted-foreground leading-relaxed">
+            <h2 className="text-3xl lg:text-5xl font-headline mb-8">Our Vision</h2>
+            <div className="space-y-8 text-base lg:text-lg text-muted-foreground leading-relaxed">
               <p>
                 Hafash is more than just a delivery tool; it is a premium ecosystem crafted exclusively for professional photographers. We believe that the moment of delivery should be as impactful as the event itself.
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-left mt-12">
                 <div className="space-y-4">
-                  <h4 className="text-primary font-bold uppercase tracking-widest text-sm">Who It's For</h4>
+                  <h4 className="text-primary font-bold uppercase tracking-widest text-xs">Who It's For</h4>
                   <p className="text-sm">Wedding, event, and portrait photographers who demand excellence and want to provide their clients with a high-end digital experience.</p>
                 </div>
                 <div className="space-y-4">
@@ -149,10 +149,10 @@ export default function LandingPage() {
         </section>
 
         {/* Tagline Section */}
-        <section className="py-32 bg-background border-t border-border/30">
-          <div className="max-w-4xl mx-auto text-center px-4">
-            <h3 className="text-primary font-headline text-3xl md:text-5xl italic mb-8">"Deliver your work in a way that reflects its value."</h3>
-            <p className="text-muted-foreground text-xl italic">— Hafash.pk Philosophy</p>
+        <section className="py-24 lg:py-32 bg-background border-t border-border/30">
+          <div className="max-w-4xl mx-auto text-center px-6">
+            <h3 className="text-primary font-headline text-2xl sm:text-3xl lg:text-5xl italic mb-8">"Deliver your work in a way that reflects its value."</h3>
+            <p className="text-muted-foreground text-lg lg:text-xl italic">— Hafash.pk Philosophy</p>
           </div>
         </section>
       </main>
@@ -181,14 +181,14 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode, titl
         {icon}
       </div>
       <h4 className="text-xl font-headline font-bold mb-4">{title}</h4>
-      <p className="text-muted-foreground leading-relaxed">{description}</p>
+      <p className="text-sm lg:text-base text-muted-foreground leading-relaxed">{description}</p>
     </div>
   );
 }
 
 function PricingCard({ plan }: { plan: any }) {
   return (
-    <div className="flex flex-col p-8 rounded-3xl border border-border/30 bg-card/50 hover:border-primary/50 transition-all duration-500 relative group overflow-hidden">
+    <div className="flex flex-col p-8 lg:p-10 rounded-3xl border border-border/30 bg-card/50 hover:border-primary/50 transition-all duration-500 relative group overflow-hidden">
       {plan.id === 'pro' && (
         <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-bold px-4 py-1 rounded-bl-xl uppercase tracking-widest">
           Recommended
@@ -197,16 +197,16 @@ function PricingCard({ plan }: { plan: any }) {
       <div className="mb-8">
         <h4 className="text-xl font-headline font-bold mb-1">{plan.name}</h4>
         <div className="flex items-baseline gap-1 mt-4">
-          <span className="text-4xl font-headline font-bold text-primary">{plan.price}</span>
+          <span className="text-4xl lg:text-5xl font-headline font-bold text-primary">{plan.price}</span>
           <span className="text-muted-foreground text-sm">/mo</span>
         </div>
-        <p className="mt-4 text-sm font-bold text-muted-foreground uppercase tracking-wider">{plan.storageGb}GB Storage Capacity</p>
+        <p className="mt-4 text-[10px] lg:text-sm font-bold text-muted-foreground uppercase tracking-wider">{plan.storageGb}GB Storage Capacity</p>
       </div>
       <ul className="flex-1 space-y-4 mb-8">
         {plan.features.map((feature: string) => (
-          <li key={feature} className="flex items-center gap-3 text-sm text-muted-foreground">
-            <Check className="w-4 h-4 text-primary shrink-0" />
-            <span>{feature}</span>
+          <li key={feature} className="flex items-start gap-3 text-sm text-muted-foreground">
+            <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+            <span className="leading-tight">{feature}</span>
           </li>
         ))}
       </ul>
