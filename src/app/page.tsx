@@ -112,7 +112,7 @@ export default function LandingPage() {
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-3xl lg:text-5xl font-headline mb-4">Choose Your Tier</h2>
-              <p className="text-muted-foreground text-lg">Scalable storage and processing for studios of all sizes.</p>
+              <p className="text-muted-foreground text-lg">Scalable cloud storage and tiered processing for studios of all sizes.</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -197,7 +197,7 @@ function PricingCard({ plan }: { plan: any }) {
       <div className="mb-8">
         <h4 className="text-xl font-headline font-bold mb-1">{plan.name}</h4>
         <div className="flex items-baseline gap-1 mt-4">
-          <span className="text-4xl lg:text-5xl font-headline font-bold text-primary">{plan.price}</span>
+          <span className="text-3xl lg:text-4xl font-headline font-bold text-primary">{plan.price}</span>
           <span className="text-muted-foreground text-sm">/mo</span>
         </div>
         <p className="mt-4 text-[10px] lg:text-sm font-bold text-muted-foreground uppercase tracking-wider">{plan.storageGb}GB Storage Capacity</p>

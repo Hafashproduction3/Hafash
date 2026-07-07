@@ -27,7 +27,7 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { HAFASH_PLANS, DEFAULT_PLAN, estimateZipSizeGb, type PlanId } from '@/lib/plans';
+import { HAFASH_PLANS, DEFAULT_PLAN, type PlanId } from '@/lib/plans';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -243,12 +243,6 @@ export default function ClientGalleryPage() {
       return;
     }
 
-    const estimatedSizeGb = estimateZipSizeGb(items.length);
-    if (estimatedSizeGb > photographerPlan.zipLimitGb) {
-      setShowUpgradeDialog(true);
-      return;
-    }
-    
     setIsPreparing(true);
     const zip = new JSZip();
     const totalItems = items.length;
@@ -366,7 +360,7 @@ export default function ClientGalleryPage() {
                 alt="Studio Logo" 
               />
             )}
-            <span className="block text-[10px] lg:text-sm font-bold tracking-[0.5em] text-primary uppercase mb-4 relative z-20">
+            <span className="block text-[10px] lg:text-sm font-bold tracking-[0.5em] text-primary uppercase mb-4 relative z-20 leading-none">
               {studioName}
             </span>
             <div className="flex items-center justify-center gap-1 mb-2">
@@ -514,7 +508,7 @@ export default function ClientGalleryPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-xl lg:text-2xl font-headline">Upgrade Required</AlertDialogTitle>
             <AlertDialogDescription className="text-muted-foreground text-sm lg:text-base">
-              Your studio's current plan allows ZIP packages up to {photographerPlan.zipLimitGb} GB. This gallery exceeds that limit.
+              Your studio's current plan limits high-speed batch downloads. Please upgrade to continue with this delivery.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

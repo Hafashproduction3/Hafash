@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useParams, useRouter } from 'next/navigation';
@@ -102,10 +101,10 @@ export default function CheckoutPage() {
             <div className="bg-primary/5 border border-primary/20 rounded-3xl p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <ShieldCheck className="w-5 h-5 text-primary" />
-                <h4 className="font-bold text-sm uppercase tracking-widest">Studio Security Sync</h4>
+                <h4 className="font-bold text-sm uppercase tracking-widest">Studio Activation</h4>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Your upgraded storage and processing priority will be activated immediately across all your galleries once payment is confirmed.
+                Your upgraded plan will be activated immediately after successful payment confirmation.
               </p>
             </div>
           </div>

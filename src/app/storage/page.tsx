@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useUser, useFirestore, useDoc, useCollection } from '@/firebase';
@@ -15,7 +14,8 @@ import {
   ArrowLeft, 
   ImageIcon, 
   FolderOpen,
-  ArrowUpCircle 
+  ArrowUpCircle,
+  Globe
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -101,7 +101,7 @@ export default function StoragePage() {
         </div>
         <div className="bg-primary/10 px-4 py-2 rounded-xl border border-primary/20 flex items-center gap-3">
           <ShieldCheck className="w-4 h-4 text-primary" />
-          <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Enterprise Class R2 Storage Active</span>
+          <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Enterprise Class Cloud Storage Active</span>
         </div>
       </div>
 
@@ -168,11 +168,11 @@ export default function StoragePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6">
               <div className="bg-background/50 rounded-3xl p-6 border border-border/30 flex items-center gap-4">
                 <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-                  <Download className="w-6 h-6 text-primary" />
+                  <Globe className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">ZIP Size Limit</p>
-                  <p className="text-xl font-headline font-bold">{currentPlan.zipLimitGb}GB</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Storage Status</p>
+                  <p className="text-xl font-headline font-bold">Cloud Active</p>
                 </div>
               </div>
               <div className="bg-background/50 rounded-3xl p-6 border border-border/30 flex items-center gap-4">
@@ -180,7 +180,7 @@ export default function StoragePage() {
                   <Activity className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">ZIP Priority</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Processing</p>
                   <p className="text-xl font-headline font-bold">{currentPlan.priorityLabel}</p>
                 </div>
               </div>
@@ -189,7 +189,7 @@ export default function StoragePage() {
                   <ShieldCheck className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">CDN Speed</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Delivery</p>
                   <p className="text-xl font-headline font-bold">Max Speed</p>
                 </div>
               </div>
@@ -200,9 +200,9 @@ export default function StoragePage() {
         {/* Quick Tips */}
         <Card className="bg-primary/5 border-primary/20 rounded-[2.5rem] p-8 flex flex-col justify-center space-y-6">
           <div className="space-y-2">
-            <h4 className="text-xl font-headline font-bold">Priority Processing</h4>
+            <h4 className="text-xl font-headline font-bold">Tiered Processing</h4>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Higher plans move to the front of the ZIP generation queue. Once generated, all files are delivered at maximum Cloudflare CDN speeds.
+              Higher plans move to the front of the asset processing queue. All files are delivered at maximum global CDN speeds regardless of tier.
             </p>
           </div>
           <Button variant="outline" className="rounded-2xl h-12 border-primary/30 text-primary font-bold hover:bg-primary/10" onClick={() => router.push('/dashboard')}>
@@ -214,7 +214,7 @@ export default function StoragePage() {
       {/* Subscription Plans Section */}
       <div className="text-center space-y-4 pt-10">
         <h2 className="text-4xl font-headline font-bold">Premium Expansion Plans</h2>
-        <p className="text-muted-foreground">Unlock higher delivery thresholds and faster ZIP preparation.</p>
+        <p className="text-muted-foreground">Unlock higher delivery thresholds and professional studio branding.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -232,7 +232,7 @@ export default function StoragePage() {
               <CardHeader className="text-center pt-12 pb-8">
                 <CardTitle className="text-[10px] uppercase tracking-[0.4em] text-muted-foreground mb-4 font-bold">{plan.name} Tier</CardTitle>
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-6xl font-headline font-bold text-primary">{plan.price}</span>
+                  <span className="text-4xl lg:text-5xl font-headline font-bold text-primary">{plan.price}</span>
                   <span className="text-muted-foreground font-bold">/mo</span>
                 </div>
                 <p className="text-xl font-bold mt-6">{plan.storageGb}GB Cloud Capacity</p>
