@@ -1,42 +1,47 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper to check gallery ownership
-    function isGalleryOwner(galleryId) {
-      return request.auth != null && request.auth.uid == get(/databases/$(database)/documents/galleries/$(galleryId)).data.userId;
-    }
 
-    // Helper to check album designer access
-    function isAlbumDesigner(galleryData) {
-      return galleryData.albumLinkEnabled == true && galleryData.albumLinkToken != "";
-    }
-
-    // Galleries: Metadata and Legacy items
-    match /galleries/{galleryId} {
-      allow read: if (resource.data.isPublic == true) 
-                  || (request.auth != null && request.auth.uid == resource.data.userId)
-                  || isAlbumDesigner(resource.data);
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
-      
-      // Production Media Subcollection
-      match /media/{mediaId} {
-        // Inherit read rules from parent gallery
-        allow read: if get(/databases/$(database)/documents/galleries/$(galleryId)).data.isPublic == true 
-                    || request.auth != null && request.auth.uid == get(/databases/$(database)/documents/galleries/$(galleryId)).data.userId
-                    || isAlbumDesigner(get(/databases/$(database)/documents/galleries/$(galleryId)).data);
-        
-        // Only owner can write to the media collection
-        allow write: if request.auth != null && request.auth.uid == get(/databases/$(database)/documents/galleries/$(galleryId)).data.userId;
-      }
-    }
-
-    // User Profiles: Strictly private
+    /**
+     * User Profiles
+     * Only the authenticated user can read or write their own profile data.
+     */
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-    
+
+    /**
+     * Event Galleries
+     * Implements tiered access: Public (isPublic: true) or Owner-only.
+     */
+    match /galleries/{galleryId} {
+      // Allow read (get/list) if the gallery is public OR if the user is the owner.
+      // This enables slug resolution queries for visitors on public galleries.
+      allow read: if resource.data.isPublic == true 
+                 || (request.auth != null && request.auth.uid == resource.data.userId);
+
+      // Only authenticated users can create galleries, and they must be assigned to them.
+      allow create: if request.auth != null 
+                   && request.resource.data.userId == request.auth.uid;
+
+      // Only the owner can modify or remove their galleries.
+      allow update, delete: if request.auth != null 
+                           && request.auth.uid == resource.data.userId;
+    }
+
+    /**
+     * Communication Templates
+     * Strictly restricted to the owner for all operations.
+     */
+    match /communication_templates/{templateId} {
+      allow read, update, delete: if request.auth != null 
+                                 && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null 
+                   && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Default deny for all other collections
     match /{document=**} {
       allow read, write: if false;
     }
