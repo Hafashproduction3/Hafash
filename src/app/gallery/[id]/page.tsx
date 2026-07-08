@@ -114,11 +114,12 @@ export default function ClientGalleryPage() {
       }
 
       setIsResolving(true);
+      setGalleryId(null);
       const cleanParam = galleryParam.trim();
       let resolvedId = null;
 
       try {
-        // Stage 1: Public Slug Resolution (Accessible to anyone)
+        // Stage 1: Public Slug Resolution
         const publicSlugQuery = query(
           collection(firestore, 'galleries'),
           where('slug', '==', cleanParam.toLowerCase()),
@@ -130,7 +131,7 @@ export default function ClientGalleryPage() {
         if (!publicSnap.empty) {
           resolvedId = publicSnap.docs[0].id;
         } 
-        // Stage 2: Private Slug Resolution (Restricted to Owner)
+        // Stage 2: Private Slug Resolution (Owner Access)
         else if (user) {
           const ownerSlugQuery = query(
             collection(firestore, 'galleries'),
@@ -144,22 +145,21 @@ export default function ClientGalleryPage() {
           }
         }
 
-        // Stage 3: Direct ID Check Fallback
-        // Only if slug resolution failed AND param looks like a valid Firestore ID
-        if (!resolvedId && (cleanParam.length >= 18 || /^[a-zA-Z0-9]{20}$/.test(cleanParam))) {
+        // Stage 3: Direct ID Fallback (Strict Format Check)
+        if (!resolvedId && /^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
           resolvedId = cleanParam;
         }
 
         setGalleryId(resolvedId);
       } catch (err: any) {
-        console.error("Resolution failure:", err);
+        console.error("Gallery resolution error:", err);
         setGalleryId(null);
       } finally {
         setIsResolving(false);
       }
     }
     resolve();
-  }, [firestore, galleryParam, user?.uid]); // React to user uid changes specifically
+  }, [firestore, galleryParam, user?.uid]);
 
   const galleryRef = useMemo(() => {
     if (!firestore || !galleryId) return null;
@@ -189,20 +189,18 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
-  // Deny-by-Default Availability Guard
+  // Pessimistic Security Guard: Default to Deny
   const isAvailable = useMemo(() => {
     if (isResolving || docLoading || !gallery) return false; 
-    if (isOwner) return true;
-    return gallery.isPublic === true;
+    return isOwner || gallery.isPublic === true;
   }, [gallery, isOwner, isResolving, docLoading]);
 
   // Enforced Security Gate Logic
   const showGate = useMemo(() => {
-    if (isResolving || docLoading || !gallery || !isAvailable) return false;
-    if (isOwner) return false;
-    if (!gallery.isPasswordProtected) return false;
+    if (!isAvailable || isOwner) return false;
+    if (!gallery?.isPasswordProtected) return false;
     return !isUnlocked;
-  }, [gallery, isUnlocked, isOwner, isResolving, docLoading, isAvailable]);
+  }, [isAvailable, isOwner, gallery?.isPasswordProtected, isUnlocked]);
 
   const verifyPassword = async () => {
     if (!gallery?.hashedPassword) return;
@@ -304,15 +302,6 @@ export default function ClientGalleryPage() {
     );
   }
 
-  const photographerPlan = (profile?.planId || 'starter') as PlanId;
-  const isCustomBrandingActive = photographerPlan !== 'starter';
-  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
-  const studioLogo = gallery?.studioLogo || profile?.studioLogo;
-  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
-  const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
-  const showWatermark = gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
-  const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
-
   // Enforced Password Gate Render
   if (showGate) {
     return (
@@ -320,8 +309,8 @@ export default function ClientGalleryPage() {
         <div className="w-full max-w-md space-y-8 animate-in fade-in zoom-in-95 duration-500">
            <div className="text-center space-y-4">
               <div className="flex flex-col items-center mb-8">
-                {isCustomBrandingActive && studioLogo ? (
-                   <img src={studioLogo} className="h-16 w-auto mb-4 object-contain" alt="Studio Logo" />
+                {gallery?.studioLogo ? (
+                   <img src={gallery.studioLogo} className="h-16 w-auto mb-4 object-contain" alt="Studio Logo" />
                 ) : (
                   <div className="flex items-center justify-center gap-1 mb-2">
                     <img src="/hafash-logo.png" className="h-[40px] w-auto" alt="Logo" />
@@ -384,6 +373,15 @@ export default function ClientGalleryPage() {
       </div>
     );
   }
+
+  const photographerPlan = (profile?.planId || 'starter') as PlanId;
+  const isCustomBrandingActive = photographerPlan !== 'starter';
+  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
+  const studioLogo = gallery?.studioLogo || profile?.studioLogo;
+  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
+  const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
+  const showWatermark = gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
+  const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
 
   // Final Gallery Content Render
   return (
