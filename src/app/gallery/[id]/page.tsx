@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -106,9 +105,9 @@ export default function ClientGalleryPage() {
   const [showGatePass, setShowGatePass] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Resolution Logic: Robust Slug-to-ID matching
+  // Resolution Logic: Strictly distinguishes between Slugs and direct IDs
   useEffect(() => {
-    async function resolveGallery() {
+    async function resolve() {
       if (!firestore || !galleryParam) {
         setIsResolving(false);
         return;
@@ -116,21 +115,20 @@ export default function ClientGalleryPage() {
 
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
-      let foundId: string | null = null;
 
       try {
-        // Step 1: Attempt Public Slug Query (Requires index on slug + isPublic)
-        const qPublic = query(
+        // Step 1: Attempt resolution by Public Slug
+        const q = query(
           collection(firestore, 'galleries'), 
           where('slug', '==', cleanParam.toLowerCase()),
           where('isPublic', '==', true)
         );
-        const snapPublic = await getDocs(qPublic);
+        const snap = await getDocs(q);
         
-        if (!snapPublic.empty) {
-          foundId = snapPublic.docs[0].id;
+        if (!snap.empty) {
+          setGalleryId(snap.docs[0].id);
         } else if (user) {
-          // Step 2: Attempt Owner Slug Query (If logged in)
+          // Step 2: If logged in, check for owner's private slug
           const qOwner = query(
             collection(firestore, 'galleries'),
             where('slug', '==', cleanParam.toLowerCase()),
@@ -138,26 +136,23 @@ export default function ClientGalleryPage() {
           );
           const snapOwner = await getDocs(qOwner);
           if (!snapOwner.empty) {
-            foundId = snapOwner.docs[0].id;
+            setGalleryId(snapOwner.docs[0].id);
+          } else {
+            // Not a slug, assume it's a direct document ID
+            setGalleryId(cleanParam);
           }
-        }
-
-        // Step 3: If no slug matches, treat param as a direct document ID
-        // (Standard Firebase IDs are ~20 chars, slugs are usually customized)
-        if (!foundId) {
-          foundId = cleanParam;
+        } else {
+          // Not a public slug and no user, assume it's a direct document ID
+          setGalleryId(cleanParam);
         }
       } catch (err: any) {
-        // If query is restricted (Rule violation or missing index), we fallback to direct ID only
-        // to satisfy security rules that allow 'get' but block 'list'.
-        console.warn("Gallery resolution: Query restricted or failed. Attempting direct ID resolution.");
-        foundId = cleanParam;
+        // If query is restricted or fails, fallback to direct ID resolution
+        setGalleryId(cleanParam);
+      } finally {
+        setIsResolving(false);
       }
-
-      setGalleryId(foundId);
-      setIsResolving(false);
     }
-    resolveGallery();
+    resolve();
   }, [firestore, galleryParam, user]);
 
   const galleryRef = useMemo(() => {
@@ -174,10 +169,9 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // Strict Owner check
+  // Strict Owner check: requires both IDs to exist and match
   const isOwner = useMemo(() => {
-    if (!user?.uid || !gallery?.userId) return false;
-    return user.uid === gallery.userId;
+    return !!(user?.uid && gallery?.userId && user.uid === gallery.userId);
   }, [user?.uid, gallery?.userId]);
 
   // Session memory for unlocking
@@ -188,36 +182,15 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
-  // Branding & Commercial Logic
-  const photographerPlan = useMemo(() => {
-    if (!profile) return DEFAULT_PLAN;
-    const planId = (profile.planId || 'starter') as PlanId;
-    return HAFASH_PLANS[planId] || DEFAULT_PLAN;
-  }, [profile]);
-
-  const isCustomBrandingActive = useMemo(() => photographerPlan.id !== 'starter', [photographerPlan.id]);
-
-  const effectiveHeroImage = useMemo(() => {
-    if (!gallery && !profile) return 'https://picsum.photos/seed/hafash-empty/1920/1080';
-    if (isCustomBrandingActive && profile?.studioBanner) return profile.studioBanner;
-    return gallery?.coverImage || 'https://picsum.photos/seed/hafash-empty/1920/1080';
-  }, [isCustomBrandingActive, profile, gallery]);
-
-  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
-  const studioLogo = gallery?.studioLogo || profile?.studioLogo;
-  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
-
-  const canDownload = useMemo(() => gallery ? (!gallery.isLocked && !!gallery.isPaid) : false, [gallery]);
-  const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
-
-  // Security Logic
+  // Visibility is the master switch
   const isAvailable = useMemo(() => {
     if (docLoading) return true;
     if (!gallery) return false;
     if (isOwner) return true;
-    return !!gallery.isPublic; // Master switch: Visibility
+    return gallery.isPublic === true;
   }, [gallery, isOwner, docLoading]);
 
+  // Security Gate Logic: Enforced for visitors on protected galleries
   const showGate = useMemo(() => {
     if (isOwner) return false;
     if (!gallery?.isPasswordProtected) return false;
@@ -260,6 +233,7 @@ export default function ClientGalleryPage() {
   }, [firestore, gallery, galleryId]);
 
   const handleDownloadSingle = useCallback(async (item: any) => {
+    const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
     if (!canDownload) return;
     try {
       const url = item.masterUrl || item.url;
@@ -269,9 +243,10 @@ export default function ClientGalleryPage() {
     } catch (error) {
       toast({ variant: "destructive", title: "Download Failed" });
     }
-  }, [canDownload, toast]);
+  }, [gallery, toast]);
 
   const handleDownloadAll = async () => {
+    const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
     if (isPreparing || !gallery || !canDownload) return;
     setIsPreparing(true);
     const zip = new JSZip();
@@ -319,6 +294,15 @@ export default function ClientGalleryPage() {
       </div>
     );
   }
+
+  const photographerPlan = (profile?.planId || 'starter') as PlanId;
+  const isCustomBrandingActive = photographerPlan !== 'starter';
+  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
+  const studioLogo = gallery?.studioLogo || profile?.studioLogo;
+  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
+  const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
+  const showWatermark = gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
+  const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
 
   if (showGate) {
     return (

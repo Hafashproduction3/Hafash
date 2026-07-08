@@ -1,49 +1,29 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    /**
-     * User Profiles
-     * Only the authenticated user can read or write their own profile data.
-     */
+    // User Profile Rules
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow get, write: if request.auth != null && request.auth.uid == userId;
     }
-
-    /**
-     * Event Galleries
-     * Implements tiered access: Public (isPublic: true) or Owner-only.
-     */
+    
+    // Gallery Security Rules
     match /galleries/{galleryId} {
-      // Allow read (get/list) if the gallery is public OR if the user is the owner.
-      // This enables slug resolution queries for visitors on public galleries.
-      allow read: if resource.data.isPublic == true 
-                 || (request.auth != null && request.auth.uid == resource.data.userId);
-
-      // Only authenticated users can create galleries, and they must be assigned to them.
-      allow create: if request.auth != null 
-                   && request.resource.data.userId == request.auth.uid;
-
-      // Only the owner can modify or remove their galleries.
-      allow update, delete: if request.auth != null 
-                           && request.auth.uid == resource.data.userId;
+      // allow list: allow visitors to query public galleries (required for slug resolution)
+      // or owners to query their own collection.
+      allow list: if (resource.data.isPublic == true) || (request.auth != null && request.auth.uid == resource.data.userId);
+      
+      // allow get: allow visitors to view public galleries by ID
+      // or owners to view their own private galleries.
+      allow get: if (resource.data.isPublic == true) || (request.auth != null && request.auth.uid == resource.data.userId);
+      
+      // allow create/update/delete: strictly restricted to authenticated owners.
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
-
-    /**
-     * Communication Templates
-     * Strictly restricted to the owner for all operations.
-     */
+    
+    // Communication Templates
     match /communication_templates/{templateId} {
-      allow read, update, delete: if request.auth != null 
-                                 && request.auth.uid == resource.data.userId;
-      allow create: if request.auth != null 
-                   && request.resource.data.userId == request.auth.uid;
-    }
-
-    // Default deny for all other collections
-    match /{document=**} {
-      allow read, write: if false;
+      allow read, write: if request.auth != null && (resource == null || resource.data.userId == request.auth.uid);
     }
   }
 }
