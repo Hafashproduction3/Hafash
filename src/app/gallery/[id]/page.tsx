@@ -121,26 +121,13 @@ export default function ClientGalleryPage() {
       let resolvedId = cleanParam.length >= 18 ? cleanParam : null;
 
       try {
-        // 1. Attempt Public Resolution (Matches Security Rules for anonymous visitors)
-        const qPublic = query(
+        const q = query(
           collection(firestore, 'galleries'), 
-          where('slug', '==', cleanParam.toLowerCase()),
-          where('isPublic', '==', true)
+          where('slug', '==', cleanParam.toLowerCase())
         );
-        const snapPublic = await getDocs(qPublic);
-        
-        if (!snapPublic.empty) {
-          resolvedId = snapPublic.docs[0].id;
-        } else {
-          // 2. Fallback Resolution (For Owners or Password Gate scenarios if rules permit)
-          const qAll = query(
-            collection(firestore, 'galleries'), 
-            where('slug', '==', cleanParam.toLowerCase())
-          );
-          const snapAll = await getDocs(qAll);
-          if (!snapAll.empty) {
-            resolvedId = snapAll.docs[0].id;
-          }
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          resolvedId = snap.docs[0].id;
         }
       } catch (err) {
         console.warn("Resolution error (possible permission restrictions):", err);
@@ -175,7 +162,7 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
-  // 5. Derivative Values
+  // 5. Access & Branding Logic
   const photographerPlan = useMemo(() => {
     if (!profile) return DEFAULT_PLAN;
     const rawPlanId = profile.planId || 'starter';
@@ -205,15 +192,18 @@ export default function ClientGalleryPage() {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
-  // Strict Owner Logic: Must have both IDs defined
+  // Strict Owner Logic: Ensures anonymous visitors are never misidentified as owners
   const isOwner = useMemo(() => {
-    return !!(user?.uid && gallery?.userId && user.uid === gallery.userId);
+    if (!user?.uid || !gallery?.userId) return false;
+    return user.uid === gallery.userId;
   }, [user?.uid, gallery?.userId]);
 
   // Gate Logic: strictly boolean enforcement
   const showGate = useMemo(() => {
+    // If owner is viewing, bypass
     if (isOwner) return false;
-    return !!(gallery?.isPasswordProtected && !isUnlocked);
+    // Show gate if protection is ON and session is NOT unlocked
+    return !!(gallery?.isPasswordProtected === true && !isUnlocked);
   }, [gallery?.isPasswordProtected, isUnlocked, isOwner]);
 
   // 6. Action Handlers
@@ -301,7 +291,7 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // UPDATED CONDITION: A gallery is ONLY unavailable if it is not public, not protected, AND the visitor is not the owner.
+  // Availability Check: Only show error if definitely NOT public AND NOT protected AND visitor is NOT owner
   if (!isLoading && (galleryError || !gallery || (!gallery.isPublic && !gallery.isPasswordProtected && !isOwner))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
@@ -317,7 +307,7 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Password Gate UI
+  // Password Gate UI: Enforce before main gallery render
   if (showGate) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 selection:bg-primary selection:text-primary-foreground">
