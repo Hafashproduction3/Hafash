@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -121,7 +120,6 @@ export default function ClientGalleryPage() {
 
       try {
         // Attempt to find a gallery where the slug matches the parameter
-        // We include isPublic filter to satisfy standard client-side security rules for anonymous lookups
         const q = query(
           collection(firestore, 'galleries'), 
           where('slug', '==', cleanParam.toLowerCase()),
@@ -131,7 +129,7 @@ export default function ClientGalleryPage() {
         if (!snap.empty) {
           resolvedId = snap.docs[0].id;
         } else {
-          // If not found in public, try a broader search (might fail if visitor is anonymous)
+          // If not found in public, try a broader search
           const fallbackQ = query(
             collection(firestore, 'galleries'), 
             where('slug', '==', cleanParam.toLowerCase())
@@ -142,10 +140,10 @@ export default function ClientGalleryPage() {
           }
         }
       } catch (err) {
-        // If query fails (permission denied), we stick with the original resolvedId (the Doc ID)
         console.warn("Slug resolution query restricted. Attempting direct ID access.");
       }
 
+      console.log("DEBUG: resolveGallery", { galleryParam: cleanParam, resolvedId });
       setGalleryId(resolvedId);
       setIsResolving(false);
     }
@@ -158,6 +156,23 @@ export default function ClientGalleryPage() {
   }, [firestore, galleryId]);
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
+
+  // Diagnostic Logs
+  useEffect(() => {
+    console.log("DEBUG: ClientGalleryPage state", {
+      galleryParam,
+      galleryId,
+      path: galleryRef?.path,
+      galleryExists: !!gallery,
+      galleryIdField: gallery?.id,
+      gallerySlugField: gallery?.slug,
+      galleryIsPublic: gallery?.isPublic,
+      galleryIsPasswordProtected: gallery?.isPasswordProtected,
+      itemsCount: gallery?.items?.length,
+      galleryError: galleryError?.message,
+      docLoading
+    });
+  }, [galleryParam, galleryId, galleryRef, gallery, galleryError, docLoading]);
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
@@ -296,6 +311,7 @@ export default function ClientGalleryPage() {
     );
   }
 
+  // Adjusted Availability Check: Include isPasswordProtected
   if (!isLoading && (galleryError || !gallery || (!gallery.isPublic && !gallery.isPasswordProtected && !isOwner))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
