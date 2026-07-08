@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -207,6 +208,21 @@ export default function ClientGalleryPage() {
     const isProtected = Boolean(gallery?.isPasswordProtected);
     return isProtected && !isUnlocked;
   }, [gallery, isUnlocked, isOwner]);
+
+  // TEMPORARY DIAGNOSTIC LOGS
+  if (process.env.NODE_ENV === 'development') {
+    console.log('--- PASSWORD GATE DIAGNOSTICS ---');
+    console.log('galleryId:', galleryId);
+    console.log('gallery:', gallery);
+    console.log('gallery?.isPasswordProtected:', gallery?.isPasswordProtected);
+    console.log('gallery?.hashedPassword:', gallery?.hashedPassword);
+    console.log('isOwner:', isOwner);
+    console.log('isUnlocked:', isUnlocked);
+    console.log('showGate:', showGate);
+    console.log('galleryError:', galleryError);
+    console.log('docLoading:', docLoading);
+    console.log('---------------------------------');
+  }
 
   // 6. Action Handlers
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
