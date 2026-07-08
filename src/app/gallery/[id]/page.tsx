@@ -23,8 +23,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { Badge } from '@/components/ui/badge';
-import { Label } from '@/components/ui/label';
+import { Badge } from '@/badge';
+import { Label } from '@/label';
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -271,9 +271,15 @@ export default function ClientGalleryPage() {
 
   // 7. Render Logic
   const isLoading = isResolving || (!!galleryId && docLoading);
+  
   // Refined isOwner logic: ensure both UIDs exist to avoid matching undefined === undefined
-  const isOwner = Boolean(user?.uid && gallery?.userId && user.uid === gallery.userId);
-  const showGate = Boolean(gallery?.isPasswordProtected && !isUnlocked && !isOwner);
+  const isOwner = useMemo(() => {
+    return !!(user?.uid && gallery?.userId && user.uid === gallery.userId);
+  }, [user?.uid, gallery?.userId]);
+
+  const showGate = useMemo(() => {
+    return !!(gallery?.isPasswordProtected && !isUnlocked && !isOwner);
+  }, [gallery?.isPasswordProtected, isUnlocked, isOwner]);
 
   if (isLoading) {
     return (
@@ -405,7 +411,7 @@ export default function ClientGalleryPage() {
             ) : (
               <div className="flex flex-col items-center mb-8">
                 <div className="flex items-center justify-center gap-1 mb-2">
-                  <img src="/hafash-logo.png" className="h-[40px] lg:h-[70px] w-auto" alt="Logo" />
+                  <img src="/hafash-logo.png" className="h-[40px] w-auto" alt="Logo" />
                   <span className="text-3xl sm:text-5xl lg:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
                 </div>
                 <span className="text-[9px] lg:text-[10px] font-bold tracking-[0.5em] text-primary/70 uppercase">LUXURY GALLERY DELIVERY</span>
