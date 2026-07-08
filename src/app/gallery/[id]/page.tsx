@@ -121,18 +121,26 @@ export default function ClientGalleryPage() {
       let resolvedId = cleanParam.length >= 18 ? cleanParam : null;
 
       try {
-        // First try to resolve as a slug
-        const qSlug = query(
+        // 1. Attempt Public Resolution (Matches Security Rules for anonymous visitors)
+        const qPublic = query(
           collection(firestore, 'galleries'), 
-          where('slug', '==', cleanParam.toLowerCase())
+          where('slug', '==', cleanParam.toLowerCase()),
+          where('isPublic', '==', true)
         );
-        const snapSlug = await getDocs(qSlug);
+        const snapPublic = await getDocs(qPublic);
         
-        if (!snapSlug.empty) {
-          resolvedId = snapSlug.docs[0].id;
-        } else if (!resolvedId) {
-          // If no slug found and param doesn't look like an ID, we're done
-          resolvedId = null;
+        if (!snapPublic.empty) {
+          resolvedId = snapPublic.docs[0].id;
+        } else {
+          // 2. Fallback Resolution (For Owners or Password Gate scenarios if rules permit)
+          const qAll = query(
+            collection(firestore, 'galleries'), 
+            where('slug', '==', cleanParam.toLowerCase())
+          );
+          const snapAll = await getDocs(qAll);
+          if (!snapAll.empty) {
+            resolvedId = snapAll.docs[0].id;
+          }
         }
       } catch (err) {
         console.warn("Resolution error (possible permission restrictions):", err);
@@ -293,7 +301,8 @@ export default function ClientGalleryPage() {
     );
   }
 
-  if (!isLoading && (galleryError || !gallery || (!gallery.isPublic && !isOwner))) {
+  // UPDATED CONDITION: A gallery is ONLY unavailable if it is not public, not protected, AND the visitor is not the owner.
+  if (!isLoading && (galleryError || !gallery || (!gallery.isPublic && !gallery.isPasswordProtected && !isOwner))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
