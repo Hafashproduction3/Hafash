@@ -130,10 +130,6 @@ export default function ClientGalleryPage() {
 
   const viewIncremented = useRef<string | null>(null);
 
-  const effectiveHeroImage = useMemo(() => {
-    return 'https://picsum.photos/seed/hafash-hero/1920/1080';
-  }, []);
-
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) {
@@ -218,7 +214,16 @@ export default function ClientGalleryPage() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
-  const isCustomBrandingActive = photographerPlan.id !== 'starter';
+  const isCustomBrandingActive = useMemo(() => {
+    return photographerPlan.id !== 'starter';
+  }, [photographerPlan.id]);
+
+  const effectiveHeroImage = useMemo(() => {
+    if (isCustomBrandingActive && profile?.studioBanner) {
+      return profile.studioBanner;
+    }
+    return gallery?.coverImage || 'https://picsum.photos/seed/hafash-empty/1920/1080';
+  }, [isCustomBrandingActive, profile?.studioBanner, gallery?.coverImage]);
 
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
@@ -359,7 +364,7 @@ export default function ClientGalleryPage() {
     }
   };
 
-  if (isResolving || docLoading || (galleryId && !gallery && !galleryError)) {
+  if (isResolving || (galleryId && docLoading)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -473,7 +478,7 @@ export default function ClientGalleryPage() {
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[2.5rem] lg:rounded-b-[4rem]"
       )}>
         <Image 
-          src={isCustomBrandingActive && profile?.studioBanner ? profile.studioBanner : (gallery.coverImage || 'https://picsum.photos/seed/hafash-empty/1920/1080')} 
+          src={effectiveHeroImage} 
           fill 
           className="absolute inset-0 w-full h-full object-cover opacity-80" 
           alt="Gallery Cover" 
