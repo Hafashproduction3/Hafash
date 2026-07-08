@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -12,7 +13,6 @@ import {
   Image as ImageIcon,
   ArrowLeft,
   Eye,
-  EyeOff,
   Loader2,
   ShieldCheck,
   CreditCard,
@@ -70,18 +70,12 @@ export default function EventManagementPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState<'gallery' | 'selection' | null>(null);
-  
-  // Local state for password protection
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPasswords, setShowPasswords] = useState(false);
 
   // Local state for settings to avoid jittery typing
   const [settings, setSettings] = useState({
     title: '',
     clientName: '',
-    description: '',
-    password: ''
+    description: ''
   });
 
   useEffect(() => {
@@ -108,8 +102,7 @@ export default function EventManagementPage() {
       setSettings({
         title: event.title || '',
         clientName: event.clientName || '',
-        description: event.description || '',
-        password: event.password || ''
+        description: event.description || ''
       });
     }
   }, [event]);
@@ -125,14 +118,6 @@ export default function EventManagementPage() {
     if (!event || !Array.isArray(event.items)) return 0;
     return event.items.filter((i: any) => i.isFavorite).length;
   }, [event?.items]);
-
-  const hashPassword = async (password: string) => {
-    if (!password) return '';
-    const msgUint8 = new TextEncoder().encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
 
   const handleUpdateSettings = async () => {
     if (!eventRef) return;
@@ -189,38 +174,6 @@ export default function EventManagementPage() {
     setCopiedLink(type);
     toast({ title: "Link Copied" });
     setTimeout(() => setCopiedLink(null), 2000);
-  };
-
-  const handleSaveSecuritySettings = async () => {
-    if (!eventRef) return;
-
-    if (!newPassword || newPassword.length < 8) {
-      toast({ 
-        variant: "destructive", 
-        title: "Security Alert", 
-        description: "Password must be at least 8 characters long." 
-      });
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      toast({ 
-        variant: "destructive", 
-        title: "Validation Error", 
-        description: "Passwords do not match." 
-      });
-      return;
-    }
-
-    try {
-      const hash = await hashPassword(newPassword);
-      await updateDoc(eventRef, { password: hash });
-      toast({ title: "Security Updated", description: "Gallery access password has been set." });
-      setNewPassword('');
-      setConfirmPassword('');
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: err.message });
-    }
   };
 
   if (authLoading || dataLoading) return (
@@ -358,58 +311,6 @@ export default function EventManagementPage() {
                           </div>
                         </RadioGroup>
                       </div>
-
-                      {!event.isPublic && (
-                        <div className="mt-2 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <Separator className="bg-border/20" />
-                          <div className="space-y-4">
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Access Password</Label>
-                              <div className="relative">
-                                <Input 
-                                  type={showPasswords ? "text" : "password"}
-                                  placeholder="Minimum 8 characters"
-                                  value={newPassword}
-                                  onChange={(e) => setNewPassword(e.target.value)}
-                                  className="h-10 rounded-xl bg-background border-border/50 pr-10"
-                                />
-                                <button 
-                                  type="button" 
-                                  onClick={() => setShowPasswords(!showPasswords)}
-                                  className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
-                                >
-                                  {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Confirm Password</Label>
-                              <div className="relative">
-                                <Input 
-                                  type={showPasswords ? "text" : "password"}
-                                  placeholder="Confirm your password"
-                                  value={confirmPassword}
-                                  onChange={(e) => setConfirmPassword(e.target.value)}
-                                  className="h-10 rounded-xl bg-background border-border/50 pr-10"
-                                />
-                                <button 
-                                  type="button" 
-                                  onClick={() => setShowPasswords(!showPasswords)}
-                                  className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
-                                >
-                                  {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                          <Button 
-                            className="w-full h-10 rounded-xl font-bold gap-2 bg-primary text-primary-foreground"
-                            onClick={handleSaveSecuritySettings}
-                          >
-                            <Lock className="w-4 h-4" /> Save Security Settings
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </div>
