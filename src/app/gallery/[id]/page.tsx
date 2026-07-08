@@ -200,11 +200,13 @@ export default function ClientGalleryPage() {
 
   // Gate Logic: strictly boolean enforcement
   const showGate = useMemo(() => {
-    // If owner is viewing, bypass
+    // If owner is viewing, bypass the gate
     if (isOwner) return false;
-    // Show gate if protection is ON and session is NOT unlocked
-    return !!(gallery?.isPasswordProtected === true && !isUnlocked);
-  }, [gallery?.isPasswordProtected, isUnlocked, isOwner]);
+    
+    // Show gate if protection is explicitly enabled and session is not yet unlocked
+    const isProtected = Boolean(gallery?.isPasswordProtected);
+    return isProtected && !isUnlocked;
+  }, [gallery, isUnlocked, isOwner]);
 
   // 6. Action Handlers
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
