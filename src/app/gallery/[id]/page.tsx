@@ -131,6 +131,7 @@ export default function ClientGalleryPage() {
 
   const viewIncremented = useRef<string | null>(null);
 
+  // Resolution effect to map slug to ID if necessary
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) {
@@ -142,56 +143,38 @@ export default function ClientGalleryPage() {
       const cleanParam = galleryParam.trim();
       const slugAttempt = cleanParam.toLowerCase();
 
+      // HEURISTIC: If the parameter looks like a direct Document ID, initialize it
+      // so doc loading can start immediately while we check for a slug match.
+      let resolvedId = cleanParam.length > 15 ? cleanParam : null;
+
       try {
-        // Attempt 1: Resolve as a Public Gallery (satisfied strict list rules)
-        const qPublic = query(
+        // Attempt to find the gallery by slug
+        const q = query(
           collection(firestore, 'galleries'), 
-          where('slug', '==', slugAttempt),
-          where('isPublic', '==', true)
+          where('slug', '==', slugAttempt)
         );
-        let snapshot = await getDocs(qPublic);
         
-        // Attempt 2: Fallback for Protected or Owner access
-        if (snapshot.empty) {
-          try {
-            const qAll = query(
-              collection(firestore, 'galleries'), 
-              where('slug', '==', slugAttempt)
-            );
-            snapshot = await getDocs(qAll);
-          } catch (e) {
-            // Silently ignore list denial for private galleries
-          }
-        }
+        // Note: Anonymous visitors might be denied 'list' permissions by security rules.
+        // If this fails, we proceed with resolvedId (if any) or default to null.
+        const snapshot = await getDocs(q);
         
         if (!snapshot.empty) {
           const docSnap = snapshot.docs[0];
-          const foundId = docSnap.id;
+          resolvedId = docSnap.id;
           const galleryData = docSnap.data();
-          setGalleryId(foundId);
           
-          if (viewIncremented.current !== foundId && user?.uid !== galleryData.userId) {
-            viewIncremented.current = foundId;
-            const gRef = doc(firestore, 'galleries', foundId);
+          if (viewIncremented.current !== resolvedId && user?.uid !== galleryData.userId) {
+            viewIncremented.current = resolvedId;
+            const gRef = doc(firestore, 'galleries', resolvedId);
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
-        } else {
-          // Fallback to direct ID resolution if slug not found
-          if (cleanParam.length > 15) {
-            setGalleryId(cleanParam);
-          } else {
-            setGalleryId(null);
-          }
         }
-      } catch (err: any) {
-        if (cleanParam.length > 15) {
-          setGalleryId(cleanParam);
-        } else {
-          setGalleryId(null);
-        }
-      } finally {
-        setIsResolving(false);
+      } catch (err) {
+        // Silent catch: if slug query is denied, we still try docId resolution below
       }
+
+      setGalleryId(resolvedId);
+      setIsResolving(false);
     }
     resolveGallery();
   }, [firestore, galleryParam, user]);
@@ -375,7 +358,7 @@ export default function ClientGalleryPage() {
     }
   };
 
-  // LOADING STATE
+  // LOADING STATE: Show while resolving slug or while fetching the doc metadata
   if (isResolving || (galleryId && docLoading)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
@@ -385,7 +368,7 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // PASSWORD GATE: Render if the gallery was resolved successfully but is marked as private/protected
+  // PASSWORD GATE: Render if the gallery is marked as private/protected and hasn't been unlocked
   if (gallery && !gallery.isPublic && !isUnlocked) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
