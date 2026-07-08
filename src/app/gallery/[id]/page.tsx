@@ -26,7 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, limit } from 'firebase/firestore';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
@@ -105,7 +105,7 @@ export default function ClientGalleryPage() {
   const [showGatePass, setShowGatePass] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Resolution Logic: Strictly distinguishes between Slugs and direct IDs
+  // Secure Multi-Stage Resolution Logic
   useEffect(() => {
     async function resolve() {
       if (!firestore || !galleryParam) {
@@ -115,45 +115,51 @@ export default function ClientGalleryPage() {
 
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
+      let resolvedId = null;
 
       try {
-        // Step 1: Attempt resolution by Public Slug
-        const q = query(
-          collection(firestore, 'galleries'), 
+        // Stage 1: Public Slug Resolution (Accessible to anyone)
+        const publicSlugQuery = query(
+          collection(firestore, 'galleries'),
           where('slug', '==', cleanParam.toLowerCase()),
-          where('isPublic', '==', true)
+          where('isPublic', '==', true),
+          limit(1)
         );
-        const snap = await getDocs(q);
+        const publicSnap = await getDocs(publicSlugQuery);
         
-        if (!snap.empty) {
-          setGalleryId(snap.docs[0].id);
-        } else if (user) {
-          // Step 2: If logged in, check for owner's private slug
-          const qOwner = query(
+        if (!publicSnap.empty) {
+          resolvedId = publicSnap.docs[0].id;
+        } 
+        // Stage 2: Private Slug Resolution (Restricted to Owner)
+        else if (user) {
+          const ownerSlugQuery = query(
             collection(firestore, 'galleries'),
             where('slug', '==', cleanParam.toLowerCase()),
-            where('userId', '==', user.uid)
+            where('userId', '==', user.uid),
+            limit(1)
           );
-          const snapOwner = await getDocs(qOwner);
-          if (!snapOwner.empty) {
-            setGalleryId(snapOwner.docs[0].id);
-          } else {
-            // Not a slug, assume it's a direct document ID
-            setGalleryId(cleanParam);
+          const ownerSnap = await getDocs(ownerSlugQuery);
+          if (!ownerSnap.empty) {
+            resolvedId = ownerSnap.docs[0].id;
           }
-        } else {
-          // Not a public slug and no user, assume it's a direct document ID
-          setGalleryId(cleanParam);
         }
+
+        // Stage 3: Direct ID Check Fallback
+        // Only if slug resolution failed AND param looks like a valid Firestore ID
+        if (!resolvedId && (cleanParam.length >= 18 || /^[a-zA-Z0-9]{20}$/.test(cleanParam))) {
+          resolvedId = cleanParam;
+        }
+
+        setGalleryId(resolvedId);
       } catch (err: any) {
-        // If query is restricted or fails, fallback to direct ID resolution
-        setGalleryId(cleanParam);
+        console.error("Resolution failure:", err);
+        setGalleryId(null);
       } finally {
         setIsResolving(false);
       }
     }
     resolve();
-  }, [firestore, galleryParam, user]);
+  }, [firestore, galleryParam, user?.uid]); // React to user uid changes specifically
 
   const galleryRef = useMemo(() => {
     if (!firestore || !galleryId) return null;
@@ -169,12 +175,13 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // Strict Owner check: requires both IDs to exist and match
+  // Strict Owner Verification
   const isOwner = useMemo(() => {
-    return !!(user?.uid && gallery?.userId && user.uid === gallery.userId);
+    if (!user?.uid || !gallery?.userId) return false;
+    return user.uid === gallery.userId;
   }, [user?.uid, gallery?.userId]);
 
-  // Session memory for unlocking
+  // Session Memory Management
   useEffect(() => {
     if (galleryId) {
       const stored = sessionStorage.getItem(`hafash_unlocked_${galleryId}`);
@@ -182,20 +189,20 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
-  // Visibility is the master switch
+  // Deny-by-Default Availability Guard
   const isAvailable = useMemo(() => {
-    if (docLoading) return true;
-    if (!gallery) return false;
+    if (isResolving || docLoading || !gallery) return false; 
     if (isOwner) return true;
     return gallery.isPublic === true;
-  }, [gallery, isOwner, docLoading]);
+  }, [gallery, isOwner, isResolving, docLoading]);
 
-  // Security Gate Logic: Enforced for visitors on protected galleries
+  // Enforced Security Gate Logic
   const showGate = useMemo(() => {
+    if (isResolving || docLoading || !gallery || !isAvailable) return false;
     if (isOwner) return false;
-    if (!gallery?.isPasswordProtected) return false;
+    if (!gallery.isPasswordProtected) return false;
     return !isUnlocked;
-  }, [gallery, isUnlocked, isOwner]);
+  }, [gallery, isUnlocked, isOwner, isResolving, docLoading, isAvailable]);
 
   const verifyPassword = async () => {
     if (!gallery?.hashedPassword) return;
@@ -271,7 +278,8 @@ export default function ClientGalleryPage() {
     }
   };
 
-  if (isResolving || (!!galleryId && docLoading)) {
+  // Synchronized Loading State
+  if (isResolving || (galleryId && docLoading)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -280,7 +288,8 @@ export default function ClientGalleryPage() {
     );
   }
 
-  if (galleryError || !isAvailable) {
+  // Deny access if not available
+  if (!isAvailable) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
@@ -304,6 +313,7 @@ export default function ClientGalleryPage() {
   const showWatermark = gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
   const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
 
+  // Enforced Password Gate Render
   if (showGate) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 selection:bg-primary selection:text-primary-foreground">
@@ -375,6 +385,7 @@ export default function ClientGalleryPage() {
     );
   }
 
+  // Final Gallery Content Render
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
       <Button 
