@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -105,7 +106,7 @@ export default function ClientGalleryPage() {
   const [showGatePass, setShowGatePass] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Resolution Logic: Slug to ID
+  // Resolution Logic: Robust Slug-to-ID matching
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) {
@@ -115,38 +116,49 @@ export default function ClientGalleryPage() {
 
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
-      let resolvedId = cleanParam;
+      let foundId: string | null = null;
 
       try {
-        // Query for public gallery with this slug first
+        // Step 1: Attempt Public Slug Query (Requires index on slug + isPublic)
         const qPublic = query(
           collection(firestore, 'galleries'), 
           where('slug', '==', cleanParam.toLowerCase()),
           where('isPublic', '==', true)
         );
         const snapPublic = await getDocs(qPublic);
+        
         if (!snapPublic.empty) {
-          resolvedId = snapPublic.docs[0].id;
-        } else {
-          // Broad check for owner or specialized access
-          const qBroad = query(
-            collection(firestore, 'galleries'), 
-            where('slug', '==', cleanParam.toLowerCase())
+          foundId = snapPublic.docs[0].id;
+        } else if (user) {
+          // Step 2: Attempt Owner Slug Query (If logged in)
+          const qOwner = query(
+            collection(firestore, 'galleries'),
+            where('slug', '==', cleanParam.toLowerCase()),
+            where('userId', '==', user.uid)
           );
-          const snapBroad = await getDocs(qBroad);
-          if (!snapBroad.empty) {
-            resolvedId = snapBroad.docs[0].id;
+          const snapOwner = await getDocs(qOwner);
+          if (!snapOwner.empty) {
+            foundId = snapOwner.docs[0].id;
           }
         }
-      } catch (err) {
-        // Stick with cleanParam as fallback resolvedId
+
+        // Step 3: If no slug matches, treat param as a direct document ID
+        // (Standard Firebase IDs are ~20 chars, slugs are usually customized)
+        if (!foundId) {
+          foundId = cleanParam;
+        }
+      } catch (err: any) {
+        // If query is restricted (Rule violation or missing index), we fallback to direct ID only
+        // to satisfy security rules that allow 'get' but block 'list'.
+        console.warn("Gallery resolution: Query restricted or failed. Attempting direct ID resolution.");
+        foundId = cleanParam;
       }
 
-      setGalleryId(resolvedId);
+      setGalleryId(foundId);
       setIsResolving(false);
     }
     resolveGallery();
-  }, [firestore, galleryParam]);
+  }, [firestore, galleryParam, user]);
 
   const galleryRef = useMemo(() => {
     if (!firestore || !galleryId) return null;
@@ -162,7 +174,7 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // Owner check for bypass
+  // Strict Owner check
   const isOwner = useMemo(() => {
     if (!user?.uid || !gallery?.userId) return false;
     return user.uid === gallery.userId;
@@ -176,17 +188,14 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
-  // Branding Logic
+  // Branding & Commercial Logic
   const photographerPlan = useMemo(() => {
     if (!profile) return DEFAULT_PLAN;
-    const rawPlanId = profile.planId || 'starter';
-    const planId = (typeof rawPlanId === 'string' ? rawPlanId.toLowerCase() : 'starter') as PlanId;
+    const planId = (profile.planId || 'starter') as PlanId;
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile]);
 
-  const isCustomBrandingActive = useMemo(() => {
-    return photographerPlan.id !== 'starter';
-  }, [photographerPlan.id]);
+  const isCustomBrandingActive = useMemo(() => photographerPlan.id !== 'starter', [photographerPlan.id]);
 
   const effectiveHeroImage = useMemo(() => {
     if (!gallery && !profile) return 'https://picsum.photos/seed/hafash-empty/1920/1080';
@@ -198,16 +207,17 @@ export default function ClientGalleryPage() {
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
 
-  // Commercial Logic
-  const canDownload = useMemo(() => {
-    return gallery ? (gallery.isLocked === false && gallery.isPaid === true) : false;
-  }, [gallery?.isLocked, gallery?.isPaid]);
+  const canDownload = useMemo(() => gallery ? (!gallery.isLocked && !!gallery.isPaid) : false, [gallery]);
+  const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
 
-  const showWatermark = useMemo(() => {
-    return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
-  }, [gallery?.isLocked, gallery?.isPaid]);
+  // Security Logic
+  const isAvailable = useMemo(() => {
+    if (docLoading) return true;
+    if (!gallery) return false;
+    if (isOwner) return true;
+    return !!gallery.isPublic; // Master switch: Visibility
+  }, [gallery, isOwner, docLoading]);
 
-  // Security Gate Logic
   const showGate = useMemo(() => {
     if (isOwner) return false;
     if (!gallery?.isPasswordProtected) return false;
@@ -229,12 +239,12 @@ export default function ClientGalleryPage() {
       if (hashed === gallery.hashedPassword) {
         setIsUnlocked(true);
         sessionStorage.setItem(`hafash_unlocked_${galleryId}`, 'true');
-        toast({ title: "Access Granted", description: "Welcome to the luxury workspace." });
+        toast({ title: "Access Granted" });
       } else {
         setPasswordError(true);
       }
     } catch (err) {
-      toast({ variant: "destructive", title: "Security Error" });
+      toast({ variant: "destructive", title: "Verification Error" });
     } finally {
       setVerifying(false);
     }
@@ -286,26 +296,23 @@ export default function ClientGalleryPage() {
     }
   };
 
-  const isLoading = isResolving || (!!galleryId && docLoading);
-  
-  if (isLoading) {
+  if (isResolving || (!!galleryId && docLoading)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-primary/50">Resolving Luxury Gallery...</p>
+        <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-primary/50">Synchronizing Luxury Assets...</p>
       </div>
     );
   }
 
-  // Accessibility Check: Hidden galleries only open for owner
-  if (galleryError || !gallery || (!gallery.isPublic && !isOwner)) {
+  if (galleryError || !isAvailable) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
           <ShieldAlert className="w-12 h-12 text-destructive" />
         </div>
         <h1 className="text-2xl lg:text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Unavailable</h1>
-        <p className="text-muted-foreground mb-8 max-w-xs mx-auto">
+        <p className="text-muted-foreground mb-8 max-w-xs mx-auto italic">
           The requested gallery could not be found or is currently restricted by the studio.
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
@@ -338,7 +345,7 @@ export default function ClientGalleryPage() {
            <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
               <CardContent className="p-10 space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Encrypted Gallery Password</Label>
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Access Password</Label>
                   <div className="relative">
                     <Key className="absolute left-3 top-3.5 w-4 h-4 text-primary" />
                     <Input 
@@ -346,7 +353,7 @@ export default function ClientGalleryPage() {
                       value={passwordInput}
                       onChange={(e) => setPasswordInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && verifyPassword()}
-                      placeholder="Enter access code"
+                      placeholder="Enter gallery password"
                       className="pl-10 pr-10 h-12 bg-background/50 border-border/50 rounded-xl"
                     />
                     <button 
@@ -364,7 +371,7 @@ export default function ClientGalleryPage() {
                 </div>
 
                 <Button 
-                  className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg shadow-primary/20 transition-all"
+                  className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg shadow-primary/20"
                   onClick={verifyPassword}
                   disabled={verifying || !passwordInput}
                 >
@@ -374,7 +381,7 @@ export default function ClientGalleryPage() {
               </CardContent>
            </Card>
 
-           <div className="text-center opacity-40 hover:opacity-100 transition-opacity">
+           <div className="text-center opacity-40">
               <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-muted-foreground">
                 End-to-End Asset Integrity Guaranteed by Hafash
               </p>
