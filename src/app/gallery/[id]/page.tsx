@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -142,10 +143,11 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
+        // UNIFIED RESOLUTION: Find the gallery by slug regardless of public status.
+        // The component's metadata check will handle rendering the Password Gate if needed.
         const q = query(
           collection(firestore, 'galleries'), 
-          where('slug', '==', slugAttempt),
-          where('isPublic', '==', true)
+          where('slug', '==', slugAttempt)
         );
         const querySnapshot = await getDocs(q);
         
@@ -160,20 +162,15 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          const qPrivate = query(
-            collection(firestore, 'galleries'), 
-            where('slug', '==', slugAttempt)
-          );
-          const privateSnap = await getDocs(qPrivate);
-          if (!privateSnap.empty) {
-            setGalleryId(privateSnap.docs[0].id);
-          } else if (cleanParam.length > 15) {
+          // Fallback to direct ID resolution if slug not found
+          if (cleanParam.length > 15) {
             setGalleryId(cleanParam);
           } else {
             setGalleryId(null);
           }
         }
       } catch (err: any) {
+        // Error handling fallback for direct access
         if (cleanParam.length > 15) {
           setGalleryId(cleanParam);
         } else {
@@ -219,11 +216,12 @@ export default function ClientGalleryPage() {
   }, [photographerPlan.id]);
 
   const effectiveHeroImage = useMemo(() => {
+    if (!gallery && !profile) return 'https://picsum.photos/seed/hafash-empty/1920/1080';
     if (isCustomBrandingActive && profile?.studioBanner) {
       return profile.studioBanner;
     }
     return gallery?.coverImage || 'https://picsum.photos/seed/hafash-empty/1920/1080';
-  }, [isCustomBrandingActive, profile?.studioBanner, gallery?.coverImage]);
+  }, [isCustomBrandingActive, profile, gallery]);
 
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
@@ -364,6 +362,7 @@ export default function ClientGalleryPage() {
     }
   };
 
+  // LOADING STATE
   if (isResolving || (galleryId && docLoading)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
@@ -373,23 +372,8 @@ export default function ClientGalleryPage() {
     );
   }
 
-  if (galleryError || !gallery) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-        <div className="bg-destructive/10 p-6 rounded-full mb-8">
-          <ShieldAlert className="w-12 h-12 text-destructive" />
-        </div>
-        <h1 className="text-2xl lg:text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Unavailable</h1>
-        <p className="text-muted-foreground mb-8 max-w-xs mx-auto">
-          The requested gallery could not be found or is currently restricted by the studio.
-        </p>
-        <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
-      </div>
-    );
-  }
-
-  // --- Password Gate ---
-  if (!gallery.isPublic && !isUnlocked) {
+  // PASSWORD GATE: Render if the gallery was resolved successfully but is marked as private/protected
+  if (gallery && !gallery.isPublic && !isUnlocked) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
         <div className="max-w-md w-full relative z-10 space-y-8 animate-in fade-in zoom-in-95 duration-700">
@@ -457,6 +441,22 @@ export default function ClientGalleryPage() {
               </Button>
            </div>
         </div>
+      </div>
+    );
+  }
+
+  // ERROR STATE: Only show if resolution finished and no gallery metadata could be loaded
+  if (!isResolving && (galleryError || !gallery)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
+        <div className="bg-destructive/10 p-6 rounded-full mb-8">
+          <ShieldAlert className="w-12 h-12 text-destructive" />
+        </div>
+        <h1 className="text-2xl lg:text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Unavailable</h1>
+        <p className="text-muted-foreground mb-8 max-w-xs mx-auto">
+          The requested gallery could not be found or is currently restricted by the studio.
+        </p>
+        <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
       </div>
     );
   }
