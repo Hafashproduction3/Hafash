@@ -58,6 +58,7 @@ export default function SettingsPage() {
     photographerName: '',
     whatsappNumber: '',
     studioLogo: '',
+    studioBanner: '',
     website: '',
     // Gallery Defaults
     defaultWatermark: true,
@@ -76,6 +77,7 @@ export default function SettingsPage() {
         photographerName: profile.photographerName || '',
         whatsappNumber: profile.whatsappNumber || '',
         studioLogo: profile.studioLogo || '',
+        studioBanner: profile.studioBanner || '',
         website: profile.website || '',
         defaultWatermark: profile.defaultWatermark ?? true,
         defaultAllowDownloads: profile.defaultAllowDownloads ?? false,
@@ -291,26 +293,50 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   
-                  <div className="space-y-4 pt-4 border-t border-border/20">
-                    <div className="flex items-center justify-between">
-                       <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Studio Logo URL</Label>
-                       {!isCustomBrandingActive && <Badge variant="secondary" className="text-[8px] h-4">Premium</Badge>}
+                  <div className="space-y-6 pt-4 border-t border-border/20">
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Studio Logo URL</Label>
+                         {!isCustomBrandingActive && <Badge variant="secondary" className="text-[8px] h-4">Premium</Badge>}
+                      </div>
+                      <div className={cn("relative transition-opacity", !isCustomBrandingActive && "opacity-50 pointer-events-none")}>
+                        <ImageIcon className="absolute left-3 top-4 w-4 h-4 text-primary" />
+                        <Input 
+                          value={formData.studioLogo} 
+                          onChange={(e) => updateField('studioLogo', e.target.value)}
+                          placeholder="https://your-domain.com/logo.png" 
+                          className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                          disabled={!isCustomBrandingActive}
+                        />
+                      </div>
+                      <p className="text-[9px] lg:text-[10px] text-muted-foreground italic ml-1">
+                        {isCustomBrandingActive 
+                          ? "Recommended: 400x120px PNG with transparent background."
+                          : "Custom logos are a Professional benefit. Upgrade to apply branding."}
+                      </p>
                     </div>
-                    <div className={cn("relative transition-opacity", !isCustomBrandingActive && "opacity-50 pointer-events-none")}>
-                      <ImageIcon className="absolute left-3 top-4 w-4 h-4 text-primary" />
-                      <Input 
-                        value={formData.studioLogo} 
-                        onChange={(e) => updateField('studioLogo', e.target.value)}
-                        placeholder="https://your-domain.com/logo.png" 
-                        className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
-                        disabled={!isCustomBrandingActive}
-                      />
+
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Gallery Cover Banner URL</Label>
+                         {!isCustomBrandingActive && <Badge variant="secondary" className="text-[8px] h-4">Premium</Badge>}
+                      </div>
+                      <div className={cn("relative transition-opacity", !isCustomBrandingActive && "opacity-50 pointer-events-none")}>
+                        <ImageIcon className="absolute left-3 top-4 w-4 h-4 text-primary" />
+                        <Input 
+                          value={formData.studioBanner} 
+                          onChange={(e) => updateField('studioBanner', e.target.value)}
+                          placeholder="https://your-domain.com/banner.jpg" 
+                          className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                          disabled={!isCustomBrandingActive}
+                        />
+                      </div>
+                      <p className="text-[9px] lg:text-[10px] text-muted-foreground italic ml-1">
+                        {isCustomBrandingActive 
+                          ? "Recommended: 1920x800px (Landscape). JPG, PNG, WEBP max 5MB. Replaces event cover in galleries."
+                          : "Custom banners are a Professional benefit. Upgrade to enhance gallery headers."}
+                      </p>
                     </div>
-                    <p className="text-[9px] lg:text-[10px] text-muted-foreground italic ml-1">
-                      {isCustomBrandingActive 
-                        ? "Recommended: 400x120px PNG with transparent background. This logo will appear on your public galleries."
-                        : "Custom logo display is a Professional benefit. Upgrade your plan to apply your branding."}
-                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -321,26 +347,34 @@ export default function SettingsPage() {
                 <CardHeader className="pb-4">
                   <CardTitle className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Live Branding Preview</CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-col items-center text-center p-8 bg-background/40">
-                  {formData.studioLogo && isCustomBrandingActive ? (
-                    <img src={formData.studioLogo} className="h-12 lg:h-16 w-auto mb-6 object-contain" alt="Logo Preview" />
-                  ) : (
-                    <div className="h-14 lg:h-16 w-14 lg:w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary mb-6">
-                      <ImageIcon className="w-7 lg:w-8 h-7 lg:h-8" />
+                <CardContent className="p-0">
+                  <div className="relative h-48 w-full bg-muted overflow-hidden flex items-center justify-center">
+                    {formData.studioBanner && isCustomBrandingActive ? (
+                      <img src={formData.studioBanner} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="Banner Preview" />
+                    ) : (
+                      <div className="absolute inset-0 bg-primary/5 flex items-center justify-center">
+                        <ImageIcon className="w-10 h-10 text-primary opacity-10" />
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                    <div className="relative z-10 text-center p-4">
+                      {formData.studioLogo && isCustomBrandingActive ? (
+                        <img src={formData.studioLogo} className="h-8 w-auto mb-2 mx-auto object-contain" alt="Logo Preview" />
+                      ) : (
+                        <h3 className="text-lg font-headline font-bold text-white">{formData.studioName || "Untitled Studio"}</h3>
+                      )}
+                      <p className="text-[8px] text-primary italic font-headline uppercase tracking-widest">{formData.photographerName || "Professional Photographer"}</p>
                     </div>
-                  )}
-                  <h3 className="text-xl lg:text-2xl font-headline font-bold leading-tight">{formData.studioName || "Untitled Studio"}</h3>
-                  <p className="text-xs lg:text-sm text-primary italic font-headline mt-1">{formData.photographerName || "Professional Photographer"}</p>
-                  
-                  {!isCustomBrandingActive && (
-                    <div className="mt-8 pt-6 border-t border-border/20 w-full">
-                       <p className="text-[8px] uppercase tracking-widest text-muted-foreground mb-3">Gallery Fallback</p>
+                  </div>
+                  <div className="p-6 text-center">
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-4">Branded Header Preview</p>
+                    {!isCustomBrandingActive && (
                        <div className="flex items-center justify-center gap-2 opacity-30">
                           <img src="/hafash-logo.png" className="h-6 w-auto grayscale" alt="Hafash" />
                           <span className="font-headline font-bold text-lg italic">Hafash.pk</span>
                        </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>

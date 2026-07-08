@@ -328,7 +328,12 @@ export default function ClientGalleryPage() {
     );
   }
 
-  const coverImageUrl = gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
+  const effectiveHeroImage = useMemo(() => {
+    if (isCustomBrandingActive && profile?.studioBanner) {
+      return profile.studioBanner;
+    }
+    return gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
+  }, [isCustomBrandingActive, profile?.studioBanner, gallery.coverImage, gallery.items]);
 
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
@@ -342,9 +347,12 @@ export default function ClientGalleryPage() {
         <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6" />
       </Button>
 
-      <div className="h-[80vh] lg:h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card">
+      <div className={cn(
+        "h-[80vh] lg:h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card shadow-2xl transition-all",
+        isCustomBrandingActive && profile?.studioBanner && "rounded-b-[2.5rem] lg:rounded-b-[4rem]"
+      )}>
         <Image 
-          src={coverImageUrl} 
+          src={effectiveHeroImage} 
           fill 
           className="absolute inset-0 w-full h-full object-cover opacity-80" 
           alt="Gallery Cover" 
@@ -379,7 +387,7 @@ export default function ClientGalleryPage() {
                   <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[40px] lg:h-[70px] w-auto" />
                   <span className="text-3xl sm:text-5xl lg:text-9xl font-headline font-bold text-white italic leading-none">Hafash.pk</span>
                 </div>
-                <span className="text-[9px] lg:text-[10px] font-bold tracking-[0.5em] text-primary/70 uppercase">LUXURY GALLERY DELIVERY</span>
+                <span className="text-[9px] lg:text-[10px] font-bold tracking-[0.5em] text-primary/70 uppercase leading-none block z-10">LUXURY GALLERY DELIVERY</span>
               </div>
             )}
           </div>
