@@ -304,6 +304,14 @@ export default function ClientGalleryPage() {
     }
   };
 
+  const effectiveHeroImage = useMemo(() => {
+    if (!gallery) return 'https://picsum.photos/seed/hafash-empty/1920/1080';
+    if (isCustomBrandingActive && profile?.studioBanner) {
+      return profile.studioBanner;
+    }
+    return gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
+  }, [isCustomBrandingActive, profile?.studioBanner, gallery?.coverImage, gallery?.items]);
+
   if (isResolving || docLoading || (galleryId && !gallery && !galleryError)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
@@ -327,13 +335,6 @@ export default function ClientGalleryPage() {
       </div>
     );
   }
-
-  const effectiveHeroImage = useMemo(() => {
-    if (isCustomBrandingActive && profile?.studioBanner) {
-      return profile.studioBanner;
-    }
-    return gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
-  }, [isCustomBrandingActive, profile?.studioBanner, gallery.coverImage, gallery.items]);
 
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
