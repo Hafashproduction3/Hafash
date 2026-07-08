@@ -23,6 +23,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
@@ -269,8 +271,9 @@ export default function ClientGalleryPage() {
 
   // 7. Render Logic
   const isLoading = isResolving || (!!galleryId && docLoading);
-  const isOwner = user?.uid === gallery?.userId;
-  const showGate = gallery?.isPasswordProtected && !isUnlocked && !isOwner;
+  // Refined isOwner logic: ensure both UIDs exist to avoid matching undefined === undefined
+  const isOwner = Boolean(user?.uid && gallery?.userId && user.uid === gallery.userId);
+  const showGate = Boolean(gallery?.isPasswordProtected && !isUnlocked && !isOwner);
 
   if (isLoading) {
     return (
@@ -334,7 +337,7 @@ export default function ClientGalleryPage() {
                       className="pl-10 pr-10 h-12 bg-background/50 border-border/50 rounded-xl"
                     />
                     <button 
-                      className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary"
+                      className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary transition-colors"
                       onClick={() => setShowGatePass(!showGatePass)}
                     >
                       {showGatePass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
