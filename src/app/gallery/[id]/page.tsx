@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -14,10 +13,15 @@ import {
   Globe,
   Clock,
   ArrowLeft,
-  Mail
+  Mail,
+  Lock,
+  ArrowRight,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
@@ -48,7 +52,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 
-// Memoized Gallery Item to prevent unnecessary re-renders in large lists
+// Memoized Gallery Item
 const GalleryItem = memo(({ 
   item, 
   showWatermark, 
@@ -115,10 +119,16 @@ export default function ClientGalleryPage() {
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
+
+  // Security Access State
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isCheckingPassword, setIsCheckingPassword] = useState(false);
   
   const viewIncremented = useRef<string | null>(null);
 
-  // Resolution effect to map slug to ID
+  // 1. Resolution Logic (Order critical for React Hooks)
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) {
@@ -128,40 +138,28 @@ export default function ClientGalleryPage() {
 
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
-      
-      // Attempt direct ID resolution first
       let resolvedId = cleanParam.length >= 18 ? cleanParam : null;
 
       try {
-        // Attempt Slug Resolution for Public Galleries
+        // Find gallery by slug regardless of mode to load metadata
         const q = query(
           collection(firestore, 'galleries'), 
-          where('slug', '==', cleanParam.toLowerCase()),
-          where('isPublic', '==', true)
+          where('slug', '==', cleanParam.toLowerCase())
         );
         
         const snapshot = await getDocs(q);
-        
         if (!snapshot.empty) {
-          const docSnap = snapshot.docs[0];
-          resolvedId = docSnap.id;
-          
-          const galleryData = docSnap.data();
-          if (viewIncremented.current !== resolvedId && user?.uid !== galleryData.userId) {
-            viewIncremented.current = resolvedId;
-            const gRef = doc(firestore, 'galleries', resolvedId);
-            updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
-          }
+          resolvedId = snapshot.docs[0].id;
         }
       } catch (err) {
-        // Silent catch: Fallback to direct ID if slug query fails (e.g. security rules)
+        // Fallback handled by galleryId being set to URL param or null
       }
 
       setGalleryId(resolvedId);
       setIsResolving(false);
     }
     resolveGallery();
-  }, [firestore, galleryParam, user]);
+  }, [firestore, galleryParam]);
 
   const galleryRef = useMemo(() => {
     if (!firestore || !galleryId) return null;
@@ -177,11 +175,22 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
+  // 2. Security & Session Check
+  useEffect(() => {
+    if (galleryId) {
+      const sessionKey = `hafash_access_${galleryId}`;
+      if (sessionStorage.getItem(sessionKey) === 'true') {
+        setIsUnlocked(true);
+      }
+    }
+  }, [galleryId]);
+
   const photographerPlan = useMemo(() => {
-    const rawPlanId = profile?.planId || 'starter';
+    if (!profile) return DEFAULT_PLAN;
+    const rawPlanId = profile.planId || 'starter';
     const planId = (typeof rawPlanId === 'string' ? rawPlanId.toLowerCase() : 'starter') as PlanId;
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
-  }, [profile?.planId]);
+  }, [profile]);
 
   const isCustomBrandingActive = useMemo(() => {
     return photographerPlan.id !== 'starter';
@@ -195,9 +204,13 @@ export default function ClientGalleryPage() {
     return gallery?.coverImage || 'https://picsum.photos/seed/hafash-empty/1920/1080';
   }, [isCustomBrandingActive, profile, gallery]);
 
+  const accessMode = useMemo(() => {
+    if (!gallery) return 'public';
+    return gallery.accessMode || (gallery.isPublic ? 'public' : 'hidden');
+  }, [gallery]);
+
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
-  const tagline = profile?.photographerName;
   const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
 
   const canDownload = useMemo(() => {
@@ -208,29 +221,41 @@ export default function ClientGalleryPage() {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
+  // 3. Handlers
+  const handleVerifyPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gallery?.passwordHash || !passwordInput) return;
+
+    setIsCheckingPassword(true);
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(passwordInput);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const inputHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      if (inputHash === gallery.passwordHash) {
+        sessionStorage.setItem(`hafash_access_${galleryId}`, 'true');
+        setIsUnlocked(true);
+        toast({ title: "Access Granted", description: "Welcome to the gallery." });
+      } else {
+        toast({ variant: "destructive", title: "Access Denied", description: "Incorrect password. Please try again." });
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Security Error", description: "Could not verify credentials." });
+    } finally {
+      setIsCheckingPassword(false);
+    }
+  };
+
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
     const gRef = doc(firestore, 'galleries', galleryId);
     const updatedItems = (gallery.items || []).map((item: any) => 
       item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
     );
-    const updateData = { items: updatedItems };
-
-    updateDoc(gRef, { items: updatedItems })
-      .then(() => {
-        toast({ title: isCurrentlyFavorite ? "Removed" : "Favorited" });
-      })
-      .catch(async (err: any) => {
-        if (err.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: gRef.path,
-            operation: 'update',
-            requestResourceData: updateData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        }
-      });
-  }, [firestore, gallery, galleryId, toast]);
+    updateDoc(gRef, { items: updatedItems }).catch(() => {});
+  }, [firestore, gallery, galleryId]);
 
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload) return;
@@ -246,72 +271,30 @@ export default function ClientGalleryPage() {
 
   const handleDownloadAll = async () => {
     if (isPreparing || !gallery || !canDownload) return;
-    
-    const items = gallery.items || [];
-    if (items.length === 0) {
-      toast({ title: "No items to download" });
-      return;
-    }
-
     setIsPreparing(true);
     const zip = new JSZip();
-    const totalItems = items.length;
-    let successfulCount = 0;
-    let failedCount = 0;
-
+    const items = gallery.items || [];
+    
     try {
-      for (let i = 0; i < totalItems; i++) {
-        const item = items[i];
-        setPreparationStep(`Fetching Masterpieces: ${i + 1} / ${totalItems}`);
-        
-        try {
-          const url = item.masterUrl || item.url;
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-          const blob = await res.blob();
-          
-          const filename = item.fileName || `photo-${i + 1}.jpg`;
-          zip.file(filename, blob);
-          successfulCount++;
-        } catch (itemError) {
-          console.error(`Failed to download ${item.id}:`, itemError);
-          failedCount++;
-        }
+      for (let i = 0; i < items.length; i++) {
+        setPreparationStep(`Fetching Masterpieces: ${i + 1} / ${items.length}`);
+        const url = items[i].masterUrl || items[i].url;
+        const res = await fetch(url);
+        const blob = await res.blob();
+        zip.file(items[i].fileName || `photo-${i + 1}.jpg`, blob);
       }
-      
-      if (successfulCount === 0) {
-        throw new Error("All image downloads failed.");
-      }
-
       setPreparationStep('Compiling Secure Package...');
-      const content = await zip.generateAsync({ 
-        type: 'blob',
-        compression: "STORE",
-      });
-      
-      const zipName = `${gallery.title || 'gallery'}.zip`.replace(/[^a-z0-9.]/gi, '_');
-      saveAs(content, zipName);
-      
-      toast({ 
-        title: "Download Started", 
-        description: failedCount > 0 
-          ? `Package ready. ${successfulCount} items included, ${failedCount} failed.` 
-          : "Your secure gallery package is ready." 
-      });
-    } catch (error: any) {
-      console.error("ZIP Generation Error:", error);
-      toast({ 
-        variant: "destructive", 
-        title: "Package Error", 
-        description: error.message || "Failed to generate ZIP package." 
-      });
+      const content = await zip.generateAsync({ type: 'blob' });
+      saveAs(content, `${gallery.title || 'gallery'}.zip`);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Package Error" });
     } finally {
       setIsPreparing(false);
       setPreparationStep('');
     }
   };
 
-  // LOADING STATE
+  // 4. Loading & Error States
   if (isResolving || (galleryId && docLoading)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
@@ -321,8 +304,9 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // ERROR STATE
-  if (!isResolving && (galleryError || !gallery)) {
+  // Treat "Hidden" galleries as "Unavailable" for non-owners
+  const isOwner = user?.uid === gallery?.userId;
+  if (!isResolving && (galleryError || !gallery || (accessMode === 'hidden' && !isOwner))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
@@ -337,12 +321,83 @@ export default function ClientGalleryPage() {
     );
   }
 
+  // 5. Password Gate
+  if (accessMode === 'password' && !isUnlocked && !isOwner) {
+    return (
+      <div className="min-h-screen bg-background relative flex items-center justify-center p-6 overflow-hidden">
+        <Image 
+          src={effectiveHeroImage} 
+          fill 
+          className="absolute inset-0 object-cover blur-md opacity-20" 
+          alt="Background" 
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background to-background" />
+        
+        <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
+          <div className="text-center mb-10">
+            {isCustomBrandingActive && studioLogo ? (
+              <img src={studioLogo} className="h-16 lg:h-20 w-auto mb-6 mx-auto object-contain" alt="Studio" />
+            ) : (
+              <div className="flex items-center justify-center gap-1 mb-6">
+                <img src="/hafash-logo.png" className="h-12 w-auto" alt="Logo" />
+                <span className="text-3xl font-headline font-bold text-primary italic">Hafash.pk</span>
+              </div>
+            )}
+            <h1 className="text-2xl font-headline font-bold mb-2 uppercase tracking-tight">{gallery.title}</h1>
+            <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">This gallery is secured by the studio</p>
+          </div>
+
+          <Card className="bg-card/50 border-border/50 rounded-[2.5rem] p-10 shadow-2xl backdrop-blur-xl">
+            <form onSubmit={handleVerifyPassword} className="space-y-6">
+              <div className="space-y-2 text-center">
+                <div className="bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Lock className="w-8 h-8 text-primary" />
+                </div>
+                <Label className="text-sm font-bold">Access Verification</Label>
+              </div>
+
+              <div className="relative">
+                <Input 
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter Access Password"
+                  className="h-14 bg-background/50 border-border/50 rounded-2xl px-6 text-center text-lg tracking-widest font-bold placeholder:text-muted-foreground/30 placeholder:tracking-normal placeholder:font-normal"
+                  value={passwordInput}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  autoFocus
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-4 text-muted-foreground hover:text-primary transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+
+              <Button 
+                type="submit" 
+                className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-xl shadow-primary/20"
+                disabled={isCheckingPassword || !passwordInput}
+              >
+                {isCheckingPassword ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                Unlock Gallery
+              </Button>
+            </form>
+          </Card>
+
+          <p className="text-center mt-8 text-[10px] text-muted-foreground font-bold uppercase tracking-[0.4em] opacity-40">
+            End-to-End Asset Integrity by Hafash
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 6. Main Gallery Render
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
-      {/* Floating Back Button */}
       <Button 
-        variant="ghost" 
-        size="icon" 
+        variant="ghost" size="icon" 
         className="fixed top-4 left-4 lg:top-8 lg:left-8 z-[60] h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-black/20 backdrop-blur-md text-white border border-white/20 hover:bg-white/10"
         onClick={() => router.back()}
       >
@@ -353,13 +408,7 @@ export default function ClientGalleryPage() {
         "h-[80vh] lg:h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card shadow-2xl transition-all",
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[2.5rem] lg:rounded-b-[4rem]"
       )}>
-        <Image 
-          src={effectiveHeroImage} 
-          fill 
-          className="absolute inset-0 w-full h-full object-cover opacity-80" 
-          alt="Gallery Cover" 
-          priority 
-        />
+        <Image src={effectiveHeroImage} fill className="absolute inset-0 w-full h-full object-cover opacity-80" alt="Cover" priority />
         <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
         
         <div className="relative z-10 text-center px-6 max-w-5xl">
@@ -367,86 +416,24 @@ export default function ClientGalleryPage() {
             {isCustomBrandingActive ? (
               <div className="flex flex-col items-center mb-8">
                 {studioLogo ? (
-                  <Image 
-                    src={studioLogo} 
-                    width={240} 
-                    height={100} 
-                    className="h-16 lg:h-20 w-auto mb-6 object-contain" 
-                    alt="Studio Logo" 
-                  />
+                  <img src={studioLogo} className="h-16 lg:h-20 w-auto mb-6 object-contain" alt="Logo" />
                 ) : (
                   <span className="text-3xl lg:text-5xl font-headline font-bold text-white uppercase tracking-tighter mb-4">{studioName}</span>
-                )}
-                {tagline && (
-                  <span className="text-[10px] lg:text-xs font-bold tracking-[0.4em] text-primary uppercase">{tagline}</span>
                 )}
               </div>
             ) : (
               <div className="flex flex-col items-center mb-8">
                 <div className="flex items-center justify-center gap-1 mb-2">
-                  <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[40px] lg:h-[70px] w-auto" />
-                  <span className="text-3xl sm:text-5xl lg:text-9xl font-headline font-bold text-white italic leading-none">Hafash.pk</span>
+                  <img src="/hafash-logo.png" className="h-[40px] lg:h-[70px] w-auto" alt="Logo" />
+                  <span className="text-3xl sm:text-5xl lg:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
                 </div>
-                <span className="text-[9px] lg:text-[10px] font-bold tracking-[0.5em] text-primary/70 uppercase leading-none block z-10">LUXURY GALLERY DELIVERY</span>
+                <span className="text-[9px] lg:text-[10px] font-bold tracking-[0.5em] text-primary/70 uppercase">LUXURY GALLERY DELIVERY</span>
               </div>
             )}
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight leading-tight">{gallery.title}</h1>
           
-          {gallery.description && (
-            <div className="max-w-sm lg:max-w-md mx-auto mb-10 lg:mb-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
-               <div className="bg-white/5 border border-white/10 rounded-[2rem] lg:rounded-[2.5rem] p-6 lg:p-8 shadow-2xl group hover:border-primary/20 transition-all">
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
-                      <Mail className="w-5 h-5 lg:w-6 lg:h-6" />
-                    </div>
-                    <div className="text-center space-y-1">
-                       <h3 className="font-headline font-bold text-lg lg:text-xl text-white">Message from Photographer</h3>
-                       <p className="text-[9px] lg:text-[10px] uppercase tracking-widest text-white/40 font-bold">A personal message has been left for you</p>
-                    </div>
-                    
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button className="rounded-full px-8 lg:px-10 h-10 lg:h-12 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs lg:text-sm shadow-xl shadow-primary/10 mt-2">
-                          Read Message
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="w-[95vw] max-w-xl bg-card border-border/50 rounded-[2rem] lg:rounded-[2.5rem] p-6 lg:p-14 shadow-2xl overflow-hidden ring-0">
-                        <DialogHeader>
-                          <div className="flex flex-col items-center text-center gap-4 mb-8">
-                             <div className="h-14 lg:h-16 w-14 lg:w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                               <Mail className="w-6 lg:w-8 h-6 lg:h-8" />
-                             </div>
-                             <div className="space-y-1">
-                               <DialogTitle className="text-2xl lg:text-3xl font-headline font-bold">A Personal Note</DialogTitle>
-                               <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">Direct from the studio</p>
-                             </div>
-                          </div>
-                        </DialogHeader>
-                        
-                        <div className="max-h-[50vh] overflow-y-auto overflow-x-hidden pr-2 custom-scrollbar">
-                           <div className="relative text-center">
-                             <p className="text-foreground leading-relaxed whitespace-pre-wrap break-words italic text-lg lg:text-xl px-2">
-                               {gallery.description}
-                             </p>
-                           </div>
-                        </div>
-
-                        <div className="mt-10 flex justify-center">
-                          <DialogClose asChild>
-                            <Button variant="outline" className="rounded-full px-10 h-11 lg:h-12 border-border/50 hover:bg-primary/5 hover:text-primary transition-all font-bold text-xs lg:text-sm">
-                              Close Message
-                            </Button>
-                          </DialogClose>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-               </div>
-            </div>
-          )}
-
           <div className="space-y-4">
             <p className="text-lg lg:text-xl italic text-primary font-headline">{gallery.clientName}</p>
             <div className="flex items-center justify-center gap-4 text-white uppercase tracking-[0.3em] text-[9px] lg:text-[10px] font-bold">
@@ -472,11 +459,6 @@ export default function ClientGalleryPage() {
                   {isPreparing ? <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" /> : <Download className="w-4 h-4 lg:w-5 lg:h-5" />}
                   {isPreparing ? "Preparing..." : "Download All"}
                 </Button>
-                {isPreparing && (
-                  <div className="flex items-center gap-2 text-[8px] lg:text-[9px] uppercase font-bold text-primary animate-pulse">
-                    <Clock className="w-3 h-3" /> {preparationStep}
-                  </div>
-                )}
               </div>
             )}
 
@@ -488,18 +470,6 @@ export default function ClientGalleryPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-12">
-        <div className="flex justify-between items-center mb-10 lg:mb-12 border-b border-border/20 pb-8">
-          <div className="flex items-center gap-3 lg:gap-4">
-            <div className="h-10 lg:h-12 w-10 lg:w-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
-              <Globe className="w-5 h-5 lg:w-6 lg:h-6" />
-            </div>
-            <div>
-              <h2 className="text-xl lg:text-2xl font-headline font-bold uppercase tracking-widest">Masterpieces</h2>
-              <p className="text-[8px] lg:text-[9px] font-bold text-muted-foreground uppercase tracking-widest">Client Selection Enabled</p>
-            </div>
-          </div>
-        </div>
-
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 lg:gap-8 space-y-6 lg:space-y-8">
           {gallery.items?.map((item: any) => (
             <GalleryItem 
@@ -515,18 +485,10 @@ export default function ClientGalleryPage() {
         </div>
       </div>
 
-      {/* Luxury Footer Branding */}
       <footer className="mt-20 pt-16 border-t border-border/20 px-6">
         <div className="max-w-4xl mx-auto text-center">
           <div className="flex flex-col items-center gap-6">
-            {isCustomBrandingActive && (
-              <div className="space-y-2">
-                <h4 className="text-xl font-headline font-bold">{studioName}</h4>
-                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Original Coverage & Fulfillment</p>
-              </div>
-            )}
-            
-            <div className="flex items-center gap-3 opacity-40 hover:opacity-100 transition-opacity duration-500 mt-4">
+            <div className="flex items-center gap-3 opacity-40 hover:opacity-100 transition-opacity duration-500">
               <img src="/hafash-logo.png" alt="Hafash" className="h-6 w-auto grayscale" />
               <span className="text-[9px] font-bold uppercase tracking-[0.5em] text-muted-foreground">Powered by Hafash.pk</span>
             </div>
@@ -545,21 +507,6 @@ export default function ClientGalleryPage() {
           </Button>
         </div>
       )}
-
-      <AlertDialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
-        <AlertDialogContent className="bg-card border-border/50 rounded-[2rem] lg:rounded-[2.5rem]">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl lg:text-2xl font-headline">Upgrade Required</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground text-sm lg:text-base">
-              Your studio's current plan limits high-speed batch downloads. Please upgrade to continue with this delivery.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-xl font-bold">Cancel</AlertDialogCancel>
-            <AlertDialogAction className="rounded-xl bg-primary font-bold" onClick={() => router.push('/storage')}>Upgrade Plan</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
