@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   ArrowLeft,
   Eye,
+  EyeOff,
   Loader2,
   ShieldCheck,
   CreditCard,
@@ -23,7 +24,10 @@ import {
   Copy,
   Check,
   Smartphone,
-  QrCode
+  QrCode,
+  Key,
+  Shield,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -62,6 +66,14 @@ export default function EventManagementPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState<'gallery' | 'selection' | null>(null);
+
+  // Security Logic State
+  const [isSettingPassword, setIsSettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [savingSecurity, setSavingSecurity] = useState(false);
 
   // Local state for settings to avoid jittery typing
   const [settings, setSettings] = useState({
@@ -111,6 +123,57 @@ export default function EventManagementPage() {
       toast({ title: "Settings Saved", description: "Gallery metadata updated successfully." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
+    }
+  };
+
+  // Secure Hashing Logic
+  const hashPassword = async (password: string) => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleSaveSecurity = async () => {
+    if (!eventRef) return;
+    if (newPassword.length < 8) {
+      toast({ variant: "destructive", title: "Security Alert", description: "Password must be at least 8 characters." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast({ variant: "destructive", title: "Validation Error", description: "Passwords do not match." });
+      return;
+    }
+
+    setSavingSecurity(true);
+    try {
+      const hashed = await hashPassword(newPassword);
+      await updateDoc(eventRef, {
+        isPasswordProtected: true,
+        hashedPassword: hashed
+      });
+      toast({ title: "Security Enabled", description: "Password protection is now active." });
+      setIsSettingPassword(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Sync Failed", description: err.message });
+    } finally {
+      setSavingSecurity(false);
+    }
+  };
+
+  const handleRemoveSecurity = async () => {
+    if (!eventRef) return;
+    try {
+      await updateDoc(eventRef, {
+        isPasswordProtected: false,
+        hashedPassword: null
+      });
+      toast({ title: "Security Updated", description: "Password protection has been removed." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
@@ -223,7 +286,7 @@ export default function EventManagementPage() {
                   <CardDescription>Control how your clients interact with their memories.</CardDescription>
                 </div>
                 <Badge variant="outline" className="text-[8px] tracking-[0.2em] font-bold border-primary/30 text-primary">
-                  STUDIO FLOW ACTIVE
+                  VISIBILITY ACTIVE
                 </Badge>
               </div>
             </CardHeader>
@@ -275,6 +338,122 @@ export default function EventManagementPage() {
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Gallery Security Card - NEW SYSTEM */}
+          <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
+            <CardHeader className="bg-primary/5 border-b border-border/30 px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
+                    <Shield className="w-5 h-5 text-primary" /> Gallery Security
+                  </CardTitle>
+                  <CardDescription>Enforce password protection for client access.</CardDescription>
+                </div>
+                <Badge variant="outline" className="text-[8px] tracking-[0.2em] font-bold border-primary/30 text-primary">
+                  SECURITY CHANNEL
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8">
+              {!event.isPasswordProtected && !isSettingPassword ? (
+                <div className="flex flex-col items-center justify-center py-6 text-center space-y-4">
+                  <div className="bg-primary/5 p-4 rounded-full">
+                    <Key className="w-8 h-8 text-primary opacity-40" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="font-headline font-bold">No Protection Active</h4>
+                    <p className="text-xs text-muted-foreground">Visitors can view this gallery without a password if it is Public.</p>
+                  </div>
+                  <Button 
+                    className="rounded-xl font-bold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20"
+                    onClick={() => setIsSettingPassword(true)}
+                  >
+                    Enable Password Protection
+                  </Button>
+                </div>
+              ) : isSettingPassword ? (
+                <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">New Password</Label>
+                        <div className="relative">
+                          <Input 
+                            type={showPass ? "text" : "password"}
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="Min. 8 characters"
+                            className="h-12 bg-background/50 border-border/50 rounded-xl pr-10"
+                          />
+                          <button 
+                            className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary transition-colors"
+                            onClick={() => setShowPass(!showPass)}
+                          >
+                            {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Confirm Password</Label>
+                        <div className="relative">
+                          <Input 
+                            type={showConfirm ? "text" : "password"}
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Repeat password"
+                            className="h-12 bg-background/50 border-border/50 rounded-xl pr-10"
+                          />
+                          <button 
+                            className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary transition-colors"
+                            onClick={() => setShowConfirm(!showConfirm)}
+                          >
+                            {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                   </div>
+                   <div className="flex justify-end gap-3">
+                      <Button variant="ghost" className="rounded-xl font-bold" onClick={() => setIsSettingPassword(false)}>Cancel</Button>
+                      <Button 
+                        className="rounded-xl font-bold bg-primary text-primary-foreground px-8"
+                        onClick={handleSaveSecurity}
+                        disabled={savingSecurity}
+                      >
+                        {savingSecurity ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                        Save Password
+                      </Button>
+                   </div>
+                </div>
+              ) : (
+                <div className="flex flex-col md:flex-row items-center justify-between p-6 bg-primary/5 rounded-2xl border border-primary/20 gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-primary/20 p-3 rounded-xl">
+                      <ShieldCheck className="w-6 h-6 text-primary" />
+                    </div>
+                    <div>
+                      <h4 className="font-headline font-bold text-lg">Password Protection Enabled ✅</h4>
+                      <p className="text-xs text-muted-foreground">Masterpieces are secured behind an encrypted gate.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 w-full md:w-auto">
+                    <Button 
+                      variant="outline" 
+                      className="rounded-xl font-bold border-border/50 flex-1 md:flex-none"
+                      onClick={() => setIsSettingPassword(true)}
+                    >
+                      Change Password
+                    </Button>
+                    <Button 
+                      variant="ghost" 
+                      className="rounded-xl font-bold text-destructive hover:bg-destructive/10 flex-1 md:flex-none"
+                      onClick={handleRemoveSecurity}
+                    >
+                      Remove Protection
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
