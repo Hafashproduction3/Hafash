@@ -9,6 +9,8 @@ import {
   X, 
   Lock, 
   Unlock,
+  Eye,
+  EyeOff,
   MessageCircle, 
   Share2, 
   ShieldAlert,
@@ -35,10 +37,10 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
 import {
   Dialog,
@@ -124,11 +126,11 @@ export default function ClientGalleryPage() {
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const viewIncremented = useRef<string | null>(null);
 
   const effectiveHeroImage = useMemo(() => {
-    // Moved to top and handle profile data check
     return 'https://picsum.photos/seed/hafash-hero/1920/1080';
   }, []);
 
@@ -405,16 +407,23 @@ export default function ClientGalleryPage() {
                        <div className="relative">
                           <Lock className="absolute left-4 top-4 w-4 h-4 text-primary" />
                           <Input 
-                             type="password"
+                             type={showPassword ? "text" : "password"}
                              placeholder="Enter Password"
                              value={passwordInput}
                              onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
                              className={cn(
-                               "pl-11 h-14 rounded-2xl bg-background/50 border-border/50 focus:border-primary/50 text-lg",
+                               "pl-11 pr-11 h-14 rounded-2xl bg-background/50 border-border/50 focus:border-primary/50 text-lg",
                                passwordError && "border-destructive ring-1 ring-destructive"
                              )}
                              onKeyDown={(e) => e.key === 'Enter' && handleVerifyPassword()}
                           />
+                          <button 
+                            type="button" 
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-5 text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                        </div>
                        {passwordError && (
                           <p className="text-[10px] text-destructive font-bold uppercase tracking-widest mt-2 text-center animate-pulse">Incorrect password. Please try again.</p>

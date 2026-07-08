@@ -12,6 +12,7 @@ import {
   Image as ImageIcon,
   ArrowLeft,
   Eye,
+  EyeOff,
   Loader2,
   ShieldCheck,
   CreditCard,
@@ -72,6 +73,7 @@ export default function EventManagementPage() {
   // Local state for password protection
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswords, setShowPasswords] = useState(false);
 
   // Local state for settings to avoid jittery typing
   const [settings, setSettings] = useState({
@@ -322,23 +324,41 @@ export default function EventManagementPage() {
                         <div className="space-y-4">
                           <div className="space-y-2">
                             <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">New Access Password</Label>
-                            <Input 
-                              type="password"
-                              placeholder="••••••••"
-                              value={newPassword}
-                              onChange={(e) => setNewPassword(e.target.value)}
-                              className="h-10 rounded-xl bg-background border-border/50"
-                            />
+                            <div className="relative">
+                              <Input 
+                                type={showPasswords ? "text" : "password"}
+                                placeholder="••••••••"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="h-10 rounded-xl bg-background border-border/50 pr-10"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => setShowPasswords(!showPasswords)}
+                                className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                              >
+                                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
                           </div>
                           <div className="space-y-2">
                             <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Confirm Password</Label>
-                            <Input 
-                              type="password"
-                              placeholder="••••••••"
-                              value={confirmPassword}
-                              onChange={(e) => setConfirmPassword(e.target.value)}
-                              className="h-10 rounded-xl bg-background border-border/50"
-                            />
+                            <div className="relative">
+                              <Input 
+                                type={showPasswords ? "text" : "password"}
+                                placeholder="••••••••"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                className="h-10 rounded-xl bg-background border-border/50 pr-10"
+                              />
+                              <button 
+                                type="button" 
+                                onClick={() => setShowPasswords(!showPasswords)}
+                                className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                              >
+                                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </button>
+                            </div>
                           </div>
                         </div>
                         <Button 

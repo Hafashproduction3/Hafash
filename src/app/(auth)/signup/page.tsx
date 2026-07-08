@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore } from '@/firebase';
 import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { Lock, Mail, Briefcase, User as UserIcon, Phone, Loader2, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, Briefcase, User as UserIcon, Phone, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ export default function SignupPage() {
   const [studioName, setStudioName] = useState('');
   const [photographerName, setPhotographerName] = useState('');
   const [whatsappNumber, setWhatsappNumber] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   
   const auth = useAuth();
   const firestore = useFirestore();
@@ -210,21 +211,28 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
                   <Input 
                     id="password" 
-                    type="password" 
+                    type={showPassword ? "text" : "password"} 
                     placeholder="••••••••" 
-                    className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
+                    className="pl-10 pr-10 h-11 rounded-xl bg-background/50 border-border/50" 
                     required 
                     minLength={6}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
               <div className="space-y-2">
@@ -233,13 +241,20 @@ export default function SignupPage() {
                   <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
                   <Input 
                     id="confirmPassword" 
-                    type="password" 
+                    type={showPassword ? "text" : "password"} 
                     placeholder="••••••••" 
-                    className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
+                    className="pl-10 pr-10 h-11 rounded-xl bg-background/50 border-border/50" 
                     required 
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                   />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
             </div>
