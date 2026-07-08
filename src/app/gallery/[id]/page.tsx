@@ -143,17 +143,31 @@ export default function ClientGalleryPage() {
       const slugAttempt = cleanParam.toLowerCase();
 
       try {
-        // UNIFIED RESOLUTION: Find the gallery by slug regardless of public status.
-        // The component's metadata check will handle rendering the Password Gate if needed.
-        const q = query(
+        // Attempt 1: Resolve as a Public Gallery (satisfied strict list rules)
+        const qPublic = query(
           collection(firestore, 'galleries'), 
-          where('slug', '==', slugAttempt)
+          where('slug', '==', slugAttempt),
+          where('isPublic', '==', true)
         );
-        const querySnapshot = await getDocs(q);
+        let snapshot = await getDocs(qPublic);
         
-        if (!querySnapshot.empty) {
-          const foundId = querySnapshot.docs[0].id;
-          const galleryData = querySnapshot.docs[0].data();
+        // Attempt 2: Fallback for Protected or Owner access
+        if (snapshot.empty) {
+          try {
+            const qAll = query(
+              collection(firestore, 'galleries'), 
+              where('slug', '==', slugAttempt)
+            );
+            snapshot = await getDocs(qAll);
+          } catch (e) {
+            // Silently ignore list denial for private galleries
+          }
+        }
+        
+        if (!snapshot.empty) {
+          const docSnap = snapshot.docs[0];
+          const foundId = docSnap.id;
+          const galleryData = docSnap.data();
           setGalleryId(foundId);
           
           if (viewIncremented.current !== foundId && user?.uid !== galleryData.userId) {
@@ -170,7 +184,6 @@ export default function ClientGalleryPage() {
           }
         }
       } catch (err: any) {
-        // Error handling fallback for direct access
         if (cleanParam.length > 15) {
           setGalleryId(cleanParam);
         } else {
