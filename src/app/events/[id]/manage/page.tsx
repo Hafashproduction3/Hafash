@@ -38,6 +38,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -190,6 +191,38 @@ export default function EventManagementPage() {
     setTimeout(() => setCopiedLink(null), 2000);
   };
 
+  const handleSaveSecuritySettings = async () => {
+    if (!eventRef) return;
+
+    if (!newPassword || newPassword.length < 8) {
+      toast({ 
+        variant: "destructive", 
+        title: "Security Alert", 
+        description: "Password must be at least 8 characters long." 
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({ 
+        variant: "destructive", 
+        title: "Validation Error", 
+        description: "Passwords do not match." 
+      });
+      return;
+    }
+
+    try {
+      const hash = await hashPassword(newPassword);
+      await updateDoc(eventRef, { password: hash });
+      toast({ title: "Security Updated", description: "Gallery access password has been set." });
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: err.message });
+    }
+  };
+
   if (authLoading || dataLoading) return (
     <div className="flex items-center justify-center min-h-screen">
       <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -297,87 +330,87 @@ export default function EventManagementPage() {
                       </Label>
                       <p className="text-[10px] text-muted-foreground">Protect unpaid preview assets.</p>
                     </div>
-                    <Switch checked={true} disabled /> {/* Internal placeholder for future dynamic rendering */}
+                    <Switch checked={true} disabled />
                   </div>
 
                   <div className="space-y-4 pt-4 border-t border-border/30">
-                    <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
-                      <div className="space-y-0.5">
-                        <Label className="text-sm font-bold flex items-center gap-2">
-                          <Globe className="w-3 h-3 text-primary" />
-                          Gallery Access
-                        </Label>
-                        <p className="text-[10px] text-muted-foreground">Choose how clients access this gallery.</p>
-                      </div>
-                      <div className="flex items-center gap-3">
-                         <span className="text-[10px] font-bold text-muted-foreground uppercase">{event.isPublic ? "Public" : "Private"}</span>
-                         <Switch 
-                           checked={!!event.isPublic} 
-                           onCheckedChange={(val) => updateToggle('isPublic', val)}
-                         />
-                      </div>
-                    </div>
-
-                    {!event.isPublic && (
-                      <div className="p-4 bg-primary/5 rounded-2xl border border-primary/20 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <p className="text-[10px] font-bold text-primary uppercase tracking-widest text-center">Password Protection Active</p>
-                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">New Access Password</Label>
-                            <div className="relative">
-                              <Input 
-                                type={showPasswords ? "text" : "password"}
-                                placeholder="••••••••"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                className="h-10 rounded-xl bg-background border-border/50 pr-10"
-                              />
-                              <button 
-                                type="button" 
-                                onClick={() => setShowPasswords(!showPasswords)}
-                                className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
-                              >
-                                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Confirm Password</Label>
-                            <div className="relative">
-                              <Input 
-                                type={showPasswords ? "text" : "password"}
-                                placeholder="••••••••"
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
-                                className="h-10 rounded-xl bg-background border-border/50 pr-10"
-                              />
-                              <button 
-                                type="button" 
-                                onClick={() => setShowPasswords(!showPasswords)}
-                                className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
-                              >
-                                {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                              </button>
-                            </div>
-                          </div>
+                    <div className="flex flex-col gap-4 p-4 bg-background/50 rounded-2xl border border-border/30">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-bold flex items-center gap-2">
+                            <Globe className="w-3 h-3 text-primary" />
+                            Gallery Access
+                          </Label>
+                          <p className="text-[10px] text-muted-foreground">Choose visibility for this gallery.</p>
                         </div>
-                        <Button 
-                          className="w-full h-10 rounded-xl font-bold gap-2"
-                          onClick={async () => {
-                            if (!newPassword || newPassword !== confirmPassword) {
-                              toast({ variant: "destructive", title: "Validation Error", description: "Passwords must match." });
-                              return;
-                            }
-                            const hash = await hashPassword(newPassword);
-                            updateToggle('password', hash);
-                            setNewPassword('');
-                            setConfirmPassword('');
-                          }}
+                        <RadioGroup 
+                          value={event.isPublic ? "public" : "private"} 
+                          onValueChange={(val) => updateToggle('isPublic', val === 'public')}
+                          className="flex gap-4"
                         >
-                          <Lock className="w-4 h-4" /> {event.password ? "Update Password" : "Set Password"}
-                        </Button>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="public" id="access-public" />
+                            <Label htmlFor="access-public" className="text-[10px] font-bold uppercase cursor-pointer">Public</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="private" id="access-private" />
+                            <Label htmlFor="access-private" className="text-[10px] font-bold uppercase cursor-pointer">Protected</Label>
+                          </div>
+                        </RadioGroup>
                       </div>
-                    )}
+
+                      {!event.isPublic && (
+                        <div className="mt-2 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                          <Separator className="bg-border/20" />
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Access Password</Label>
+                              <div className="relative">
+                                <Input 
+                                  type={showPasswords ? "text" : "password"}
+                                  placeholder="Minimum 8 characters"
+                                  value={newPassword}
+                                  onChange={(e) => setNewPassword(e.target.value)}
+                                  className="h-10 rounded-xl bg-background border-border/50 pr-10"
+                                />
+                                <button 
+                                  type="button" 
+                                  onClick={() => setShowPasswords(!showPasswords)}
+                                  className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                                >
+                                  {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Confirm Password</Label>
+                              <div className="relative">
+                                <Input 
+                                  type={showPasswords ? "text" : "password"}
+                                  placeholder="Confirm your password"
+                                  value={confirmPassword}
+                                  onChange={(e) => setConfirmPassword(e.target.value)}
+                                  className="h-10 rounded-xl bg-background border-border/50 pr-10"
+                                />
+                                <button 
+                                  type="button" 
+                                  onClick={() => setShowPasswords(!showPasswords)}
+                                  className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                                >
+                                  {showPasswords ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                          <Button 
+                            className="w-full h-10 rounded-xl font-bold gap-2 bg-primary text-primary-foreground"
+                            onClick={handleSaveSecuritySettings}
+                          >
+                            <Lock className="w-4 h-4" /> Save Security Settings
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
