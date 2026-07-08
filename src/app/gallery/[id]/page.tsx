@@ -105,6 +105,7 @@ export default function ClientGalleryPage() {
   const [showGatePass, setShowGatePass] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
+  // Resolution Logic: Slug to ID
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) {
@@ -114,36 +115,33 @@ export default function ClientGalleryPage() {
 
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
-      
-      // Assume the parameter is a Document ID first
       let resolvedId = cleanParam;
 
       try {
-        // Attempt to find a gallery where the slug matches the parameter
-        const q = query(
+        // Query for public gallery with this slug first
+        const qPublic = query(
           collection(firestore, 'galleries'), 
           where('slug', '==', cleanParam.toLowerCase()),
           where('isPublic', '==', true)
         );
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          resolvedId = snap.docs[0].id;
+        const snapPublic = await getDocs(qPublic);
+        if (!snapPublic.empty) {
+          resolvedId = snapPublic.docs[0].id;
         } else {
-          // If not found in public, try a broader search
-          const fallbackQ = query(
+          // Broad check for owner or specialized access
+          const qBroad = query(
             collection(firestore, 'galleries'), 
             where('slug', '==', cleanParam.toLowerCase())
           );
-          const fallbackSnap = await getDocs(fallbackQ);
-          if (!fallbackSnap.empty) {
-            resolvedId = fallbackSnap.docs[0].id;
+          const snapBroad = await getDocs(qBroad);
+          if (!snapBroad.empty) {
+            resolvedId = snapBroad.docs[0].id;
           }
         }
       } catch (err) {
-        console.warn("Slug resolution query restricted. Attempting direct ID access.");
+        // Stick with cleanParam as fallback resolvedId
       }
 
-      console.log("DEBUG: resolveGallery", { galleryParam: cleanParam, resolvedId });
       setGalleryId(resolvedId);
       setIsResolving(false);
     }
@@ -157,23 +155,6 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
 
-  // Diagnostic Logs
-  useEffect(() => {
-    console.log("DEBUG: ClientGalleryPage state", {
-      galleryParam,
-      galleryId,
-      path: galleryRef?.path,
-      galleryExists: !!gallery,
-      galleryIdField: gallery?.id,
-      gallerySlugField: gallery?.slug,
-      galleryIsPublic: gallery?.isPublic,
-      galleryIsPasswordProtected: gallery?.isPasswordProtected,
-      itemsCount: gallery?.items?.length,
-      galleryError: galleryError?.message,
-      docLoading
-    });
-  }, [galleryParam, galleryId, galleryRef, gallery, galleryError, docLoading]);
-
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
     return doc(firestore, 'users', gallery.userId);
@@ -181,6 +162,13 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
+  // Owner check for bypass
+  const isOwner = useMemo(() => {
+    if (!user?.uid || !gallery?.userId) return false;
+    return user.uid === gallery.userId;
+  }, [user?.uid, gallery?.userId]);
+
+  // Session memory for unlocking
   useEffect(() => {
     if (galleryId) {
       const stored = sessionStorage.getItem(`hafash_unlocked_${galleryId}`);
@@ -188,6 +176,7 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
+  // Branding Logic
   const photographerPlan = useMemo(() => {
     if (!profile) return DEFAULT_PLAN;
     const rawPlanId = profile.planId || 'starter';
@@ -209,6 +198,7 @@ export default function ClientGalleryPage() {
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
 
+  // Commercial Logic
   const canDownload = useMemo(() => {
     return gallery ? (gallery.isLocked === false && gallery.isPaid === true) : false;
   }, [gallery?.isLocked, gallery?.isPaid]);
@@ -217,16 +207,38 @@ export default function ClientGalleryPage() {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
-  const isOwner = useMemo(() => {
-    if (!user?.uid || !gallery?.userId) return false;
-    return user.uid === gallery.userId;
-  }, [user?.uid, gallery?.userId]);
-
+  // Security Gate Logic
   const showGate = useMemo(() => {
     if (isOwner) return false;
-    const isProtected = Boolean(gallery?.isPasswordProtected);
-    return isProtected && !isUnlocked;
+    if (!gallery?.isPasswordProtected) return false;
+    return !isUnlocked;
   }, [gallery, isUnlocked, isOwner]);
+
+  const verifyPassword = async () => {
+    if (!gallery?.hashedPassword) return;
+    setVerifying(true);
+    setPasswordError(false);
+
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(passwordInput);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashed = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      if (hashed === gallery.hashedPassword) {
+        setIsUnlocked(true);
+        sessionStorage.setItem(`hafash_unlocked_${galleryId}`, 'true');
+        toast({ title: "Access Granted", description: "Welcome to the luxury workspace." });
+      } else {
+        setPasswordError(true);
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Security Error" });
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
@@ -257,13 +269,13 @@ export default function ClientGalleryPage() {
     
     try {
       for (let i = 0; i < items.length; i++) {
-        setPreparationStep(`Fetching Masterpieces: ${i + 1} / ${items.length}`);
+        setPreparationStep(`Fetching: ${i + 1} / ${items.length}`);
         const url = items[i].masterUrl || items[i].url;
         const res = await fetch(url);
         const blob = await res.blob();
         zip.file(items[i].fileName || `photo-${i + 1}.jpg`, blob);
       }
-      setPreparationStep('Compiling Secure Package...');
+      setPreparationStep('Compiling Package...');
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${gallery.title || 'gallery'}.zip`);
     } catch (error) {
@@ -271,32 +283,6 @@ export default function ClientGalleryPage() {
     } finally {
       setIsPreparing(false);
       setPreparationStep('');
-    }
-  };
-
-  const verifyPassword = async () => {
-    if (!gallery?.hashedPassword) return;
-    setVerifying(true);
-    setPasswordError(false);
-
-    try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(passwordInput);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashed = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      if (hashed === gallery.hashedPassword) {
-        setIsUnlocked(true);
-        sessionStorage.setItem(`hafash_unlocked_${galleryId}`, 'true');
-        toast({ title: "Access Granted", description: "Welcome to the luxury workspace." });
-      } else {
-        setPasswordError(true);
-      }
-    } catch (err) {
-      toast({ variant: "destructive", title: "Security Error" });
-    } finally {
-      setVerifying(false);
     }
   };
 
@@ -311,8 +297,8 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Adjusted Availability Check: Include isPasswordProtected
-  if (!isLoading && (galleryError || !gallery || (!gallery.isPublic && !gallery.isPasswordProtected && !isOwner))) {
+  // Accessibility Check: Hidden galleries only open for owner
+  if (galleryError || !gallery || (!gallery.isPublic && !isOwner)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
@@ -390,7 +376,7 @@ export default function ClientGalleryPage() {
 
            <div className="text-center opacity-40 hover:opacity-100 transition-opacity">
               <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-muted-foreground">
-                End-to-End Asset Protection Guaranteed by Hafash
+                End-to-End Asset Integrity Guaranteed by Hafash
               </p>
            </div>
         </div>
@@ -464,7 +450,7 @@ export default function ClientGalleryPage() {
                   disabled={isPreparing}
                 >
                   {isPreparing ? <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" /> : <Download className="w-4 h-4 lg:w-5 lg:h-5" />}
-                  {isPreparing ? "Preparing..." : "Download All"}
+                  {isPreparing ? preparationStep : "Download All"}
                 </Button>
               </div>
             )}
