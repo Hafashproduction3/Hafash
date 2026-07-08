@@ -3,6 +3,7 @@
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Heart, 
   Download, 
