@@ -20,25 +20,19 @@ import {
   CheckCircle2,
   Settings,
   Heart,
-  FileText,
   Copy,
   Check,
-  ExternalLink,
-  Shield,
-  Zap,
   Smartphone,
-  QrCode,
-  EyeOff
+  QrCode
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,8 +45,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import Link from 'next/link';
 import { useMemo, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -70,13 +62,6 @@ export default function EventManagementPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState<'gallery' | 'selection' | null>(null);
-
-  // Security Settings State
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [isSavingSecurity, setIsSavingSecurity] = useState(false);
 
   // Local state for settings to avoid jittery typing
   const [settings, setSettings] = useState({
@@ -114,22 +99,10 @@ export default function EventManagementPage() {
     }
   }, [event]);
 
-  const photographerRef = useMemo(() => {
-    if (!firestore || !event?.userId || !user || user.uid !== event.userId) return null;
-    return doc(firestore, 'users', event.userId);
-  }, [firestore, event?.userId, user?.uid]);
-
-  const { data: profile } = useDoc(photographerRef);
-
   const favoritesCount = useMemo(() => {
     if (!event || !Array.isArray(event.items)) return 0;
     return event.items.filter((i: any) => i.isFavorite).length;
   }, [event?.items]);
-
-  const currentAccessMode = useMemo(() => {
-    if (!event) return 'public';
-    return event.accessMode || (event.isPublic ? 'public' : 'hidden');
-  }, [event?.accessMode, event?.isPublic]);
 
   const handleUpdateSettings = async () => {
     if (!eventRef) return;
@@ -138,53 +111,6 @@ export default function EventManagementPage() {
       toast({ title: "Settings Saved", description: "Gallery metadata updated successfully." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
-    }
-  };
-
-  const hashPassword = async (pwd: string) => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(pwd);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  const handleSaveSecurity = async () => {
-    if (!eventRef) return;
-    
-    if (currentAccessMode === 'password') {
-      if (!password || password.length < 8) {
-        toast({ variant: "destructive", title: "Security Alert", description: "Password must be at least 8 characters." });
-        return;
-      }
-      if (password !== confirmPassword) {
-        toast({ variant: "destructive", title: "Validation Error", description: "Passwords do not match." });
-        return;
-      }
-    }
-
-    setIsSavingSecurity(true);
-    try {
-      const updateData: any = { 
-        accessMode: currentAccessMode,
-        // Sync legacy isPublic field for backward compatibility where possible
-        isPublic: currentAccessMode === 'public'
-      };
-      
-      if (currentAccessMode === 'password' && password) {
-        updateData.passwordHash = await hashPassword(password);
-      } else if (currentAccessMode !== 'password') {
-        updateData.passwordHash = null;
-      }
-
-      await updateDoc(eventRef, updateData);
-      toast({ title: "Security Updated", description: "Gallery access settings synchronized." });
-      setPassword('');
-      setConfirmPassword('');
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: err.message });
-    } finally {
-      setIsSavingSecurity(false);
     }
   };
 
@@ -212,6 +138,7 @@ export default function EventManagementPage() {
     if (!eventRef) return;
     const updateData = { [field]: value };
     
+    // Automatically manage download locks based on payment status
     if (field === 'isPaid' && value === true) {
       updateData.isLocked = false;
     } else if (field === 'isPaid' && value === false) {
@@ -291,7 +218,7 @@ export default function EventManagementPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-primary" /> Delivery Suite
+                    <Globe className="w-5 h-5 text-primary" /> Gallery Visibility
                   </CardTitle>
                   <CardDescription>Control how your clients interact with their memories.</CardDescription>
                 </div>
@@ -306,6 +233,20 @@ export default function EventManagementPage() {
                   <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-bold flex items-center gap-2">
+                        {event.isPublic ? <Globe className="w-3 h-3 text-green-500" /> : <Lock className="w-3 h-3 text-destructive" />}
+                        Public Visibility
+                      </Label>
+                      <p className="text-[10px] text-muted-foreground">Toggle public access to the gallery link.</p>
+                    </div>
+                    <Switch 
+                      checked={event.isPublic} 
+                      onCheckedChange={(val) => updateToggle('isPublic', val)}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-bold flex items-center gap-2">
                         {event.isLocked ? <Lock className="w-3 h-3 text-destructive" /> : <Unlock className="w-3 h-3 text-green-500" />}
                         Allow Downloads
                       </Label>
@@ -316,149 +257,22 @@ export default function EventManagementPage() {
                       onCheckedChange={(val) => updateToggle('isLocked', !val)}
                     />
                   </div>
-
-                  <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold flex items-center gap-2">
-                        <CreditCard className="w-3 h-3 text-primary" />
-                        Payment Required
-                      </Label>
-                      <p className="text-[10px] text-muted-foreground">Downloads lock until marked as paid.</p>
-                    </div>
-                    <Switch 
-                      checked={!!event.isPaid} 
-                      onCheckedChange={(val) => updateToggle('isPaid', val)}
-                    />
-                  </div>
                 </div>
 
                 <div className="space-y-6">
                   <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
                     <div className="space-y-0.5">
                       <Label className="text-sm font-bold flex items-center gap-2">
-                        <Zap className="w-3 h-3 text-primary" />
-                        Dynamic Watermark
+                        <CreditCard className="w-3 h-3 text-primary" />
+                        Payment Received
                       </Label>
-                      <p className="text-[10px] text-muted-foreground">Protect unpaid preview assets.</p>
+                      <p className="text-[10px] text-muted-foreground">Unlocks downloads automatically.</p>
                     </div>
-                    <Switch checked={true} disabled />
+                    <Switch 
+                      checked={!!event.isPaid} 
+                      onCheckedChange={(val) => updateToggle('isPaid', val)}
+                    />
                   </div>
-                </div>
-              </div>
-
-              <Separator className="bg-border/30" />
-
-              <div className="space-y-6">
-                <div className="space-y-1">
-                  <Label className="text-base font-bold flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-primary" />
-                    Gallery Access Mode
-                  </Label>
-                  <p className="text-xs text-muted-foreground">Define visibility and protection for this luxury event.</p>
-                </div>
-
-                <RadioGroup 
-                  value={currentAccessMode} 
-                  onValueChange={(val) => updateToggle('accessMode', val)}
-                  className="grid grid-cols-1 sm:grid-cols-3 gap-4"
-                >
-                  <div className={cn(
-                    "relative flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer",
-                    currentAccessMode === 'public' ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border/30 bg-background/50 hover:border-primary/40"
-                  )}>
-                    <RadioGroupItem value="public" id="mode-public" className="sr-only" />
-                    <Label htmlFor="mode-public" className="flex flex-col gap-1 cursor-pointer w-full">
-                      <span className="text-xs font-bold uppercase tracking-widest">Public</span>
-                      <span className="text-[9px] text-muted-foreground leading-tight">Open to everyone with the link.</span>
-                    </Label>
-                    {currentAccessMode === 'public' && <CheckCircle2 className="w-4 h-4 text-primary absolute top-4 right-4" />}
-                  </div>
-
-                  <div className={cn(
-                    "relative flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer",
-                    currentAccessMode === 'password' ? "border-primary bg-primary/5 ring-1 ring-primary/20" : "border-border/30 bg-background/50 hover:border-primary/40"
-                  )}>
-                    <RadioGroupItem value="password" id="mode-password" className="sr-only" />
-                    <Label htmlFor="mode-password" className="flex flex-col gap-1 cursor-pointer w-full">
-                      <span className="text-xs font-bold uppercase tracking-widest">Protected</span>
-                      <span className="text-[9px] text-muted-foreground leading-tight">Secured by a studio password.</span>
-                    </Label>
-                    {currentAccessMode === 'password' && <CheckCircle2 className="w-4 h-4 text-primary absolute top-4 right-4" />}
-                  </div>
-
-                  <div className={cn(
-                    "relative flex items-center gap-3 p-4 rounded-2xl border transition-all cursor-pointer",
-                    currentAccessMode === 'hidden' ? "border-destructive/50 bg-destructive/5 ring-1 ring-destructive/10" : "border-border/30 bg-background/50 hover:border-primary/40"
-                  )}>
-                    <RadioGroupItem value="hidden" id="mode-hidden" className="sr-only" />
-                    <Label htmlFor="mode-hidden" className="flex flex-col gap-1 cursor-pointer w-full">
-                      <span className="text-xs font-bold uppercase tracking-widest">Hidden</span>
-                      <span className="text-[9px] text-muted-foreground leading-tight">Only you can view this gallery.</span>
-                    </Label>
-                    {currentAccessMode === 'hidden' && <Lock className="w-4 h-4 text-destructive absolute top-4 right-4" />}
-                  </div>
-                </RadioGroup>
-
-                {currentAccessMode === 'password' && (
-                  <div className="space-y-6 pt-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">New Gallery Password</Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-3.5 w-4 h-4 text-primary" />
-                          <Input 
-                            type={showPassword ? "text" : "password"}
-                            placeholder="At least 8 characters"
-                            className="pl-10 h-12 bg-background border-border/50 rounded-xl"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                          />
-                          <button 
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary"
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Confirm Password</Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-3.5 w-4 h-4 text-primary" />
-                          <Input 
-                            type={showConfirmPassword ? "text" : "password"}
-                            placeholder="Must match above"
-                            className={cn(
-                              "pl-10 h-12 bg-background border-border/50 rounded-xl",
-                              confirmPassword && password !== confirmPassword && "border-destructive/50 ring-destructive/10"
-                            )}
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                          />
-                          <button 
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary"
-                          >
-                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    {password && password.length < 8 && (
-                      <p className="text-[9px] text-destructive font-bold uppercase tracking-widest ml-1">Password is too short (min. 8 characters)</p>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex justify-end pt-2">
-                  <Button 
-                    className="rounded-xl h-12 px-10 font-bold bg-primary text-primary-foreground"
-                    onClick={handleSaveSecurity}
-                    disabled={isSavingSecurity || (currentAccessMode === 'password' && (!password || password !== confirmPassword))}
-                  >
-                    {isSavingSecurity ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                    Save Security Settings
-                  </Button>
                 </div>
               </div>
             </CardContent>

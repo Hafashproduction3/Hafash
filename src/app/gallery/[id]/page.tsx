@@ -10,49 +10,23 @@ import {
   MessageCircle, 
   Share2, 
   ShieldAlert,
-  Globe,
-  Clock,
   ArrowLeft,
-  Mail,
   Lock,
-  ArrowRight,
-  Eye,
   EyeOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { HAFASH_PLANS, DEFAULT_PLAN, type PlanId } from '@/lib/plans';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-} from "@/components/ui/alert-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogClose,
-} from "@/components/ui/dialog";
 
-// Memoized Gallery Item
+// Memoized Gallery Item for performance
 const GalleryItem = memo(({ 
   item, 
   showWatermark, 
@@ -118,15 +92,6 @@ export default function ClientGalleryPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
-  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
-
-  // Security Access State
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [isCheckingPassword, setIsCheckingPassword] = useState(false);
-  
-  const viewIncremented = useRef<string | null>(null);
 
   // 1. Resolution Logic (Order critical for React Hooks)
   useEffect(() => {
@@ -138,21 +103,36 @@ export default function ClientGalleryPage() {
 
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
+      
+      // If it looks like a Firebase ID (usually 20 chars), use it directly as a starting point
       let resolvedId = cleanParam.length >= 18 ? cleanParam : null;
 
       try {
-        // Find gallery by slug regardless of mode to load metadata
+        // Try finding by slug FIRST (most common for shared links)
+        // We filter by isPublic to satisfy anonymous query rules
         const q = query(
           collection(firestore, 'galleries'), 
-          where('slug', '==', cleanParam.toLowerCase())
+          where('slug', '==', cleanParam.toLowerCase()),
+          where('isPublic', '==', true)
         );
         
         const snapshot = await getDocs(q);
         if (!snapshot.empty) {
           resolvedId = snapshot.docs[0].id;
+        } else if (!resolvedId) {
+          // If not found by public slug, check if the Studio Owner is logged in and looking at their own gallery
+          const qOwner = query(
+            collection(firestore, 'galleries'), 
+            where('slug', '==', cleanParam.toLowerCase())
+          );
+          const ownerSnapshot = await getDocs(qOwner);
+          if (!ownerSnapshot.empty) {
+            resolvedId = ownerSnapshot.docs[0].id;
+          }
         }
       } catch (err) {
-        // Fallback handled by galleryId being set to URL param or null
+        // Log query failure but allow the direct ID fallback if available
+        console.error("Resolution query failed:", err);
       }
 
       setGalleryId(resolvedId);
@@ -175,16 +155,6 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // 2. Security & Session Check
-  useEffect(() => {
-    if (galleryId) {
-      const sessionKey = `hafash_access_${galleryId}`;
-      if (sessionStorage.getItem(sessionKey) === 'true') {
-        setIsUnlocked(true);
-      }
-    }
-  }, [galleryId]);
-
   const photographerPlan = useMemo(() => {
     if (!profile) return DEFAULT_PLAN;
     const rawPlanId = profile.planId || 'starter';
@@ -204,11 +174,6 @@ export default function ClientGalleryPage() {
     return gallery?.coverImage || 'https://picsum.photos/seed/hafash-empty/1920/1080';
   }, [isCustomBrandingActive, profile, gallery]);
 
-  const accessMode = useMemo(() => {
-    if (!gallery) return 'public';
-    return gallery.accessMode || (gallery.isPublic ? 'public' : 'hidden');
-  }, [gallery]);
-
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
@@ -220,33 +185,6 @@ export default function ClientGalleryPage() {
   const showWatermark = useMemo(() => {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
-
-  // 3. Handlers
-  const handleVerifyPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!gallery?.passwordHash || !passwordInput) return;
-
-    setIsCheckingPassword(true);
-    try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(passwordInput);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const inputHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      if (inputHash === gallery.passwordHash) {
-        sessionStorage.setItem(`hafash_access_${galleryId}`, 'true');
-        setIsUnlocked(true);
-        toast({ title: "Access Granted", description: "Welcome to the gallery." });
-      } else {
-        toast({ variant: "destructive", title: "Access Denied", description: "Incorrect password. Please try again." });
-      }
-    } catch (error) {
-      toast({ variant: "destructive", title: "Security Error", description: "Could not verify credentials." });
-    } finally {
-      setIsCheckingPassword(false);
-    }
-  };
 
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
@@ -295,7 +233,10 @@ export default function ClientGalleryPage() {
   };
 
   // 4. Loading & Error States
-  if (isResolving || (galleryId && docLoading)) {
+  // Combined Loading state: either resolving slug or fetching the document
+  const isLoading = isResolving || (!!galleryId && docLoading);
+
+  if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -304,9 +245,9 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Treat "Hidden" galleries as "Unavailable" for non-owners
+  // Treat restricted galleries as Unavailable for non-owners
   const isOwner = user?.uid === gallery?.userId;
-  if (!isResolving && (galleryError || !gallery || (accessMode === 'hidden' && !isOwner))) {
+  if (!isLoading && (galleryError || !gallery || (!gallery.isPublic && !isOwner))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
@@ -317,78 +258,6 @@ export default function ClientGalleryPage() {
           The requested gallery could not be found or is currently restricted by the studio.
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
-      </div>
-    );
-  }
-
-  // 5. Password Gate
-  if (accessMode === 'password' && !isUnlocked && !isOwner) {
-    return (
-      <div className="min-h-screen bg-background relative flex items-center justify-center p-6 overflow-hidden">
-        <Image 
-          src={effectiveHeroImage} 
-          fill 
-          className="absolute inset-0 object-cover blur-md opacity-20" 
-          alt="Background" 
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background to-background" />
-        
-        <div className="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-700">
-          <div className="text-center mb-10">
-            {isCustomBrandingActive && studioLogo ? (
-              <img src={studioLogo} className="h-16 lg:h-20 w-auto mb-6 mx-auto object-contain" alt="Studio" />
-            ) : (
-              <div className="flex items-center justify-center gap-1 mb-6">
-                <img src="/hafash-logo.png" className="h-12 w-auto" alt="Logo" />
-                <span className="text-3xl font-headline font-bold text-primary italic">Hafash.pk</span>
-              </div>
-            )}
-            <h1 className="text-2xl font-headline font-bold mb-2 uppercase tracking-tight">{gallery.title}</h1>
-            <p className="text-xs text-muted-foreground uppercase tracking-widest font-bold">This gallery is secured by the studio</p>
-          </div>
-
-          <Card className="bg-card/50 border-border/50 rounded-[2.5rem] p-10 shadow-2xl backdrop-blur-xl">
-            <form onSubmit={handleVerifyPassword} className="space-y-6">
-              <div className="space-y-2 text-center">
-                <div className="bg-primary/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Lock className="w-8 h-8 text-primary" />
-                </div>
-                <Label className="text-sm font-bold">Access Verification</Label>
-              </div>
-
-              <div className="relative">
-                <Input 
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter Access Password"
-                  className="h-14 bg-background/50 border-border/50 rounded-2xl px-6 text-center text-lg tracking-widest font-bold placeholder:text-muted-foreground/30 placeholder:tracking-normal placeholder:font-normal"
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  autoFocus
-                />
-                <button 
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-4 text-muted-foreground hover:text-primary transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-
-              <Button 
-                type="submit" 
-                className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-xl shadow-primary/20"
-                disabled={isCheckingPassword || !passwordInput}
-              >
-                {isCheckingPassword ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
-                Unlock Gallery
-              </Button>
-            </form>
-          </Card>
-
-          <p className="text-center mt-8 text-[10px] text-muted-foreground font-bold uppercase tracking-[0.4em] opacity-40">
-            End-to-End Asset Integrity by Hafash
-          </p>
-        </div>
       </div>
     );
   }
