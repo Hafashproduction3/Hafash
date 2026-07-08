@@ -22,19 +22,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
-import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
+import { useState, useEffect, useMemo, memo, useCallback } from 'react';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { HAFASH_PLANS, DEFAULT_PLAN, type PlanId } from '@/lib/plans';
 
-// Memoized Gallery Item for performance
 const GalleryItem = memo(({ 
   item, 
   showWatermark, 
@@ -95,21 +93,18 @@ export default function ClientGalleryPage() {
   const { toast } = useToast();
   const router = useRouter();
   
-  // 1. Core State
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
 
-  // Security State
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [showGatePass, setShowGatePass] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // 2. Resolution Logic
   useEffect(() => {
     async function resolveGallery() {
       if (!firestore || !galleryParam) {
@@ -119,19 +114,35 @@ export default function ClientGalleryPage() {
 
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
-      let resolvedId = cleanParam.length >= 18 ? cleanParam : null;
+      
+      // Assume the parameter is a Document ID first
+      let resolvedId = cleanParam;
 
       try {
+        // Attempt to find a gallery where the slug matches the parameter
+        // We include isPublic filter to satisfy standard client-side security rules for anonymous lookups
         const q = query(
           collection(firestore, 'galleries'), 
-          where('slug', '==', cleanParam.toLowerCase())
+          where('slug', '==', cleanParam.toLowerCase()),
+          where('isPublic', '==', true)
         );
         const snap = await getDocs(q);
         if (!snap.empty) {
           resolvedId = snap.docs[0].id;
+        } else {
+          // If not found in public, try a broader search (might fail if visitor is anonymous)
+          const fallbackQ = query(
+            collection(firestore, 'galleries'), 
+            where('slug', '==', cleanParam.toLowerCase())
+          );
+          const fallbackSnap = await getDocs(fallbackQ);
+          if (!fallbackSnap.empty) {
+            resolvedId = fallbackSnap.docs[0].id;
+          }
         }
       } catch (err) {
-        console.warn("Resolution error (possible permission restrictions):", err);
+        // If query fails (permission denied), we stick with the original resolvedId (the Doc ID)
+        console.warn("Slug resolution query restricted. Attempting direct ID access.");
       }
 
       setGalleryId(resolvedId);
@@ -140,7 +151,6 @@ export default function ClientGalleryPage() {
     resolveGallery();
   }, [firestore, galleryParam]);
 
-  // 3. Document Hooks
   const galleryRef = useMemo(() => {
     if (!firestore || !galleryId) return null;
     return doc(firestore, 'galleries', galleryId);
@@ -155,7 +165,6 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // 4. Session Recovery
   useEffect(() => {
     if (galleryId) {
       const stored = sessionStorage.getItem(`hafash_unlocked_${galleryId}`);
@@ -163,7 +172,6 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
-  // 5. Access & Branding Logic
   const photographerPlan = useMemo(() => {
     if (!profile) return DEFAULT_PLAN;
     const rawPlanId = profile.planId || 'starter';
@@ -193,38 +201,17 @@ export default function ClientGalleryPage() {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
 
-  // Strict Owner Logic: Ensures anonymous visitors are never misidentified as owners
   const isOwner = useMemo(() => {
     if (!user?.uid || !gallery?.userId) return false;
     return user.uid === gallery.userId;
   }, [user?.uid, gallery?.userId]);
 
-  // Gate Logic: strictly boolean enforcement
   const showGate = useMemo(() => {
-    // If owner is viewing, bypass the gate
     if (isOwner) return false;
-    
-    // Show gate if protection is explicitly enabled and session is not yet unlocked
     const isProtected = Boolean(gallery?.isPasswordProtected);
     return isProtected && !isUnlocked;
   }, [gallery, isUnlocked, isOwner]);
 
-  // TEMPORARY DIAGNOSTIC LOGS
-  if (process.env.NODE_ENV === 'development') {
-    console.log('--- PASSWORD GATE DIAGNOSTICS ---');
-    console.log('galleryId:', galleryId);
-    console.log('gallery:', gallery);
-    console.log('gallery?.isPasswordProtected:', gallery?.isPasswordProtected);
-    console.log('gallery?.hashedPassword:', gallery?.hashedPassword);
-    console.log('isOwner:', isOwner);
-    console.log('isUnlocked:', isUnlocked);
-    console.log('showGate:', showGate);
-    console.log('galleryError:', galleryError);
-    console.log('docLoading:', docLoading);
-    console.log('---------------------------------');
-  }
-
-  // 6. Action Handlers
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
     const gRef = doc(firestore, 'galleries', galleryId);
@@ -297,7 +284,6 @@ export default function ClientGalleryPage() {
     }
   };
 
-  // 7. Render Logic
   const isLoading = isResolving || (!!galleryId && docLoading);
   
   if (isLoading) {
@@ -309,7 +295,6 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Availability Check: Only show error if definitely NOT public AND NOT protected AND visitor is NOT owner
   if (!isLoading && (galleryError || !gallery || (!gallery.isPublic && !gallery.isPasswordProtected && !isOwner))) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
@@ -325,7 +310,6 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Password Gate UI: Enforce before main gallery render
   if (showGate) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 selection:bg-primary selection:text-primary-foreground">
@@ -397,7 +381,6 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // 8. Main Gallery Render
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
       <Button 
