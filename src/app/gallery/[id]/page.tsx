@@ -8,6 +8,7 @@ import {
   Loader2, 
   X, 
   Lock, 
+  Unlock,
   MessageCircle, 
   Share2, 
   ShieldAlert,
@@ -17,6 +18,7 @@ import {
   Mail
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
@@ -46,6 +48,8 @@ import {
   DialogTrigger,
   DialogClose,
 } from "@/components/ui/dialog";
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 // Memoized Gallery Item to prevent unnecessary re-renders in large lists
 const GalleryItem = memo(({ 
@@ -115,7 +119,18 @@ export default function ClientGalleryPage() {
   const [preparationStep, setPreparationStep] = useState<string>('');
   const [showUpgradeDialog, setShowUpgradeDialog] = useState(false);
   
+  // Password protection state
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
   const viewIncremented = useRef<string | null>(null);
+
+  const effectiveHeroImage = useMemo(() => {
+    // Moved to top and handle profile data check
+    return 'https://picsum.photos/seed/hafash-hero/1920/1080';
+  }, []);
 
   useEffect(() => {
     async function resolveGallery() {
@@ -147,7 +162,14 @@ export default function ClientGalleryPage() {
             updateDoc(gRef, { viewCount: increment(1) }).catch(() => {});
           }
         } else {
-          if (cleanParam.length > 15) {
+          const qPrivate = query(
+            collection(firestore, 'galleries'), 
+            where('slug', '==', slugAttempt)
+          );
+          const privateSnap = await getDocs(qPrivate);
+          if (!privateSnap.empty) {
+            setGalleryId(privateSnap.docs[0].id);
+          } else if (cleanParam.length > 15) {
             setGalleryId(cleanParam);
           } else {
             setGalleryId(null);
@@ -172,6 +194,14 @@ export default function ClientGalleryPage() {
   }, [firestore, galleryId]);
 
   const { data: gallery, loading: docLoading, error: galleryError } = useDoc(galleryRef);
+
+  // Check session persistence for password gate
+  useEffect(() => {
+    if (galleryId) {
+      const unlocked = sessionStorage.getItem(`hafash_unlocked_${galleryId}`);
+      if (unlocked === 'true') setIsUnlocked(true);
+    }
+  }, [galleryId]);
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
@@ -200,6 +230,29 @@ export default function ClientGalleryPage() {
   const showWatermark = useMemo(() => {
     return gallery ? (gallery.isLocked === true || gallery.isPaid === false) : true;
   }, [gallery?.isLocked, gallery?.isPaid]);
+
+  const hashPassword = useCallback(async (password: string) => {
+    if (!password) return '';
+    const msgUint8 = new TextEncoder().encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  }, []);
+
+  const handleVerifyPassword = async () => {
+    if (!passwordInput || verifying) return;
+    setVerifying(true);
+    const inputHash = await hashPassword(passwordInput);
+    if (inputHash === gallery?.password) {
+      setIsUnlocked(true);
+      sessionStorage.setItem(`hafash_unlocked_${galleryId}`, 'true');
+      toast({ title: "Access Granted", description: "Welcome to your luxury gallery." });
+    } else {
+      setPasswordError(true);
+      toast({ variant: "destructive", title: "Access Denied", description: "Incorrect gallery password." });
+    }
+    setVerifying(false);
+  };
 
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
@@ -304,14 +357,6 @@ export default function ClientGalleryPage() {
     }
   };
 
-  const effectiveHeroImage = useMemo(() => {
-    if (!gallery) return 'https://picsum.photos/seed/hafash-empty/1920/1080';
-    if (isCustomBrandingActive && profile?.studioBanner) {
-      return profile.studioBanner;
-    }
-    return gallery.coverImage || (gallery.items && gallery.items.length > 0 ? gallery.items[0].url : 'https://picsum.photos/seed/hafash-empty/1920/1080');
-  }, [isCustomBrandingActive, profile?.studioBanner, gallery?.coverImage, gallery?.items]);
-
   if (isResolving || docLoading || (galleryId && !gallery && !galleryError)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
@@ -336,6 +381,72 @@ export default function ClientGalleryPage() {
     );
   }
 
+  // --- Password Gate ---
+  if (!gallery.isPublic && !isUnlocked) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="max-w-md w-full relative z-10 space-y-8 animate-in fade-in zoom-in-95 duration-700">
+           <div className="text-center space-y-6">
+              <div className="flex flex-col items-center gap-1">
+                 <img src="/hafash-logo.png" alt="Hafash" className="h-[40px] lg:h-[60px] w-auto" />
+                 <span className="text-2xl font-headline font-bold text-primary italic">Hafash.pk</span>
+              </div>
+              <div className="space-y-2">
+                 <h1 className="text-3xl font-headline font-bold tracking-tight text-white uppercase">Protected Gallery</h1>
+                 <p className="text-sm text-muted-foreground italic">A secure password is required to view these masterpieces.</p>
+              </div>
+           </div>
+
+           <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+              <CardContent className="p-10 space-y-6">
+                 <div className="space-y-4">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Access Password</Label>
+                       <div className="relative">
+                          <Lock className="absolute left-4 top-4 w-4 h-4 text-primary" />
+                          <Input 
+                             type="password"
+                             placeholder="Enter Password"
+                             value={passwordInput}
+                             onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
+                             className={cn(
+                               "pl-11 h-14 rounded-2xl bg-background/50 border-border/50 focus:border-primary/50 text-lg",
+                               passwordError && "border-destructive ring-1 ring-destructive"
+                             )}
+                             onKeyDown={(e) => e.key === 'Enter' && handleVerifyPassword()}
+                          />
+                       </div>
+                       {passwordError && (
+                          <p className="text-[10px] text-destructive font-bold uppercase tracking-widest mt-2 text-center animate-pulse">Incorrect password. Please try again.</p>
+                       )}
+                    </div>
+                 </div>
+
+                 <Button 
+                    className="w-full h-16 bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold rounded-2xl shadow-xl shadow-primary/20 transition-all hover:scale-[1.02]"
+                    onClick={handleVerifyPassword}
+                    disabled={verifying}
+                 >
+                    {verifying ? <Loader2 className="w-6 h-6 animate-spin" /> : <Unlock className="w-6 h-6 mr-2" />}
+                    {verifying ? "Verifying Access..." : "Unlock Gallery"}
+                 </Button>
+
+                 <div className="text-center pt-4">
+                    <p className="text-[9px] text-muted-foreground font-bold uppercase tracking-[0.3em]">Encrypted Access Portal</p>
+                 </div>
+              </CardContent>
+           </Card>
+
+           <div className="text-center">
+              <Button variant="ghost" className="rounded-full text-muted-foreground hover:text-primary gap-2" onClick={() => router.back()}>
+                 <ArrowLeft className="w-4 h-4" /> Return Back
+              </Button>
+           </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
       {/* Floating Back Button */}
@@ -353,7 +464,7 @@ export default function ClientGalleryPage() {
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[2.5rem] lg:rounded-b-[4rem]"
       )}>
         <Image 
-          src={effectiveHeroImage} 
+          src={isCustomBrandingActive && profile?.studioBanner ? profile.studioBanner : (gallery.coverImage || 'https://picsum.photos/seed/hafash-empty/1920/1080')} 
           fill 
           className="absolute inset-0 w-full h-full object-cover opacity-80" 
           alt="Gallery Cover" 

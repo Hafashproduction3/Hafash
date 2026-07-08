@@ -69,6 +69,10 @@ export default function EventManagementPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState<'gallery' | 'selection' | null>(null);
   
+  // Local state for password protection
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   // Local state for settings to avoid jittery typing
   const [settings, setSettings] = useState({
     title: '',
@@ -118,6 +122,14 @@ export default function EventManagementPage() {
     if (!event || !Array.isArray(event.items)) return 0;
     return event.items.filter((i: any) => i.isFavorite).length;
   }, [event?.items]);
+
+  const hashPassword = async (password: string) => {
+    if (!password) return '';
+    const msgUint8 = new TextEncoder().encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
 
   const handleUpdateSettings = async () => {
     if (!eventRef) return;
@@ -286,18 +298,66 @@ export default function EventManagementPage() {
                     <Switch checked={true} disabled /> {/* Internal placeholder for future dynamic rendering */}
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
-                    <div className="space-y-0.5">
-                      <Label className="text-sm font-bold flex items-center gap-2">
-                        <Globe className="w-3 h-3 text-primary" />
-                        Public Link
-                      </Label>
-                      <p className="text-[10px] text-muted-foreground">Anyone with link can view.</p>
+                  <div className="space-y-4 pt-4 border-t border-border/30">
+                    <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm font-bold flex items-center gap-2">
+                          <Globe className="w-3 h-3 text-primary" />
+                          Gallery Access
+                        </Label>
+                        <p className="text-[10px] text-muted-foreground">Choose how clients access this gallery.</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                         <span className="text-[10px] font-bold text-muted-foreground uppercase">{event.isPublic ? "Public" : "Private"}</span>
+                         <Switch 
+                           checked={!!event.isPublic} 
+                           onCheckedChange={(val) => updateToggle('isPublic', val)}
+                         />
+                      </div>
                     </div>
-                    <Switch 
-                      checked={!!event.isPublic} 
-                      onCheckedChange={(val) => updateToggle('isPublic', val)}
-                    />
+
+                    {!event.isPublic && (
+                      <div className="p-4 bg-primary/5 rounded-2xl border border-primary/20 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <p className="text-[10px] font-bold text-primary uppercase tracking-widest text-center">Password Protection Active</p>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">New Access Password</Label>
+                            <Input 
+                              type="password"
+                              placeholder="••••••••"
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              className="h-10 rounded-xl bg-background border-border/50"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Confirm Password</Label>
+                            <Input 
+                              type="password"
+                              placeholder="••••••••"
+                              value={confirmPassword}
+                              onChange={(e) => setConfirmPassword(e.target.value)}
+                              className="h-10 rounded-xl bg-background border-border/50"
+                            />
+                          </div>
+                        </div>
+                        <Button 
+                          className="w-full h-10 rounded-xl font-bold gap-2"
+                          onClick={async () => {
+                            if (!newPassword || newPassword !== confirmPassword) {
+                              toast({ variant: "destructive", title: "Validation Error", description: "Passwords must match." });
+                              return;
+                            }
+                            const hash = await hashPassword(newPassword);
+                            updateToggle('password', hash);
+                            setNewPassword('');
+                            setConfirmPassword('');
+                          }}
+                        >
+                          <Lock className="w-4 h-4" /> {event.password ? "Update Password" : "Set Password"}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
