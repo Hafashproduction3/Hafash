@@ -213,7 +213,7 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Settings & Cover */}
+          {/* Settings & Details */}
           <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
             <CardHeader className="border-b border-border/30 px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
@@ -256,6 +256,7 @@ export default function EventManagementPage() {
                 </div>
               </div>
             </CardContent>
+          </Card>
 
           <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg">
             <CardHeader className="border-b border-border/30">
