@@ -15,7 +15,8 @@ import {
   Check,
   FileText,
   MessageSquare,
-  History
+  History,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -60,7 +61,12 @@ export default function EventManagementPage() {
     title: '',
     clientName: '',
     description: '',
-    photographerNote: ''
+    photographerNote: '',
+    welcomeTitle: '',
+    welcomeMessage: '',
+    welcomeScreenEnabled: false,
+    clientRepliesEnabled: true,
+    helpfulButtonEnabled: true
   });
 
   useEffect(() => {
@@ -88,7 +94,12 @@ export default function EventManagementPage() {
         title: event.title || '',
         clientName: event.clientName || '',
         description: event.description || '',
-        photographerNote: event.photographerNote || ''
+        photographerNote: event.photographerNote || '',
+        welcomeTitle: event.welcomeTitle || '',
+        welcomeMessage: event.welcomeMessage || '',
+        welcomeScreenEnabled: !!event.welcomeScreenEnabled,
+        clientRepliesEnabled: event.clientRepliesEnabled !== false,
+        helpfulButtonEnabled: event.helpfulButtonEnabled !== false
       });
     }
   }, [event]);
@@ -97,7 +108,7 @@ export default function EventManagementPage() {
     if (!eventRef) return;
     try {
       await updateDoc(eventRef, { ...settings, updatedAt: new Date().toISOString() });
-      toast({ title: "Settings Saved", description: "Gallery metadata and note updated successfully." });
+      toast({ title: "Settings Saved", description: "Gallery metadata and experience settings updated." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
     }
@@ -235,7 +246,7 @@ export default function EventManagementPage() {
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
                 <FileText className="w-5 h-5 text-primary" /> Photographer's Welcome Note
               </CardTitle>
-              <CardDescription>This message appears at the top of the client gallery.</CardDescription>
+              <CardDescription>This message appears in the client note modal.</CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-6">
               <div className="space-y-2">
@@ -249,6 +260,75 @@ export default function EventManagementPage() {
               </div>
               <div className="flex justify-end">
                 <Button className="rounded-xl px-10 font-bold" onClick={handleUpdateSettings}>Save Welcome Note</Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Client Welcome Experience Foundation */}
+          <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
+            <CardHeader className="bg-primary/5 border-b border-border/30 px-8 py-6">
+              <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" /> Client Welcome Experience
+              </CardTitle>
+              <CardDescription>Configure the luxury welcome screen and feedback system.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Welcome Title</Label>
+                  <Input 
+                    placeholder="e.g., Welcome to Your Memories" 
+                    className="rounded-xl h-12 bg-background/50 border-border/50"
+                    value={settings.welcomeTitle}
+                    onChange={(e) => setSettings({...settings, welcomeTitle: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Welcome Message (Short)</Label>
+                  <Input 
+                    placeholder="A brief greeting for the splash screen..." 
+                    className="rounded-xl h-12 bg-background/50 border-border/50"
+                    value={settings.welcomeMessage}
+                    onChange={(e) => setSettings({...settings, welcomeMessage: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+                <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold">Enable Screen</Label>
+                    <p className="text-[10px] text-muted-foreground">Show splash screen.</p>
+                  </div>
+                  <Switch 
+                    checked={settings.welcomeScreenEnabled} 
+                    onCheckedChange={(val) => setSettings({...settings, welcomeScreenEnabled: val})} 
+                  />
+                </div>
+                <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold">Client Replies</Label>
+                    <p className="text-[10px] text-muted-foreground">Allow feedback text.</p>
+                  </div>
+                  <Switch 
+                    checked={settings.clientRepliesEnabled} 
+                    onCheckedChange={(val) => setSettings({...settings, clientRepliesEnabled: val})} 
+                  />
+                </div>
+                <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-bold">Helpful Button</Label>
+                    <p className="text-[10px] text-muted-foreground">Show heart button.</p>
+                  </div>
+                  <Switch 
+                    checked={settings.helpfulButtonEnabled} 
+                    onCheckedChange={(val) => setSettings({...settings, helpfulButtonEnabled: val})} 
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end pt-4">
+                <Button className="rounded-xl px-10 h-12 font-bold" onClick={handleUpdateSettings}>Save Experience Settings</Button>
               </div>
             </CardContent>
           </Card>

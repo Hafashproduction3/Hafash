@@ -14,7 +14,8 @@ import {
   ArrowLeft,
   FileText,
   Send,
-  CheckCircle2
+  CheckCircle2,
+  Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -28,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@/components/dialog";
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
@@ -189,6 +190,13 @@ export default function ClientGalleryPage() {
     if (!gallery) return false;
     return isOwner || gallery.isPublic === true;
   }, [gallery, isOwner, isResolving, docLoading]);
+
+  // Luxury Welcome Experience Architecture (Safely Read)
+  const welcomeTitle = gallery?.welcomeTitle || "";
+  const welcomeMessage = gallery?.welcomeMessage || "";
+  const welcomeScreenEnabled = !!gallery?.welcomeScreenEnabled;
+  const clientRepliesEnabled = gallery?.clientRepliesEnabled !== false;
+  const helpfulButtonEnabled = gallery?.helpfulButtonEnabled !== false;
 
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
