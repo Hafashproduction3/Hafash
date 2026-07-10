@@ -15,7 +15,12 @@ import {
   Settings,
   Copy,
   Check,
-  X
+  X,
+  Shield,
+  Key,
+  Lock,
+  Unlock,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -52,6 +57,13 @@ export default function EventManagementPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState<'gallery' | null>(null);
 
+  // Password Security State
+  const [passwordEnabled, setPasswordEnabled] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [savingSecurity, setSavingSecurity] = useState(false);
+
   // Local state for settings
   const [settings, setSettings] = useState({
     title: '',
@@ -85,8 +97,17 @@ export default function EventManagementPage() {
         clientName: event.clientName || '',
         description: event.description || ''
       });
+      setPasswordEnabled(!!event.isPasswordProtected);
     }
   }, [event]);
+
+  const hashPassword = async (password: string) => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
 
   const handleUpdateSettings = async () => {
     if (!eventRef) return;
@@ -95,6 +116,41 @@ export default function EventManagementPage() {
       toast({ title: "Settings Saved", description: "Gallery metadata updated successfully." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
+    }
+  };
+
+  const handleSaveSecurity = async () => {
+    if (!eventRef) return;
+    if (passwordEnabled && !newPassword && !event?.hashedPassword) {
+      toast({ variant: "destructive", title: "Error", description: "Please enter a password." });
+      return;
+    }
+    if (newPassword && newPassword !== confirmPassword) {
+      toast({ variant: "destructive", title: "Error", description: "Passwords do not match." });
+      return;
+    }
+
+    setSavingSecurity(true);
+    try {
+      const updateData: any = {
+        isPasswordProtected: passwordEnabled,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (passwordEnabled && newPassword) {
+        updateData.hashedPassword = await hashPassword(newPassword);
+      } else if (!passwordEnabled) {
+        updateData.hashedPassword = null;
+      }
+
+      await updateDoc(eventRef, updateData);
+      toast({ title: "Security Updated", description: "Password protection settings saved." });
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Update Failed", description: err.message });
+    } finally {
+      setSavingSecurity(false);
     }
   };
 
@@ -209,6 +265,72 @@ export default function EventManagementPage() {
                   </div>
                   <Switch checked={!event.isLocked} onCheckedChange={(val) => updateToggle('isLocked', !val)} />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Security & Password */}
+          <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
+            <CardHeader className="bg-destructive/5 border-b border-border/30 px-8 py-6">
+              <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
+                <Shield className="w-5 h-5 text-primary" /> Gallery Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 space-y-8">
+              <div className="flex items-center justify-between p-6 bg-background/50 rounded-2xl border border-border/30">
+                <div className="space-y-1">
+                  <Label className="text-base font-bold flex items-center gap-2">
+                    {passwordEnabled ? <Lock className="w-4 h-4 text-primary" /> : <Unlock className="w-4 h-4 text-muted-foreground" />}
+                    Enable Password Protection
+                  </Label>
+                  <p className="text-xs text-muted-foreground">Visitors must enter a password to view the gallery.</p>
+                </div>
+                <Switch checked={passwordEnabled} onCheckedChange={setPasswordEnabled} />
+              </div>
+
+              {passwordEnabled && (
+                <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">New Password</Label>
+                      <div className="relative">
+                        <Key className="absolute left-3 top-4 w-4 h-4 text-primary" />
+                        <Input 
+                          type={showPass ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="••••••••"
+                          className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Confirm Password</Label>
+                      <Input 
+                        type={showPass ? "text" : "password"}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="h-12 bg-background/50 border-border/50 rounded-xl"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 px-2">
+                    <input type="checkbox" id="show-pass" checked={showPass} onChange={(e) => setShowPass(e.target.checked)} className="rounded border-border/50" />
+                    <label htmlFor="show-pass" className="text-xs text-muted-foreground cursor-pointer">Show password characters</label>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-4 border-t border-border/20">
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground italic">
+                   <ShieldAlert className="w-3 h-3" />
+                   <span>Password is hashed using SHA-256 before being stored.</span>
+                </div>
+                <Button className="rounded-xl px-10 h-12 font-bold" onClick={handleSaveSecurity} disabled={savingSecurity}>
+                  {savingSecurity ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Settings className="w-4 h-4 mr-2" />}
+                  Save Security Settings
+                </Button>
               </div>
             </CardContent>
           </Card>
