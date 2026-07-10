@@ -366,8 +366,8 @@ export default function ClientGalleryPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 mt-12 space-y-12">
-        {/* Photographer Note Card */}
+      <div className="max-w-7xl mx-auto px-6 mt-8 space-y-12">
+        {/* Photographer Note Card - Positioned immediately below actions */}
         {gallery.photographerNote && (
           <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-top-8 duration-1000">
              <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 lg:p-12 shadow-2xl relative overflow-hidden group">

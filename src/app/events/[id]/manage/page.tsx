@@ -4,8 +4,6 @@ import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   Share2, 
-  MessageCircle, 
-  Link as LinkIcon, 
   Trash2, 
   Image as ImageIcon,
   ArrowLeft,
@@ -13,10 +11,8 @@ import {
   Loader2,
   Globe,
   Settings,
-  Copy,
+  Link as LinkIcon,
   Check,
-  X,
-  ShieldCheck,
   FileText,
   MessageSquare,
   History
@@ -253,29 +249,6 @@ export default function EventManagementPage() {
               </div>
               <div className="flex justify-end">
                 <Button className="rounded-xl px-10 font-bold" onClick={handleUpdateSettings}>Save Welcome Note</Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Client Messaging Hub */}
-          <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-            <CardHeader className="bg-green-500/5 border-b border-border/30 px-8 py-6">
-              <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                <MessageCircle className="w-5 h-5 text-green-500" /> Message Box
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-8">
-              <div className="p-6 bg-background/50 rounded-2xl border border-border/30 space-y-4">
-                <p className="text-sm text-muted-foreground italic leading-relaxed">Notify your client that their memories are ready for viewing. This will open WhatsApp with a pre-filled luxury message.</p>
-                <Button 
-                  className="w-full h-14 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold gap-3 text-lg shadow-lg shadow-green-500/20"
-                  onClick={() => {
-                    const text = encodeURIComponent(`Hi ${event.clientName}! Your beautiful memories from "${event.title}" are ready to view. Check out your luxury gallery here: ${galleryUrl}`);
-                    window.open(`https://wa.me/${(event.clientPhone || "").replace(/\D/g, '')}?text=${text}`, '_blank');
-                  }}
-                >
-                  <MessageCircle className="w-5 h-5" /> Send WhatsApp Notification
-                </Button>
               </div>
             </CardContent>
           </Card>
