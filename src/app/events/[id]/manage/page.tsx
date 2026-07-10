@@ -427,7 +427,7 @@ export default function EventManagementPage() {
         <div className="space-y-8">
           
           {/* Live Insights Widget */}
-          <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg border-t-4 border-t-primary sticky top-24">
+          <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg border-t-4 border-t-primary">
             <CardHeader className="p-6 border-b border-border/30">
               <CardTitle className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">Live Asset Telemetry</CardTitle>
             </CardHeader>
