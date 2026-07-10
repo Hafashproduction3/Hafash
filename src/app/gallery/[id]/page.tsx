@@ -31,7 +31,7 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { HAFASH_PLANS, DEFAULT_PLAN, type PlanId } from '@/lib/plans';
+import { type PlanId } from '@/lib/plans';
 
 const GalleryItem = memo(({ 
   item, 
@@ -196,11 +196,14 @@ export default function ClientGalleryPage() {
   }, [gallery, isOwner, isResolving, docLoading]);
 
   // Enforced Security Gate Logic
+  const requiresPassword = useMemo(() => {
+    return Boolean(gallery?.isPasswordProtected) && !isOwner;
+  }, [gallery?.isPasswordProtected, isOwner]);
+
   const showGate = useMemo(() => {
-    if (!isAvailable || isOwner) return false;
-    if (!gallery?.isPasswordProtected) return false;
+    if (!isAvailable || !requiresPassword) return false;
     return !isUnlocked;
-  }, [isAvailable, isOwner, gallery?.isPasswordProtected, isUnlocked]);
+  }, [isAvailable, requiresPassword, isUnlocked]);
 
   // DIAGNOSTIC LOGS
   console.log(
@@ -208,7 +211,7 @@ export default function ClientGalleryPage() {
     JSON.stringify({
       isPasswordProtected: gallery?.isPasswordProtected,
       isOwner,
-      requiresPassword: gallery?.isPasswordProtected === true,
+      requiresPassword,
       isUnlocked,
       galleryId
     }, null, 2)
