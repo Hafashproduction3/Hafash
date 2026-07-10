@@ -11,14 +11,9 @@ import {
   MessageCircle, 
   Share2, 
   ShieldAlert,
-  ArrowLeft,
-  Key,
-  ShieldCheck,
-  EyeOff,
-  Eye
+  ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, limit } from 'firebase/firestore';
@@ -94,13 +89,6 @@ export default function ClientGalleryPage() {
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
 
-  // Password Gate State
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [showGatePass, setShowGatePass] = useState(false);
-
   // Secure Multi-Stage Resolution Logic
   useEffect(() => {
     async function resolve() {
@@ -112,10 +100,9 @@ export default function ClientGalleryPage() {
       setIsResolving(true);
       setGalleryId(null);
       const cleanParam = galleryParam.trim();
-      let resolvedId = null;
 
       try {
-        // Stage 1: Public Slug Resolution
+        // Stage 1: Public Slug Resolution (Visitors)
         const publicSlugQuery = query(
           collection(firestore, 'galleries'),
           where('slug', '==', cleanParam.toLowerCase()),
@@ -125,10 +112,13 @@ export default function ClientGalleryPage() {
         const publicSnap = await getDocs(publicSlugQuery);
         
         if (!publicSnap.empty) {
-          resolvedId = publicSnap.docs[0].id;
+          setGalleryId(publicSnap.docs[0].id);
+          setIsResolving(false);
+          return;
         } 
-        // Stage 2: Owner Slug Resolution
-        else if (user) {
+
+        // Stage 2: Owner Slug Resolution (If logged in)
+        if (user) {
           const ownerSlugQuery = query(
             collection(firestore, 'galleries'),
             where('slug', '==', cleanParam.toLowerCase()),
@@ -137,16 +127,16 @@ export default function ClientGalleryPage() {
           );
           const ownerSnap = await getDocs(ownerSlugQuery);
           if (!ownerSnap.empty) {
-            resolvedId = ownerSnap.docs[0].id;
+            setGalleryId(ownerSnap.docs[0].id);
+            setIsResolving(false);
+            return;
           }
         }
 
         // Stage 3: Direct ID Fallback (Strict Format Check)
-        if (!resolvedId && /^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
-          resolvedId = cleanParam;
+        if (/^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
+          setGalleryId(cleanParam);
         }
-
-        setGalleryId(resolvedId);
       } catch (err: any) {
         console.error("Gallery resolution error:", err);
       } finally {
@@ -170,59 +160,17 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // Strict Owner Verification
+  // Security Verification
   const isOwner = useMemo(() => {
     if (!user?.uid || !gallery?.userId) return false;
     return user.uid === gallery.userId;
   }, [user?.uid, gallery?.userId]);
 
-  // Master visibility switch
   const isAvailable = useMemo(() => {
-    if (isResolving || docLoading || !gallery) return false; 
+    if (isResolving || docLoading) return false;
+    if (!gallery) return false;
     return isOwner || gallery.isPublic === true;
   }, [gallery, isOwner, isResolving, docLoading]);
-
-  // Password Gate Logic
-  const requiresPassword = useMemo(() => {
-    return Boolean(gallery?.isPasswordProtected) && !isOwner;
-  }, [gallery?.isPasswordProtected, isOwner]);
-
-  // Auto-unlock from session
-  useEffect(() => {
-    if (galleryId && typeof window !== 'undefined') {
-      const unlocked = localStorage.getItem(`hafash_unlock_${galleryId}`);
-      if (unlocked === 'true') setIsUnlocked(true);
-    }
-  }, [galleryId]);
-
-  const hashPassword = async (password: string) => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  const verifyPassword = async () => {
-    if (!passwordInput || !gallery?.hashedPassword) return;
-    setVerifying(true);
-    setPasswordError(false);
-    try {
-      const hashed = await hashPassword(passwordInput);
-      if (hashed === gallery.hashedPassword) {
-        setIsUnlocked(true);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem(`hafash_unlock_${galleryId}`, 'true');
-        }
-      } else {
-        setPasswordError(true);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setVerifying(false);
-    }
-  };
 
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
@@ -273,7 +221,7 @@ export default function ClientGalleryPage() {
   };
 
   // Synchronized Loading State
-  if (isResolving || (galleryId && docLoading)) {
+  if (isResolving || docLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -298,58 +246,6 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Show Password Gate if required and not unlocked
-  if (requiresPassword && !isUnlocked) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute inset-0 z-0 opacity-10">
-          <img src={gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080'} className="w-full h-full object-cover grayscale blur-sm" alt="Background" />
-        </div>
-        <div className="w-full max-w-md relative z-10 text-center space-y-8 animate-in fade-in zoom-in-95 duration-700">
-           <div className="space-y-4">
-             <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-primary/5">
-                <Key className="w-10 h-10 text-primary" />
-             </div>
-             <h1 className="text-3xl font-headline font-bold uppercase tracking-tight">{gallery?.title}</h1>
-             <p className="text-muted-foreground italic">This gallery is protected. Please enter the access code provided by the studio.</p>
-           </div>
-           
-           <div className="bg-card border border-border/50 p-8 rounded-[2.5rem] shadow-2xl space-y-6">
-             <div className="space-y-2">
-               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Access Code</Label>
-               <div className="relative">
-                 <Input 
-                  type={showGatePass ? "text" : "password"} 
-                  className={cn("h-14 rounded-2xl bg-background/50 border-border/50 text-center text-xl font-bold tracking-[0.3em] pl-12 pr-12", passwordError && "border-destructive focus-visible:ring-destructive")}
-                  placeholder="••••••••"
-                  value={passwordInput}
-                  onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(false); }}
-                  onKeyDown={(e) => e.key === 'Enter' && verifyPassword()}
-                 />
-                 <button onClick={() => setShowGatePass(!showGatePass)} className="absolute right-4 top-4 text-muted-foreground hover:text-primary">
-                    {showGatePass ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
-                 </button>
-               </div>
-               {passwordError && (
-                 <p className="text-destructive text-[10px] font-bold uppercase mt-2 animate-bounce">Incorrect access code. Please try again.</p>
-               )}
-             </div>
-             <Button className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3" onClick={verifyPassword} disabled={verifying}>
-               {verifying ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShieldCheck className="w-5 h-5" />}
-               Unlock Masterpieces
-             </Button>
-           </div>
-
-           <Link href="/" className="inline-block pt-4">
-             <Button variant="link" className="text-muted-foreground hover:text-primary font-bold uppercase text-[10px] tracking-widest">
-               <ArrowLeft className="w-3 h-3 mr-2" /> Back to Hafash
-             </Button>
-           </Link>
-        </div>
-      </div>
-    );
-  }
-
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
   const isCustomBrandingActive = photographerPlan !== 'starter';
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
@@ -359,7 +255,6 @@ export default function ClientGalleryPage() {
   const showWatermark = gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
   const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
 
-  // Final Gallery Content Render
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
       <Button 

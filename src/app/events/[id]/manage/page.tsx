@@ -16,17 +16,14 @@ import {
   Copy,
   Check,
   X,
-  Shield,
-  Key,
-  Lock,
-  Unlock,
-  ShieldAlert
+  ShieldCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,13 +53,6 @@ export default function EventManagementPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState<'gallery' | null>(null);
-
-  // Password Security State
-  const [passwordEnabled, setPasswordEnabled] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPass, setShowPass] = useState(false);
-  const [savingSecurity, setSavingSecurity] = useState(false);
 
   // Local state for settings
   const [settings, setSettings] = useState({
@@ -97,17 +87,8 @@ export default function EventManagementPage() {
         clientName: event.clientName || '',
         description: event.description || ''
       });
-      setPasswordEnabled(!!event.isPasswordProtected);
     }
   }, [event]);
-
-  const hashPassword = async (password: string) => {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
 
   const handleUpdateSettings = async () => {
     if (!eventRef) return;
@@ -119,38 +100,13 @@ export default function EventManagementPage() {
     }
   };
 
-  const handleSaveSecurity = async () => {
+  const handleSetCover = async (imageUrl: string) => {
     if (!eventRef) return;
-    if (passwordEnabled && !newPassword && !event?.hashedPassword) {
-      toast({ variant: "destructive", title: "Error", description: "Please enter a password." });
-      return;
-    }
-    if (newPassword && newPassword !== confirmPassword) {
-      toast({ variant: "destructive", title: "Error", description: "Passwords do not match." });
-      return;
-    }
-
-    setSavingSecurity(true);
     try {
-      const updateData: any = {
-        isPasswordProtected: passwordEnabled,
-        updatedAt: new Date().toISOString()
-      };
-
-      if (passwordEnabled && newPassword) {
-        updateData.hashedPassword = await hashPassword(newPassword);
-      } else if (!passwordEnabled) {
-        updateData.hashedPassword = null;
-      }
-
-      await updateDoc(eventRef, updateData);
-      toast({ title: "Security Updated", description: "Password protection settings saved." });
-      setNewPassword('');
-      setConfirmPassword('');
+      await updateDoc(eventRef, { coverImage: imageUrl, updatedAt: new Date().toISOString() });
+      toast({ title: "Cover Updated", description: "New gallery cover has been set successfully." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
-    } finally {
-      setSavingSecurity(false);
     }
   };
 
@@ -269,71 +225,74 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Security & Password */}
+          {/* Client Messaging Hub */}
           <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-            <CardHeader className="bg-destructive/5 border-b border-border/30 px-8 py-6">
+            <CardHeader className="bg-green-500/5 border-b border-border/30 px-8 py-6">
               <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                <Shield className="w-5 h-5 text-primary" /> Gallery Security
+                <MessageCircle className="w-5 h-5 text-green-500" /> Message Box
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-8">
-              <div className="flex items-center justify-between p-6 bg-background/50 rounded-2xl border border-border/30">
-                <div className="space-y-1">
-                  <Label className="text-base font-bold flex items-center gap-2">
-                    {passwordEnabled ? <Lock className="w-4 h-4 text-primary" /> : <Unlock className="w-4 h-4 text-muted-foreground" />}
-                    Enable Password Protection
-                  </Label>
-                  <p className="text-xs text-muted-foreground">Visitors must enter a password to view the gallery.</p>
-                </div>
-                <Switch checked={passwordEnabled} onCheckedChange={setPasswordEnabled} />
-              </div>
-
-              {passwordEnabled && (
-                <div className="space-y-6 animate-in slide-in-from-top-2 duration-300">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">New Password</Label>
-                      <div className="relative">
-                        <Key className="absolute left-3 top-4 w-4 h-4 text-primary" />
-                        <Input 
-                          type={showPass ? "text" : "password"}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Confirm Password</Label>
-                      <Input 
-                        type={showPass ? "text" : "password"}
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="••••••••"
-                        className="h-12 bg-background/50 border-border/50 rounded-xl"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 px-2">
-                    <input type="checkbox" id="show-pass" checked={showPass} onChange={(e) => setShowPass(e.target.checked)} className="rounded border-border/50" />
-                    <label htmlFor="show-pass" className="text-xs text-muted-foreground cursor-pointer">Show password characters</label>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-between items-center pt-4 border-t border-border/20">
-                <div className="flex items-center gap-2 text-[10px] text-muted-foreground italic">
-                   <ShieldAlert className="w-3 h-3" />
-                   <span>Password is hashed using SHA-256 before being stored.</span>
-                </div>
-                <Button className="rounded-xl px-10 h-12 font-bold" onClick={handleSaveSecurity} disabled={savingSecurity}>
-                  {savingSecurity ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Settings className="w-4 h-4 mr-2" />}
-                  Save Security Settings
+            <CardContent className="p-8">
+              <div className="p-6 bg-background/50 rounded-2xl border border-border/30 space-y-4">
+                <p className="text-sm text-muted-foreground italic leading-relaxed">Notify your client that their memories are ready for viewing. This will open WhatsApp with a pre-filled luxury message.</p>
+                <Button 
+                  className="w-full h-14 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold gap-3 text-lg shadow-lg shadow-green-500/20"
+                  onClick={() => {
+                    const text = encodeURIComponent(`Hi ${event.clientName}! Your beautiful memories from "${event.title}" are ready to view. Check out your luxury gallery here: ${galleryUrl}`);
+                    window.open(`https://wa.me/${(event.clientPhone || "").replace(/\D/g, '')}?text=${text}`, '_blank');
+                  }}
+                >
+                  <MessageCircle className="w-5 h-5" /> Send WhatsApp Notification
                 </Button>
               </div>
             </CardContent>
           </Card>
+
+          {/* Asset Management Preview */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-2xl font-headline font-bold">Delivered Masterpieces</h2>
+              <Badge variant="outline" className="px-4 py-1.5 font-bold text-primary border-primary/30 uppercase tracking-widest text-[10px]">
+                {event.items?.length || 0} Assets
+              </Badge>
+            </div>
+            
+            {(!event.items || event.items.length === 0) ? (
+              <div className="text-center py-32 border-2 border-dashed border-border/20 rounded-[3rem] bg-card/10">
+                <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                <p className="text-muted-foreground italic font-headline text-xl">No photos have been delivered yet.</p>
+                <Link href={`/events/${id}/upload`} className="mt-6 inline-block">
+                  <Button variant="outline" className="rounded-xl border-primary/30 text-primary font-bold">Go to Upload Center</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                {event.items.map((item: any) => (
+                  <div key={item.id} className="group relative aspect-[4/5] rounded-3xl overflow-hidden border border-border/30 bg-muted shadow-lg">
+                    <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-700" alt="Gallery Item" />
+                    <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-3 p-6 text-center backdrop-blur-[2px]">
+                      <Button 
+                        size="sm" 
+                        className={cn(
+                          "w-full rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all",
+                          event.coverImage === item.url ? "bg-green-500 text-white cursor-default" : "bg-white text-black hover:bg-gray-100"
+                        )}
+                        onClick={() => event.coverImage !== item.url && handleSetCover(item.url)}
+                      >
+                        {event.coverImage === item.url ? <Check className="w-3 h-3 mr-1" /> : null}
+                        {event.coverImage === item.url ? "Current Cover" : "Set as Cover"}
+                      </Button>
+                    </div>
+                    {event.coverImage === item.url && (
+                      <div className="absolute top-4 left-4 bg-green-500 text-white p-1.5 rounded-full shadow-xl ring-2 ring-white/20">
+                        <Check className="w-3 h-3" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Settings & Details */}
           <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
@@ -362,7 +321,7 @@ export default function EventManagementPage() {
 
         {/* Sidebar Stats & Sharing */}
         <div className="space-y-8">
-          <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg">
+          <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg border-t-4 border-t-primary">
             <CardHeader className="pb-4">
               <CardTitle className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Live Insights</CardTitle>
             </CardHeader>
