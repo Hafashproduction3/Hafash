@@ -16,7 +16,10 @@ import {
   Copy,
   Check,
   X,
-  ShieldCheck
+  ShieldCheck,
+  FileText,
+  MessageSquare,
+  History
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -24,6 +27,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +43,7 @@ import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useMemo, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 
 export default function EventManagementPage() {
   const params = useParams();
@@ -58,7 +63,8 @@ export default function EventManagementPage() {
   const [settings, setSettings] = useState({
     title: '',
     clientName: '',
-    description: ''
+    description: '',
+    photographerNote: ''
   });
 
   useEffect(() => {
@@ -85,7 +91,8 @@ export default function EventManagementPage() {
       setSettings({
         title: event.title || '',
         clientName: event.clientName || '',
-        description: event.description || ''
+        description: event.description || '',
+        photographerNote: event.photographerNote || ''
       });
     }
   }, [event]);
@@ -94,7 +101,7 @@ export default function EventManagementPage() {
     if (!eventRef) return;
     try {
       await updateDoc(eventRef, { ...settings, updatedAt: new Date().toISOString() });
-      toast({ title: "Settings Saved", description: "Gallery metadata updated successfully." });
+      toast({ title: "Settings Saved", description: "Gallery metadata and note updated successfully." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
     }
@@ -164,6 +171,7 @@ export default function EventManagementPage() {
   );
 
   const galleryUrl = `${origin}/gallery/${event.slug || event.id}`;
+  const replies = (event.replies || []) as { text: string, createdAt: string }[];
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -225,6 +233,30 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
+          {/* Photographer Note Section */}
+          <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
+            <CardHeader className="bg-primary/5 border-b border-border/30 px-8 py-6">
+              <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" /> Photographer's Welcome Note
+              </CardTitle>
+              <CardDescription>This message appears at the top of the client gallery.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Welcome Message</Label>
+                <Textarea 
+                  placeholder="E.g., Thank you for letting us cover your special day! Here are your beautiful memories..." 
+                  className="min-h-[120px] rounded-xl bg-background/50 border-border/50 p-4"
+                  value={settings.photographerNote}
+                  onChange={(e) => setSettings({...settings, photographerNote: e.target.value})}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button className="rounded-xl px-10 font-bold" onClick={handleUpdateSettings}>Save Welcome Note</Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Client Messaging Hub */}
           <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
             <CardHeader className="bg-green-500/5 border-b border-border/30 px-8 py-6">
@@ -245,6 +277,36 @@ export default function EventManagementPage() {
                   <MessageCircle className="w-5 h-5" /> Send WhatsApp Notification
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Client Feedback / Replies Section */}
+          <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
+            <CardHeader className="bg-primary/5 border-b border-border/30 px-8 py-6">
+              <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-primary" /> Client Feedback Feed
+              </CardTitle>
+              <CardDescription>Internal replies submitted by the client from their gallery.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-8">
+              {replies.length === 0 ? (
+                <div className="text-center py-12 border-2 border-dashed border-border/20 rounded-3xl bg-muted/10">
+                   <History className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-20" />
+                   <p className="text-sm text-muted-foreground italic">No replies from the client yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {replies.slice().reverse().map((reply, idx) => (
+                    <div key={idx} className="p-4 bg-background/50 rounded-2xl border border-border/30">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Client Message</span>
+                        <span className="text-[9px] text-muted-foreground font-mono">{reply.createdAt ? format(new Date(reply.createdAt), 'MMM d, HH:mm') : 'N/A'}</span>
+                      </div>
+                      <p className="text-sm leading-relaxed">{reply.text}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
 

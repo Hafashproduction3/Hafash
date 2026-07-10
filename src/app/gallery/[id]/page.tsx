@@ -11,12 +11,16 @@ import {
   MessageCircle, 
   Share2, 
   ShieldAlert,
-  ArrowLeft
+  ArrowLeft,
+  FileText,
+  Send,
+  CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion } from 'firebase/firestore';
+import { Textarea } from '@/components/ui/textarea';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
@@ -88,6 +92,11 @@ export default function ClientGalleryPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
+  
+  // Internal Note Reply State
+  const [replyText, setReplyText] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+  const [replySuccess, setReplySuccess] = useState(false);
 
   // Secure Multi-Stage Resolution Logic
   useEffect(() => {
@@ -220,6 +229,29 @@ export default function ClientGalleryPage() {
     }
   };
 
+  const handleSubmitReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!replyText.trim() || !galleryRef) return;
+    
+    setIsSubmittingReply(true);
+    try {
+      await updateDoc(galleryRef, {
+        replies: arrayUnion({
+          text: replyText,
+          createdAt: new Date().toISOString()
+        })
+      });
+      setReplySuccess(true);
+      setReplyText('');
+      setTimeout(() => setReplySuccess(false), 5000);
+      toast({ title: "Feedback Sent", description: "Your photographer has been notified internally." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Submit Failed", description: err.message });
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
+
   // Synchronized Loading State
   if (isResolving || docLoading) {
     return (
@@ -333,7 +365,62 @@ export default function ClientGalleryPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 mt-12">
+      <div className="max-w-7xl mx-auto px-6 mt-12 space-y-12">
+        {/* Photographer Note Card */}
+        {gallery.photographerNote && (
+          <div className="max-w-4xl mx-auto animate-in fade-in slide-in-from-top-8 duration-1000">
+             <div className="bg-card border border-border/50 rounded-[2.5rem] p-8 lg:p-12 shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                  <FileText className="w-32 h-32 text-primary" />
+                </div>
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <FileText className="w-5 h-5 text-primary" />
+                  </div>
+                  <span className="text-[10px] uppercase tracking-[0.4em] font-bold text-primary">Photographer's Note</span>
+                </div>
+                <p className="text-lg lg:text-2xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap">
+                  "{gallery.photographerNote}"
+                </p>
+                
+                {/* Internal Reply Form */}
+                <div className="mt-12 pt-10 border-t border-border/20">
+                   {replySuccess ? (
+                     <div className="flex flex-col items-center justify-center py-6 text-center animate-in zoom-in-95 duration-500">
+                        <div className="bg-green-500/10 p-3 rounded-full mb-3">
+                           <CheckCircle2 className="w-6 h-6 text-green-500" />
+                        </div>
+                        <p className="text-sm font-bold text-green-500 uppercase tracking-widest">Reply Synchronized Successfully</p>
+                        <p className="text-xs text-muted-foreground mt-1">Your message has been delivered to the studio's internal feed.</p>
+                        <Button variant="link" className="text-[10px] mt-2 h-auto py-0 font-bold uppercase" onClick={() => setReplySuccess(false)}>Send Another</Button>
+                     </div>
+                   ) : (
+                     <form onSubmit={handleSubmitReply} className="space-y-4">
+                       <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Internal Feedback / Reply</Label>
+                       <div className="relative">
+                         <Textarea 
+                          placeholder="Type your reply here..." 
+                          className="rounded-2xl bg-background/30 border-border/30 focus:border-primary/50 min-h-[80px] p-4 text-sm"
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                         />
+                         <Button 
+                          type="submit" 
+                          size="icon" 
+                          className="absolute bottom-3 right-3 rounded-xl bg-primary text-primary-foreground h-10 w-10 shadow-lg hover:scale-105 transition-transform"
+                          disabled={isSubmittingReply || !replyText.trim()}
+                         >
+                           {isSubmittingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                         </Button>
+                       </div>
+                       <p className="text-[9px] text-muted-foreground italic ml-1">* This reply is saved internally for your photographer and is not visible publicly.</p>
+                     </form>
+                   )}
+                </div>
+             </div>
+          </div>
+        )}
+
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 lg:gap-8 space-y-6 lg:space-y-8">
           {gallery.items?.map((item: any) => (
             <GalleryItem 
