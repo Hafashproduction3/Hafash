@@ -29,7 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/dialog";
+} from "@/components/ui/dialog";
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
