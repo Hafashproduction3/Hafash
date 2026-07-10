@@ -313,6 +313,9 @@ export default function ClientGalleryPage() {
   const showWatermark = gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
   const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
 
+  // Trigger button if any of the note/welcome fields exist
+  const hasNoteContent = !!(gallery?.photographerNote || gallery?.welcomeTitle || gallery?.welcomeMessage);
+
   return (
     <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
       <Button 
@@ -371,7 +374,7 @@ export default function ClientGalleryPage() {
               </Button>
             )}
 
-            {gallery.photographerNote && (
+            {hasNoteContent && (
               <Dialog>
                 <DialogTrigger asChild>
                   <Button className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-3 shadow-2xl backdrop-blur-md text-xs lg:text-sm">
@@ -386,62 +389,76 @@ export default function ClientGalleryPage() {
                        ) : (
                          <span className="text-xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
                        )}
-                       <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight">Photographer's Note</DialogTitle>
+                       <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight">
+                         {welcomeTitle || "Photographer's Note"}
+                       </DialogTitle>
                     </div>
                   </DialogHeader>
                   
                   <div className="space-y-8">
-                     <p className="text-lg lg:text-xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-4">
-                       "{gallery.photographerNote}"
-                     </p>
+                     {welcomeMessage && (
+                        <p className="text-center text-muted-foreground text-xs uppercase tracking-[0.2em] font-bold px-4">
+                          {welcomeMessage}
+                        </p>
+                     )}
 
-                     <div className="flex justify-center">
-                        <Button 
-                          variant="outline" 
-                          className={cn(
-                            "rounded-full gap-2 font-bold transition-all h-10 px-6 border-primary/30",
-                            helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10"
+                     {gallery.photographerNote && (
+                        <p className="text-lg lg:text-xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-4">
+                          "{gallery.photographerNote}"
+                        </p>
+                     )}
+
+                     {helpfulButtonEnabled && (
+                       <div className="flex justify-center">
+                          <Button 
+                            variant="outline" 
+                            className={cn(
+                              "rounded-full gap-2 font-bold transition-all h-10 px-6 border-primary/30",
+                              helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10"
+                            )}
+                            onClick={handleHelpfulClick}
+                            disabled={helpfulClicked}
+                          >
+                            <Heart className={cn("w-4 h-4", helpfulClicked && "fill-current")} />
+                            {helpfulClicked ? "Helpful!" : "Helpful"}
+                          </Button>
+                       </div>
+                     )}
+
+                     {clientRepliesEnabled && (
+                       <div className="pt-8 border-t border-border/20">
+                          {replySuccess ? (
+                             <div className="flex flex-col items-center justify-center py-4 text-center animate-in zoom-in-95 duration-500">
+                                <div className="bg-green-500/10 p-2 rounded-full mb-2">
+                                   <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                </div>
+                                <p className="text-xs font-bold text-green-500 uppercase tracking-widest">Reply Delivered</p>
+                                <Button variant="link" className="text-[10px] mt-2 h-auto py-0 font-bold uppercase" onClick={() => setReplySuccess(false)}>Send Another</Button>
+                             </div>
+                          ) : (
+                             <form onSubmit={handleSubmitReply} className="space-y-4">
+                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Internal Feedback / Reply</Label>
+                                <div className="relative">
+                                   <Textarea 
+                                      placeholder="Type your reply to the studio here..." 
+                                      className="rounded-2xl bg-background/30 border-border/30 focus:border-primary/50 min-h-[80px] p-4 text-sm"
+                                      value={replyText}
+                                      onChange={(e) => setReplyText(e.target.value)}
+                                   />
+                                   <Button 
+                                      type="submit" 
+                                      size="icon" 
+                                      className="absolute bottom-3 right-3 rounded-xl bg-primary text-primary-foreground h-10 w-10 shadow-lg hover:scale-105 transition-transform"
+                                      disabled={isSubmittingReply || !replyText.trim()}
+                                   >
+                                      {isSubmittingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                   </Button>
+                                </div>
+                                <p className="text-[9px] text-muted-foreground italic text-center">* This reply is saved internally and is only visible to your photographer.</p>
+                             </form>
                           )}
-                          onClick={handleHelpfulClick}
-                          disabled={helpfulClicked}
-                        >
-                          <Heart className={cn("w-4 h-4", helpfulClicked && "fill-current")} />
-                          {helpfulClicked ? "Helpful!" : "Helpful"}
-                        </Button>
-                     </div>
-
-                     <div className="pt-8 border-t border-border/20">
-                        {replySuccess ? (
-                           <div className="flex flex-col items-center justify-center py-4 text-center animate-in zoom-in-95 duration-500">
-                              <div className="bg-green-500/10 p-2 rounded-full mb-2">
-                                 <CheckCircle2 className="w-5 h-5 text-green-500" />
-                              </div>
-                              <p className="text-xs font-bold text-green-500 uppercase tracking-widest">Reply Delivered</p>
-                              <Button variant="link" className="text-[10px] mt-2 h-auto py-0 font-bold uppercase" onClick={() => setReplySuccess(false)}>Send Another</Button>
-                           </div>
-                        ) : (
-                           <form onSubmit={handleSubmitReply} className="space-y-4">
-                              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Internal Feedback / Reply</Label>
-                              <div className="relative">
-                                 <Textarea 
-                                    placeholder="Type your reply to the studio here..." 
-                                    className="rounded-2xl bg-background/30 border-border/30 focus:border-primary/50 min-h-[80px] p-4 text-sm"
-                                    value={replyText}
-                                    onChange={(e) => setReplyText(e.target.value)}
-                                 />
-                                 <Button 
-                                    type="submit" 
-                                    size="icon" 
-                                    className="absolute bottom-3 right-3 rounded-xl bg-primary text-primary-foreground h-10 w-10 shadow-lg hover:scale-105 transition-transform"
-                                    disabled={isSubmittingReply || !replyText.trim()}
-                                 >
-                                    {isSubmittingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                 </Button>
-                              </div>
-                              <p className="text-[9px] text-muted-foreground italic text-center">* This reply is saved internally and is only visible to your photographer.</p>
-                           </form>
-                        )}
-                     </div>
+                       </div>
+                     )}
                   </div>
                 </DialogContent>
               </Dialog>
