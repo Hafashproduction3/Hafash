@@ -203,17 +203,16 @@ export default function ClientGalleryPage() {
   }, [isAvailable, isOwner, gallery?.isPasswordProtected, isUnlocked]);
 
   // DIAGNOSTIC LOGS
-  console.log("PASSWORD_GATE_DIAGNOSTIC:", {
-    galleryId,
-    "gallery?.isPasswordProtected": gallery?.isPasswordProtected,
-    "gallery?.hashedPasswordExists": !!gallery?.hashedPassword,
-    "requiresPassword": gallery?.isPasswordProtected === true,
-    isOwner,
-    isAvailable,
-    isUnlocked,
-    showGate,
-    docLoading
-  });
+  console.log(
+    "PASSWORD_GATE_DIAGNOSTIC:",
+    JSON.stringify({
+      isPasswordProtected: gallery?.isPasswordProtected,
+      isOwner,
+      requiresPassword: gallery?.isPasswordProtected === true,
+      isUnlocked,
+      galleryId
+    }, null, 2)
+  );
 
   const verifyPassword = async () => {
     if (!gallery?.hashedPassword) return;
