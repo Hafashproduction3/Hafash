@@ -41,7 +41,8 @@ const nextConfig: NextConfig = {
   // In Next 15, this is a top-level property.
   allowedDevOrigins: [
     '6000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
-    '9000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev'
+    '9000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
+    '9002-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev'
   ]
 };
 
