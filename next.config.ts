@@ -38,13 +38,11 @@ const nextConfig: NextConfig = {
     ],
   },
   // Required for Next.js 15+ in Cloud Workstations to enable HMR and dev resources
-  experimental: {
-    allowedDevOrigins: [
-      '6000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
-      '9000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
-      '9002-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev'
-    ]
-  }
+  allowedDevOrigins: [
+    '6000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
+    '9000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
+    '9002-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev'
+  ]
 };
 
 export default nextConfig;
