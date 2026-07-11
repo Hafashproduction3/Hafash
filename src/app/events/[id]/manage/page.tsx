@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -179,6 +178,25 @@ export default function EventManagementPage() {
     } finally {
       setIsSecurityLoading(false);
     }
+  };
+
+  const handleGeneratePassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let generated = '';
+    for (let i = 0; i < 12; i++) {
+      generated += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(generated);
+    setConfirmPassword(generated);
+    setShowNewPassword(true);
+    setShowConfirmPassword(true);
+    toast({ title: "Password Generated", description: "A secure random password has been created." });
+  };
+
+  const handleCopyPassword = () => {
+    if (!newPassword) return;
+    navigator.clipboard.writeText(newPassword);
+    toast({ title: "Password Copied", description: "Password copied to clipboard." });
   };
 
   const handleSetCover = async (imageUrl: string) => {
@@ -551,23 +569,43 @@ export default function EventManagementPage() {
                {settings.isPasswordProtected && (
                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                     <div className="space-y-2">
-                       <Label className="text-[10px] font-bold uppercase text-muted-foreground">New Access Password</Label>
+                       <div className="flex items-center justify-between">
+                         <Label className="text-[10px] font-bold uppercase text-muted-foreground">New Access Password</Label>
+                         {newPassword && (
+                           <button 
+                             onClick={handleCopyPassword}
+                             className="text-[9px] font-bold text-primary uppercase hover:underline"
+                           >
+                             Copy Password
+                           </button>
+                         )}
+                       </div>
                        <div className="relative">
                           <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
                           <Input 
                             type={showNewPassword ? "text" : "password"}
                             placeholder="••••••••" 
-                            className="pl-10 pr-10 rounded-xl h-11 bg-background/50 border-border/50" 
+                            className="pl-10 pr-16 rounded-xl h-11 bg-background/50 border-border/50" 
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                           />
-                          <button 
-                            type="button" 
-                            onClick={() => setShowNewPassword(!showNewPassword)}
-                            className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
-                          >
-                            {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
+                          <div className="absolute right-3 top-2.5 flex items-center gap-1.5">
+                            <button 
+                              type="button" 
+                              onClick={handleCopyPassword}
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                              title="Copy Password"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => setShowNewPassword(!showNewPassword)}
+                              className="text-muted-foreground hover:text-primary transition-colors"
+                            >
+                              {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
                        </div>
                        {passwordTooShort && (
                          <p className="text-[9px] text-destructive font-bold uppercase flex items-center gap-1">
@@ -604,6 +642,14 @@ export default function EventManagementPage() {
                          </p>
                        )}
                     </div>
+
+                    <Button 
+                      variant="outline" 
+                      className="w-full h-10 rounded-xl border-dashed text-[10px] font-bold uppercase tracking-widest gap-2 bg-primary/5 border-primary/20 hover:bg-primary/10"
+                      onClick={handleGeneratePassword}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" /> Generate Secure Password
+                    </Button>
                     
                     <p className="text-[9px] text-muted-foreground italic leading-relaxed">
                       Leave both fields empty to keep existing password.
@@ -623,7 +669,7 @@ export default function EventManagementPage() {
           </Card>
 
           {/* Album Workflow Module */}
-          <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg">
+          <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg border-t-4 border-t-primary">
             <CardHeader className="p-6 border-b border-border/30">
               <CardTitle className="text-sm font-headline font-bold flex items-center gap-2">
                 <Archive className="w-4 h-4 text-primary" /> Album Fulfillment
