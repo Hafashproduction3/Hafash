@@ -25,17 +25,9 @@ if (!admin.apps.length) {
       console.error("Firebase Admin: Initialization with environment variables failed.", e.message);
     }
   } else {
-    try {
-      // Dynamic require to prevent build-time errors if the file is missing in production
-      const serviceAccount = require('./serviceaccount.json');
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-      });
-    } catch (e) {
-      console.warn("Firebase Admin: No environment variables or serviceaccount.json found. Server-side database operations will fail.");
-    }
+    console.warn("Firebase Admin: Missing FIREBASE_PRIVATE_KEY or FIREBASE_CLIENT_EMAIL environment variables.");
+   }
   }
-}
 
 /**
  * Export the Firestore instance.
