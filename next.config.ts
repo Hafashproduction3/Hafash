@@ -37,12 +37,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Required for Next.js 15+ in Cloud Workstations to enable HMR and dev resources
-  allowedDevOrigins: [
-    '6000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
-    '9000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
-    '9002-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev'
-  ]
+  // In this environment, Next.js 15 requires allowedDevOrigins to be within the experimental block
+  // to resolve the HMR cross-origin blocking issue and invalid-next-config warning.
+  experimental: {
+    allowedDevOrigins: [
+      '6000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
+      '9000-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev',
+      '9002-firebase-studio-1782069807238.cluster-wurh6gchdjcjmwrw2tqtufvhss.cloudworkstations.dev'
+    ]
+  }
 };
 
 export default nextConfig;
