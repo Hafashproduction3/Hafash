@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -15,10 +16,14 @@ import {
   FileText,
   Send,
   CheckCircle2,
-  Sparkles
+  Sparkles,
+  Lock,
+  Unlock,
+  KeyRound
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion } from 'firebase/firestore';
@@ -102,6 +107,12 @@ export default function ClientGalleryPage() {
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
   
+  // Security Logic
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+
   // Internal Note Reply State
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
@@ -171,6 +182,14 @@ export default function ClientGalleryPage() {
   }, [firestore, galleryId]);
 
   const { data: gallery, loading: docLoading } = useDoc(galleryRef);
+
+  // Password Unlock Persistence
+  useEffect(() => {
+    if (galleryId) {
+      const stored = sessionStorage.getItem(`unlocked_gallery_${galleryId}`);
+      if (stored === 'true') setIsUnlocked(true);
+    }
+  }, [galleryId]);
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
@@ -246,6 +265,37 @@ export default function ClientGalleryPage() {
     }
   };
 
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gallery?.hashedPassword) return;
+    
+    setVerifying(true);
+    setPasswordError(false);
+
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(passwordInput);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const hashedInput = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      if (hashedInput === gallery.hashedPassword) {
+        setIsUnlocked(true);
+        if (galleryId) {
+          sessionStorage.setItem(`unlocked_gallery_${galleryId}`, 'true');
+        }
+        toast({ title: "Access Granted", description: "Welcome to your luxury workspace." });
+      } else {
+        setPasswordError(true);
+        toast({ variant: "destructive", title: "Access Denied", description: "The password entered is incorrect." });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Security Error", description: "Verification failed. Please try again." });
+    } finally {
+      setVerifying(false);
+    }
+  };
+
   const handleSubmitReply = async (e?: React.FormEvent, manualText?: string) => {
     if (e) e.preventDefault();
     const textToSubmit = manualText || replyText;
@@ -300,6 +350,76 @@ export default function ClientGalleryPage() {
           The requested gallery could not be found or is currently restricted by the studio.
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
+      </div>
+    );
+  }
+
+  // Password Gate
+  if (gallery?.isPasswordProtected && !isUnlocked && !isOwner) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
+        <div className="absolute inset-0 z-0 opacity-10">
+          <img src={gallery.coverImage} className="w-full h-full object-cover grayscale blur-sm" alt="Background" />
+        </div>
+
+        <div className="w-full max-w-md relative z-10 space-y-10 animate-in fade-in zoom-in-95 duration-700">
+          <div className="text-center space-y-4">
+             <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-primary/5">
+                <KeyRound className="w-10 h-10 text-primary" />
+             </div>
+             <h1 className="text-3xl font-headline font-bold uppercase tracking-tight text-white">{gallery.title}</h1>
+             <p className="text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold">Private Workspace Access</p>
+          </div>
+
+          <Card className="bg-card/80 backdrop-blur-xl border-border/50 rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <CardContent className="p-8 lg:p-10 space-y-6">
+              <p className="text-center text-xs text-muted-foreground italic leading-relaxed">
+                This session is protected by studio security. Please enter the private access key provided by your photographer to view your masterpieces.
+              </p>
+
+              <form onSubmit={handlePasswordSubmit} className="space-y-6">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Access Password</Label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                    <Input 
+                      type="password" 
+                      placeholder="••••••••" 
+                      className={cn(
+                        "pl-10 h-12 rounded-xl bg-background/50 border-border/50 focus:border-primary/50",
+                        passwordError && "border-destructive/50 ring-destructive/10"
+                      )}
+                      value={passwordInput}
+                      onChange={(e) => setPasswordInput(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  {passwordError && (
+                    <p className="text-[9px] text-destructive font-bold uppercase tracking-tighter ml-1">
+                      Incorrect security key. Please verify with your studio.
+                    </p>
+                  )}
+                </div>
+
+                <Button 
+                  type="submit" 
+                  className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 gap-3"
+                  disabled={verifying || !passwordInput}
+                >
+                  {verifying ? <Loader2 className="w-5 h-5 animate-spin" /> : <Unlock className="w-5 h-5" />}
+                  {verifying ? "Verifying Access..." : "Unlock Gallery"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <footer className="text-center">
+             <div className="flex items-center justify-center gap-2 opacity-30">
+                <img src="/hafash-logo.png" className="h-6 w-auto grayscale" alt="Hafash" />
+                <span className="font-headline font-bold text-lg italic text-white">Hafash Studio Security</span>
+             </div>
+          </footer>
+        </div>
       </div>
     );
   }

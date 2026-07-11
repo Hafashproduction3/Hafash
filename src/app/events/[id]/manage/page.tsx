@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -27,7 +28,8 @@ import {
   Calendar,
   User,
   Copy,
-  LayoutGrid
+  LayoutGrid,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -73,6 +75,10 @@ export default function EventManagementPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  
+  // Security State
+  const [isSecurityLoading, setIsSecurityLoading] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
   // Local state for settings
   const [settings, setSettings] = useState({
@@ -85,7 +91,8 @@ export default function EventManagementPage() {
     welcomeScreenEnabled: false,
     clientRepliesEnabled: true,
     helpfulButtonEnabled: true,
-    albumStatus: 'New Selection'
+    albumStatus: 'New Selection',
+    isPasswordProtected: false
   });
 
   useEffect(() => {
@@ -119,7 +126,8 @@ export default function EventManagementPage() {
         welcomeScreenEnabled: !!event.welcomeScreenEnabled,
         clientRepliesEnabled: event.clientRepliesEnabled !== false,
         helpfulButtonEnabled: event.helpfulButtonEnabled !== false,
-        albumStatus: event.albumStatus || 'New Selection'
+        albumStatus: event.albumStatus || 'New Selection',
+        isPasswordProtected: !!event.isPasswordProtected
       });
     }
   }, [event]);
@@ -131,6 +139,39 @@ export default function EventManagementPage() {
       toast({ title: "Settings Saved", description: "Gallery metadata and experience settings updated." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
+    }
+  };
+
+  const hashPassword = async (password: string) => {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
+
+  const handleSaveSecurity = async () => {
+    if (!eventRef) return;
+    setIsSecurityLoading(true);
+    try {
+      const updateData: any = { 
+        isPasswordProtected: settings.isPasswordProtected,
+        updatedAt: new Date().toISOString() 
+      };
+
+      if (settings.isPasswordProtected && newPassword) {
+        updateData.hashedPassword = await hashPassword(newPassword);
+      } else if (!settings.isPasswordProtected) {
+        updateData.hashedPassword = null;
+      }
+
+      await updateDoc(eventRef, updateData);
+      setNewPassword('');
+      toast({ title: "Security Updated", description: "Gallery access controls have been synchronized." });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Security Failed", description: err.message });
+    } finally {
+      setIsSecurityLoading(false);
     }
   };
 
@@ -233,6 +274,11 @@ export default function EventManagementPage() {
               <Badge className={cn("rounded-lg px-3 py-1 font-bold text-[9px] uppercase tracking-tighter", event.isPaid ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-500")}>
                 {event.isPaid ? "Revenue Settled" : "Awaiting Payment"}
               </Badge>
+              {settings.isPasswordProtected && (
+                <Badge className="rounded-lg px-3 py-1 font-bold text-[9px] uppercase tracking-tighter bg-amber-500/10 text-amber-500 border border-amber-500/30">
+                  <Lock className="w-2.5 h-2.5 mr-1" /> Password Protected
+                </Badge>
+              )}
             </div>
           </div>
           
@@ -474,6 +520,54 @@ export default function EventManagementPage() {
                   </Button>
                </div>
             </div>
+          </Card>
+
+          {/* Gallery Security Suite */}
+          <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg border-t-4 border-t-amber-500">
+            <CardHeader className="p-6 border-b border-border/30">
+              <CardTitle className="text-sm font-headline font-bold flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-amber-500" /> Gallery Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+               <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Enable Protection</Label>
+                  <Switch 
+                    checked={settings.isPasswordProtected} 
+                    onCheckedChange={(val) => setSettings({...settings, isPasswordProtected: val})} 
+                  />
+               </div>
+               
+               {settings.isPasswordProtected && (
+                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-bold uppercase text-muted-foreground">New Access Password</Label>
+                       <div className="relative">
+                          <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                          <Input 
+                            type="password"
+                            placeholder="••••••••" 
+                            className="pl-10 rounded-xl h-11 bg-background/50 border-border/50" 
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                          />
+                       </div>
+                    </div>
+                    <p className="text-[9px] text-muted-foreground italic leading-relaxed">
+                      Leave empty to keep existing password. Passwords are SHA-256 hashed locally for studio security.
+                    </p>
+                 </div>
+               )}
+               
+               <Button 
+                className="w-full rounded-xl font-bold h-11 shadow-lg" 
+                onClick={handleSaveSecurity}
+                disabled={isSecurityLoading}
+               >
+                 {isSecurityLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                 Update Access Rules
+               </Button>
+            </CardContent>
           </Card>
 
           {/* Album Workflow Module */}
