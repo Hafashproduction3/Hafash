@@ -271,6 +271,10 @@ export default function ClientGalleryPage() {
 
       if (hashedInput === gallery.hashedPassword) {
         setIsUnlocked(true);
+        console.log("UNLOCK SUCCESS", {
+          galleryId,
+          isUnlockedAfterSet: true
+        });
         if (galleryId) {
           sessionStorage.setItem(`unlocked_gallery_${galleryId}`, 'true');
         }
@@ -350,7 +354,7 @@ export default function ClientGalleryPage() {
   }
 
   // Password Gate
-  if (!!gallery?.isPasswordProtected && !isUnlocked && !isOwner) {
+  if (!!gallery?.isPasswordProtected && !isUnlocked) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-10">

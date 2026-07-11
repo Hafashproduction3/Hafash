@@ -9,6 +9,7 @@ import {
   Image as ImageIcon,
   ArrowLeft,
   Eye,
+  EyeOff,
   Loader2,
   Globe,
   Settings,
@@ -29,7 +30,8 @@ import {
   User,
   Copy,
   LayoutGrid,
-  ShieldAlert
+  ShieldAlert,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -79,6 +81,9 @@ export default function EventManagementPage() {
   // Security State
   const [isSecurityLoading, setIsSecurityLoading] = useState(false);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Local state for settings
   const [settings, setSettings] = useState({
@@ -167,6 +172,7 @@ export default function EventManagementPage() {
 
       await updateDoc(eventRef, updateData);
       setNewPassword('');
+      setConfirmPassword('');
       toast({ title: "Security Updated", description: "Gallery access controls have been synchronized." });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Security Failed", description: err.message });
@@ -224,6 +230,10 @@ export default function EventManagementPage() {
     toast({ title: "Link Copied" });
     setTimeout(() => setCopiedLink(false), 2000);
   };
+
+  const passwordMismatch = settings.isPasswordProtected && newPassword.length > 0 && newPassword !== confirmPassword;
+  const passwordTooShort = settings.isPasswordProtected && newPassword.length > 0 && newPassword.length < 6;
+  const canSaveSecurity = !isSecurityLoading && (!settings.isPasswordProtected || (newPassword === "" || (newPassword.length >= 6 && newPassword === confirmPassword)));
 
   if (authLoading || dataLoading) return (
     <div className="flex items-center justify-center min-h-[50vh]">
@@ -545,16 +555,58 @@ export default function EventManagementPage() {
                        <div className="relative">
                           <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
                           <Input 
-                            type="password"
+                            type={showNewPassword ? "text" : "password"}
                             placeholder="••••••••" 
-                            className="pl-10 rounded-xl h-11 bg-background/50 border-border/50" 
+                            className="pl-10 pr-10 rounded-xl h-11 bg-background/50 border-border/50" 
                             value={newPassword}
                             onChange={(e) => setNewPassword(e.target.value)}
                           />
+                          <button 
+                            type="button" 
+                            onClick={() => setShowNewPassword(!showNewPassword)}
+                            className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
                        </div>
+                       {passwordTooShort && (
+                         <p className="text-[9px] text-destructive font-bold uppercase flex items-center gap-1">
+                           <AlertCircle className="w-3 h-3" /> Minimum 6 characters required.
+                         </p>
+                       )}
                     </div>
+
+                    <div className="space-y-2">
+                       <Label className="text-[10px] font-bold uppercase text-muted-foreground">Confirm Password</Label>
+                       <div className="relative">
+                          <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                          <Input 
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="••••••••" 
+                            className={cn(
+                              "pl-10 pr-10 rounded-xl h-11 bg-background/50 border-border/50",
+                              passwordMismatch && "border-destructive/50 focus:border-destructive/50"
+                            )} 
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                          />
+                          <button 
+                            type="button" 
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
+                          >
+                            {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                       </div>
+                       {passwordMismatch && (
+                         <p className="text-[9px] text-destructive font-bold uppercase flex items-center gap-1">
+                           <AlertCircle className="w-3 h-3" /> Passwords do not match.
+                         </p>
+                       )}
+                    </div>
+                    
                     <p className="text-[9px] text-muted-foreground italic leading-relaxed">
-                      Leave empty to keep existing password. Passwords are SHA-256 hashed locally for studio security.
+                      Leave both fields empty to keep existing password.
                     </p>
                  </div>
                )}
@@ -562,7 +614,7 @@ export default function EventManagementPage() {
                <Button 
                 className="w-full rounded-xl font-bold h-11 shadow-lg" 
                 onClick={handleSaveSecurity}
-                disabled={isSecurityLoading}
+                disabled={!canSaveSecurity}
                >
                  {isSecurityLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
                  Update Access Rules
