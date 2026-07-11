@@ -67,6 +67,8 @@
 /* Luxury Watermark Pattern */
 .luxury-watermark {
   @apply absolute inset-0 pointer-events-none select-none z-10;
-  background-image: url("data:image/svg+xml,%3Csvg width='500' height='400' viewBox='0 0 500 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-30 250 200)'%3E%3Ctext x='250' y='180' font-family='serif' font-weight='bold' font-size='24' fill='%23D4AF37' fill-opacity='0.16' text-anchor='middle'%3EHAFASH%3C/text%3E%3Ctext x='250' y='205' font-family='sans-serif' font-weight='bold' font-size='8' fill='%23D4AF37' fill-opacity='0.12' letter-spacing='4' text-anchor='middle'%3EPREVIEW ONLY%3C/text%3E%3C/g%3E%3C/svg%3E");
+  /* Repeated diagonal pattern with semi-transparent bands and high-opacity gold text */
+  background-image: url("data:image/svg+xml,%3Csvg width='600' height='600' viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-30 300 300)'%3E%3Crect x='-500' y='240' width='2000' height='120' fill='%23000' fill-opacity='0.03' /%3E%3Ctext x='300' y='290' font-family='serif' font-weight='bold' font-size='64' fill='%23D4AF37' fill-opacity='0.28' text-anchor='middle'%3EHAFASH%3C/text%3E%3Ctext x='300' y='330' font-family='sans-serif' font-weight='bold' font-size='14' fill='%23D4AF37' fill-opacity='0.22' letter-spacing='10' text-anchor='middle'%3EPREVIEW ONLY%3C/text%3E%3C/g%3E%3C/svg%3E");
   background-repeat: repeat;
+  background-position: center;
 }
