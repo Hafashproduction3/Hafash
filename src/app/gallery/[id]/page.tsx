@@ -97,7 +97,7 @@ export default function ClientGalleryPage() {
   const params = useParams();
   const galleryParam = (params?.id as string) || "";
   const firestore = useFirestore();
-  const { user } = useUser();
+  const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
   const router = useRouter();
   
@@ -132,7 +132,6 @@ export default function ClientGalleryPage() {
 
       try {
         // Stage 1: Find by Slug (Public or Private)
-        // We find the ID first, then evaluate access rules based on fetched document state
         const slugQuery = query(
           collection(firestore, 'galleries'),
           where('slug', '==', cleanParam.toLowerCase()),
@@ -193,14 +192,14 @@ export default function ClientGalleryPage() {
 
   const isAvailable = useMemo(() => {
     // If still resolving ID or loading doc, we treat as unavailable to trigger loading logic
-    if (isResolving || (galleryId && docLoading)) return false;
+    if (isResolving || (galleryId && docLoading) || authLoading) return false;
     
     // No gallery found or resolved
     if (!gallery) return false;
 
     // Access Logic: Owner always has access. Visitors need isPublic.
     return isOwner || gallery.isPublic === true;
-  }, [gallery, isOwner, isResolving, docLoading, galleryId]);
+  }, [gallery, isOwner, isResolving, docLoading, authLoading, galleryId]);
 
   // Luxury Welcome Experience Architecture
   const welcomeTitle = gallery?.welcomeTitle || "Message From Your Photographer";
@@ -320,7 +319,7 @@ export default function ClientGalleryPage() {
   };
 
   // Synchronized Loading State
-  if (isResolving || (galleryId && docLoading)) {
+  if (isResolving || (galleryId && docLoading) || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -351,7 +350,7 @@ export default function ClientGalleryPage() {
   }
 
   // Password Gate
-  if (gallery?.isPasswordProtected && !isUnlocked && !isOwner) {
+  if (!!gallery?.isPasswordProtected && !isUnlocked && !isOwner) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-10">
