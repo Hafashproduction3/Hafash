@@ -71,7 +71,7 @@ const GalleryItem = memo(({
         style={{ height: 'auto' }}
         priority={false}
       />
-      {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
+      {showWatermark && <div className="luxury-watermark" />}
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-4">
         <div className="flex gap-2">
           <Button 
@@ -131,7 +131,7 @@ export default function ClientGalleryPage() {
       const cleanParam = galleryParam.trim();
 
       try {
-        // Stage 1: Find by Slug (Public or Private)
+        // Stage 1: Find by Slug
         const slugQuery = query(
           collection(firestore, 'galleries'),
           where('slug', '==', cleanParam.toLowerCase()),
@@ -144,13 +144,12 @@ export default function ClientGalleryPage() {
           return;
         } 
 
-        // Stage 2: Direct ID Fallback (Strict Format Check)
+        // Stage 2: Direct ID Fallback
         if (/^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
           setGalleryId(cleanParam);
           return;
         }
 
-        // If we get here, no ID was resolved
         setGalleryId(null);
       } catch (err: any) {
         console.error("Gallery resolution error:", err);
@@ -191,13 +190,8 @@ export default function ClientGalleryPage() {
   }, [user?.uid, gallery?.userId]);
 
   const isAvailable = useMemo(() => {
-    // If still resolving ID or loading doc, we treat as unavailable to trigger loading logic
     if (isResolving || (galleryId && docLoading) || authLoading) return false;
-    
-    // No gallery found or resolved
     if (!gallery) return false;
-
-    // Access Logic: Owner always has access. Visitors need isPublic.
     return isOwner || gallery.isPublic === true;
   }, [gallery, isOwner, isResolving, docLoading, authLoading, galleryId]);
 
@@ -271,10 +265,6 @@ export default function ClientGalleryPage() {
 
       if (hashedInput === gallery.hashedPassword) {
         setIsUnlocked(true);
-        console.log("UNLOCK SUCCESS", {
-          galleryId,
-          isUnlockedAfterSet: true
-        });
         if (galleryId) {
           sessionStorage.setItem(`unlocked_gallery_${galleryId}`, 'true');
         }
@@ -632,7 +622,7 @@ export default function ClientGalleryPage() {
         <div className="fixed inset-0 z-[100] bg-background/95 flex items-center justify-center p-4 lg:p-6" onClick={() => setSelectedImage(null)}>
           <div className="relative w-full h-full flex items-center justify-center">
             <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" alt="Fullscreen" />
-            {showWatermark && <div className="watermark-text">HAFASH PREVIEW</div>}
+            {showWatermark && <div className="luxury-watermark" />}
           </div>
           <Button variant="ghost" size="icon" className="absolute top-4 right-4 lg:top-8 lg:right-8 text-white h-10 w-10 lg:h-12 lg:w-12 hover:bg-white/10 rounded-full">
             <X className="w-6 h-6 lg:w-8 lg:h-8" />
