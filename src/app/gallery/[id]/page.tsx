@@ -8,7 +8,6 @@ import {
   Heart, 
   Download, 
   Loader2, 
-  X, 
   MessageCircle, 
   Share2, 
   ShieldAlert,
@@ -19,7 +18,8 @@ import {
   Sparkles,
   Lock,
   Unlock,
-  KeyRound
+  KeyRound,
+  X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -128,53 +128,40 @@ export default function ClientGalleryPage() {
       }
 
       setIsResolving(true);
-      setGalleryId(null);
       const cleanParam = galleryParam.trim();
 
       try {
-        // Stage 1: Public Slug Resolution (Visitors)
-        const publicSlugQuery = query(
+        // Stage 1: Find by Slug (Public or Private)
+        // We find the ID first, then evaluate access rules based on fetched document state
+        const slugQuery = query(
           collection(firestore, 'galleries'),
           where('slug', '==', cleanParam.toLowerCase()),
-          where('isPublic', '==', true),
           limit(1)
         );
-        const publicSnap = await getDocs(publicSlugQuery);
+        const slugSnap = await getDocs(slugQuery);
         
-        if (!publicSnap.empty) {
-          setGalleryId(publicSnap.docs[0].id);
-          setIsResolving(false);
+        if (!slugSnap.empty) {
+          setGalleryId(slugSnap.docs[0].id);
           return;
         } 
 
-        // Stage 2: Owner Slug Resolution (If logged in)
-        if (user) {
-          const ownerSlugQuery = query(
-            collection(firestore, 'galleries'),
-            where('slug', '==', cleanParam.toLowerCase()),
-            where('userId', '==', user.uid),
-            limit(1)
-          );
-          const ownerSnap = await getDocs(ownerSlugQuery);
-          if (!ownerSnap.empty) {
-            setGalleryId(ownerSnap.docs[0].id);
-            setIsResolving(false);
-            return;
-          }
-        }
-
-        // Stage 3: Direct ID Fallback (Strict Format Check)
+        // Stage 2: Direct ID Fallback (Strict Format Check)
         if (/^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
           setGalleryId(cleanParam);
+          return;
         }
+
+        // If we get here, no ID was resolved
+        setGalleryId(null);
       } catch (err: any) {
         console.error("Gallery resolution error:", err);
+        setGalleryId(null);
       } finally {
         setIsResolving(false);
       }
     }
     resolve();
-  }, [firestore, galleryParam, user?.uid]);
+  }, [firestore, galleryParam]);
 
   const galleryRef = useMemo(() => {
     if (!firestore || !galleryId) return null;
@@ -205,15 +192,19 @@ export default function ClientGalleryPage() {
   }, [user?.uid, gallery?.userId]);
 
   const isAvailable = useMemo(() => {
-    if (isResolving || docLoading) return false;
+    // If still resolving ID or loading doc, we treat as unavailable to trigger loading logic
+    if (isResolving || (galleryId && docLoading)) return false;
+    
+    // No gallery found or resolved
     if (!gallery) return false;
-    return isOwner || gallery.isPublic === true;
-  }, [gallery, isOwner, isResolving, docLoading]);
 
-  // Luxury Welcome Experience Architecture (Safely Read)
-  const welcomeTitle = gallery?.welcomeTitle || "";
+    // Access Logic: Owner always has access. Visitors need isPublic.
+    return isOwner || gallery.isPublic === true;
+  }, [gallery, isOwner, isResolving, docLoading, galleryId]);
+
+  // Luxury Welcome Experience Architecture
+  const welcomeTitle = gallery?.welcomeTitle || "Message From Your Photographer";
   const welcomeMessage = gallery?.welcomeMessage || "";
-  const welcomeScreenEnabled = !!gallery?.welcomeScreenEnabled;
   const clientRepliesEnabled = gallery?.clientRepliesEnabled !== false;
   const helpfulButtonEnabled = gallery?.helpfulButtonEnabled !== false;
 
@@ -329,7 +320,7 @@ export default function ClientGalleryPage() {
   };
 
   // Synchronized Loading State
-  if (isResolving || docLoading) {
+  if (isResolving || (galleryId && docLoading)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="w-10 h-10 animate-spin text-primary" />
@@ -340,14 +331,19 @@ export default function ClientGalleryPage() {
 
   // Deny access if not available
   if (!isAvailable) {
+    const isPrivate = gallery && gallery.isPublic === false;
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8">
           <ShieldAlert className="w-12 h-12 text-destructive" />
         </div>
-        <h1 className="text-2xl lg:text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">Gallery Unavailable</h1>
+        <h1 className="text-2xl lg:text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">
+          {isPrivate ? "Gallery is Private" : "Gallery Unavailable"}
+        </h1>
         <p className="text-muted-foreground mb-8 max-w-xs mx-auto italic">
-          The requested gallery could not be found or is currently restricted by the studio.
+          {isPrivate 
+            ? "Access to this gallery has been restricted by the studio. Please contact the photographer for access."
+            : "The requested gallery could not be found or has been moved."}
         </p>
         <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
       </div>
@@ -364,15 +360,15 @@ export default function ClientGalleryPage() {
 
         <div className="w-full max-w-md relative z-10 space-y-10 animate-in fade-in zoom-in-95 duration-700">
           <div className="text-center space-y-4">
-             <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-primary/5">
-                <KeyRound className="w-10 h-10 text-primary" />
-             </div>
-             <h1 className="text-3xl font-headline font-bold uppercase tracking-tight text-white">{gallery.title}</h1>
-             <p className="text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold">Private Workspace Access</p>
+            <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-primary/5">
+              <KeyRound className="w-10 h-10 text-primary" />
+            </div>
+            <h1 className="text-3xl font-headline font-bold uppercase tracking-tight text-white">{gallery.title}</h1>
+            <p className="text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold">Private Workspace Access</p>
           </div>
 
-          <Card className="bg-card/80 backdrop-blur-xl border-border/50 rounded-[2.5rem] shadow-2xl overflow-hidden">
-            <CardContent className="p-8 lg:p-10 space-y-6">
+          <div className="bg-card/80 backdrop-blur-xl border border-border/50 rounded-[2.5rem] shadow-2xl overflow-hidden">
+            <div className="p-8 lg:p-10 space-y-6">
               <p className="text-center text-xs text-muted-foreground italic leading-relaxed">
                 This session is protected by studio security. Please enter the private access key provided by your photographer to view your masterpieces.
               </p>
@@ -410,14 +406,14 @@ export default function ClientGalleryPage() {
                   {verifying ? "Verifying Access..." : "Unlock Gallery"}
                 </Button>
               </form>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
           <footer className="text-center">
-             <div className="flex items-center justify-center gap-2 opacity-30">
-                <img src="/hafash-logo.png" className="h-6 w-auto grayscale" alt="Hafash" />
-                <span className="font-headline font-bold text-lg italic text-white">Hafash Studio Security</span>
-             </div>
+            <div className="flex items-center justify-center gap-2 opacity-30">
+              <img src="/hafash-logo.png" className="h-6 w-auto grayscale" alt="Hafash" />
+              <span className="font-headline font-bold text-lg italic text-white">Hafash Studio Security</span>
+            </div>
           </footer>
         </div>
       </div>
@@ -432,8 +428,6 @@ export default function ClientGalleryPage() {
   const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
   const showWatermark = gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
   const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
-
-  // Trigger button if any of the note/welcome fields exist
   const hasNoteContent = !!(gallery?.photographerNote || gallery?.welcomeTitle || gallery?.welcomeMessage);
 
   return (
@@ -504,81 +498,81 @@ export default function ClientGalleryPage() {
                 <DialogContent className="bg-card border-border/50 rounded-[2.5rem] p-8 lg:p-12 shadow-2xl max-w-2xl">
                   <DialogHeader className="mb-6">
                     <div className="flex flex-col items-center text-center">
-                       {isCustomBrandingActive && studioLogo ? (
-                         <img src={studioLogo} className="h-12 w-auto mb-4 object-contain" alt="Studio Logo" />
-                       ) : (
-                         <span className="text-xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
-                       )}
-                       <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight">
-                         {welcomeTitle || "Photographer's Note"}
-                       </DialogTitle>
+                      {isCustomBrandingActive && studioLogo ? (
+                        <img src={studioLogo} className="h-12 w-auto mb-4 object-contain" alt="Studio Logo" />
+                      ) : (
+                        <span className="text-xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
+                      )}
+                      <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight">
+                        {welcomeTitle}
+                      </DialogTitle>
                     </div>
                   </DialogHeader>
                   
                   <div className="space-y-8">
-                     {welcomeMessage && (
-                        <p className="text-center text-muted-foreground text-xs uppercase tracking-[0.2em] font-bold px-4">
-                          {welcomeMessage}
-                        </p>
-                     )}
+                    {welcomeMessage && (
+                      <p className="text-center text-muted-foreground text-xs uppercase tracking-[0.2em] font-bold px-4">
+                        {welcomeMessage}
+                      </p>
+                    )}
 
-                     {gallery.photographerNote && (
-                        <p className="text-lg lg:text-xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-4">
-                          "{gallery.photographerNote}"
-                        </p>
-                     )}
+                    {gallery.photographerNote && (
+                      <p className="text-lg lg:text-xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-4">
+                        "{gallery.photographerNote}"
+                      </p>
+                    )}
 
-                     {helpfulButtonEnabled && (
-                       <div className="flex justify-center">
-                          <Button 
-                            variant="outline" 
-                            className={cn(
-                              "rounded-full gap-2 font-bold transition-all h-10 px-6 border-primary/30",
-                              helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10"
-                            )}
-                            onClick={handleHelpfulClick}
-                            disabled={helpfulClicked}
-                          >
-                            <Heart className={cn("w-4 h-4", helpfulClicked && "fill-current")} />
-                            {helpfulClicked ? "Helpful!" : "Helpful"}
-                          </Button>
-                       </div>
-                     )}
-
-                     {clientRepliesEnabled && (
-                       <div className="pt-8 border-t border-border/20">
-                          {replySuccess ? (
-                             <div className="flex flex-col items-center justify-center py-4 text-center animate-in zoom-in-95 duration-500">
-                                <div className="bg-green-500/10 p-2 rounded-full mb-2">
-                                   <CheckCircle2 className="w-5 h-5 text-green-500" />
-                                </div>
-                                <p className="text-xs font-bold text-green-500 uppercase tracking-widest">Reply Delivered</p>
-                                <Button variant="link" className="text-[10px] mt-2 h-auto py-0 font-bold uppercase" onClick={() => setReplySuccess(false)}>Send Another</Button>
-                             </div>
-                          ) : (
-                             <form onSubmit={handleSubmitReply} className="space-y-4">
-                                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Internal Feedback / Reply</Label>
-                                <div className="relative">
-                                   <Textarea 
-                                      placeholder="Type your reply to the studio here..." 
-                                      className="rounded-2xl bg-background/30 border-border/30 focus:border-primary/50 min-h-[80px] p-4 text-sm"
-                                      value={replyText}
-                                      onChange={(e) => setReplyText(e.target.value)}
-                                   />
-                                   <Button 
-                                      type="submit" 
-                                      size="icon" 
-                                      className="absolute bottom-3 right-3 rounded-xl bg-primary text-primary-foreground h-10 w-10 shadow-lg hover:scale-105 transition-transform"
-                                      disabled={isSubmittingReply || !replyText.trim()}
-                                   >
-                                      {isSubmittingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                                   </Button>
-                                </div>
-                                <p className="text-[9px] text-muted-foreground italic text-center">* This reply is saved internally and is only visible to your photographer.</p>
-                             </form>
+                    {helpfulButtonEnabled && (
+                      <div className="flex justify-center">
+                        <Button 
+                          variant="outline" 
+                          className={cn(
+                            "rounded-full gap-2 font-bold transition-all h-10 px-6 border-primary/30",
+                            helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10"
                           )}
-                       </div>
-                     )}
+                          onClick={handleHelpfulClick}
+                          disabled={helpfulClicked}
+                        >
+                          <Heart className={cn("w-4 h-4", helpfulClicked && "fill-current")} />
+                          {helpfulClicked ? "Helpful!" : "Helpful"}
+                        </Button>
+                      </div>
+                    )}
+
+                    {clientRepliesEnabled && (
+                      <div className="pt-8 border-t border-border/20">
+                        {replySuccess ? (
+                          <div className="flex flex-col items-center justify-center py-4 text-center animate-in zoom-in-95 duration-500">
+                            <div className="bg-green-500/10 p-2 rounded-full mb-2">
+                              <CheckCircle2 className="w-5 h-5 text-green-500" />
+                            </div>
+                            <p className="text-xs font-bold text-green-500 uppercase tracking-widest">Reply Delivered</p>
+                            <Button variant="link" className="text-[10px] mt-2 h-auto py-0 font-bold uppercase" onClick={() => setReplySuccess(false)}>Send Another</Button>
+                          </div>
+                        ) : (
+                          <form onSubmit={handleSubmitReply} className="space-y-4">
+                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Internal Feedback / Reply</Label>
+                            <div className="relative">
+                              <Textarea 
+                                placeholder="Type your reply to the studio here..." 
+                                className="rounded-2xl bg-background/30 border-border/30 focus:border-primary/50 min-h-[80px] p-4 text-sm"
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                              />
+                              <Button 
+                                type="submit" 
+                                size="icon" 
+                                className="absolute bottom-3 right-3 rounded-xl bg-primary text-primary-foreground h-10 w-10 shadow-lg hover:scale-105 transition-transform"
+                                disabled={isSubmittingReply || !replyText.trim()}
+                              >
+                                {isSubmittingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                              </Button>
+                            </div>
+                            <p className="text-[9px] text-muted-foreground italic text-center">* This reply is saved internally and is only visible to your photographer.</p>
+                          </form>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </DialogContent>
               </Dialog>
