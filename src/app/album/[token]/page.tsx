@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { resolveAlbumByToken } from '@/app/actions/album';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function AlbumDesignerViewPage() {
   const params = useParams();
@@ -71,10 +72,7 @@ export default function AlbumDesignerViewPage() {
 
   if (searching) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-primary font-bold italic tracking-widest uppercase text-xs">Accessing Secure Workspace...</p>
-      </div>
+      <HafashLoader text="Accessing Secure Review Workspace..." />
     );
   }
 

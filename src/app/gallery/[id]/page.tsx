@@ -35,6 +35,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { HafashLoader } from '@/components/ui/hafash-loader';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
@@ -300,10 +301,7 @@ export default function ClientGalleryPage() {
 
   if (isResolving || (galleryId && docLoading) || authLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-        <Loader2 className="w-12 h-12 animate-spin text-primary" />
-        <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.4em] text-primary/50 animate-pulse">Synchronizing Luxury Assets...</p>
-      </div>
+      <HafashLoader text="Synchronizing Luxury Assets..." />
     );
   }
 

@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function SignupPage() {
   const [loading, setLoading] = useState(false);
@@ -121,11 +122,7 @@ export default function SignupPage() {
   };
 
   if (authLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-      </div>
-    </div>
+    <HafashLoader text="Initializing Your Studio Environment..." />
   );
 
   return (

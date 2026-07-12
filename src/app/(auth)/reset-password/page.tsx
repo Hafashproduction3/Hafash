@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -106,10 +107,7 @@ function ResetPasswordForm() {
 
   if (verifying) {
     return (
-      <div className="text-center space-y-4">
-        <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-        <p className="text-muted-foreground animate-pulse uppercase tracking-widest text-[10px] font-bold">Verifying Security Token...</p>
-      </div>
+      <HafashLoader text="Verifying Security Token..." fullPage={false} />
     );
   }
 
@@ -239,7 +237,7 @@ export default function ResetPasswordPage() {
           </div>
         </div>
 
-        <Suspense fallback={<div className="text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>}>
+        <Suspense fallback={<HafashLoader text="Synchronizing Reset Portal..." />}>
           <ResetPasswordForm />
         </Suspense>
       </div>

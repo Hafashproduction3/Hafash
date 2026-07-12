@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser } from '@/firebase';
 import { DashboardSidebar } from '@/components/layout/DashboardSidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
-import { Loader2 } from 'lucide-react';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();
@@ -23,9 +23,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading || !user || !user.emailVerified) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
+      <HafashLoader text="Authenticating Studio Workspace..." />
     );
   }
 

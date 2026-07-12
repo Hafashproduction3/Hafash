@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -188,10 +189,7 @@ export default function GalleryUploadPage() {
 
   if (authLoading || dataLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground italic tracking-widest uppercase text-xs">Authenticating Session...</p>
-      </div>
+      <HafashLoader text="Preparing Your Luxury Assets..." />
     );
   }
 

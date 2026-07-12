@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -22,6 +21,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useMemo, useEffect } from 'react';
 import { doc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -136,10 +136,7 @@ export default function AlbumSelectionDetailPage() {
 
   if (authLoading || dataLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground font-bold tracking-widest uppercase text-[10px]">Loading Selections...</p>
-      </div>
+      <HafashLoader text="Preparing Your Selection Workspace..." />
     );
   }
 

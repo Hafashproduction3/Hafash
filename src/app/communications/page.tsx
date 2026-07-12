@@ -34,6 +34,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -115,10 +116,7 @@ export default function CommunicationsPage() {
 
   if (authLoading || (dataLoading && !galleries)) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground font-bold tracking-widest uppercase text-[10px]">Accessing Communication Channels...</p>
-      </div>
+      <HafashLoader text="Accessing Studio Communication Channels..." />
     );
   }
 

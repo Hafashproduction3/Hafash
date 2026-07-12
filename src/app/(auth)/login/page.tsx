@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
@@ -96,15 +97,11 @@ export default function LoginPage() {
   };
 
   if (authLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center">
-        <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto" />
-      </div>
-    </div>
+    <HafashLoader text="Preparing Your Studio..." />
   );
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-hidden flex items-center justify-center p-6">
       <div className="absolute inset-0 z-0 opacity-10">
         <img src="https://picsum.photos/seed/login/1920/1080" className="w-full h-full object-cover grayscale" alt="Background" />
       </div>
