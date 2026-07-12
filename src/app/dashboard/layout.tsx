@@ -21,12 +21,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, router]);
 
-  // TEMPORARY DEBUG: Force render the loader
-  return (
-    <HafashLoader text="TEST LOADER (DEBUG)" />
-  );
-
-  /* Original logic commented for debug session
   if (loading || !user || !user.emailVerified) {
     return (
       <HafashLoader text="Authenticating Studio Workspace..." />
@@ -44,5 +38,4 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </main>
     </div>
   );
-  */
 }
