@@ -24,7 +24,9 @@ export function HafashLoader({
         "flex flex-col items-center justify-center animate-in fade-in duration-700",
         // We use CSS delay so the component is technically mounted immediately,
         // but only becomes visible if the loading state persists.
-        "delay-200 fill-mode-forwards",
+        // '[animation-delay:200ms]' ensures it stays hidden during ultra-fast transitions.
+        // 'fill-mode-both' ensures the initial state (opacity: 0) is held during the delay.
+        "[animation-delay:200ms] fill-mode-both",
         fullPage ? "fixed inset-0 z-[100] bg-background/90 backdrop-blur-md" : "w-full h-full min-h-[400px]",
         className
       )}
