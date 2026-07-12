@@ -72,6 +72,25 @@
   background-position: center;
 }
 
+/* Global Animations (Moved out of layers for reliability) */
+@keyframes breathing {
+  0% { 
+    transform: scale(0.98); 
+    opacity: 0.7; 
+    filter: drop-shadow(0 0 0px hsl(var(--primary) / 0)); 
+  }
+  50% { 
+    transform: scale(1.05); 
+    opacity: 1; 
+    filter: drop-shadow(0 0 20px hsl(var(--primary) / 0.4)); 
+  }
+  100% { 
+    transform: scale(0.98); 
+    opacity: 0.7; 
+    filter: drop-shadow(0 0 0px hsl(var(--primary) / 0)); 
+  }
+}
+
 /* Custom Luxury Scrollbar */
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
@@ -91,13 +110,8 @@
     @apply transition-all duration-500 hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/5 hover:translate-y-[-2px];
   }
 
-  @keyframes breathing {
-    0% { transform: scale(0.98); opacity: 0.7; filter: drop-shadow(0 0 0px hsl(var(--primary) / 0)); }
-    50% { transform: scale(1.05); opacity: 1; filter: drop-shadow(0 0 20px hsl(var(--primary) / 0.4)); }
-    100% { transform: scale(0.98); opacity: 0.7; filter: drop-shadow(0 0 0px hsl(var(--primary) / 0)); }
-  }
-
   .animate-breathing {
     animation: breathing 3s ease-in-out infinite;
+    will-change: transform, filter, opacity;
   }
 }
