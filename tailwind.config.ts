@@ -89,10 +89,23 @@ export default {
             height: '0',
           },
         },
+        breathing: {
+          '0%, 100%': { 
+            transform: 'scale(0.98)', 
+            opacity: '0.7',
+            filter: 'drop-shadow(0 0 0px hsl(var(--primary) / 0))' 
+          },
+          '50%': { 
+            transform: 'scale(1.05)', 
+            opacity: '1',
+            filter: 'drop-shadow(0 0 20px hsl(var(--primary) / 0.4))'
+          },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
+        breathing: 'breathing 3s ease-in-out infinite',
       },
     },
   },
