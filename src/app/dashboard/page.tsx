@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useFirestore, useUser, useCollection, useAuth } from '@/firebase';
+import { useFirestore, useUser, useCollection } from '@/firebase';
 import { 
   Users, 
   ImageIcon, 
@@ -40,7 +41,21 @@ import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/e
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useCallback, memo } from 'react';
+
+// Memoized Stat Card for better performance
+const StatCard = memo(({ title, value, icon }: { title: string, value: string, icon: React.ReactNode }) => (
+  <Card className="bg-card/30 border-border/30 p-6 flex items-center justify-between">
+    <div>
+      <p className="text-sm text-muted-foreground font-medium">{title}</p>
+      <h3 className="text-3xl font-headline font-bold mt-1">{value}</h3>
+    </div>
+    <div className="p-3 bg-primary/10 rounded-2xl">
+      {icon}
+    </div>
+  </Card>
+));
+StatCard.displayName = 'StatCard';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -64,20 +79,19 @@ export default function DashboardPage() {
 
   const { data: galleries, loading: dataLoading } = useCollection(galleriesQuery);
 
-  const handleShare = (slug: string) => {
+  const handleShare = useCallback((slug: string) => {
     const url = `${window.location.origin}/gallery/${slug}`;
     navigator.clipboard.writeText(url);
     toast({
       title: "Link Copied",
       description: "Gallery link has been copied to clipboard.",
     });
-  };
+  }, [toast]);
 
-  const confirmDelete = () => {
+  const confirmDelete = useCallback(() => {
     if (!firestore || !user || !galleryToDelete) return;
     
     const idToDelete = galleryToDelete;
-    // Close dialog and restore pointer-events immediately
     setGalleryToDelete(null);
     if (typeof document !== 'undefined') {
       document.body.style.pointerEvents = 'auto';
@@ -98,16 +112,10 @@ export default function DashboardPage() {
         } else {
           toast({ variant: "destructive", title: "Delete Failed", description: err.message });
         }
-      })
-      .finally(() => {
-        // Fallback to ensure UI is interactive even if an error occurred
-        if (typeof document !== 'undefined') {
-          document.body.style.pointerEvents = 'auto';
-        }
       });
-  };
+  }, [firestore, user, galleryToDelete, toast]);
 
-  const toggleLock = (id: string, currentStatus: boolean) => {
+  const toggleLock = useCallback((id: string, currentStatus: boolean) => {
     if (!firestore || !user) return;
     const docRef = doc(firestore, 'galleries', id);
     const updateData = { isLocked: !currentStatus };
@@ -128,7 +136,16 @@ export default function DashboardPage() {
           toast({ variant: "destructive", title: "Update Failed", description: err.message });
         }
       });
-  };
+  }, [firestore, user, toast]);
+
+  const stats = useMemo(() => {
+    const safeGalleries = galleries || [];
+    const totalViews = safeGalleries.reduce((acc, curr) => acc + (curr.viewCount || 0), 0);
+    return {
+      count: String(safeGalleries.length),
+      views: String(totalViews)
+    };
+  }, [galleries]);
 
   if (authLoading || dataLoading) {
     return (
@@ -140,7 +157,6 @@ export default function DashboardPage() {
   }
 
   const safeGalleries = galleries || [];
-  const totalViews = safeGalleries.reduce((acc, curr) => acc + (curr.viewCount || 0), 0);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -149,7 +165,7 @@ export default function DashboardPage() {
           <h1 className="text-4xl font-headline font-bold">Studio Overview</h1>
           <p className="text-muted-foreground mt-2">Manage your luxury galleries and clients.</p>
         </div>
-        <Link href="/events/create">
+        <Link href="/events/create" prefetch>
           <Button className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-full px-8 h-12 font-bold flex gap-2">
             <Plus className="w-5 h-5" />
             Create New Event
@@ -160,17 +176,17 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard 
           title="Total Galleries" 
-          value={String(safeGalleries.length)} 
+          value={stats.count} 
           icon={<ImageIcon className="w-5 h-5 text-primary" />} 
         />
         <StatCard 
           title="Total Clients" 
-          value={String(safeGalleries.length)} 
+          value={stats.count} 
           icon={<Users className="w-5 h-5 text-primary" />} 
         />
         <StatCard 
           title="Gallery Views" 
-          value={String(totalViews)} 
+          value={stats.views} 
           icon={<Eye className="w-5 h-5 text-primary" />} 
         />
       </div>
@@ -198,6 +214,7 @@ export default function DashboardPage() {
                       src={event.coverImage} 
                       alt={event.title} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
                     />
                     <div className="absolute top-4 right-4 flex gap-2">
                       <div className={`px-3 py-1 rounded-full text-xs font-bold backdrop-blur-md flex items-center gap-1.5 ${event.isLocked ? 'bg-destructive/20 text-destructive-foreground border border-destructive/50' : 'bg-green-500/20 text-green-400 border border-green-500/50'}`}>
@@ -302,19 +319,5 @@ export default function DashboardPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-function StatCard({ title, value, icon }: { title: string, value: string, icon: React.ReactNode }) {
-  return (
-    <Card className="bg-card/30 border-border/30 p-6 flex items-center justify-between">
-      <div>
-        <p className="text-sm text-muted-foreground font-medium">{title}</p>
-        <h3 className="text-3xl font-headline font-bold mt-1">{value}</h3>
-      </div>
-      <div className="p-3 bg-primary/10 rounded-2xl">
-        {icon}
-      </div>
-    </Card>
   );
 }

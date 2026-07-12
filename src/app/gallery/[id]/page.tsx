@@ -47,14 +47,16 @@ const GalleryItem = memo(({
   canDownload, 
   onFavorite, 
   onDownload, 
-  onSelect 
+  onSelect,
+  priority
 }: { 
   item: any, 
   showWatermark: boolean, 
   canDownload: boolean, 
   onFavorite: (id: string, current: boolean) => void, 
   onDownload: (item: any) => void,
-  onSelect: (url: string) => void
+  onSelect: (url: string) => void,
+  priority?: boolean
 }) => {
   return (
     <div 
@@ -69,7 +71,7 @@ const GalleryItem = memo(({
         className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105"
         sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         style={{ height: 'auto' }}
-        priority={false}
+        priority={priority}
       />
       {showWatermark && <div className="luxury-watermark" />}
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-4">
@@ -131,7 +133,6 @@ export default function ClientGalleryPage() {
       const cleanParam = galleryParam.trim();
 
       try {
-        // Stage 1: Find by Slug
         const slugQuery = query(
           collection(firestore, 'galleries'),
           where('slug', '==', cleanParam.toLowerCase()),
@@ -144,7 +145,6 @@ export default function ClientGalleryPage() {
           return;
         } 
 
-        // Stage 2: Direct ID Fallback
         if (/^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
           setGalleryId(cleanParam);
           return;
@@ -168,7 +168,6 @@ export default function ClientGalleryPage() {
 
   const { data: gallery, loading: docLoading } = useDoc(galleryRef);
 
-  // Password Unlock Persistence
   useEffect(() => {
     if (galleryId) {
       const stored = sessionStorage.getItem(`unlocked_gallery_${galleryId}`);
@@ -183,7 +182,6 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // Security Verification
   const isOwner = useMemo(() => {
     if (!user?.uid || !gallery?.userId) return false;
     return user.uid === gallery.userId;
@@ -195,11 +193,8 @@ export default function ClientGalleryPage() {
     return isOwner || gallery.isPublic === true;
   }, [gallery, isOwner, isResolving, docLoading, authLoading, galleryId]);
 
-  // Luxury Welcome Experience Architecture
-  const welcomeTitle = gallery?.welcomeTitle || "Message From Your Photographer";
-  const welcomeMessage = gallery?.welcomeMessage || "";
-  const clientRepliesEnabled = gallery?.clientRepliesEnabled !== false;
-  const helpfulButtonEnabled = gallery?.helpfulButtonEnabled !== false;
+  const canDownload = useMemo(() => gallery ? (!gallery.isLocked && !!gallery.isPaid) : false, [gallery]);
+  const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
 
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId) return;
@@ -211,7 +206,6 @@ export default function ClientGalleryPage() {
   }, [firestore, gallery, galleryId]);
 
   const handleDownloadSingle = useCallback(async (item: any) => {
-    const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
     if (!canDownload) return;
     try {
       const url = item.masterUrl || item.url;
@@ -221,10 +215,9 @@ export default function ClientGalleryPage() {
     } catch (error) {
       toast({ variant: "destructive", title: "Download Failed" });
     }
-  }, [gallery, toast]);
+  }, [canDownload, toast]);
 
-  const handleDownloadAll = async () => {
-    const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
+  const handleDownloadAll = useCallback(async () => {
     if (isPreparing || !gallery || !canDownload) return;
     setIsPreparing(true);
     const zip = new JSZip();
@@ -247,72 +240,61 @@ export default function ClientGalleryPage() {
       setIsPreparing(false);
       setPreparationStep('');
     }
-  };
+  }, [gallery, canDownload, isPreparing, toast]);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gallery?.hashedPassword) return;
-    
     setVerifying(true);
     setPasswordError(false);
-
     try {
       const encoder = new TextEncoder();
       const data = encoder.encode(passwordInput);
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashedInput = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
       if (hashedInput === gallery.hashedPassword) {
         setIsUnlocked(true);
-        if (galleryId) {
-          sessionStorage.setItem(`unlocked_gallery_${galleryId}`, 'true');
-        }
-        toast({ title: "Access Granted", description: "Welcome to your luxury workspace." });
+        if (galleryId) sessionStorage.setItem(`unlocked_gallery_${galleryId}`, 'true');
+        toast({ title: "Access Granted" });
       } else {
         setPasswordError(true);
-        toast({ variant: "destructive", title: "Access Denied", description: "The password entered is incorrect." });
+        toast({ variant: "destructive", title: "Access Denied" });
       }
     } catch (err) {
-      toast({ variant: "destructive", title: "Security Error", description: "Verification failed. Please try again." });
+      toast({ variant: "destructive", title: "Security Error" });
     } finally {
       setVerifying(false);
     }
   };
 
-  const handleSubmitReply = async (e?: React.FormEvent, manualText?: string) => {
-    if (e) e.preventDefault();
+  const handleSubmitReply = useCallback(async (manualText?: string) => {
     const textToSubmit = manualText || replyText;
     if (!textToSubmit.trim() || !galleryRef) return;
-    
     setIsSubmittingReply(true);
     try {
       await updateDoc(galleryRef, {
-        replies: arrayUnion({
-          text: textToSubmit,
-          createdAt: new Date().toISOString()
-        })
+        replies: arrayUnion({ text: textToSubmit, createdAt: new Date().toISOString() })
       });
       if (!manualText) {
         setReplySuccess(true);
         setReplyText('');
         setTimeout(() => setReplySuccess(false), 5000);
       }
-      toast({ title: "Feedback Sent", description: manualText ? "Helpful ❤️ confirmed." : "Your photographer has been notified internally." });
+      toast({ title: "Feedback Sent" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Submit Failed", description: err.message });
     } finally {
       setIsSubmittingReply(false);
     }
-  };
+  }, [replyText, galleryRef, toast]);
 
-  const handleHelpfulClick = () => {
+  const handleHelpfulClick = useCallback(() => {
     if (helpfulClicked) return;
     setHelpfulClicked(true);
-    handleSubmitReply(undefined, "[System]: Client found the photographer note helpful ❤️");
-  };
+    handleSubmitReply("[System]: Client found the photographer note helpful ❤️");
+  }, [helpfulClicked, handleSubmitReply]);
 
-  // Synchronized Loading State
   if (isResolving || (galleryId && docLoading) || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
@@ -322,7 +304,6 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Deny access if not available
   if (!isAvailable) {
     const isPrivate = gallery && gallery.isPublic === false;
     return (
@@ -343,14 +324,12 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // Password Gate
   if (!!gallery?.isPasswordProtected && !isUnlocked) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-10">
           <img src={gallery.coverImage} className="w-full h-full object-cover grayscale blur-sm" alt="Background" />
         </div>
-
         <div className="w-full max-w-md relative z-10 space-y-10 animate-in fade-in zoom-in-95 duration-700">
           <div className="text-center space-y-4">
             <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-primary/5">
@@ -359,13 +338,11 @@ export default function ClientGalleryPage() {
             <h1 className="text-3xl font-headline font-bold uppercase tracking-tight text-white">{gallery.title}</h1>
             <p className="text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold">Private Workspace Access</p>
           </div>
-
           <div className="bg-card/80 backdrop-blur-xl border border-border/50 rounded-[2.5rem] shadow-2xl overflow-hidden">
             <div className="p-8 lg:p-10 space-y-6">
               <p className="text-center text-xs text-muted-foreground italic leading-relaxed">
                 This session is protected by studio security. Please enter the private access key provided by your photographer to view your masterpieces.
               </p>
-
               <form onSubmit={handlePasswordSubmit} className="space-y-6">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Access Password</Label>
@@ -383,13 +360,7 @@ export default function ClientGalleryPage() {
                       autoFocus
                     />
                   </div>
-                  {passwordError && (
-                    <p className="text-[9px] text-destructive font-bold uppercase tracking-tighter ml-1">
-                      Incorrect security key. Please verify with your studio.
-                    </p>
-                  )}
                 </div>
-
                 <Button 
                   type="submit" 
                   className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 gap-3"
@@ -401,13 +372,6 @@ export default function ClientGalleryPage() {
               </form>
             </div>
           </div>
-
-          <footer className="text-center">
-            <div className="flex items-center justify-center gap-2 opacity-30">
-              <img src="/hafash-logo.png" className="h-6 w-auto grayscale" alt="Hafash" />
-              <span className="font-headline font-bold text-lg italic text-white">Hafash Studio Security</span>
-            </div>
-          </footer>
         </div>
       </div>
     );
@@ -418,8 +382,6 @@ export default function ClientGalleryPage() {
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = gallery?.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
-  const canDownload = gallery ? (!gallery.isLocked && !!gallery.isPaid) : false;
-  const showWatermark = gallery ? (!!gallery.isLocked || !gallery.isPaid) : true;
   const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
   const hasNoteContent = !!(gallery?.photographerNote || gallery?.welcomeTitle || gallery?.welcomeMessage);
 
@@ -497,42 +459,20 @@ export default function ClientGalleryPage() {
                         <span className="text-xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
                       )}
                       <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight">
-                        {welcomeTitle}
+                        {gallery?.welcomeTitle || "Message From Your Photographer"}
                       </DialogTitle>
                     </div>
                   </DialogHeader>
-                  
                   <div className="space-y-8">
-                    {welcomeMessage && (
-                      <p className="text-center text-muted-foreground text-xs uppercase tracking-[0.2em] font-bold px-4">
-                        {welcomeMessage}
-                      </p>
-                    )}
-
-                    {gallery.photographerNote && (
-                      <p className="text-lg lg:text-xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-4">
-                        "{gallery.photographerNote}"
-                      </p>
-                    )}
-
-                    {helpfulButtonEnabled && (
-                      <div className="flex justify-center">
-                        <Button 
-                          variant="outline" 
-                          className={cn(
-                            "rounded-full gap-2 font-bold transition-all h-10 px-6 border-primary/30",
-                            helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10"
-                          )}
-                          onClick={handleHelpfulClick}
-                          disabled={helpfulClicked}
-                        >
-                          <Heart className={cn("w-4 h-4", helpfulClicked && "fill-current")} />
-                          {helpfulClicked ? "Helpful!" : "Helpful"}
-                        </Button>
-                      </div>
-                    )}
-
-                    {clientRepliesEnabled && (
+                    {gallery?.welcomeMessage && <p className="text-center text-muted-foreground text-xs uppercase tracking-[0.2em] font-bold px-4">{gallery.welcomeMessage}</p>}
+                    {gallery.photographerNote && <p className="text-lg lg:text-xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-4">"{gallery.photographerNote}"</p>}
+                    <div className="flex justify-center">
+                      <Button variant="outline" className={cn("rounded-full gap-2 font-bold transition-all h-10 px-6 border-primary/30", helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10")} onClick={handleHelpfulClick} disabled={helpfulClicked}>
+                        <Heart className={cn("w-4 h-4", helpfulClicked && "fill-current")} />
+                        {helpfulClicked ? "Helpful!" : "Helpful"}
+                      </Button>
+                    </div>
+                    {(gallery?.clientRepliesEnabled !== false) && (
                       <div className="pt-8 border-t border-border/20">
                         {replySuccess ? (
                           <div className="flex flex-col items-center justify-center py-4 text-center animate-in zoom-in-95 duration-500">
@@ -540,29 +480,17 @@ export default function ClientGalleryPage() {
                               <CheckCircle2 className="w-5 h-5 text-green-500" />
                             </div>
                             <p className="text-xs font-bold text-green-500 uppercase tracking-widest">Reply Delivered</p>
-                            <Button variant="link" className="text-[10px] mt-2 h-auto py-0 font-bold uppercase" onClick={() => setReplySuccess(false)}>Send Another</Button>
                           </div>
                         ) : (
-                          <form onSubmit={handleSubmitReply} className="space-y-4">
+                          <div className="space-y-4">
                             <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Internal Feedback / Reply</Label>
                             <div className="relative">
-                              <Textarea 
-                                placeholder="Type your reply to the studio here..." 
-                                className="rounded-2xl bg-background/30 border-border/30 focus:border-primary/50 min-h-[80px] p-4 text-sm"
-                                value={replyText}
-                                onChange={(e) => setReplyText(e.target.value)}
-                              />
-                              <Button 
-                                type="submit" 
-                                size="icon" 
-                                className="absolute bottom-3 right-3 rounded-xl bg-primary text-primary-foreground h-10 w-10 shadow-lg hover:scale-105 transition-transform"
-                                disabled={isSubmittingReply || !replyText.trim()}
-                              >
+                              <Textarea placeholder="Type your reply to the studio here..." className="rounded-2xl bg-background/30 border-border/30 focus:border-primary/50 min-h-[80px] p-4 text-sm" value={replyText} onChange={(e) => setReplyText(e.target.value)} />
+                              <Button size="icon" className="absolute bottom-3 right-3 rounded-xl bg-primary text-primary-foreground h-10 w-10 shadow-lg hover:scale-105 transition-transform" onClick={() => handleSubmitReply()} disabled={isSubmittingReply || !replyText.trim()}>
                                 {isSubmittingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                               </Button>
                             </div>
-                            <p className="text-[9px] text-muted-foreground italic text-center">* This reply is saved internally and is only visible to your photographer.</p>
-                          </form>
+                          </div>
                         )}
                       </div>
                     )}
@@ -572,16 +500,14 @@ export default function ClientGalleryPage() {
             )}
 
             {canDownload && gallery.items?.length > 0 && (
-              <div className="flex flex-col items-center gap-2 flex-1 sm:flex-none">
-                <Button 
-                  className={cn("w-full sm:w-auto rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-primary/20 border border-primary/30 text-white hover:bg-primary/30 font-bold gap-3 shadow-2xl backdrop-blur-md text-xs lg:text-sm", isPreparing && "opacity-70 cursor-wait")}
-                  onClick={handleDownloadAll}
-                  disabled={isPreparing}
-                >
-                  {isPreparing ? <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" /> : <Download className="w-4 h-4 lg:w-5 lg:h-5" />}
-                  {isPreparing ? preparationStep : "Download All"}
-                </Button>
-              </div>
+              <Button 
+                className={cn("flex-1 sm:w-auto rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-primary/20 border border-primary/30 text-white hover:bg-primary/30 font-bold gap-3 shadow-2xl backdrop-blur-md text-xs lg:text-sm", isPreparing && "opacity-70 cursor-wait")}
+                onClick={handleDownloadAll}
+                disabled={isPreparing}
+              >
+                {isPreparing ? <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" /> : <Download className="w-4 h-4 lg:w-5 lg:h-5" />}
+                {isPreparing ? preparationStep : "Download All"}
+              </Button>
             )}
 
             <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md text-xs lg:text-sm" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}>
@@ -593,7 +519,7 @@ export default function ClientGalleryPage() {
 
       <div className="max-w-7xl mx-auto px-6 mt-16 space-y-12">
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 lg:gap-8 space-y-6 lg:space-y-8">
-          {gallery.items?.map((item: any) => (
+          {gallery.items?.map((item: any, idx: number) => (
             <GalleryItem 
               key={item.id}
               item={item}
@@ -602,6 +528,7 @@ export default function ClientGalleryPage() {
               onFavorite={handleFavorite}
               onDownload={handleDownloadSingle}
               onSelect={setSelectedImage}
+              priority={idx < 6}
             />
           ))}
         </div>

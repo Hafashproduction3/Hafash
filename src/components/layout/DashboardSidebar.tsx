@@ -20,7 +20,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
@@ -44,7 +44,7 @@ export function DashboardSidebar() {
   const router = useRouter();
   const { toast } = useToast();
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     if (!auth) return;
     try {
       await signOut(auth);
@@ -60,7 +60,7 @@ export function DashboardSidebar() {
         description: error.message
       });
     }
-  };
+  }, [auth, router, toast]);
 
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
@@ -81,10 +81,11 @@ export function DashboardSidebar() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
-  const usageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
-  const usagePercent = useMemo(() => {
-    return Math.min((usageGb / currentPlan.storageGb) * 100, 100);
-  }, [usageGb, currentPlan.storageGb]);
+  const usageStats = useMemo(() => {
+    const usageGb = calculateUsageGb(galleries);
+    const usagePercent = Math.min((usageGb / currentPlan.storageGb) * 100, 100);
+    return { usageGb, usagePercent };
+  }, [galleries, currentPlan.storageGb]);
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
@@ -105,7 +106,7 @@ export function DashboardSidebar() {
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
-            <Link key={item.href} href={item.href}>
+            <Link key={item.href} href={item.href} prefetch={item.href === '/dashboard'}>
               <Button
                 variant="ghost"
                 className={cn(
@@ -125,10 +126,10 @@ export function DashboardSidebar() {
         <div className="bg-background/50 p-4 rounded-xl border border-border/50">
           <div className="flex items-center justify-between text-xs mb-2">
             <span className="text-muted-foreground">Storage Used</span>
-            <span className="text-primary font-medium">{usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB</span>
+            <span className="text-primary font-medium">{usageStats.usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB</span>
           </div>
           <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-            <div className="h-full bg-primary" style={{ width: `${usagePercent}%` }} />
+            <div className="h-full bg-primary" style={{ width: `${usageStats.usagePercent}%` }} />
           </div>
         </div>
         
