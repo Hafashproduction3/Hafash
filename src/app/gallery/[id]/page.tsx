@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useDoc, useUser } from '@/firebase';
@@ -19,7 +18,8 @@ import {
   Lock,
   Unlock,
   KeyRound,
-  X
+  X,
+  Camera
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -60,7 +60,7 @@ const GalleryItem = memo(({
 }) => {
   return (
     <div 
-      className="relative group break-inside-avoid overflow-hidden rounded-[2.5rem] border border-border/10 bg-card/20 cursor-zoom-in mb-8" 
+      className="relative group break-inside-avoid overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in mb-8 shadow-xl transition-all duration-700 hover:shadow-primary/5" 
       onClick={() => onSelect(item.url)}
     >
       <Image 
@@ -68,24 +68,27 @@ const GalleryItem = memo(({
         alt="Gallery Asset"
         width={800}
         height={600}
-        className="w-full h-auto object-cover transition-transform duration-700 group-hover:scale-105"
+        className="w-full h-auto object-cover transition-transform duration-1000 group-hover:scale-110"
         sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
         style={{ height: 'auto' }}
         priority={priority}
       />
       {showWatermark && <div className="luxury-watermark" />}
-      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center gap-4">
-        <div className="flex gap-2">
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
+        <div className="flex gap-4 scale-75 group-hover:scale-100 transition-transform duration-500">
           <Button 
             size="icon" 
-            className={cn("rounded-full h-12 w-12 border-none", item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30")} 
+            className={cn(
+              "rounded-full h-16 w-16 border-none shadow-2xl transition-all", 
+              item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30 backdrop-blur-md"
+            )} 
             onClick={(e) => { e.stopPropagation(); onFavorite(item.id, !!item.isFavorite); }}
           >
-            <Heart className={cn("w-5 h-5", item.isFavorite ? "fill-current" : "")} />
+            <Heart className={cn("w-7 h-7", item.isFavorite ? "fill-current" : "")} />
           </Button>
           {canDownload && (
-            <Button size="icon" className="rounded-full h-12 w-12 bg-white text-black hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
-              <Download className="w-5 h-5" />
+            <Button size="icon" className="rounded-full h-16 w-16 bg-white text-black hover:bg-gray-100 shadow-2xl transition-all" onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
+              <Download className="w-7 h-7" />
             </Button>
           )}
         </div>
@@ -298,8 +301,8 @@ export default function ClientGalleryPage() {
   if (isResolving || (galleryId && docLoading) || authLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.2em] text-primary/50">Synchronizing Luxury Assets...</p>
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.4em] text-primary/50 animate-pulse">Synchronizing Luxury Assets...</p>
       </div>
     );
   }
@@ -307,19 +310,19 @@ export default function ClientGalleryPage() {
   if (!isAvailable) {
     const isPrivate = gallery && gallery.isPublic === false;
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
-        <div className="bg-destructive/10 p-6 rounded-full mb-8">
-          <ShieldAlert className="w-12 h-12 text-destructive" />
+      <div className="flex flex-col items-center justify-center min-h-screen p-10 text-center animate-in fade-in zoom-in-95 duration-700">
+        <div className="bg-destructive/10 p-10 rounded-full mb-10 ring-4 ring-destructive/5">
+          <ShieldAlert className="w-16 h-16 text-destructive" />
         </div>
-        <h1 className="text-2xl lg:text-3xl font-headline font-bold mb-4 uppercase tracking-tighter">
-          {isPrivate ? "Gallery is Private" : "Gallery Unavailable"}
+        <h1 className="text-4xl lg:text-5xl font-headline font-bold mb-6 uppercase tracking-tighter">
+          {isPrivate ? "Gallery Restricted" : "Vault Unavailable"}
         </h1>
-        <p className="text-muted-foreground mb-8 max-w-xs mx-auto italic">
+        <p className="text-muted-foreground mb-12 max-w-sm mx-auto italic text-lg leading-relaxed">
           {isPrivate 
-            ? "Access to this gallery has been restricted by the studio. Please contact the photographer for access."
-            : "The requested gallery could not be found or has been moved."}
+            ? "Access to this private collection has been restricted by the studio. Please contact your photographer for a verified access key."
+            : "The requested visual collection could not be synchronized or has been migrated by the studio."}
         </p>
-        <Link href="/"><Button className="rounded-full px-10 bg-primary h-12 font-bold">Return Home</Button></Link>
+        <Link href="/"><Button className="rounded-full px-12 h-14 bg-primary font-bold text-lg shadow-2xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">Return to Hafash</Button></Link>
       </div>
     );
   }
@@ -327,33 +330,33 @@ export default function ClientGalleryPage() {
   if (!!gallery?.isPasswordProtected && !isUnlocked) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
-        <div className="absolute inset-0 z-0 opacity-10">
-          <img src={gallery.coverImage} className="w-full h-full object-cover grayscale blur-sm" alt="Background" />
+        <div className="absolute inset-0 z-0 opacity-15">
+          <img src={gallery.coverImage} className="w-full h-full object-cover grayscale blur-md scale-110" alt="Background" />
         </div>
-        <div className="w-full max-w-md relative z-10 space-y-10 animate-in fade-in zoom-in-95 duration-700">
+        <div className="w-full max-w-md relative z-10 space-y-12 animate-in fade-in zoom-in-95 duration-1000">
           <div className="text-center space-y-4">
-            <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ring-4 ring-primary/5">
-              <KeyRound className="w-10 h-10 text-primary" />
+            <div className="bg-primary/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 ring-8 ring-primary/5 shadow-2xl">
+              <KeyRound className="w-12 h-12 text-primary" />
             </div>
-            <h1 className="text-3xl font-headline font-bold uppercase tracking-tight text-white">{gallery.title}</h1>
-            <p className="text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold">Private Workspace Access</p>
+            <h1 className="text-4xl lg:text-5xl font-headline font-bold uppercase tracking-tight text-white">{gallery.title}</h1>
+            <p className="text-muted-foreground text-sm uppercase tracking-[0.4em] font-bold">Private Workspace Access</p>
           </div>
-          <div className="bg-card/80 backdrop-blur-xl border border-border/50 rounded-[2.5rem] shadow-2xl overflow-hidden">
-            <div className="p-8 lg:p-10 space-y-6">
-              <p className="text-center text-xs text-muted-foreground italic leading-relaxed">
-                This session is protected by studio security. Please enter the private access key provided by your photographer to view your masterpieces.
+          <div className="bg-card/80 backdrop-blur-2xl border border-border/50 rounded-[3rem] shadow-2xl overflow-hidden ring-1 ring-white/10">
+            <div className="p-10 lg:p-12 space-y-8">
+              <p className="text-center text-sm text-muted-foreground italic leading-relaxed">
+                This private session is protected by studio security. Please enter the unique access key provided by your photographer to view your masterpieces.
               </p>
-              <form onSubmit={handlePasswordSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Access Password</Label>
+              <form onSubmit={handlePasswordSubmit} className="space-y-8">
+                <div className="space-y-3">
+                  <Label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Access Password</Label>
                   <div className="relative">
-                    <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
+                    <Lock className="absolute left-4 top-4 w-5 h-5 text-primary" />
                     <Input 
                       type="password" 
-                      placeholder="••••••••" 
+                      placeholder="••••••••••••" 
                       className={cn(
-                        "pl-10 h-12 rounded-xl bg-background/50 border-border/50 focus:border-primary/50",
-                        passwordError && "border-destructive/50 ring-destructive/10"
+                        "pl-12 h-14 rounded-2xl bg-background/50 border-border/50 focus:border-primary/50 text-lg tracking-widest",
+                        passwordError && "border-destructive/50 ring-4 ring-destructive/10"
                       )}
                       value={passwordInput}
                       onChange={(e) => setPasswordInput(e.target.value)}
@@ -363,11 +366,11 @@ export default function ClientGalleryPage() {
                 </div>
                 <Button 
                   type="submit" 
-                  className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl font-bold text-lg shadow-xl shadow-primary/20 gap-3"
+                  className="w-full h-16 bg-primary text-primary-foreground hover:bg-primary/90 rounded-2xl font-bold text-xl shadow-2xl shadow-primary/20 gap-4 transition-all hover:scale-105 active:scale-95"
                   disabled={verifying || !passwordInput}
                 >
-                  {verifying ? <Loader2 className="w-5 h-5 animate-spin" /> : <Unlock className="w-5 h-5" />}
-                  {verifying ? "Verifying Access..." : "Unlock Gallery"}
+                  {verifying ? <Loader2 className="w-6 h-6 animate-spin" /> : <Unlock className="w-6 h-6" />}
+                  {verifying ? "Verifying..." : "Unlock Vault"}
                 </Button>
               </form>
             </div>
@@ -386,108 +389,112 @@ export default function ClientGalleryPage() {
   const hasNoteContent = !!(gallery?.photographerNote || gallery?.welcomeTitle || gallery?.welcomeMessage);
 
   return (
-    <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
+    <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-1000">
       <Button 
         variant="ghost" size="icon" 
-        className="fixed top-4 left-4 lg:top-8 lg:left-8 z-[60] h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-black/20 backdrop-blur-md text-white border border-white/20 hover:bg-white/10"
+        className="fixed top-6 left-6 lg:top-10 lg:left-10 z-[60] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-2xl"
         onClick={() => router.back()}
       >
-        <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6" />
+        <ArrowLeft className="w-6 h-6 lg:w-7 lg:h-7" />
       </Button>
 
       <div className={cn(
-        "h-[80vh] lg:h-[85vh] relative overflow-hidden flex flex-col items-center justify-center bg-card shadow-2xl transition-all",
-        isCustomBrandingActive && profile?.studioBanner && "rounded-b-[2.5rem] lg:rounded-b-[4rem]"
+        "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col items-center justify-center bg-card shadow-2xl transition-all duration-1000",
+        isCustomBrandingActive && profile?.studioBanner && "rounded-b-[4rem] lg:rounded-b-[6rem]"
       )}>
-        <Image src={effectiveHeroImage} fill className="absolute inset-0 w-full h-full object-cover opacity-80" alt="Cover" priority />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-transparent to-background" />
+        <Image src={effectiveHeroImage} fill className="absolute inset-0 w-full h-full object-cover opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]" alt="Cover" priority />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-background" />
         
-        <div className="relative z-10 text-center px-6 max-w-5xl">
-          <div className="flex flex-col items-center mb-6">
+        <div className="relative z-10 text-center px-6 max-w-5xl space-y-10">
+          <div className="flex flex-col items-center">
             {isCustomBrandingActive ? (
-              <div className="flex flex-col items-center mb-8">
+              <div className="flex flex-col items-center space-y-8 animate-in fade-in slide-in-from-top-6 duration-1000">
                 {studioLogo ? (
-                  <img src={studioLogo} className="h-16 lg:h-20 w-auto mb-6 object-contain" alt="Logo" />
+                  <img src={studioLogo} className="h-20 lg:h-24 w-auto mb-4 object-contain drop-shadow-2xl" alt="Logo" />
                 ) : (
-                  <span className="text-3xl lg:text-5xl font-headline font-bold text-white uppercase tracking-tighter mb-4">{studioName}</span>
+                  <span className="text-4xl lg:text-6xl font-headline font-bold text-white uppercase tracking-tighter mb-2 drop-shadow-2xl">{studioName}</span>
                 )}
                 {profile?.photographerName && (
-                  <p className="text-primary italic font-headline tracking-widest text-[10px] lg:text-xs uppercase">{profile.photographerName}</p>
+                  <div className="flex items-center gap-4">
+                    <div className="h-px w-8 bg-primary/50" />
+                    <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg">{profile.photographerName}</p>
+                    <div className="h-px w-8 bg-primary/50" />
+                  </div>
                 )}
               </div>
             ) : (
-              <div className="flex flex-col items-center mb-8">
-                <div className="flex items-center justify-center gap-1 mb-2">
-                  <img src="/hafash-logo.png" className="h-[40px] w-auto" alt="Logo" />
-                  <span className="text-3xl sm:text-5xl lg:text-9xl font-headline font-bold text-white italic">Hafash.pk</span>
+              <div className="flex flex-col items-center space-y-6 animate-in fade-in slide-in-from-top-6 duration-1000">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <img src="/hafash-logo.png" className="h-[50px] w-auto drop-shadow-2xl" alt="Logo" />
+                  <span className="text-4xl sm:text-6xl lg:text-9xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
                 </div>
-                <span className="text-[9px] lg:text-[10px] font-bold tracking-[0.5em] text-primary/70 uppercase">LUXURY GALLERY DELIVERY</span>
+                <span className="text-[10px] lg:text-[12px] font-bold tracking-[0.6em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
               </div>
             )}
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-6xl font-headline font-bold mb-6 text-white uppercase tracking-tight leading-tight">{gallery.title}</h1>
-          
-          <div className="space-y-4">
-            <p className="text-lg lg:text-xl italic text-primary font-headline">{gallery.clientName}</p>
-            <div className="flex items-center justify-center gap-4 text-white uppercase tracking-[0.3em] text-[9px] lg:text-[10px] font-bold">
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-300">
+            <h1 className="text-4xl sm:text-6xl lg:text-8xl font-headline font-bold text-white uppercase tracking-tight leading-[1.1] drop-shadow-2xl">{gallery.title}</h1>
+            <p className="text-2xl lg:text-3xl italic text-primary font-headline drop-shadow-xl">{gallery.clientName}</p>
+            <div className="flex items-center justify-center gap-6 text-white/80 uppercase tracking-[0.4em] text-[10px] lg:text-[12px] font-bold">
               <span>{gallery.category}</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span>{gallery.date}</span>
             </div>
           </div>
           
-          <div className="mt-10 lg:mt-14 flex flex-wrap justify-center items-center gap-3 lg:gap-4">
+          <div className="mt-14 lg:mt-20 flex flex-wrap justify-center items-center gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
             {whatsappNumber && (
-              <Button className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl text-xs lg:text-sm" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
-                <MessageCircle className="w-4 h-4 lg:w-5 lg:h-5" /> Contact Studio
+              <Button className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-4 shadow-2xl text-sm lg:text-base transition-all hover:scale-105 active:scale-95" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
+                <MessageCircle className="w-5 h-5 lg:w-6 lg:h-6" /> Contact Studio
               </Button>
             )}
 
             {hasNoteContent && (
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-3 shadow-2xl backdrop-blur-md text-xs lg:text-sm">
-                    💌 Photographer Note
+                  <Button className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-4 shadow-2xl backdrop-blur-xl text-sm lg:text-base transition-all hover:scale-105">
+                    <Sparkles className="w-5 h-5" /> Photographer's Note
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="bg-card border-border/50 rounded-[2.5rem] p-8 lg:p-12 shadow-2xl max-w-2xl">
-                  <DialogHeader className="mb-6">
-                    <div className="flex flex-col items-center text-center">
+                <DialogContent className="bg-card border-border/50 rounded-[3rem] p-10 lg:p-16 shadow-2xl max-w-3xl overflow-hidden ring-1 ring-white/10">
+                  <DialogHeader className="mb-10">
+                    <div className="flex flex-col items-center text-center space-y-6">
                       {isCustomBrandingActive && studioLogo ? (
-                        <img src={studioLogo} className="h-12 w-auto mb-4 object-contain" alt="Studio Logo" />
+                        <img src={studioLogo} className="h-16 w-auto mb-2 object-contain" alt="Studio Logo" />
                       ) : (
-                        <span className="text-xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
+                        <span className="text-2xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
                       )}
-                      <DialogTitle className="text-2xl font-headline font-bold uppercase tracking-tight">
+                      <DialogTitle className="text-3xl lg:text-4xl font-headline font-bold uppercase tracking-tight leading-tight">
                         {gallery?.welcomeTitle || "Message From Your Photographer"}
                       </DialogTitle>
                     </div>
                   </DialogHeader>
-                  <div className="space-y-8">
-                    {gallery?.welcomeMessage && <p className="text-center text-muted-foreground text-xs uppercase tracking-[0.2em] font-bold px-4">{gallery.welcomeMessage}</p>}
-                    {gallery.photographerNote && <p className="text-lg lg:text-xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-4">"{gallery.photographerNote}"</p>}
+                  <div className="space-y-10">
+                    {gallery?.welcomeMessage && <p className="text-center text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold px-4">{gallery.welcomeMessage}</p>}
+                    {gallery.photographerNote && <p className="text-2xl lg:text-3xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-6">"{gallery.photographerNote}"</p>}
                     <div className="flex justify-center">
-                      <Button variant="outline" className={cn("rounded-full gap-2 font-bold transition-all h-10 px-6 border-primary/30", helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10")} onClick={handleHelpfulClick} disabled={helpfulClicked}>
-                        <Heart className={cn("w-4 h-4", helpfulClicked && "fill-current")} />
-                        {helpfulClicked ? "Helpful!" : "Helpful"}
+                      <Button variant="outline" className={cn("rounded-full gap-3 font-bold transition-all h-12 px-8 border-primary/30 text-base shadow-lg", helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10")} onClick={handleHelpfulClick} disabled={helpfulClicked}>
+                        <Heart className={cn("w-5 h-5", helpfulClicked && "fill-current")} />
+                        {helpfulClicked ? "Helpful!" : "Appreciate this"}
                       </Button>
                     </div>
                     {(gallery?.clientRepliesEnabled !== false) && (
-                      <div className="pt-8 border-t border-border/20">
+                      <div className="pt-10 border-t border-border/20">
                         {replySuccess ? (
-                          <div className="flex flex-col items-center justify-center py-4 text-center animate-in zoom-in-95 duration-500">
-                            <div className="bg-green-500/10 p-2 rounded-full mb-2">
-                              <CheckCircle2 className="w-5 h-5 text-green-500" />
+                          <div className="flex flex-col items-center justify-center py-6 text-center animate-in zoom-in-95 duration-500">
+                            <div className="bg-green-500/10 p-4 rounded-full mb-4 ring-4 ring-green-500/5">
+                              <CheckCircle2 className="w-8 h-8 text-green-500" />
                             </div>
-                            <p className="text-xs font-bold text-green-500 uppercase tracking-widest">Reply Delivered</p>
+                            <p className="text-sm font-bold text-green-500 uppercase tracking-[0.3em]">Reply Delivered to Studio</p>
                           </div>
                         ) : (
-                          <div className="space-y-4">
-                            <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Internal Feedback / Reply</Label>
+                          <div className="space-y-6">
+                            <Label className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground ml-1">Send a reply to the studio</Label>
                             <div className="relative">
-                              <Textarea placeholder="Type your reply to the studio here..." className="rounded-2xl bg-background/30 border-border/30 focus:border-primary/50 min-h-[80px] p-4 text-sm" value={replyText} onChange={(e) => setReplyText(e.target.value)} />
-                              <Button size="icon" className="absolute bottom-3 right-3 rounded-xl bg-primary text-primary-foreground h-10 w-10 shadow-lg hover:scale-105 transition-transform" onClick={() => handleSubmitReply()} disabled={isSubmittingReply || !replyText.trim()}>
-                                {isSubmittingReply ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                              <Textarea placeholder="Type your beautiful thoughts or requests here..." className="rounded-[2rem] bg-background/30 border-border/30 focus:border-primary/50 min-h-[100px] p-6 text-base italic shadow-inner custom-scrollbar" value={replyText} onChange={(e) => setReplyText(e.target.value)} />
+                              <Button size="icon" className="absolute bottom-4 right-4 rounded-2xl bg-primary text-primary-foreground h-12 w-12 shadow-2xl hover:scale-105 transition-transform" onClick={() => handleSubmitReply()} disabled={isSubmittingReply || !replyText.trim()}>
+                                {isSubmittingReply ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                               </Button>
                             </div>
                           </div>
@@ -501,24 +508,29 @@ export default function ClientGalleryPage() {
 
             {canDownload && gallery.items?.length > 0 && (
               <Button 
-                className={cn("flex-1 sm:w-auto rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-primary/20 border border-primary/30 text-white hover:bg-primary/30 font-bold gap-3 shadow-2xl backdrop-blur-md text-xs lg:text-sm", isPreparing && "opacity-70 cursor-wait")}
+                className={cn("flex-1 sm:w-auto rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-primary/20 border border-primary/40 text-white hover:bg-primary/30 font-bold gap-4 shadow-2xl backdrop-blur-xl text-sm lg:text-base transition-all", isPreparing && "opacity-70 cursor-wait")}
                 onClick={handleDownloadAll}
                 disabled={isPreparing}
               >
-                {isPreparing ? <Loader2 className="w-4 h-4 lg:w-5 lg:h-5 animate-spin" /> : <Download className="w-4 h-4 lg:w-5 lg:h-5" />}
-                {isPreparing ? preparationStep : "Download All"}
+                {isPreparing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
+                {isPreparing ? preparationStep : "Full Gallery Download"}
               </Button>
             )}
 
-            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 border-white/40 text-white hover:bg-white/10 gap-3 backdrop-blur-md text-xs lg:text-sm" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}>
-              <Share2 className="w-4 h-4 lg:w-5 lg:h-5" /> Share
+            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 border-white/30 text-white hover:bg-white/10 gap-4 backdrop-blur-xl text-sm lg:text-base transition-all" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
+              <Share2 className="w-5 h-5 lg:w-6 lg:h-6" /> Share
             </Button>
           </div>
         </div>
+        
+        {/* Floating Indicator */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce flex flex-col items-center gap-2 opacity-50">
+           <div className="w-px h-12 bg-gradient-to-b from-primary to-transparent" />
+        </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 mt-16 space-y-12">
-        <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 lg:gap-8 space-y-6 lg:space-y-8">
+      <div className="max-w-7xl mx-auto px-6 mt-24 space-y-20">
+        <div className="columns-1 sm:columns-2 lg:columns-3 gap-8 lg:gap-12 space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
           {gallery.items?.map((item: any, idx: number) => (
             <GalleryItem 
               key={item.id}
@@ -532,30 +544,46 @@ export default function ClientGalleryPage() {
             />
           ))}
         </div>
+
+        {(!gallery.items || gallery.items.length === 0) && (
+          <div className="text-center py-40 border-2 border-dashed border-border/20 rounded-[4rem] bg-card/10 animate-in fade-in duration-1000">
+             <Camera className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
+             <p className="text-2xl text-muted-foreground font-headline italic">Your masterpieces are being meticulously prepared...</p>
+          </div>
+        )}
       </div>
 
-      <footer className="mt-20 pt-16 border-t border-border/20 px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="flex flex-col items-center gap-6">
-            <div className="flex items-center gap-3 opacity-40 hover:opacity-100 transition-opacity duration-500">
-              <img src="/hafash-logo.png" alt="Hafash" className="h-6 w-auto grayscale" />
-              <span className="text-[9px] font-bold uppercase tracking-[0.5em] text-muted-foreground">Powered by Hafash.pk</span>
+      <footer className="mt-40 pt-24 border-t border-border/20 px-8">
+        <div className="max-w-4xl mx-auto text-center space-y-12">
+          <div className="flex flex-col items-center gap-8">
+            <div className="flex items-center gap-4 opacity-50 hover:opacity-100 transition-all duration-700 cursor-default">
+              <img src="/hafash-logo.png" alt="Hafash" className="h-10 w-auto grayscale brightness-200" />
+              <div className="h-8 w-px bg-border/50" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.6em] text-muted-foreground">Deliver Memories Beautifully</span>
             </div>
+            <p className="text-muted-foreground text-xs font-bold uppercase tracking-[0.2em] italic">© 2026 {studioName}. Powered by Hafash.pk</p>
           </div>
         </div>
       </footer>
 
       {selectedImage && (
-        <div className="fixed inset-0 z-[100] bg-background/95 flex items-center justify-center p-4 lg:p-6" onClick={() => setSelectedImage(null)}>
-          <div className="relative w-full h-full flex items-center justify-center">
-            <img src={selectedImage} className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl" alt="Fullscreen" />
+        <div className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-3xl flex items-center justify-center p-4 lg:p-10 animate-in fade-in duration-500" onClick={() => setSelectedImage(null)}>
+          <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
+            <img src={selectedImage} className="max-w-full max-h-[95vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5" alt="Fullscreen" />
             {showWatermark && <div className="luxury-watermark" />}
           </div>
-          <Button variant="ghost" size="icon" className="absolute top-4 right-4 lg:top-8 lg:right-8 text-white h-10 w-10 lg:h-12 lg:w-12 hover:bg-white/10 rounded-full">
-            <X className="w-6 h-6 lg:w-8 lg:h-8" />
+          <Button variant="ghost" size="icon" className="absolute top-6 right-6 lg:top-12 lg:right-12 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl">
+            <X className="w-8 h-8 lg:w-10 lg:h-10" />
           </Button>
         </div>
       )}
+      
+      <style jsx global>{`
+        @keyframes slow-zoom {
+          from { transform: scale(1); }
+          to { transform: scale(1.15); }
+        }
+      `}</style>
     </div>
   );
 }

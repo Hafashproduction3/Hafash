@@ -168,20 +168,20 @@ export default function SettingsPage() {
   );
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
       {/* Dynamic Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-border/50 pb-8">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 hover:bg-primary/10" onClick={() => router.back()}>
-            <ArrowLeft className="w-5 h-5" />
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 border-b border-border/50 pb-12">
+        <div className="flex items-center gap-6">
+          <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-primary/10 transition-all" onClick={() => router.back()}>
+            <ArrowLeft className="w-6 h-6" />
           </Button>
-          <div className="space-y-1">
-            <h1 className="text-3xl lg:text-4xl font-headline font-bold tracking-tight">Studio Control Center</h1>
-            <div className="flex flex-wrap items-center gap-3 lg:gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              <span className="flex items-center gap-1.5"><Settings className="w-3 h-3 text-primary" /> Production Environment Active</span>
+          <div className="space-y-2">
+            <h1 className="text-4xl lg:text-5xl font-headline font-bold tracking-tight">Studio Control Center</h1>
+            <div className="flex flex-wrap items-center gap-4 text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground">
+              <span className="flex items-center gap-2"><Settings className="w-4 h-4 text-primary" /> Production Environment Active</span>
               {isDirty && (
-                <span className="flex items-center gap-1.5 text-amber-500">
-                  <AlertTriangle className="w-3 h-3" /> Unsaved Changes
+                <span className="flex items-center gap-2 text-amber-500 animate-pulse">
+                  <AlertTriangle className="w-4 h-4" /> Unsaved Configuration Changes
                 </span>
               )}
             </div>
@@ -190,151 +190,151 @@ export default function SettingsPage() {
         <div className="w-full md:w-auto">
           <Button 
             className={cn(
-              "w-full md:w-auto rounded-xl gap-2 px-8 h-12 font-bold shadow-lg transition-all",
-              isDirty ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20" : "bg-muted text-muted-foreground cursor-not-allowed"
+              "w-full md:w-auto rounded-2xl gap-3 px-10 h-14 font-bold shadow-2xl transition-all",
+              isDirty ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20 scale-105" : "bg-muted text-muted-foreground cursor-not-allowed"
             )} 
             onClick={handleSave}
             disabled={saving || !isDirty}
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Save Changes
+            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            Synchronize Profile
           </Button>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-        <TabsList className="bg-card/50 border border-border/50 p-1 rounded-2xl h-auto flex flex-wrap lg:inline-flex w-full lg:w-auto">
-          <TabsTrigger value="studio" className="flex-1 lg:flex-none rounded-xl px-4 lg:px-6 py-3 lg:py-2.5 font-bold text-[9px] lg:text-[10px] uppercase tracking-wider">
-            <Briefcase className="w-3.5 h-3.5 mr-1.5 lg:mr-2" /> Studio
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-12">
+        <TabsList className="bg-card/40 backdrop-blur-md border border-border/30 p-1.5 rounded-[2rem] h-auto flex flex-wrap lg:inline-flex w-full lg:w-auto shadow-xl">
+          <TabsTrigger value="studio" className="flex-1 lg:flex-none rounded-[1.5rem] px-8 py-3.5 font-bold text-[10px] uppercase tracking-[0.2em] transition-all">
+            <Briefcase className="w-4 h-4 mr-3 text-primary" /> Studio Identity
           </TabsTrigger>
-          <TabsTrigger value="account" className="flex-1 lg:flex-none rounded-xl px-4 lg:px-6 py-3 lg:py-2.5 font-bold text-[9px] lg:text-[10px] uppercase tracking-wider">
-            <User className="w-3.5 h-3.5 mr-1.5 lg:mr-2" /> Account
+          <TabsTrigger value="account" className="flex-1 lg:flex-none rounded-[1.5rem] px-8 py-3.5 font-bold text-[10px] uppercase tracking-[0.2em] transition-all">
+            <User className="w-4 h-4 mr-3 text-primary" /> Security & Plan
           </TabsTrigger>
-          <TabsTrigger value="gallery" className="flex-1 lg:flex-none rounded-xl px-4 lg:px-6 py-3 lg:py-2.5 font-bold text-[9px] lg:text-[10px] uppercase tracking-wider">
-            <Camera className="w-3.5 h-3.5 mr-1.5 lg:mr-2" /> Defaults
+          <TabsTrigger value="gallery" className="flex-1 lg:flex-none rounded-[1.5rem] px-8 py-3.5 font-bold text-[10px] uppercase tracking-[0.2em] transition-all">
+            <Camera className="w-4 h-4 mr-3 text-primary" /> Gallery Rules
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex-1 lg:flex-none rounded-xl px-4 lg:px-6 py-3 lg:py-2.5 font-bold text-[9px] lg:text-[10px] uppercase tracking-wider">
-            <Bell className="w-3.5 h-3.5 mr-1.5 lg:mr-2" /> Notifications
+          <TabsTrigger value="notifications" className="flex-1 lg:flex-none rounded-[1.5rem] px-8 py-3.5 font-bold text-[10px] uppercase tracking-[0.2em] transition-all">
+            <Bell className="w-4 h-4 mr-3 text-primary" /> Telemetry alerts
           </TabsTrigger>
         </TabsList>
 
         {/* Studio Profile Tab */}
-        <TabsContent value="studio" className="animate-in fade-in slide-in-from-left-4 duration-300">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2 space-y-8">
-              <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-                <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
-                  <div className="flex justify-between items-center">
+        <TabsContent value="studio" className="animate-in fade-in slide-in-from-left-6 duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <div className="lg:col-span-2 space-y-10">
+              <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
+                <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                     <div>
-                      <CardTitle className="text-xl font-headline font-bold">Studio Identity</CardTitle>
-                      <CardDescription className="text-xs lg:text-sm">Professional branding used across client-facing galleries.</CardDescription>
+                      <CardTitle className="text-3xl font-headline font-bold">Professional Identity</CardTitle>
+                      <CardDescription className="text-sm font-medium italic mt-1">Refine your studio branding used across all luxury galleries.</CardDescription>
                     </div>
                     {isCustomBrandingActive ? (
-                      <Badge className="bg-primary/20 text-primary border-primary/30 gap-1.5 py-1 px-3">
-                        <Sparkles className="w-3 h-3" /> Custom Branding Active
+                      <Badge className="bg-primary/20 text-primary border border-primary/30 gap-2.5 py-2 px-5 rounded-xl shadow-lg shadow-primary/10">
+                        <Sparkles className="w-4 h-4" /> Custom Branding Active
                       </Badge>
                     ) : (
                       <Link href="/storage">
-                        <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all cursor-pointer py-1 px-3">
-                          Upgrade to Unlock Branding
+                        <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all cursor-pointer py-2 px-5 rounded-xl">
+                          Upgrade for Custom Branding
                         </Badge>
                       </Link>
                     )}
                   </div>
                 </CardHeader>
-                <CardContent className="p-6 lg:p-8 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Studio Name *</Label>
+                <CardContent className="p-10 space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-3">
+                      <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Legal Name *</Label>
                       <Input 
                         value={formData.studioName} 
                         onChange={(e) => updateField('studioName', e.target.value)}
                         placeholder="e.g. Cinematic Memories" 
-                        className="rounded-xl h-12 bg-background/50 border-border/50" 
+                        className="rounded-xl h-14 bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">WhatsApp Number *</Label>
+                    <div className="space-y-3">
+                      <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">WhatsApp Studio Number *</Label>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-4 w-4 h-4 text-primary" />
+                        <Phone className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
                         <Input 
                           value={formData.whatsappNumber} 
                           onChange={(e) => updateField('whatsappNumber', e.target.value)}
                           placeholder="+923001234567" 
-                          className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
                         />
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Photographer Tagline</Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-3">
+                      <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Master Photographer Tagline</Label>
                       <div className="relative">
-                        <User className="absolute left-3 top-4 w-4 h-4 text-primary" />
+                        <User className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
                         <Input 
                           value={formData.photographerName} 
                           onChange={(e) => updateField('photographerName', e.target.value)}
-                          placeholder="Professional Photographer" 
-                          className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                          placeholder="Principal Photographer" 
+                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
                         />
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Studio Website</Label>
+                    <div className="space-y-3">
+                      <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Official Website</Label>
                       <div className="relative">
-                        <Globe className="absolute left-3 top-4 w-4 h-4 text-primary" />
+                        <Globe className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
                         <Input 
                           value={formData.website} 
                           onChange={(e) => updateField('website', e.target.value)}
                           placeholder="https://yourstudio.com" 
-                          className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
                         />
                       </div>
                     </div>
                   </div>
                   
-                  <div className="space-y-6 pt-4 border-t border-border/20">
-                    <div className="space-y-4">
+                  <div className="space-y-10 pt-10 border-t border-border/20">
+                    <div className="space-y-6">
                       <div className="flex items-center justify-between">
-                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Studio Logo URL</Label>
-                         {!isCustomBrandingActive && <Badge variant="secondary" className="text-[8px] h-4">Premium</Badge>}
+                         <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Signature Logo URL</Label>
+                         {!isCustomBrandingActive && <Badge variant="secondary" className="text-[10px] font-bold px-3 uppercase tracking-tighter bg-muted/50 border border-border/50">Professional Tier Benefit</Badge>}
                       </div>
-                      <div className={cn("relative transition-opacity", !isCustomBrandingActive && "opacity-50 pointer-events-none")}>
-                        <ImageIcon className="absolute left-3 top-4 w-4 h-4 text-primary" />
+                      <div className={cn("relative transition-all duration-700", !isCustomBrandingActive && "opacity-40 grayscale pointer-events-none")}>
+                        <ImageIcon className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
                         <Input 
                           value={formData.studioLogo} 
                           onChange={(e) => updateField('studioLogo', e.target.value)}
-                          placeholder="https://your-domain.com/logo.png" 
-                          className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                          placeholder="https://your-domain.com/studio-signature.png" 
+                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 font-mono text-sm" 
                           disabled={!isCustomBrandingActive}
                         />
                       </div>
-                      <p className="text-[9px] lg:text-[10px] text-muted-foreground italic ml-1">
+                      <p className="text-[11px] text-muted-foreground italic ml-2">
                         {isCustomBrandingActive 
-                          ? "Recommended: 400x120px PNG with transparent background."
-                          : "Custom logos are a Professional benefit. Upgrade to apply branding."}
+                          ? "Masterpiece Suggestion: 400x120px PNG with transparent high-key contrast."
+                          : "Custom studio logos are reserved for Professional tier studios. Upgrade to enhance client perception."}
                       </p>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <div className="flex items-center justify-between">
-                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">Gallery Cover Banner URL</Label>
-                         {!isCustomBrandingActive && <Badge variant="secondary" className="text-[8px] h-4">Premium</Badge>}
+                         <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Global Studio Banner URL</Label>
+                         {!isCustomBrandingActive && <Badge variant="secondary" className="text-[10px] font-bold px-3 uppercase tracking-tighter bg-muted/50 border border-border/50">Professional Tier Benefit</Badge>}
                       </div>
-                      <div className={cn("relative transition-opacity", !isCustomBrandingActive && "opacity-50 pointer-events-none")}>
-                        <ImageIcon className="absolute left-3 top-4 w-4 h-4 text-primary" />
+                      <div className={cn("relative transition-all duration-700", !isCustomBrandingActive && "opacity-40 grayscale pointer-events-none")}>
+                        <ImageIcon className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
                         <Input 
                           value={formData.studioBanner} 
                           onChange={(e) => updateField('studioBanner', e.target.value)}
-                          placeholder="https://your-domain.com/banner.jpg" 
-                          className="pl-10 h-12 rounded-xl bg-background/50 border-border/50" 
+                          placeholder="https://your-domain.com/studio-banner.jpg" 
+                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 font-mono text-sm" 
                           disabled={!isCustomBrandingActive}
                         />
                       </div>
-                      <p className="text-[9px] lg:text-[10px] text-muted-foreground italic ml-1">
+                      <p className="text-[11px] text-muted-foreground italic ml-2">
                         {isCustomBrandingActive 
-                          ? "Recommended: 1920x800px (Landscape). JPG, PNG, WEBP max 5MB. Replaces event cover in galleries."
-                          : "Custom banners are a Professional benefit. Upgrade to enhance gallery headers."}
+                          ? "Suggested Canvas: 1920x800px. This high-resolution banner will unify all your galleries."
+                          : "Global studio banners are reserved for Professional tier studios. Upgrade to unify your studio's visual language."}
                       </p>
                     </div>
                   </div>
@@ -342,36 +342,36 @@ export default function SettingsPage() {
               </Card>
             </div>
 
-            <div className="space-y-8">
-              <Card className="bg-card border-border/50 rounded-[2.5rem] overflow-hidden shadow-lg border-t-4 border-t-primary">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Live Branding Preview</CardTitle>
+            <div className="space-y-10">
+              <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl border-t-4 border-t-primary luxury-card-hover">
+                <CardHeader className="pb-4 pt-10 px-8">
+                  <CardTitle className="text-[11px] font-bold uppercase tracking-[0.5em] text-primary text-center">Live Identity Preview</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <div className="relative h-48 w-full bg-muted overflow-hidden flex items-center justify-center">
+                  <div className="relative h-64 w-full bg-muted overflow-hidden flex items-center justify-center group">
                     {formData.studioBanner && isCustomBrandingActive ? (
-                      <img src={formData.studioBanner} className="absolute inset-0 w-full h-full object-cover opacity-60" alt="Banner Preview" />
+                      <img src={formData.studioBanner} className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:scale-110 transition-transform duration-[3s]" alt="Banner Preview" />
                     ) : (
                       <div className="absolute inset-0 bg-primary/5 flex items-center justify-center">
-                        <ImageIcon className="w-10 h-10 text-primary opacity-10" />
+                        <ImageIcon className="w-16 h-16 text-primary opacity-10 animate-pulse" />
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                    <div className="relative z-10 text-center p-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="relative z-10 text-center p-8 space-y-4">
                       {formData.studioLogo && isCustomBrandingActive ? (
-                        <img src={formData.studioLogo} className="h-8 w-auto mb-2 mx-auto object-contain" alt="Logo Preview" />
+                        <img src={formData.studioLogo} className="h-12 w-auto mb-2 mx-auto object-contain drop-shadow-2xl" alt="Logo Preview" />
                       ) : (
-                        <h3 className="text-lg font-headline font-bold text-white">{formData.studioName || "Untitled Studio"}</h3>
+                        <h3 className="text-2xl font-headline font-bold text-white uppercase tracking-tight drop-shadow-2xl">{formData.studioName || "Untitled Studio"}</h3>
                       )}
-                      <p className="text-[8px] text-primary italic font-headline uppercase tracking-widest">{formData.photographerName || "Professional Photographer"}</p>
+                      <p className="text-[10px] text-primary italic font-headline uppercase tracking-[0.4em] drop-shadow-xl">{formData.photographerName || "Principal Photographer"}</p>
                     </div>
                   </div>
-                  <div className="p-6 text-center">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-4">Branded Header Preview</p>
+                  <div className="p-10 text-center space-y-6">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Studio Header Preview</p>
                     {!isCustomBrandingActive && (
-                       <div className="flex items-center justify-center gap-2 opacity-30">
-                          <img src="/hafash-logo.png" className="h-6 w-auto grayscale" alt="Hafash" />
-                          <span className="font-headline font-bold text-lg italic">Hafash.pk</span>
+                       <div className="flex flex-col items-center gap-3 opacity-30 animate-pulse">
+                          <img src="/hafash-logo.png" className="h-10 w-auto grayscale brightness-200" alt="Hafash" />
+                          <span className="font-headline font-bold text-2xl italic tracking-tighter">Hafash.pk Standard</span>
                        </div>
                     )}
                   </div>
@@ -381,70 +381,72 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
-        {/* Account & Storage Tab */}
-        <TabsContent value="account" className="animate-in fade-in slide-in-from-left-4 duration-300">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-              <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
-                <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-primary" /> Security & Access
+        {/* Account & Security Tab */}
+        <TabsContent value="account" className="animate-in fade-in slide-in-from-left-6 duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
+              <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
+                <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
+                  <Shield className="w-8 h-8 text-primary" /> Security & Access
                 </CardTitle>
+                <CardDescription className="text-sm font-medium italic mt-1">Manage the vault credentials and primary authentication rules.</CardDescription>
               </CardHeader>
-              <CardContent className="p-6 lg:p-8 space-y-6">
-                <div className="space-y-4">
+              <CardContent className="p-10 space-y-10">
+                <div className="space-y-6">
                   <div>
-                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Primary Email</Label>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-1 p-4 bg-background/50 rounded-2xl border border-border/30 gap-4">
-                      <span className="font-mono text-xs lg:text-sm truncate max-w-full">{user?.email}</span>
+                    <Label className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground ml-1">Primary Studio Email</Label>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-3 p-6 bg-background/60 rounded-3xl border border-border/40 gap-6 shadow-inner group">
+                      <span className="font-mono text-base truncate max-w-full text-primary/90">{user?.email}</span>
                       {user?.emailVerified ? (
-                        <Badge className="w-fit bg-green-500/20 text-green-500 border-green-500/30 gap-1.5 text-[9px] py-0.5">
-                          <CheckCircle2 className="w-3 h-3" /> Verified
+                        <Badge className="w-fit bg-green-500/20 text-green-500 border border-green-500/30 gap-2.5 text-[10px] font-bold py-1.5 px-4 rounded-xl shadow-lg shadow-green-500/10">
+                          <CheckCircle2 className="w-4 h-4" /> Verified Identity
                         </Badge>
                       ) : (
-                        <Badge variant="destructive" className="w-fit bg-destructive/20 text-destructive border-destructive/30 text-[9px] py-0.5">
-                          Unverified
+                        <Badge variant="destructive" className="w-fit bg-destructive/20 text-destructive border border-destructive/30 text-[10px] font-bold py-1.5 px-4 rounded-xl animate-pulse">
+                          Unverified Access
                         </Badge>
                       )}
                     </div>
                   </div>
 
-                  <div className="pt-4 flex flex-col sm:flex-row gap-4">
-                    <Button variant="outline" className="rounded-xl font-bold h-12 border-border/50 flex-1 text-xs lg:text-sm" onClick={() => router.push('/verify-email')}>
-                      Manage Verification
+                  <div className="pt-6 flex flex-col sm:flex-row gap-6">
+                    <Button variant="outline" className="rounded-2xl font-bold h-14 border-border/50 flex-1 text-sm uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all shadow-xl" onClick={() => router.push('/verify-email')}>
+                      Update Verification
                     </Button>
-                    <Button variant="outline" className="rounded-xl font-bold h-12 border-border/50 flex-1 text-xs lg:text-sm" onClick={() => router.push('/login')}>
-                      <Lock className="w-4 h-4 mr-2" /> Reset Password
+                    <Button variant="outline" className="rounded-2xl font-bold h-14 border-border/50 flex-1 text-sm uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all shadow-xl" onClick={() => router.push('/login')}>
+                      <Lock className="w-5 h-5 mr-3" /> Reset Credentials
                     </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl">
-              <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
-                <CardTitle className="text-xl font-headline font-bold flex items-center gap-2">
-                  <HardDrive className="w-5 h-5 text-primary" /> Storage & Plan
+            <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
+              <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
+                <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
+                  <HardDrive className="w-8 h-8 text-primary" /> Cloud Subscription
                 </CardTitle>
+                <CardDescription className="text-sm font-medium italic mt-1">Overview of your enterprise-grade cloud storage and active tier.</CardDescription>
               </CardHeader>
-              <CardContent className="p-6 lg:p-8 flex flex-col justify-between h-full min-h-[250px]">
-                <div className="space-y-6">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Active Subscription</p>
-                      <h4 className="text-xl lg:text-2xl font-headline font-bold text-primary">{profile?.planId?.toUpperCase() || 'STARTER'} TIER</h4>
+              <CardContent className="p-10 flex flex-col justify-between h-full min-h-[350px]">
+                <div className="space-y-10">
+                  <div className="flex justify-between items-center bg-primary/5 p-8 rounded-[2rem] border border-primary/20 shadow-xl group">
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground group-hover:text-primary transition-colors">Active Subscription</p>
+                      <h4 className="text-4xl font-headline font-bold text-primary tracking-tighter">{profile?.planId?.toUpperCase() || 'STARTER'} TIER</h4>
                     </div>
-                    <Badge variant="outline" className="border-primary/30 text-primary px-3 lg:px-4 py-1 text-[9px] font-bold">ACTIVE</Badge>
+                    <Badge variant="outline" className="border-primary/50 text-primary px-5 py-2 text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/10">STUDIO ACTIVE</Badge>
                   </div>
-                  <div className="p-5 lg:p-6 bg-primary/5 border border-primary/20 rounded-2xl">
-                     <p className="text-[11px] lg:text-xs text-muted-foreground leading-relaxed italic">
-                       Enterprise-grade master asset storage active. Your high-resolution files are protected by end-to-end encryption.
+                  <div className="p-8 bg-background/40 border border-dashed border-border/50 rounded-[2rem]">
+                     <p className="text-sm text-muted-foreground leading-relaxed italic font-medium">
+                       "Hafash High-Speed Cloud active. Your original high-resolution masters are protected by end-to-end 256-bit encryption and served via our global delivery pipeline."
                      </p>
                   </div>
                 </div>
-                <div className="mt-8">
-                  <Link href="/storage">
-                    <Button className="w-full h-12 lg:h-14 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-lg shadow-primary/20 text-xs lg:text-sm">
-                      Upgrade Studio Quotas
+                <div className="mt-10">
+                  <Link href="/storage" className="block">
+                    <Button className="w-full h-16 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-2xl shadow-primary/20 text-base uppercase tracking-widest transition-all hover:scale-105">
+                      Upgrade Studio Thresholds
                     </Button>
                   </Link>
                 </div>
@@ -454,62 +456,68 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Gallery Defaults Tab */}
-        <TabsContent value="gallery" className="animate-in fade-in slide-in-from-left-4 duration-300">
-          <Card className="max-w-4xl bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl mx-auto lg:mx-0">
-            <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
-              <CardTitle className="text-xl font-headline font-bold">New Event Defaults</CardTitle>
-              <CardDescription className="text-xs lg:text-sm">Configure automatic settings for every new gallery you create.</CardDescription>
+        <TabsContent value="gallery" className="animate-in fade-in slide-in-from-left-6 duration-500">
+          <Card className="max-w-5xl bg-card/40 backdrop-blur-md border-border/50 rounded-[3rem] overflow-hidden shadow-2xl mx-auto lg:mx-0 luxury-card-hover">
+            <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
+              <CardTitle className="text-3xl font-headline font-bold">Smart Event Defaults</CardTitle>
+              <CardDescription className="text-sm font-medium italic mt-1">Configure automated logic for every new luxury event created in your studio.</CardDescription>
             </CardHeader>
-            <CardContent className="p-6 lg:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-10">
-               <div className="space-y-6 lg:space-y-8">
-                  <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
-                    <div className="space-y-0.5">
-                      <Label className="text-xs lg:text-sm font-bold flex items-center gap-2">
-                        <Zap className="w-3.5 h-3.5 text-primary" />
+            <CardContent className="p-10 grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-16">
+               <div className="space-y-10">
+                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2rem] border border-border/30 group transition-all hover:border-primary/40 shadow-xl">
+                    <div className="space-y-2">
+                      <Label className="text-lg font-bold flex items-center gap-3">
+                        <Zap className="w-5 h-5 text-primary animate-pulse" />
                         Dynamic Watermark
                       </Label>
-                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Always protect unpaid preview assets.</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Always protect preview assets.</p>
                     </div>
                     <Switch 
                       checked={formData.defaultWatermark} 
                       onCheckedChange={(val) => updateField('defaultWatermark', val)}
+                      className="data-[state=checked]:bg-primary"
                     />
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
-                    <div className="space-y-0.5">
-                      <Label className="text-xs lg:text-sm font-bold flex items-center gap-2">
-                        <HardDrive className="w-3.5 h-3.5 text-primary" />
-                        Allow Downloads
+                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2rem] border border-border/30 group transition-all hover:border-primary/40 shadow-xl">
+                    <div className="space-y-2">
+                      <Label className="text-lg font-bold flex items-center gap-3">
+                        <HardDrive className="w-5 h-5 text-primary" />
+                        Universal Downloads
                       </Label>
-                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Start with downloads enabled.</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Enable high-res retrieval by default.</p>
                     </div>
                     <Switch 
                       checked={formData.defaultAllowDownloads} 
                       onCheckedChange={(val) => updateField('defaultAllowDownloads', val)}
+                      className="data-[state=checked]:bg-primary"
                     />
                   </div>
                </div>
 
-               <div className="space-y-6 lg:space-y-8">
-                  <div className="flex items-center justify-between p-4 bg-background/50 rounded-2xl border border-border/30">
-                    <div className="space-y-0.5">
-                      <Label className="text-xs lg:text-sm font-bold flex items-center gap-2">
-                        <Globe className="w-3.5 h-3.5 text-primary" />
+               <div className="space-y-10">
+                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2rem] border border-border/30 group transition-all hover:border-primary/40 shadow-xl">
+                    <div className="space-y-2">
+                      <Label className="text-lg font-bold flex items-center gap-3">
+                        <Globe className="w-5 h-5 text-primary" />
                         Public Accessibility
                       </Label>
-                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Galleries are public by default.</p>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Galleries are discoverable by default.</p>
                     </div>
                     <Switch 
                       checked={formData.defaultPublicLink} 
                       onCheckedChange={(val) => updateField('defaultPublicLink', val)}
+                      className="data-[state=checked]:bg-primary"
                     />
                   </div>
                   
-                  <div className="p-4 bg-primary/5 border border-dashed border-primary/20 rounded-2xl">
-                     <p className="text-[9px] lg:text-[10px] text-primary font-bold uppercase tracking-widest mb-1">System Configuration Note</p>
-                     <p className="text-[9px] lg:text-[10px] text-muted-foreground leading-relaxed italic">
-                       Changing these defaults will not affect existing galleries. These settings only apply to future luxury events.
+                  <div className="p-8 bg-primary/5 border border-dashed border-primary/30 rounded-[2rem] relative overflow-hidden group">
+                     <div className="absolute right-0 top-0 p-4 opacity-5">
+                       <Zap className="w-20 h-20 text-primary" />
+                     </div>
+                     <p className="text-[12px] text-primary font-bold uppercase tracking-[0.4em] mb-3">Protocol Optimization Note</p>
+                     <p className="text-[12px] text-muted-foreground leading-relaxed italic font-medium">
+                       "Adjusting these global defaults will not affect your existing archive. These rules will exclusively apply to future luxury delivery sequences."
                      </p>
                   </div>
                </div>
@@ -518,45 +526,52 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* Notifications Tab */}
-        <TabsContent value="notifications" className="animate-in fade-in slide-in-from-left-4 duration-300">
-           <Card className="max-w-4xl bg-card border-border/50 rounded-[2rem] overflow-hidden shadow-xl mx-auto lg:mx-0">
-            <CardHeader className="border-b border-border/30 bg-background/30 px-6 lg:px-8 py-6">
-              <CardTitle className="text-xl font-headline font-bold">Communication Workflow</CardTitle>
-              <CardDescription className="text-xs lg:text-sm">Manage how the Studio Flow notifies you of client interactions.</CardDescription>
+        <TabsContent value="notifications" className="animate-in fade-in slide-in-from-left-6 duration-500">
+           <Card className="max-w-5xl bg-card/40 backdrop-blur-md border-border/50 rounded-[3rem] overflow-hidden shadow-2xl mx-auto lg:mx-0 luxury-card-hover">
+            <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
+              <CardTitle className="text-3xl font-headline font-bold">Studio Flow Telemetry</CardTitle>
+              <CardDescription className="text-sm font-medium italic mt-1">Configure how you receive real-time updates regarding client engagement and vault access.</CardDescription>
             </CardHeader>
-            <CardContent className="p-6 lg:p-8 space-y-6">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex items-center justify-between p-5 bg-background/50 rounded-2xl border border-border/30">
-                    <div className="space-y-0.5 pr-4">
-                      <Label className="text-xs lg:text-sm font-bold">New Favorites</Label>
-                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Notify when a client hearts a photo.</p>
+            <CardContent className="p-10 space-y-10">
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2.5rem] border border-border/30 hover:border-primary/40 transition-all shadow-xl">
+                    <div className="space-y-2 pr-6">
+                      <Label className="text-lg font-bold">Asset Selections</Label>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Notify when a client hearts a masterpiece.</p>
                     </div>
                     <Switch 
                       checked={formData.notifyNewFavorite} 
                       onCheckedChange={(val) => updateField('notifyNewFavorite', val)}
+                      className="data-[state=checked]:bg-primary"
                     />
                   </div>
 
-                  <div className="flex items-center justify-between p-5 bg-background/50 rounded-2xl border border-border/30">
-                    <div className="space-y-0.5 pr-4">
-                      <Label className="text-xs lg:text-sm font-bold">Gallery Access</Label>
-                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Notify on first client view.</p>
+                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2.5rem] border border-border/30 hover:border-primary/40 transition-all shadow-xl">
+                    <div className="space-y-2 pr-6">
+                      <Label className="text-lg font-bold">Engagement Access</Label>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Notify on initial gallery penetration.</p>
                     </div>
                     <Switch 
                       checked={formData.notifyNewView} 
                       onCheckedChange={(val) => updateField('notifyNewView', val)}
+                      className="data-[state=checked]:bg-primary"
                     />
                   </div>
 
-                  <div className="flex items-center justify-between p-5 bg-background/50 rounded-2xl border border-border/30">
-                    <div className="space-y-0.5 pr-4">
-                      <Label className="text-xs lg:text-sm font-bold">Payment Confirmations</Label>
-                      <p className="text-[9px] lg:text-[10px] text-muted-foreground">Notify when status is marked paid.</p>
+                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2.5rem] border border-border/30 hover:border-primary/40 transition-all shadow-xl">
+                    <div className="space-y-2 pr-6">
+                      <Label className="text-lg font-bold">Revenue Sync</Label>
+                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Notify on verified payment settlement.</p>
                     </div>
                     <Switch 
                       checked={formData.notifyPaymentReceived} 
                       onCheckedChange={(val) => updateField('notifyPaymentReceived', val)}
+                      className="data-[state=checked]:bg-primary"
                     />
+                  </div>
+                  
+                  <div className="flex items-center justify-center p-8 border-2 border-dashed border-border/20 rounded-[2.5rem] bg-muted/5 opacity-40">
+                     <Bell className="w-10 h-10 text-muted-foreground" />
                   </div>
                </div>
             </CardContent>
