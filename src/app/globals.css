@@ -72,7 +72,7 @@
   background-position: center;
 }
 
-/* Global Animations (Moved out of layers for reliability) */
+/* Global Animations (Outside of layers for reliability) */
 @keyframes breathing {
   0% { 
     transform: scale(0.98); 
@@ -91,7 +91,12 @@
   }
 }
 
-/* Custom Luxury Scrollbar */
+.animate-breathing {
+  animation: breathing 3s ease-in-out infinite;
+  will-change: transform, filter, opacity;
+}
+
+/* Custom Luxury Utilities */
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
     width: 6px;
@@ -108,10 +113,5 @@
 
   .luxury-card-hover {
     @apply transition-all duration-500 hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/5 hover:translate-y-[-2px];
-  }
-
-  .animate-breathing {
-    animation: breathing 3s ease-in-out infinite;
-    will-change: transform, filter, opacity;
   }
 }
