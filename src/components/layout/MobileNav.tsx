@@ -81,7 +81,7 @@ export function MobileNav() {
     <div className="lg:hidden flex items-center justify-between p-4 border-b border-border/50 bg-background sticky top-0 z-40 h-20">
       <Link href="/dashboard" className="flex items-center gap-2">
         <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 w-auto object-contain" />
-        <span className="text-xl font-headline font-bold text-primary italic">Hafash.pk</span>
+        <span className="text-xl font-headline font-bold text-primary italic tracking-tighter">Hafash.pk</span>
       </Link>
       
       <Sheet open={open} onOpenChange={setOpen}>
@@ -94,7 +94,7 @@ export function MobileNav() {
           <SheetHeader className="p-6 border-b border-border/20 text-left">
             <Link href="/dashboard" onClick={() => setOpen(false)} className="flex items-center gap-3">
               <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 lg:h-12 w-auto object-contain" />
-              <SheetTitle className="text-xl lg:text-2xl font-headline font-bold text-primary italic">Hafash.pk</SheetTitle>
+              <SheetTitle className="text-xl lg:text-2xl font-headline font-bold text-primary italic tracking-tighter">Hafash.pk</SheetTitle>
             </Link>
           </SheetHeader>
           
@@ -106,7 +106,7 @@ export function MobileNav() {
                   <Button
                     variant="ghost"
                     className={cn(
-                      "w-full justify-start gap-3 h-12 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-xl transition-all text-sm",
+                      "w-full justify-start gap-3 h-12 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-xl transition-all duration-300 text-sm",
                       isActive && "bg-primary/10 text-primary font-bold"
                     )}
                   >
@@ -119,13 +119,13 @@ export function MobileNav() {
           </nav>
 
           <div className="p-6 border-t border-border/50 space-y-6">
-            <div className="bg-background/50 p-4 rounded-xl border border-border/50">
+            <div className="bg-background/50 p-4 rounded-xl border border-border/50 shadow-inner">
               <div className="flex items-center justify-between text-[10px] mb-2 font-bold uppercase tracking-wider">
                 <span className="text-muted-foreground">Storage</span>
                 <span className="text-primary">{usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB</span>
               </div>
               <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                <div className="h-full bg-primary" style={{ width: `${usagePercent}%` }} />
+                <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${usagePercent}%` }} />
               </div>
             </div>
             

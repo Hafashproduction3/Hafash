@@ -91,7 +91,7 @@ export function DashboardSidebar() {
       <div className="p-8 border-b border-border/20">
         <Link href="/dashboard" className="flex items-center justify-center gap-2 group">
           <img 
-            src="/hafash-logo.png?v=2" 
+            src="/hafash-logo.png" 
             alt="Hafash Logo" 
             className="w-[64px] h-[64px] min-w-[64px] min-h-[64px] shrink-0 object-contain transition-transform duration-500 group-hover:scale-105" 
           />
@@ -109,12 +109,12 @@ export function DashboardSidebar() {
               <Button
                 variant="ghost"
                 className={cn(
-                  "w-full justify-start gap-3 h-12 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-xl transition-all",
-                  isActive && "bg-primary/10 text-primary font-semibold"
+                  "w-full justify-start gap-3 h-12 text-muted-foreground hover:text-primary hover:bg-primary/5 rounded-xl transition-all duration-300",
+                  isActive && "bg-primary/10 text-primary font-bold"
                 )}
               >
                 <item.icon className="w-5 h-5" />
-                {item.label}
+                <span className="text-sm">{item.label}</span>
               </Button>
             </Link>
           );
@@ -122,19 +122,19 @@ export function DashboardSidebar() {
       </nav>
 
       <div className="p-6 border-t border-border/50 space-y-4">
-        <div className="bg-background/50 p-4 rounded-xl border border-border/50">
-          <div className="flex items-center justify-between text-xs mb-2">
-            <span className="text-muted-foreground">Storage Used</span>
-            <span className="text-primary font-medium">{usageStats.usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB</span>
+        <div className="bg-background/50 p-4 rounded-xl border border-border/50 shadow-inner">
+          <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-2">
+            <span className="text-muted-foreground">Storage</span>
+            <span className="text-primary">{usageStats.usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB</span>
           </div>
           <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-            <div className="h-full bg-primary" style={{ width: `${usageStats.usagePercent}%` }} />
+            <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${usageStats.usagePercent}%` }} />
           </div>
         </div>
         
         <Button 
           variant="ghost" 
-          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10"
+          className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 h-11 rounded-xl font-bold text-sm"
           onClick={handleLogout}
         >
           <LogOut className="w-5 h-5" />
