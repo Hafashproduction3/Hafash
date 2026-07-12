@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from 'next/link';
@@ -25,15 +24,15 @@ import { collection, query, where, doc } from 'firebase/firestore';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
 const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { icon: PlusCircle, label: 'Create Event', href: '/events/create' },
-  { icon: Users, label: 'Clients', href: '/clients' },
-  { icon: CreditCard, label: 'Payments', href: '/payments' },
-  { icon: MessageSquare, label: 'Communications', href: '/communications' },
-  { icon: Package, label: 'Album Selections', href: '/album-selections' },
-  { icon: Heart, label: 'Workflow Portal', href: '/favorites' },
-  { icon: HardDrive, label: 'Storage', href: '/storage' },
-  { icon: Settings, label: 'Settings', href: '/settings' },
+  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', priority: true },
+  { icon: PlusCircle, label: 'Create Event', href: '/events/create', priority: false },
+  { icon: Users, label: 'Clients', href: '/clients', priority: true },
+  { icon: CreditCard, label: 'Payments', href: '/payments', priority: true },
+  { icon: MessageSquare, label: 'Communications', href: '/communications', priority: false },
+  { icon: Package, label: 'Album Selections', href: '/album-selections', priority: true },
+  { icon: Heart, label: 'Workflow Portal', href: '/favorites', priority: true },
+  { icon: HardDrive, label: 'Storage', href: '/storage', priority: true },
+  { icon: Settings, label: 'Settings', href: '/settings', priority: false },
 ];
 
 export function DashboardSidebar() {
@@ -106,7 +105,7 @@ export function DashboardSidebar() {
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
-            <Link key={item.href} href={item.href} prefetch={item.href === '/dashboard'}>
+            <Link key={item.href} href={item.href} prefetch={item.priority}>
               <Button
                 variant="ghost"
                 className={cn(
