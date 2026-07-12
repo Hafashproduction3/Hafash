@@ -7,6 +7,7 @@ import { sendEmailVerification, signOut } from 'firebase/auth';
 import { Mail, Loader2, RefreshCw, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function VerifyEmailPage() {
   const { user, loading } = useUser();
@@ -79,9 +80,7 @@ export default function VerifyEmailPage() {
   };
 
   if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
-    </div>
+    <HafashLoader text="Securing Studio Access..." />
   );
 
   return (

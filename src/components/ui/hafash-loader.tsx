@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 interface HafashLoaderProps {
@@ -11,27 +10,21 @@ interface HafashLoaderProps {
 
 /**
  * Premium Hafash Branded Loader
- * Features breathing animation, scale glow, and 200ms threshold delay.
+ * Features breathing animation, scale glow, and a CSS-based appearance delay.
+ * The delay prevents "flickering" on extremely fast state transitions.
  */
 export function HafashLoader({ 
   text, 
   className, 
   fullPage = true 
 }: HafashLoaderProps) {
-  const [isVisible, setVisible] = useState(false);
-
-  useEffect(() => {
-    // Prevent flickering on fast transitions by delaying visibility
-    const timer = setTimeout(() => setVisible(true), 200);
-    return () => clearTimeout(timer);
-  }, []);
-
-  if (!isVisible) return null;
-
   return (
     <div 
       className={cn(
         "flex flex-col items-center justify-center animate-in fade-in duration-700",
+        // We use CSS delay so the component is technically mounted immediately,
+        // but only becomes visible if the loading state persists.
+        "delay-200 fill-mode-forwards",
         fullPage ? "fixed inset-0 z-[100] bg-background/90 backdrop-blur-md" : "w-full h-full min-h-[400px]",
         className
       )}

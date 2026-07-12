@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function CheckoutPage() {
   const params = useParams();
@@ -50,9 +51,7 @@ export default function CheckoutPage() {
 
   if (authLoading || profileLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
+      <HafashLoader text="Accessing Subscription Portal..." />
     );
   }
 

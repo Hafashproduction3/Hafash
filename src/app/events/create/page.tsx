@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
@@ -20,6 +19,7 @@ import Link from 'next/link';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export type EventCategory = 'Wedding' | 'Mehndi' | 'Barat' | 'Engagement' | 'Other';
 
@@ -131,9 +131,7 @@ export default function CreateEventPage() {
 
   if (authLoading) {
     return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
+      <HafashLoader text="Securing Studio Environment..." />
     );
   }
 

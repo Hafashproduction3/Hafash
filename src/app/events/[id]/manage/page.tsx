@@ -62,6 +62,7 @@ import Link from 'next/link';
 import { useMemo, useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function EventManagementPage() {
   const params = useParams();
@@ -254,9 +255,7 @@ export default function EventManagementPage() {
   const canSaveSecurity = !isSecurityLoading && (!settings.isPasswordProtected || (newPassword === "" || (newPassword.length >= 6 && newPassword === confirmPassword)));
 
   if (authLoading || dataLoading) return (
-    <div className="flex items-center justify-center min-h-[50vh]">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
-    </div>
+    <HafashLoader text="Preparing Gallery Workspace..." />
   );
 
   if (!isDeleting && (error || !event)) return (
