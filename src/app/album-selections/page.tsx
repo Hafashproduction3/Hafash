@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useUser, useCollection } from '@/firebase';
@@ -12,17 +11,12 @@ import { useEffect, useMemo } from 'react';
 import { collection, query, where } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AlbumSelectionsPage() {
   const firestore = useFirestore();
-  const { user, loading: authLoading } = useUser();
+  const { user } = useUser();
   const router = useRouter();
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
 
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
@@ -36,17 +30,6 @@ export default function AlbumSelectionsPage() {
     if (!galleries || !Array.isArray(galleries)) return [];
     return galleries.filter(g => (Array.isArray(g.items) && g.items.some((i: any) => i.isFavorite)) || g.albumStatus);
   }, [galleries]);
-
-  if (authLoading || (dataLoading && !galleries)) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground font-bold tracking-widest uppercase text-[10px]">Syncing Workflow Telemetry...</p>
-      </div>
-    );
-  }
-
-  if (!user) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -66,7 +49,12 @@ export default function AlbumSelectionsPage() {
         </div>
       </div>
 
-      {selections.length === 0 ? (
+      {dataLoading && !galleries ? (
+        <div className="space-y-4">
+          <Skeleton className="h-32 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+        </div>
+      ) : selections.length === 0 ? (
         <Card className="bg-card/30 border-dashed border-border/50 py-32 text-center rounded-[2rem]">
           <CardContent>
             <div className="bg-primary/5 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -154,13 +142,13 @@ export default function AlbumSelectionsPage() {
         </div>
         <div className="flex gap-4">
           <div className="text-center">
-            <p className="text-2xl font-headline font-bold text-primary">{selections.length}</p>
+            <p className="text-2xl font-headline font-bold text-primary">{dataLoading && !galleries ? '...' : selections.length}</p>
             <p className="text-[8px] uppercase font-bold tracking-[0.2em] text-muted-foreground">Projects</p>
           </div>
           <div className="w-px h-10 bg-border/50" />
           <div className="text-center">
             <p className="text-2xl font-headline font-bold text-primary">
-              {selections.reduce((acc, curr) => acc + (Array.isArray(curr.items) ? curr.items.filter((i: any) => i.isFavorite).length : 0), 0)}
+              {dataLoading && !galleries ? '...' : selections.reduce((acc, curr) => acc + (Array.isArray(curr.items) ? curr.items.filter((i: any) => i.isFavorite).length : 0), 0)}
             </p>
             <p className="text-[8px] uppercase font-bold tracking-[0.2em] text-muted-foreground">Total Files</p>
           </div>

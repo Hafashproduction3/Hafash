@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useFirestore, useUser, useCollection } from '@/firebase';
@@ -35,20 +34,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function FavoritesPanelPage() {
   const firestore = useFirestore();
-  const { user, loading: authLoading } = useUser();
+  const { user } = useUser();
   const router = useRouter();
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
 
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
@@ -104,17 +98,6 @@ export default function FavoritesPanelPage() {
       .finally(() => setIsGenerating(null));
   };
 
-  if (authLoading || (dataLoading && !galleries)) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground font-bold tracking-widest uppercase text-[10px]">Syncing Selections...</p>
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-8">
@@ -133,7 +116,12 @@ export default function FavoritesPanelPage() {
         </div>
       </div>
 
-      {favoriteEvents.length === 0 ? (
+      {dataLoading && !galleries ? (
+        <div className="space-y-8">
+          <Skeleton className="h-[400px] w-full rounded-[2rem]" />
+          <Skeleton className="h-[400px] w-full rounded-[2rem]" />
+        </div>
+      ) : favoriteEvents.length === 0 ? (
         <Card className="bg-card/30 border-dashed border-border/50 py-32 text-center rounded-[2rem]">
           <CardContent>
             <Heart className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-30" />

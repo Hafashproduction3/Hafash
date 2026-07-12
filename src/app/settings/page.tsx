@@ -35,9 +35,10 @@ import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function SettingsPage() {
-  const { user, loading: authLoading } = useUser();
+  const { user } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
@@ -161,12 +162,6 @@ export default function SettingsPage() {
     }
   };
 
-  if (authLoading || profileLoading) return (
-    <div className="flex items-center justify-center min-h-[50vh]">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
-    </div>
-  );
-
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
       {/* Dynamic Header */}
@@ -243,55 +238,64 @@ export default function SettingsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="p-10 space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-3">
-                      <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Legal Name *</Label>
-                      <Input 
-                        value={formData.studioName} 
-                        onChange={(e) => updateField('studioName', e.target.value)}
-                        placeholder="e.g. Cinematic Memories" 
-                        className="rounded-xl h-14 bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
-                      />
+                  {profileLoading ? (
+                    <div className="space-y-4">
+                      <Skeleton className="h-14 w-full rounded-xl" />
+                      <Skeleton className="h-14 w-full rounded-xl" />
                     </div>
-                    <div className="space-y-3">
-                      <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">WhatsApp Studio Number *</Label>
-                      <div className="relative">
-                        <Phone className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
-                        <Input 
-                          value={formData.whatsappNumber} 
-                          onChange={(e) => updateField('whatsappNumber', e.target.value)}
-                          placeholder="+923001234567" 
-                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
-                        />
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Legal Name *</Label>
+                          <Input 
+                            value={formData.studioName} 
+                            onChange={(e) => updateField('studioName', e.target.value)}
+                            placeholder="e.g. Cinematic Memories" 
+                            className="rounded-xl h-14 bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">WhatsApp Studio Number *</Label>
+                          <div className="relative">
+                            <Phone className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
+                            <Input 
+                              value={formData.whatsappNumber} 
+                              onChange={(e) => updateField('whatsappNumber', e.target.value)}
+                              placeholder="+923001234567" 
+                              className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-3">
-                      <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Master Photographer Tagline</Label>
-                      <div className="relative">
-                        <User className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
-                        <Input 
-                          value={formData.photographerName} 
-                          onChange={(e) => updateField('photographerName', e.target.value)}
-                          placeholder="Principal Photographer" 
-                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
-                        />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-3">
+                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Master Photographer Tagline</Label>
+                          <div className="relative">
+                            <User className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
+                            <Input 
+                              value={formData.photographerName} 
+                              onChange={(e) => updateField('photographerName', e.target.value)}
+                              placeholder="Principal Photographer" 
+                              className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Official Website</Label>
+                          <div className="relative">
+                            <Globe className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
+                            <Input 
+                              value={formData.website} 
+                              onChange={(e) => updateField('website', e.target.value)}
+                              placeholder="https://yourstudio.com" 
+                              className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="space-y-3">
-                      <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Official Website</Label>
-                      <div className="relative">
-                        <Globe className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
-                        <Input 
-                          value={formData.website} 
-                          onChange={(e) => updateField('website', e.target.value)}
-                          placeholder="https://yourstudio.com" 
-                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
-                        />
-                      </div>
-                    </div>
-                  </div>
+                    </>
+                  )}
                   
                   <div className="space-y-10 pt-10 border-t border-border/20">
                     <div className="space-y-6">
@@ -309,11 +313,6 @@ export default function SettingsPage() {
                           disabled={!isCustomBrandingActive}
                         />
                       </div>
-                      <p className="text-[11px] text-muted-foreground italic ml-2">
-                        {isCustomBrandingActive 
-                          ? "Masterpiece Suggestion: 400x120px PNG with transparent high-key contrast."
-                          : "Custom studio logos are reserved for Professional tier studios. Upgrade to enhance client perception."}
-                      </p>
                     </div>
 
                     <div className="space-y-6">
@@ -331,11 +330,6 @@ export default function SettingsPage() {
                           disabled={!isCustomBrandingActive}
                         />
                       </div>
-                      <p className="text-[11px] text-muted-foreground italic ml-2">
-                        {isCustomBrandingActive 
-                          ? "Suggested Canvas: 1920x800px. This high-resolution banner will unify all your galleries."
-                          : "Global studio banners are reserved for Professional tier studios. Upgrade to unify your studio's visual language."}
-                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -408,15 +402,6 @@ export default function SettingsPage() {
                       )}
                     </div>
                   </div>
-
-                  <div className="pt-6 flex flex-col sm:flex-row gap-6">
-                    <Button variant="outline" className="rounded-2xl font-bold h-14 border-border/50 flex-1 text-sm uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all shadow-xl" onClick={() => router.push('/verify-email')}>
-                      Update Verification
-                    </Button>
-                    <Button variant="outline" className="rounded-2xl font-bold h-14 border-border/50 flex-1 text-sm uppercase tracking-widest hover:bg-primary/10 hover:text-primary transition-all shadow-xl" onClick={() => router.push('/login')}>
-                      <Lock className="w-5 h-5 mr-3" /> Reset Credentials
-                    </Button>
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -433,14 +418,11 @@ export default function SettingsPage() {
                   <div className="flex justify-between items-center bg-primary/5 p-8 rounded-[2rem] border border-primary/20 shadow-xl group">
                     <div className="space-y-2">
                       <p className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground group-hover:text-primary transition-colors">Active Subscription</p>
-                      <h4 className="text-4xl font-headline font-bold text-primary tracking-tighter">{profile?.planId?.toUpperCase() || 'STARTER'} TIER</h4>
+                      <h4 className="text-4xl font-headline font-bold text-primary tracking-tighter">
+                        {profileLoading ? <Skeleton className="h-10 w-24" /> : `${profile?.planId?.toUpperCase() || 'STARTER'} TIER`}
+                      </h4>
                     </div>
                     <Badge variant="outline" className="border-primary/50 text-primary px-5 py-2 text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/10">STUDIO ACTIVE</Badge>
-                  </div>
-                  <div className="p-8 bg-background/40 border border-dashed border-border/50 rounded-[2rem]">
-                     <p className="text-sm text-muted-foreground leading-relaxed italic font-medium">
-                       "Hafash High-Speed Cloud active. Your original high-resolution masters are protected by end-to-end 256-bit encryption and served via our global delivery pipeline."
-                     </p>
                   </div>
                 </div>
                 <div className="mt-10">
@@ -494,33 +476,6 @@ export default function SettingsPage() {
                     />
                   </div>
                </div>
-
-               <div className="space-y-10">
-                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2rem] border border-border/30 group transition-all hover:border-primary/40 shadow-xl">
-                    <div className="space-y-2">
-                      <Label className="text-lg font-bold flex items-center gap-3">
-                        <Globe className="w-5 h-5 text-primary" />
-                        Public Accessibility
-                      </Label>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Galleries are discoverable by default.</p>
-                    </div>
-                    <Switch 
-                      checked={formData.defaultPublicLink} 
-                      onCheckedChange={(val) => updateField('defaultPublicLink', val)}
-                      className="data-[state=checked]:bg-primary"
-                    />
-                  </div>
-                  
-                  <div className="p-8 bg-primary/5 border border-dashed border-primary/30 rounded-[2rem] relative overflow-hidden group">
-                     <div className="absolute right-0 top-0 p-4 opacity-5">
-                       <Zap className="w-20 h-20 text-primary" />
-                     </div>
-                     <p className="text-[12px] text-primary font-bold uppercase tracking-[0.4em] mb-3">Protocol Optimization Note</p>
-                     <p className="text-[12px] text-muted-foreground leading-relaxed italic font-medium">
-                       "Adjusting these global defaults will not affect your existing archive. These rules will exclusively apply to future luxury delivery sequences."
-                     </p>
-                  </div>
-               </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -556,22 +511,6 @@ export default function SettingsPage() {
                       onCheckedChange={(val) => updateField('notifyNewView', val)}
                       className="data-[state=checked]:bg-primary"
                     />
-                  </div>
-
-                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2.5rem] border border-border/30 hover:border-primary/40 transition-all shadow-xl">
-                    <div className="space-y-2 pr-6">
-                      <Label className="text-lg font-bold">Revenue Sync</Label>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Notify on verified payment settlement.</p>
-                    </div>
-                    <Switch 
-                      checked={formData.notifyPaymentReceived} 
-                      onCheckedChange={(val) => updateField('notifyPaymentReceived', val)}
-                      className="data-[state=checked]:bg-primary"
-                    />
-                  </div>
-                  
-                  <div className="flex items-center justify-center p-8 border-2 border-dashed border-border/20 rounded-[2.5rem] bg-muted/5 opacity-40">
-                     <Bell className="w-10 h-10 text-muted-foreground" />
                   </div>
                </div>
             </CardContent>

@@ -22,17 +22,12 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN, calculateUsageGb } from '@/lib/plans';
 import { doc, collection, query, where } from 'firebase/firestore';
 import Link from 'next/link';
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function StoragePage() {
-  const { user, loading: authLoading } = useUser();
+  const { user } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
-
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
 
   const profileRef = useMemo(() => {
     if (!firestore || !user) return null;
@@ -75,18 +70,8 @@ export default function StoragePage() {
     return currentPlan.id !== 'business';
   }, [currentPlan.id]);
 
-  if (authLoading || profileLoading || (galleriesLoading && !galleries)) {
-    return (
-      <div className="flex justify-center items-center min-h-[50vh]">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) return null;
-
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20 p-6 lg:p-12 max-w-7xl mx-auto">
+    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-8">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
@@ -125,11 +110,15 @@ export default function StoragePage() {
             <div className="flex flex-col md:flex-row items-center justify-between gap-8">
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground uppercase tracking-widest font-bold">Active Subscription</p>
-                <h3 className="text-4xl font-headline font-bold text-primary">{currentPlan.name} Plan</h3>
+                <h3 className="text-4xl font-headline font-bold text-primary">
+                  {profileLoading ? <Skeleton className="h-10 w-32" /> : `${currentPlan.name} Plan`}
+                </h3>
               </div>
               <div className="text-right space-y-2">
                 <p className="text-sm text-muted-foreground uppercase tracking-widest font-bold">Total Storage</p>
-                <h3 className="text-4xl font-headline font-bold">{currentPlan.storageGb} GB</h3>
+                <h3 className="text-4xl font-headline font-bold">
+                  {profileLoading ? <Skeleton className="h-10 w-24 ml-auto" /> : `${currentPlan.storageGb} GB`}
+                </h3>
               </div>
             </div>
 
@@ -138,27 +127,27 @@ export default function StoragePage() {
                 <ImageIcon className="w-5 h-5 text-primary" />
                 <div>
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Total Photos</p>
-                  <p className="text-xl font-bold">{totalPhotos}</p>
+                  <p className="text-xl font-bold">{galleriesLoading && !galleries ? '...' : totalPhotos}</p>
                 </div>
               </div>
               <div className="bg-background/40 p-4 rounded-2xl border border-border/20 flex items-center gap-3">
                 <FolderOpen className="w-5 h-5 text-primary" />
                 <div>
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Active Galleries</p>
-                  <p className="text-xl font-bold">{totalGalleries}</p>
+                  <p className="text-xl font-bold">{galleriesLoading && !galleries ? '...' : totalGalleries}</p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="flex justify-between text-sm font-bold uppercase tracking-widest">
-                <span>{usageGb.toFixed(2)} GB Used</span>
-                <span className="text-primary">{Math.max(currentPlan.storageGb - usageGb, 0).toFixed(2)} GB Remaining</span>
+                <span>{(galleriesLoading && !galleries) ? '...' : `${usageGb.toFixed(2)} GB Used`}</span>
+                <span className="text-primary">{(galleriesLoading && !galleries) ? '...' : `${Math.max(currentPlan.storageGb - usageGb, 0).toFixed(2)} GB Remaining`}</span>
               </div>
               <div className="h-4 w-full bg-background rounded-full overflow-hidden border border-border/50 p-1">
                 <div 
                   className="h-full bg-primary rounded-full transition-all duration-1000" 
-                  style={{ width: `${usagePercent}%` }} 
+                  style={{ width: `${galleriesLoading && !galleries ? 0 : usagePercent}%` }} 
                 />
               </div>
             </div>
