@@ -18,6 +18,9 @@ export function HafashLoader({
   className, 
   fullPage = true 
 }: HafashLoaderProps) {
+  // DEBUG LOG
+  console.log("HAFASH LOADER RENDERED", { text, fullPage });
+
   return (
     <div 
       className={cn(
