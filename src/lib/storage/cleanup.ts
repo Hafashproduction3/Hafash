@@ -1,5 +1,3 @@
-'use server';
-
 import { storage } from './storage';
 import { adminDb } from '@/lib/firebase-admin';
 

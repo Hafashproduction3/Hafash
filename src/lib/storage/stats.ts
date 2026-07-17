@@ -1,5 +1,3 @@
-'use server';
-
 import { adminDb } from '@/lib/firebase-admin';
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 

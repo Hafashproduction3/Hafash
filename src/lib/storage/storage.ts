@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * Metadata associated with a stored object.
  */
