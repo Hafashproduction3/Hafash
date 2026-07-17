@@ -79,7 +79,10 @@ export class UploadEngine {
   public resumeQueue() {
     this.isPaused = false;
     this.queue.forEach(t => {
-      if (t.status === 'paused') t.status = 'queued';
+      if (t.status === 'paused') {
+        t.status = 'queued';
+        this.onUpdate(t);
+      }
     });
     this.processQueue();
   }
