@@ -55,7 +55,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/select";
+} from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
