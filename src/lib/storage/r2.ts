@@ -6,36 +6,87 @@ import {
   GetObjectCommand, 
   DeleteObjectCommand, 
   HeadObjectCommand, 
-  ListObjectsV2Command 
+  ListObjectsV2Command,
+  S3ServiceException
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
-import { StorageProvider, StorageBody } from './storage';
+import { 
+  StorageProvider, 
+  StorageBody, 
+  StorageError, 
+  StorageConnectionError 
+} from './storage';
 
 /**
- * Cloudflare R2 Storage Implementation.
- * R2 provides an S3-compatible API, allowing us to use the standard AWS SDK.
+ * Cloudflare R2 Storage Provider Implementation.
+ * Uses the S3-compatible API via AWS SDK v3.
+ * 
+ * DESIGNED FOR PRODUCTION:
+ * - Singleton client pattern to reduce handshake overhead.
+ * - Stream-based operations for memory efficiency with large RAW files/videos.
+ * - Robust environment validation to fail fast on misconfiguration.
+ * - Custom error wrapping for application stability.
+ * - Server-side only enforcement.
  */
 class R2StorageProvider implements StorageProvider {
-  private client: S3Client;
-  private bucket: string;
+  private client: S3Client | null = null;
+  private readonly bucket: string;
 
   constructor() {
+    // Guard: Prevent execution in a browser environment to protect credentials
+    if (typeof window !== 'undefined') {
+      throw new Error('R2StorageProvider can only be initialized in a server environment.');
+    }
+
     this.bucket = process.env.R2_BUCKET_NAME || "";
-    
-    this.client = new S3Client({
-      region: "auto",
-      endpoint: process.env.R2_ENDPOINT, // e.g. https://<account_id>.r2.cloudflarestorage.com
-      credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID || "",
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || "",
-      },
-    });
+    this.validateConfig();
   }
 
-  private log(action: string, key: string, status: 'info' | 'error', message?: string) {
-    // Lightweight, non-sensitive logging
+  /**
+   * Verifies critical configuration on initialization.
+   */
+  private validateConfig(): void {
+    const requiredVars = [
+      'R2_BUCKET_NAME',
+      'R2_ACCESS_KEY_ID',
+      'R2_SECRET_ACCESS_KEY',
+      'R2_ENDPOINT'
+    ];
+
+    const missing = requiredVars.filter((v) => !process.env[v]);
+    if (missing.length > 0) {
+      throw new StorageConnectionError(
+        `Critical R2 environment variables are missing: ${missing.join(', ')}`
+      );
+    }
+  }
+
+  /**
+   * Lazily initializes the S3 client singleton.
+   */
+  private getClient(): S3Client {
+    if (this.client) return this.client;
+
+    this.client = new S3Client({
+      region: "auto", // Required by Cloudflare R2
+      endpoint: process.env.R2_ENDPOINT,
+      credentials: {
+        accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+      },
+      maxAttempts: 3, // Production retry strategy
+    });
+
+    return this.client;
+  }
+
+  /**
+   * Safe metadata logging.
+   */
+  private log(action: string, key: string, status: 'INFO' | 'ERROR', message?: string): void {
     const timestamp = new Date().toISOString();
-    console.log(`[R2_STORAGE][${status.toUpperCase()}] ${timestamp} - Action: ${action} | Key: ${key}${message ? ` | Msg: ${message}` : ''}`);
+    // Security: Never log request objects or credentials
+    console.log(`[R2_STORAGE][${status}] ${timestamp} - ${action}: ${key}${message ? ` (${message})` : ''}`);
   }
 
   async uploadFile(key: string, body: StorageBody, contentType?: string): Promise<string> {
@@ -43,16 +94,17 @@ class R2StorageProvider implements StorageProvider {
       const command = new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
-        Body: body as any, // AWS SDK handles Buffer, Stream, etc.
+        Body: body as any, // SDK supports Buffer, stream, or string
         ContentType: contentType,
       });
 
-      await this.client.send(command);
-      this.log('UPLOAD', key, 'info');
+      await this.getClient().send(command);
+      this.log('UPLOAD', key, 'INFO');
       return key;
-    } catch (error: any) {
-      this.log('UPLOAD', key, 'error', error.message);
-      throw new Error(`Failed to upload file to R2: ${error.message}`);
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.log('UPLOAD', key, 'ERROR', detail);
+      throw new StorageError(`Failed to upload ${key} to R2 storage.`);
     }
   }
 
@@ -63,19 +115,17 @@ class R2StorageProvider implements StorageProvider {
         Key: key,
       });
 
-      const response = await this.client.send(command);
-      
+      const response = await this.getClient().send(command);
       if (!response.Body) return null;
 
-      // Handle both Node.js and Web standard streams
+      // Return a web-standard stream for efficient chunked delivery
       return response.Body.transformToWebStream() as ReadableStream;
-    } catch (error: any) {
-      if (error.name === 'NoSuchKey') {
-        this.log('DOWNLOAD', key, 'info', 'File not found');
+    } catch (error: unknown) {
+      if (error instanceof S3ServiceException && (error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404)) {
         return null;
       }
-      this.log('DOWNLOAD', key, 'error', error.message);
-      throw new Error(`Failed to download file from R2: ${error.message}`);
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new StorageError(`Failed to download ${key} from R2 storage: ${detail}`);
     }
   }
 
@@ -86,26 +136,29 @@ class R2StorageProvider implements StorageProvider {
         Key: key,
       });
 
-      await this.client.send(command);
-      this.log('DELETE', key, 'info');
-    } catch (error: any) {
-      this.log('DELETE', key, 'error', error.message);
-      throw new Error(`Failed to delete file from R2: ${error.message}`);
+      await this.getClient().send(command);
+      this.log('DELETE', key, 'INFO');
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.log('DELETE', key, 'ERROR', detail);
+      throw new StorageError(`Failed to delete object ${key} from R2 storage.`);
     }
   }
 
-  async getSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+  async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
+    // Preference: Argument > Env Variable > Default (1 hour)
+    const expiration = expiresIn || Number(process.env.R2_SIGNED_URL_EXPIRATION) || 3600;
+    
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucket,
         Key: key,
       });
 
-      const url = await getS3SignedUrl(this.client, command, { expiresIn });
-      return url;
-    } catch (error: any) {
-      this.log('SIGNED_URL', key, 'error', error.message);
-      throw new Error(`Failed to generate signed URL: ${error.message}`);
+      return await getS3SignedUrl(this.getClient(), command, { expiresIn: expiration });
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new StorageError(`Could not generate signed URL for ${key}: ${detail}`);
     }
   }
 
@@ -116,14 +169,14 @@ class R2StorageProvider implements StorageProvider {
         Key: key,
       });
 
-      await this.client.send(command);
+      await this.getClient().send(command);
       return true;
-    } catch (error: any) {
-      if (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404) {
+    } catch (error: unknown) {
+      if (error instanceof S3ServiceException && (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404)) {
         return false;
       }
-      this.log('HEAD', key, 'error', error.message);
-      throw error;
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new StorageError(`Existence check failed for ${key}: ${detail}`);
     }
   }
 
@@ -134,11 +187,13 @@ class R2StorageProvider implements StorageProvider {
         Prefix: prefix,
       });
 
-      const response = await this.client.send(command);
-      return (response.Contents || []).map(obj => obj.Key || '').filter(Boolean);
-    } catch (error: any) {
-      this.log('LIST', prefix || 'root', 'error', error.message);
-      throw new Error(`Failed to list files in R2: ${error.message}`);
+      const response = await this.getClient().send(command);
+      return (response.Contents || [])
+        .map((obj) => obj.Key || '')
+        .filter(Boolean);
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new StorageError(`Failed to list objects in R2 storage: ${detail}`);
     }
   }
 }
