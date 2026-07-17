@@ -31,6 +31,10 @@ export default function AlbumSelectionsPage() {
     return galleries.filter(g => (Array.isArray(g.items) && g.items.some((i: any) => i.isFavorite)) || g.albumStatus);
   }, [galleries]);
 
+  const totalFilesCount = useMemo(() => {
+    return selections.reduce((acc, curr) => acc + (Array.isArray(curr.items) ? curr.items.filter((i: any) => i.isFavorite).length : 0), 0);
+  }, [selections]);
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 border-b border-border/50 pb-8">
@@ -148,7 +152,7 @@ export default function AlbumSelectionsPage() {
           <div className="w-px h-10 bg-border/50" />
           <div className="text-center">
             <p className="text-2xl font-headline font-bold text-primary">
-              {dataLoading && !galleries ? '...' : selections.reduce((acc, curr) => acc + (Array.isArray(curr.items) ? curr.items.filter((i: any) => i.isFavorite).length : 0), 0)}
+              {dataLoading && !galleries ? '...' : totalFilesCount}
             </p>
             <p className="text-[8px] uppercase font-bold tracking-[0.2em] text-muted-foreground">Total Files</p>
           </div>

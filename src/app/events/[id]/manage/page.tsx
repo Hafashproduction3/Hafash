@@ -55,11 +55,11 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/select";
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { HafashLoader } from '@/components/ui/hafash-loader';
@@ -137,7 +137,7 @@ export default function EventManagementPage() {
     }
   }, [event]);
 
-  const handleUpdateSettings = async () => {
+  const handleUpdateSettings = useCallback(async () => {
     if (!eventRef) return;
     try {
       await updateDoc(eventRef, { ...settings, updatedAt: new Date().toISOString() });
@@ -145,17 +145,17 @@ export default function EventManagementPage() {
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
     }
-  };
+  }, [eventRef, settings, toast]);
 
-  const hashPassword = async (password: string) => {
+  const hashPassword = useCallback(async (password: string) => {
     const encoder = new TextEncoder();
     const data = encoder.encode(password);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  };
+  }, []);
 
-  const handleSaveSecurity = async () => {
+  const handleSaveSecurity = useCallback(async () => {
     if (!eventRef) return;
     setIsSecurityLoading(true);
     try {
@@ -179,9 +179,9 @@ export default function EventManagementPage() {
     } finally {
       setIsSecurityLoading(false);
     }
-  };
+  }, [eventRef, settings.isPasswordProtected, newPassword, hashPassword, toast]);
 
-  const handleGeneratePassword = () => {
+  const handleGeneratePassword = useCallback(() => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
     let generated = '';
     for (let i = 0; i < 12; i++) {
@@ -192,15 +192,15 @@ export default function EventManagementPage() {
     setShowNewPassword(true);
     setShowConfirmPassword(true);
     toast({ title: "Password Generated", description: "A secure random password has been created." });
-  };
+  }, [toast]);
 
-  const handleCopyPassword = () => {
+  const handleCopyPassword = useCallback(() => {
     if (!newPassword) return;
     navigator.clipboard.writeText(newPassword);
     toast({ title: "Password Copied", description: "Password copied to clipboard." });
-  };
+  }, [newPassword, toast]);
 
-  const handleSetCover = async (imageUrl: string) => {
+  const handleSetCover = useCallback(async (imageUrl: string) => {
     if (!eventRef) return;
     try {
       await updateDoc(eventRef, { coverImage: imageUrl, updatedAt: new Date().toISOString() });
@@ -208,9 +208,9 @@ export default function EventManagementPage() {
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed", description: err.message });
     }
-  };
+  }, [eventRef, toast]);
 
-  const confirmDelete = async () => {
+  const confirmDelete = useCallback(async () => {
     if (!eventRef || deleteConfirmText !== 'DELETE') return;
     setIsDeleting(true);
     setShowDeleteDialog(false);
@@ -222,9 +222,9 @@ export default function EventManagementPage() {
       setIsDeleting(false);
       toast({ variant: "destructive", title: "Delete Failed", description: err.message });
     }
-  };
+  }, [eventRef, deleteConfirmText, router, toast]);
 
-  const updateToggle = (field: string, value: any) => {
+  const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;
     const updateData: any = { [field]: value, updatedAt: new Date().toISOString() };
     
@@ -241,18 +241,18 @@ export default function EventManagementPage() {
       .catch((err) => {
         toast({ variant: "destructive", title: "Error", description: err.message });
       });
-  };
+  }, [eventRef, toast]);
 
-  const handleCopy = (text: string) => {
+  const handleCopy = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
     setCopiedLink(true);
     toast({ title: "Link Copied" });
     setTimeout(() => setCopiedLink(false), 2000);
-  };
+  }, [toast]);
 
-  const passwordMismatch = settings.isPasswordProtected && newPassword.length > 0 && newPassword !== confirmPassword;
-  const passwordTooShort = settings.isPasswordProtected && newPassword.length > 0 && newPassword.length < 6;
-  const canSaveSecurity = !isSecurityLoading && (!settings.isPasswordProtected || (newPassword === "" || (newPassword.length >= 6 && newPassword === confirmPassword)));
+  const passwordMismatch = useMemo(() => settings.isPasswordProtected && newPassword.length > 0 && newPassword !== confirmPassword, [settings.isPasswordProtected, newPassword, confirmPassword]);
+  const passwordTooShort = useMemo(() => settings.isPasswordProtected && newPassword.length > 0 && newPassword.length < 6, [settings.isPasswordProtected, newPassword]);
+  const canSaveSecurity = useMemo(() => !isSecurityLoading && (!settings.isPasswordProtected || (newPassword === "" || (newPassword.length >= 6 && newPassword === confirmPassword))), [isSecurityLoading, settings.isPasswordProtected, newPassword, confirmPassword]);
 
   if (authLoading || dataLoading) return (
     <HafashLoader text="Preparing Gallery Workspace..." />

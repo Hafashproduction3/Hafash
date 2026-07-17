@@ -23,7 +23,7 @@ import { useMemo, useCallback } from 'react';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
-const navItems = [
+const NAV_ITEMS = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', priority: true },
   { icon: PlusCircle, label: 'Create Event', href: '/events/create', priority: false },
   { icon: Users, label: 'Clients', href: '/clients', priority: true },
@@ -102,7 +102,7 @@ export function DashboardSidebar() {
       </div>
 
       <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
-        {navItems.map((item) => {
+        {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link key={item.href} href={item.href} prefetch={item.priority}>

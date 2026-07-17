@@ -37,7 +37,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from "@/components/ui/skeleton";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { collection, query, where, doc, updateDoc } from 'firebase/firestore';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -74,7 +74,15 @@ export default function PaymentsPage() {
     return filtered;
   }, [galleries, searchQuery, statusFilter]);
 
-  const handleMarkAsPaid = async (galleryId: string) => {
+  const stats = useMemo(() => {
+    const safeGalleries = galleries || [];
+    return {
+      paid: safeGalleries.filter(g => g.isPaid).length,
+      unpaid: safeGalleries.filter(g => !g.isPaid).length
+    };
+  }, [galleries]);
+
+  const handleMarkAsPaid = useCallback(async (galleryId: string) => {
     if (!firestore) return;
     setIsUpdating(galleryId);
     try {
@@ -84,7 +92,7 @@ export default function PaymentsPage() {
     } finally {
       setIsUpdating(null);
     }
-  };
+  }, [firestore, toast]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -108,14 +116,14 @@ export default function PaymentsPage() {
         <Card className="bg-card/30 border-border/30 p-6 flex items-center justify-between">
           <div>
             <p className="text-[10px] text-muted-foreground font-bold uppercase">Total Paid</p>
-            {dataLoading && !galleries ? <Skeleton className="h-8 w-12 mt-1" /> : <h3 className="text-3xl font-headline font-bold text-green-500">{(galleries || []).filter(g => g.isPaid).length}</h3>}
+            {dataLoading && !galleries ? <Skeleton className="h-8 w-12 mt-1" /> : <h3 className="text-3xl font-headline font-bold text-green-500">{stats.paid}</h3>}
           </div>
           <CheckCircle2 className="w-6 h-6 text-green-500 opacity-20" />
         </Card>
         <Card className="bg-card/30 border-border/30 p-6 flex items-center justify-between">
           <div>
             <p className="text-[10px] text-muted-foreground font-bold uppercase">Unpaid</p>
-            {dataLoading && !galleries ? <Skeleton className="h-8 w-12 mt-1" /> : <h3 className="text-3xl font-headline font-bold text-amber-500">{(galleries || []).filter(g => !g.isPaid).length}</h3>}
+            {dataLoading && !galleries ? <Skeleton className="h-8 w-12 mt-1" /> : <h3 className="text-3xl font-headline font-bold text-amber-500">{stats.unpaid}</h3>}
           </div>
           <Clock className="w-6 h-6 text-amber-500 opacity-20" />
         </Card>
@@ -124,7 +132,12 @@ export default function PaymentsPage() {
       <div className="flex flex-col xl:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3.5 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search payments..." className="pl-10 h-12 bg-card/50 rounded-xl" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          <Input 
+            placeholder="Search payments..." 
+            className="pl-10 h-12 bg-card/50 rounded-xl" 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+          />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="lg:w-[160px] h-12 rounded-xl text-[10px] uppercase font-bold"><SelectValue placeholder="Status" /></SelectTrigger>

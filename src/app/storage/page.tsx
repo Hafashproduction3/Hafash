@@ -53,6 +53,7 @@ export default function StoragePage() {
   }, [galleries]);
 
   const usagePercent = useMemo(() => {
+    if (currentPlan.storageGb <= 0) return 0;
     return Math.min((usageGb / currentPlan.storageGb) * 100, 100);
   }, [usageGb, currentPlan.storageGb]);
 

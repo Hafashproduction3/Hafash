@@ -65,7 +65,11 @@ export default function ClientsPage() {
     let filtered = [...galleries];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      filtered = filtered.filter(g => (g.clientName || "").toLowerCase().includes(q) || (g.title || "").toLowerCase().includes(q));
+      filtered = filtered.filter(g => 
+        (g.clientName || "").toLowerCase().includes(q) || 
+        (g.title || "").toLowerCase().includes(q) ||
+        (g.clientEmail || "").toLowerCase().includes(q)
+      );
     }
     if (paymentFilter !== "all") {
       filtered = filtered.filter(g => !!g.isPaid === (paymentFilter === "paid"));
@@ -74,8 +78,8 @@ export default function ClientsPage() {
       filtered = filtered.filter(g => g.category === categoryFilter);
     }
     filtered.sort((a, b) => {
-      const dateA = new Date(a.createdAt || 0).getTime();
-      const dateB = new Date(b.createdAt || 0).getTime();
+      const dateA = new Date(a.createdAt || a.date || 0).getTime();
+      const dateB = new Date(b.createdAt || b.date || 0).getTime();
       return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
     });
     return filtered;
@@ -96,7 +100,9 @@ export default function ClientsPage() {
         <div className="hidden lg:flex items-center gap-3">
           <div className="bg-primary/10 px-4 py-2 rounded-xl border border-primary/20 flex items-center gap-3">
             <Users className="w-4 h-4 text-primary" />
-            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{dataLoading && !galleries ? '...' : filteredClients.length} Total Clients</span>
+            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">
+              {dataLoading && !galleries ? '...' : filteredClients.length} Total Clients
+            </span>
           </div>
         </div>
       </div>
@@ -104,14 +110,27 @@ export default function ClientsPage() {
       <div className="flex flex-col xl:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3.5 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search clients..." className="pl-10 h-12 bg-card/50 rounded-xl" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          <Input 
+            placeholder="Search clients..." 
+            className="pl-10 h-12 bg-card/50 rounded-xl" 
+            value={searchQuery} 
+            onChange={(e) => setSearchQuery(e.target.value)} 
+          />
         </div>
         <div className="grid grid-cols-2 lg:flex items-center gap-3">
           <Select value={paymentFilter} onValueChange={setPaymentFilter}>
-            <SelectTrigger className="lg:w-[140px] h-12 rounded-xl text-[10px] uppercase font-bold"><SelectValue placeholder="Payment" /></SelectTrigger>
-            <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="paid">Paid</SelectItem><SelectItem value="unpaid">Pending</SelectItem></SelectContent>
+            <SelectTrigger className="lg:w-[140px] h-12 rounded-xl text-[10px] uppercase font-bold">
+              <SelectValue placeholder="Payment" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="paid">Paid</SelectItem>
+              <SelectItem value="unpaid">Pending</SelectItem>
+            </SelectContent>
           </Select>
-          <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl" onClick={() => setSortOrder(prev => prev === "desc" ? "asc" : "desc")}><ArrowUpDown className="w-4 h-4" /></Button>
+          <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl" onClick={() => setSortOrder(prev => prev === "desc" ? "asc" : "desc")}>
+            <ArrowUpDown className={cn("w-4 h-4 transition-transform", sortOrder === "asc" && "rotate-180")} />
+          </Button>
         </div>
       </div>
 
@@ -142,7 +161,9 @@ export default function ClientsPage() {
                       <Badge variant="outline" className="text-[8px] uppercase font-bold border-primary/30 text-primary">{client.category}</Badge>
                     </TableCell>
                     <TableCell className="min-w-[180px]">
-                      <p className="text-[10px] text-muted-foreground flex items-center gap-2"><Mail className="w-3 h-3" /> {client.clientEmail || "N/A"}</p>
+                      <p className="text-[10px] text-muted-foreground flex items-center gap-2 truncate" title={client.clientEmail}>
+                        <Mail className="w-3 h-3 shrink-0" /> {client.clientEmail || "N/A"}
+                      </p>
                     </TableCell>
                     <TableCell className="min-w-[150px]">
                       <p className="text-[10px] font-bold uppercase"><Calendar className="w-3 h-3 inline mr-2 text-primary" /> {client.date}</p>
@@ -154,7 +175,9 @@ export default function ClientsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/events/${client.id}/manage`}><Button size="sm" className="rounded-lg h-9 gap-2">Manage <ChevronRight className="w-3 h-3" /></Button></Link>
+                      <Link href={`/events/${client.id}/manage`}>
+                        <Button size="sm" className="rounded-lg h-9 gap-2">Manage <ChevronRight className="w-3 h-3" /></Button>
+                      </Link>
                     </TableCell>
                   </TableRow>
                 ))
