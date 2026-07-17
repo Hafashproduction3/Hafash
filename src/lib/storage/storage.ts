@@ -55,6 +55,14 @@ export interface StorageProvider {
   getSignedUrl(key: string, expiresIn?: number): Promise<string>;
 
   /**
+   * Generates a pre-signed URL for direct browser-to-storage uploads.
+   * @param key The destination path.
+   * @param contentType The expected MIME type.
+   * @param expiresIn Expiration in seconds.
+   */
+  getSignedUploadUrl(key: string, contentType: string, expiresIn?: number): Promise<string>;
+
+  /**
    * Checks if a file exists in the storage bucket.
    */
   fileExists(key: string): Promise<boolean>;

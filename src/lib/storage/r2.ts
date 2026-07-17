@@ -20,20 +20,12 @@ import {
 /**
  * Cloudflare R2 Storage Provider Implementation.
  * Uses the S3-compatible API via AWS SDK v3.
- * 
- * DESIGNED FOR PRODUCTION:
- * - Singleton client pattern to reduce handshake overhead.
- * - Stream-based operations for memory efficiency with large RAW files/videos.
- * - Robust environment validation to fail fast on misconfiguration.
- * - Custom error wrapping for application stability.
- * - Server-side only enforcement.
  */
 class R2StorageProvider implements StorageProvider {
   private client: S3Client | null = null;
   private readonly bucket: string;
 
   constructor() {
-    // Guard: Prevent execution in a browser environment to protect credentials
     if (typeof window !== 'undefined') {
       throw new Error('R2StorageProvider can only be initialized in a server environment.');
     }
@@ -42,9 +34,6 @@ class R2StorageProvider implements StorageProvider {
     this.validateConfig();
   }
 
-  /**
-   * Verifies critical configuration on initialization.
-   */
   private validateConfig(): void {
     const requiredVars = [
       'R2_BUCKET_NAME',
@@ -61,31 +50,24 @@ class R2StorageProvider implements StorageProvider {
     }
   }
 
-  /**
-   * Lazily initializes the S3 client singleton.
-   */
   private getClient(): S3Client {
     if (this.client) return this.client;
 
     this.client = new S3Client({
-      region: "auto", // Required by Cloudflare R2
+      region: "auto",
       endpoint: process.env.R2_ENDPOINT,
       credentials: {
         accessKeyId: process.env.R2_ACCESS_KEY_ID!,
         secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
       },
-      maxAttempts: 3, // Production retry strategy
+      maxAttempts: 3,
     });
 
     return this.client;
   }
 
-  /**
-   * Safe metadata logging.
-   */
   private log(action: string, key: string, status: 'INFO' | 'ERROR', message?: string): void {
     const timestamp = new Date().toISOString();
-    // Security: Never log request objects or credentials
     console.log(`[R2_STORAGE][${status}] ${timestamp} - ${action}: ${key}${message ? ` (${message})` : ''}`);
   }
 
@@ -94,7 +76,7 @@ class R2StorageProvider implements StorageProvider {
       const command = new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
-        Body: body as any, // SDK supports Buffer, stream, or string
+        Body: body as any,
         ContentType: contentType,
       });
 
@@ -118,7 +100,6 @@ class R2StorageProvider implements StorageProvider {
       const response = await this.getClient().send(command);
       if (!response.Body) return null;
 
-      // Return a web-standard stream for efficient chunked delivery
       return response.Body.transformToWebStream() as ReadableStream;
     } catch (error: unknown) {
       if (error instanceof S3ServiceException && (error.name === 'NoSuchKey' || error.$metadata?.httpStatusCode === 404)) {
@@ -146,7 +127,6 @@ class R2StorageProvider implements StorageProvider {
   }
 
   async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
-    // Preference: Argument > Env Variable > Default (1 hour)
     const expiration = expiresIn || Number(process.env.R2_SIGNED_URL_EXPIRATION) || 3600;
     
     try {
@@ -159,6 +139,23 @@ class R2StorageProvider implements StorageProvider {
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : String(error);
       throw new StorageError(`Could not generate signed URL for ${key}: ${detail}`);
+    }
+  }
+
+  async getSignedUploadUrl(key: string, contentType: string, expiresIn?: number): Promise<string> {
+    const expiration = expiresIn || 60; // Default 60 seconds for upload initiation
+    
+    try {
+      const command = new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        ContentType: contentType,
+      });
+
+      return await getS3SignedUrl(this.getClient(), command, { expiresIn: expiration });
+    } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new StorageError(`Could not generate signed upload URL for ${key}: ${detail}`);
     }
   }
 
