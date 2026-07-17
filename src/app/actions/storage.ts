@@ -16,90 +16,57 @@ export async function requestUploadUrl(params: {
   contentType: string;
   fileSize: number;
 }) {
-  console.log(">>> [DEBUG] START requestUploadUrl");
   const { userId, galleryId, fileName, contentType, fileSize } = params;
 
-  // 1. Log Received Parameters
-  console.log(">>> [DEBUG] Received Parameters:", { userId, galleryId, fileName, contentType, fileSize });
-
-  // 2. Check Environment Variables Presence
-  console.log(">>> [DEBUG] Environment Variables Status:");
-  console.log(" - R2_ACCOUNT_ID exists:", !!process.env.R2_ACCOUNT_ID);
-  console.log(" - R2_BUCKET_NAME exists:", !!process.env.R2_BUCKET_NAME);
-  console.log(" - R2_ACCESS_KEY_ID exists:", !!process.env.R2_ACCESS_KEY_ID);
-  console.log(" - R2_SECRET_ACCESS_KEY exists:", !!process.env.R2_SECRET_ACCESS_KEY);
-  console.log(" - R2_ENDPOINT exists:", !!process.env.R2_ENDPOINT);
-  console.log(" - R2_SIGNED_URL_EXPIRATION exists:", !!process.env.R2_SIGNED_URL_EXPIRATION);
-
-  // 3. Initial Validation
+  // 1. Initial Validation
   if (!userId || !galleryId || !fileName || !contentType || !fileSize) {
-    console.error(">>> [DEBUG] Validation Failed: Missing transmission parameters.");
     return { success: false, error: "Missing transmission parameters." };
   }
 
-  // 4. Firebase Admin Check
+  // 2. Firebase Admin Check
   if (!adminDb) {
-    console.error(">>> [DEBUG] ERROR: adminDb is NOT initialized. Check FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL.");
+    console.error("[STORAGE_ERROR] Firebase Admin not initialized.");
     return { success: false, error: "Cloud storage database is offline." };
   }
-  console.log(">>> [DEBUG] Authentication/Admin Status: adminDb initialized.");
 
   try {
-    // 5. Quota Verification
-    console.log(">>> [DEBUG] START getStorageStats for user:", userId);
+    // 3. Quota Verification
     const stats = await getStorageStats(userId);
-    console.log(">>> [DEBUG] END getStorageStats");
-    console.log(">>> [DEBUG] Storage Stats Result:", stats);
-
     const incomingGb = fileSize / (1024 * 1024 * 1024);
+    
     if (stats.usedGb + incomingGb > stats.totalGb) {
-      console.error(">>> [DEBUG] Quota Exceeded:", { usedGb: stats.usedGb, incomingGb, limit: stats.totalGb });
       return { 
         success: false, 
         error: `Storage Quota Exceeded. You have ${stats.remainingGb.toFixed(2)}GB left, but this file requires ${incomingGb.toFixed(4)}GB.` 
       };
     }
 
-    // 6. Ownership Verification
-    console.log(">>> [DEBUG] START Gallery Lookup:", galleryId);
+    // 4. Ownership Verification
     const gallerySnap = await adminDb.collection('galleries').doc(galleryId).get();
-    console.log(">>> [DEBUG] END Gallery Lookup");
-
     if (!gallerySnap.exists) {
-      console.error(">>> [DEBUG] Gallery Exists: FALSE");
-      throw new Error("Target gallery record lost.");
+      return { success: false, error: "Target gallery record not found." };
     }
-    console.log(">>> [DEBUG] Gallery Exists: TRUE");
     
     const galleryData = gallerySnap.data();
-    console.log(">>> [DEBUG] Gallery Owner check:", { recordUserId: galleryData?.userId, sessionUserId: userId });
     if (galleryData?.userId !== userId) {
-      console.error(">>> [DEBUG] Gallery Owner: MISMATCH");
-      throw new Error("Unauthorized workspace access.");
+      return { success: false, error: "Unauthorized workspace access." };
     }
-    console.log(">>> [DEBUG] Gallery Owner: MATCH");
 
-    // 7. Construct Secure R2 Path
+    // 5. Construct Secure R2 Path
     const safeFileName = fileName.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
     const fileId = uuidv4();
     const key = `uploads/${userId}/${galleryId}/${fileId}-${safeFileName}`;
-    console.log(">>> [DEBUG] Generated Key:", key);
 
-    // 8. Generate Signed URL
-    console.log(">>> [DEBUG] START Signed URL Generation");
+    // 6. Generate Signed URL
     const uploadUrl = await storage.getSignedUploadUrl(key, contentType, 300);
-    console.log(">>> [DEBUG] END Signed URL Generation");
 
     if (!uploadUrl) {
-      console.error(">>> [DEBUG] Upload URL Created: FALSE (signedUrl returned empty)");
       throw new Error("Failed to generate secure upload channel.");
     }
-    console.log(">>> [DEBUG] Upload URL Created: TRUE");
 
-    // 9. Audit Log (Console)
-    console.log(`[STORAGE_AUDIT][UPLOAD_REQ] User:${userId} Gallery:${galleryId} File:${fileName} Size:${fileSize}`);
+    // 7. Audit Log
+    console.log(`[STORAGE_AUDIT][UPLOAD_REQ] User:${userId} Gallery:${galleryId} File:${fileName}`);
 
-    console.log(">>> [DEBUG] RETURN Success");
     return {
       success: true,
       uploadUrl,
@@ -108,10 +75,11 @@ export async function requestUploadUrl(params: {
     };
 
   } catch (error: any) {
-    console.error(">>> [DEBUG] FULL ERROR IN requestUploadUrl:");
-    console.error(error);
-    if (error.stack) console.error(error.stack);
-    return { success: false, error: error.message };
+    console.error("[STORAGE_CRITICAL] requestUploadUrl failure:", error);
+    return { 
+      success: false, 
+      error: error.message || "An unexpected error occurred during storage authorization." 
+    };
   }
 }
 
@@ -163,10 +131,9 @@ export async function completeUpload(params: {
     return { success: true };
 
   } catch (error: any) {
-    console.error(">>> [DEBUG] FULL ERROR IN completeUpload:");
-    console.error(error);
-    if (error.stack) console.error(error.stack);
+    console.error("[STORAGE_CRITICAL] completeUpload failure:", error);
     
+    // Attempt rollback
     try {
       await storage.deleteFile(task.key);
       console.log(`[STORAGE_AUDIT][ROLLBACK] Purged orphan: ${task.key}`);
@@ -210,9 +177,7 @@ export async function requestDownloadUrl(params: {
     };
 
   } catch (error: any) {
-    console.error(">>> [DEBUG] FULL ERROR IN requestDownloadUrl:");
-    console.error(error);
-    if (error.stack) console.error(error.stack);
+    console.error("[STORAGE_CRITICAL] requestDownloadUrl failure:", error);
     return { success: false, error: error.message };
   }
 }

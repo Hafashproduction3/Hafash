@@ -22,15 +22,11 @@ import {
  */
 class R2StorageProvider implements StorageProvider {
   private client: S3Client | null = null;
-  private readonly bucket: string;
 
   constructor() {
     if (typeof window !== 'undefined') {
       throw new Error('R2StorageProvider can only be initialized in a server environment.');
     }
-
-    this.bucket = process.env.R2_BUCKET_NAME || "";
-    this.validateConfig();
   }
 
   private validateConfig(): void {
@@ -52,6 +48,9 @@ class R2StorageProvider implements StorageProvider {
   private getClient(): S3Client {
     if (this.client) return this.client;
 
+    // Validate only when needed to prevent module-level crashes during build/init
+    this.validateConfig();
+
     this.client = new S3Client({
       region: "auto",
       endpoint: process.env.R2_ENDPOINT,
@@ -65,6 +64,10 @@ class R2StorageProvider implements StorageProvider {
     return this.client;
   }
 
+  private get bucketName(): string {
+    return process.env.R2_BUCKET_NAME || "";
+  }
+
   private log(action: string, key: string, status: 'INFO' | 'ERROR', message?: string): void {
     const timestamp = new Date().toISOString();
     console.log(`[R2_STORAGE][${status}] ${timestamp} - ${action}: ${key}${message ? ` (${message})` : ''}`);
@@ -73,7 +76,7 @@ class R2StorageProvider implements StorageProvider {
   async uploadFile(key: string, body: StorageBody, contentType?: string): Promise<string> {
     try {
       const command = new PutObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketName,
         Key: key,
         Body: body as any,
         ContentType: contentType,
@@ -92,7 +95,7 @@ class R2StorageProvider implements StorageProvider {
   async downloadFile(key: string): Promise<ReadableStream | null> {
     try {
       const command = new GetObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketName,
         Key: key,
       });
 
@@ -112,7 +115,7 @@ class R2StorageProvider implements StorageProvider {
   async deleteFile(key: string): Promise<void> {
     try {
       const command = new DeleteObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketName,
         Key: key,
       });
 
@@ -130,7 +133,7 @@ class R2StorageProvider implements StorageProvider {
     
     try {
       const command = new GetObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketName,
         Key: key,
       });
 
@@ -146,7 +149,7 @@ class R2StorageProvider implements StorageProvider {
     
     try {
       const command = new PutObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketName,
         Key: key,
         ContentType: contentType,
       });
@@ -161,7 +164,7 @@ class R2StorageProvider implements StorageProvider {
   async fileExists(key: string): Promise<boolean> {
     try {
       const command = new HeadObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketName,
         Key: key,
       });
 
@@ -178,7 +181,7 @@ class R2StorageProvider implements StorageProvider {
   async getFileMetadata(key: string): Promise<ObjectMetadata | null> {
     try {
       const command = new HeadObjectCommand({
-        Bucket: this.bucket,
+        Bucket: this.bucketName,
         Key: key,
       });
 
@@ -200,7 +203,7 @@ class R2StorageProvider implements StorageProvider {
   async listFiles(prefix?: string): Promise<string[]> {
     try {
       const command = new ListObjectsV2Command({
-        Bucket: this.bucket,
+        Bucket: this.bucketName,
         Prefix: prefix,
       });
 
