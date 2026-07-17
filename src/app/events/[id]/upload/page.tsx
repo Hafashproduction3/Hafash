@@ -3,8 +3,8 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
-import { doc, updateDoc, arrayUnion, collection, query, where } from 'firebase/firestore';
-import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, Activity, ShieldCheck, HardDrive, Pause, Play } from 'lucide-react';
+import { doc, collection, query, where } from 'firebase/firestore';
+import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, AlertTriangle, Activity, ShieldCheck, HardDrive, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { UploadEngine, type UploadTask } from '@/lib/storage/upload-engine';
+import { completeUpload } from '@/app/actions/storage';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
@@ -75,32 +76,32 @@ export default function GalleryUploadPage() {
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
 
   const syncMetadata = useCallback(async (task: UploadTask) => {
-    if (!firestore || !id) return;
+    if (!user || !id || !task.key) return;
     
-    const assetUrl = `https://firebasestorage.googleapis.com/v0/b/hafash-pk.firebasestorage.app/o/${encodeURIComponent(task.key!)}?alt=media`;
-    
-    const uploadedItem = {
-      id: task.id,
-      url: assetUrl,
-      masterUrl: assetUrl,
-      type: 'image',
-      isFavorite: false,
-      fileName: task.file.name,
-      fileSize: task.file.size,
-      storageKey: task.key,
-      createdAt: new Date().toISOString()
-    };
+    // Call the Server Action for verified, transactional sync
+    const result = await completeUpload({
+      userId: user.uid,
+      galleryId: id,
+      task: {
+        id: task.id,
+        key: task.key,
+        file: {
+          name: task.file.name,
+          size: task.file.size,
+          type: task.file.type
+        }
+      }
+    });
 
-    const galleryRef = doc(firestore, 'galleries', id);
-    try {
-      await updateDoc(galleryRef, { 
-        items: arrayUnion(uploadedItem),
-        updatedAt: new Date().toISOString()
-      });
-    } catch (err: any) {
-      console.error("METADATA_SYNC_FAILURE:", err.message);
+    if (!result.success) {
+      setFiles(prev => prev.map(f => f.id === task.id ? { 
+        ...f, 
+        status: 'error', 
+        error: result.error || "Metadata synchronization failed.",
+        currentStep: "Sync Failed" 
+      } : f));
     }
-  }, [id, firestore]);
+  }, [id, user]);
 
   const handleTaskUpdate = useCallback((task: UploadTask) => {
     setFiles(prev => prev.map(f => {
@@ -175,16 +176,6 @@ export default function GalleryUploadPage() {
 
   const startUpload = async () => {
     if (!engineRef.current || files.length === 0) return;
-
-    const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? f.file.size : 0), 0) / (1024 * 1024 * 1024);
-    if ((currentUsageGb + pendingSizeGb) > currentPlan.storageGb) {
-      toast({
-        variant: "destructive",
-        title: "Vault Capacity Exceeded",
-        description: "This delivery exceeds your studio storage limit."
-      });
-      return;
-    }
 
     setIsUploading(true);
     setIsPaused(false);

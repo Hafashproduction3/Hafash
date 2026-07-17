@@ -14,7 +14,8 @@ import {
   StorageProvider, 
   StorageBody, 
   StorageError, 
-  StorageConnectionError 
+  StorageConnectionError,
+  type ObjectMetadata
 } from './storage';
 
 /**
@@ -143,7 +144,7 @@ class R2StorageProvider implements StorageProvider {
   }
 
   async getSignedUploadUrl(key: string, contentType: string, expiresIn?: number): Promise<string> {
-    const expiration = expiresIn || 60; // Default 60 seconds for upload initiation
+    const expiration = expiresIn || 300; 
     
     try {
       const command = new PutObjectCommand({
@@ -172,8 +173,29 @@ class R2StorageProvider implements StorageProvider {
       if (error instanceof S3ServiceException && (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404)) {
         return false;
       }
-      const detail = error instanceof Error ? error.message : String(error);
-      throw new StorageError(`Existence check failed for ${key}: ${detail}`);
+      return false;
+    }
+  }
+
+  async getFileMetadata(key: string): Promise<ObjectMetadata | null> {
+    try {
+      const command = new HeadObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      });
+
+      const response = await this.getClient().send(command);
+      return {
+        key,
+        size: response.ContentLength || 0,
+        contentType: response.ContentType,
+        lastModified: response.LastModified,
+      };
+    } catch (error: unknown) {
+      if (error instanceof S3ServiceException && (error.name === 'NotFound' || error.$metadata?.httpStatusCode === 404)) {
+        return null;
+      }
+      throw new StorageError(`Failed to retrieve metadata for ${key}`);
     }
   }
 

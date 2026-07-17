@@ -1,6 +1,16 @@
 'use server';
 
 /**
+ * Metadata associated with a stored object.
+ */
+export interface ObjectMetadata {
+  key: string;
+  size: number;
+  contentType?: string;
+  lastModified?: Date;
+}
+
+/**
  * Base error class for all storage-related failures.
  */
 export class StorageError extends Error {
@@ -33,9 +43,6 @@ export type StorageBody = string | Uint8Array | Buffer | ReadableStream | Blob;
 export interface StorageProvider {
   /**
    * Uploads a file to the storage provider.
-   * @param key Unique identifier (path) for the file.
-   * @param body The file content.
-   * @param contentType Optional MIME type.
    */
   uploadFile(key: string, body: StorageBody, contentType?: string): Promise<string>;
 
@@ -56,9 +63,6 @@ export interface StorageProvider {
 
   /**
    * Generates a pre-signed URL for direct browser-to-storage uploads.
-   * @param key The destination path.
-   * @param contentType The expected MIME type.
-   * @param expiresIn Expiration in seconds.
    */
   getSignedUploadUrl(key: string, contentType: string, expiresIn?: number): Promise<string>;
 
@@ -66,6 +70,11 @@ export interface StorageProvider {
    * Checks if a file exists in the storage bucket.
    */
   fileExists(key: string): Promise<boolean>;
+
+  /**
+   * Retrieves metadata for a specific object.
+   */
+  getFileMetadata(key: string): Promise<ObjectMetadata | null>;
 
   /**
    * Lists file keys matching a specific prefix.
