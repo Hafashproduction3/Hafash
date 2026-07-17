@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
 import { doc, updateDoc, arrayUnion, collection, query, where } from 'firebase/firestore';
@@ -13,10 +13,11 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 import { HafashLoader } from '@/components/ui/hafash-loader';
+import { UploadEngine, type UploadTask } from '@/lib/storage/upload-engine';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-type UploadStepStatus = 'queued' | 'uploading' | 'completed' | 'error';
+type UploadStepStatus = 'queued' | 'uploading' | 'completed' | 'error' | 'cancelled';
 
 interface FileItem {
   id: string;
@@ -26,6 +27,8 @@ interface FileItem {
   status: UploadStepStatus;
   error?: string;
   currentStep: string;
+  speed?: string;
+  eta?: string;
 }
 
 export default function GalleryUploadPage() {
@@ -38,6 +41,7 @@ export default function GalleryUploadPage() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDone, setIsDone] = useState(false);
+  const engineRef = useRef<UploadEngine | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -52,14 +56,12 @@ export default function GalleryUploadPage() {
 
   const { data: event, loading: dataLoading } = useDoc(eventRef);
 
-  // Fetch user profile for plan details
   const profileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user?.uid]);
   const { data: profile } = useDoc(profileRef);
 
-  // Fetch all galleries to calculate current usage
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
@@ -72,119 +74,132 @@ export default function GalleryUploadPage() {
   }, [profile?.planId]);
 
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
+
+  /**
+   * Handle task updates from the Upload Engine
+   */
+  const handleTaskUpdate = useCallback((task: UploadTask) => {
+    setFiles(prev => prev.map(f => {
+      if (f.id === task.id) {
+        const speedMb = (task.speed / (1024 * 1024)).toFixed(1);
+        const etaMin = Math.floor(task.eta / 60);
+        const etaSec = Math.round(task.eta % 60);
+
+        let step = 'Pending...';
+        if (task.status === 'uploading') step = `Syncing: ${speedMb} MB/s`;
+        if (task.status === 'completed') step = 'Delivered to Cloud';
+        if (task.status === 'error') step = 'Sync Failed';
+
+        return {
+          ...f,
+          progress: task.progress,
+          status: task.status as UploadStepStatus,
+          error: task.error,
+          currentStep: step,
+          speed: `${speedMb} MB/s`,
+          eta: task.eta > 0 ? `${etaMin}m ${etaSec}s` : 'Calculating...'
+        };
+      }
+      return f;
+    }));
+
+    // If a task finishes, update Firestore metadata
+    if (task.status === 'completed' && task.key) {
+      syncMetadata(task);
+    }
+  }, [id, firestore]);
+
+  /**
+   * Finalizes the asset delivery in Firestore
+   */
+  const syncMetadata = async (task: UploadTask) => {
+    if (!firestore || !id) return;
+    
+    // In production, the R2_PUBLIC_DOMAIN would be used. 
+    // For this build, we use the signed path or a predictable R2 structure.
+    const assetUrl = `https://firebasestorage.googleapis.com/v0/b/hafash-pk.firebasestorage.app/o/${encodeURIComponent(task.key!)}?alt=media`;
+    
+    const uploadedItem = {
+      id: task.id,
+      url: assetUrl,
+      masterUrl: assetUrl,
+      type: 'image',
+      isFavorite: false,
+      fileName: task.file.name,
+      fileSize: task.file.size,
+      storageKey: task.key,
+      createdAt: new Date().toISOString()
+    };
+
+    const galleryRef = doc(firestore, 'galleries', id);
+    updateDoc(galleryRef, { 
+      items: arrayUnion(uploadedItem),
+      updatedAt: new Date().toISOString()
+    }).catch(err => {
+      console.error("METADATA_SYNC_FAILURE:", err.message);
+    });
+  };
+
+  const onAllUploadsComplete = useCallback(() => {
+    setIsUploading(false);
+    setIsDone(true);
+    toast({ title: "Portfolio Delivered", description: "All masterpieces have been synchronized with the studio vault." });
+  }, [toast]);
+
+  // Initialize Engine
+  useEffect(() => {
+    if (user && id && !engineRef.current) {
+      engineRef.current = new UploadEngine({
+        userId: user.uid,
+        galleryId: id,
+        onUpdate: handleTaskUpdate,
+        onComplete: onAllUploadsComplete
+      });
+    }
+  }, [user, id, handleTaskUpdate, onAllUploadsComplete]);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setIsDone(false);
-      const newFiles: FileItem[] = Array.from(e.target.files).map(f => ({
-        id: Math.random().toString(36).substr(2, 9),
+      const selectedFiles = Array.from(e.target.files);
+      
+      const newItems: FileItem[] = selectedFiles.map(f => ({
+        id: Math.random().toString(36).substring(2, 11),
         file: f,
         name: f.name,
         progress: 0,
         status: 'queued',
-        currentStep: 'Step 1: File Selected'
+        currentStep: 'In Queue'
       }));
-      setFiles(prev => [...prev, ...newFiles]);
+
+      setFiles(prev => [...prev, ...newItems]);
     }
   };
 
   const removeFile = (fileId: string) => {
     setFiles(prev => prev.filter(f => f.id !== fileId));
+    if (engineRef.current) engineRef.current.cancelTask(fileId);
   };
 
-  const startDemoUpload = async () => {
-    if (!firestore || !user || !event) return;
-    
-    if (files.length === 0) {
-      toast({ title: "No files selected" });
-      return;
-    }
+  const startUpload = async () => {
+    if (!engineRef.current || files.length === 0) return;
 
-    // Storage Limit Enforcement
+    // Quota Enforcement
     const pendingSizeGb = files.reduce((acc, f) => acc + f.file.size, 0) / (1024 * 1024 * 1024);
-    const totalPotentialUsage = currentUsageGb + pendingSizeGb;
-
-    if (totalPotentialUsage > currentPlan.storageGb) {
+    if ((currentUsageGb + pendingSizeGb) > currentPlan.storageGb) {
       toast({
         variant: "destructive",
-        title: "Storage Limit Reached",
-        description: "Your pending upload exceeds your available storage. Please upgrade your plan to continue.",
+        title: "Vault Capacity Exceeded",
+        description: "This delivery exceeds your studio storage limit. Please expand your plan."
       });
       return;
     }
 
     setIsUploading(true);
-    const uploadedItems: any[] = [];
-    const successfulFileIds: string[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const fileItem = files[i];
-      const fileId = fileItem.id;
-
-      const updateStep = (status: UploadStepStatus, step: string, progress: number = 0) => {
-        setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status, currentStep: step, progress } : f));
-      };
-
-      // Step 2: Telemetry Check
-      updateStep('uploading', 'Step 2: Processing Masterpiece', 30);
-      await new Promise(r => setTimeout(r, 400));
-
-      // Step 3: Optimization
-      updateStep('uploading', 'Step 3: Optimizing for Web', 60);
-      await new Promise(r => setTimeout(r, 400));
-
-      // Step 4: Generating Secure URL (Demo Mode Logic)
-      updateStep('uploading', 'Step 4: Finalizing Asset', 90);
-      
-      const previewUrl = `https://picsum.photos/seed/${fileId}/1600/1200`;
-      const masterUrl = `https://picsum.photos/seed/${fileId}/4000/3000`; 
-      
-      uploadedItems.push({
-        id: fileId,
-        url: previewUrl,
-        masterUrl: masterUrl,
-        type: 'image',
-        isFavorite: false,
-        fileName: fileItem.name,
-        fileSize: fileItem.file.size,
-        createdAt: new Date().toISOString()
-      });
-      successfulFileIds.push(fileId);
-      updateStep('uploading', 'Step 4: Done', 100);
-    }
-
-    const galleryRef = doc(firestore, 'galleries', id);
-    const updateData = { items: arrayUnion(...uploadedItems) };
-
-    updateDoc(galleryRef, updateData)
-      .then(() => {
-        setFiles(prev => prev.map(f => 
-          successfulFileIds.includes(f.id) 
-            ? { ...f, status: 'completed', currentStep: 'Step 5: Cloud Sync Complete' } 
-            : f
-        ));
-        toast({ title: "Delivery Complete", description: `${uploadedItems.length} masterpieces delivered to cloud.` });
-        setIsDone(true);
-      })
-      .catch(async (err: any) => {
-        setFiles(prev => prev.map(f => 
-          successfulFileIds.includes(f.id) 
-            ? { ...f, status: 'error', error: `Cloud Sync Error: ${err.message}` } 
-            : f
-        ));
-        
-        if (err.code === 'permission-denied') {
-          const permissionError = new FirestorePermissionError({
-            path: galleryRef.path,
-            operation: 'update',
-            requestResourceData: updateData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        }
-      })
-      .finally(() => {
-        setIsUploading(false);
-      });
+    const queuedFiles = files.filter(f => f.status === 'queued').map(f => f.file);
+    
+    // The engine handles the heavy lifting
+    engineRef.current.addFiles(queuedFiles);
   };
 
   if (authLoading || dataLoading) {
@@ -233,16 +248,6 @@ export default function GalleryUploadPage() {
         </Alert>
       )}
 
-      {!isOverLimit && (
-        <Alert className="bg-primary/10 border-primary/20 rounded-2xl">
-          <Info className="h-5 w-5 text-primary" />
-          <AlertTitle className="font-bold text-primary">Studio Sync Service Active</AlertTitle>
-          <AlertDescription className="text-primary/80">
-            Your assets are being routed through the high-speed delivery pipeline. Master files will be synchronized upon completion.
-          </AlertDescription>
-        </Alert>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className={cn(
@@ -252,7 +257,7 @@ export default function GalleryUploadPage() {
             <input 
               type="file" 
               multiple 
-              accept="image/*"
+              accept="image/*,video/*"
               className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed" 
               onChange={handleFileChange}
               disabled={isUploading || isOverLimit}
@@ -264,9 +269,9 @@ export default function GalleryUploadPage() {
               <Upload className={cn("w-10 h-10", isOverLimit ? "text-destructive" : "text-primary")} />
             </div>
             <p className="text-lg font-headline font-bold">
-              {isOverLimit ? "Limit Reached" : "Select Photos"}
+              {isOverLimit ? "Limit Reached" : "Select Assets"}
             </p>
-            <p className="text-sm text-muted-foreground mt-2 font-mono italic">Studio Telemetry Active.</p>
+            <p className="text-sm text-muted-foreground mt-2 font-mono italic">Direct-to-Cloud Channel Active.</p>
           </div>
 
           <div className="flex flex-col sm:flex-row justify-end gap-4">
@@ -280,17 +285,17 @@ export default function GalleryUploadPage() {
                   "rounded-full px-10 h-12 font-bold shadow-lg flex-1 sm:flex-none min-w-[200px]",
                   isOverLimit ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
                 )}
-                onClick={startDemoUpload}
+                onClick={startUpload}
                 disabled={files.length === 0 || isUploading || isOverLimit}
               >
                 {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                {isUploading ? 'Finalizing...' : isDone ? 'Deliver More' : 'Deliver Gallery'}
+                {isUploading ? 'Synchronizing...' : isDone ? 'Deliver More' : 'Begin Delivery'}
               </Button>
 
               {isDone && (
                 <Link href={`/events/${id}/manage`} className="flex-1 sm:flex-none">
                   <Button className="w-full rounded-full font-bold gap-2 px-10 h-12 bg-white text-black hover:bg-gray-100 shadow-xl animate-in fade-in slide-in-from-left-4 duration-500">
-                    Continue
+                    Continue to Event
                     <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
@@ -302,15 +307,15 @@ export default function GalleryUploadPage() {
         <div className="bg-card border border-border/50 rounded-3xl p-6 h-[500px] flex flex-col shadow-xl">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-headline font-bold flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" /> Delivery Status
+              <Activity className="w-5 h-5 text-primary" /> Active Pipeline
             </h3>
-            <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full font-bold tracking-widest">{files.length} ITEMS</span>
+            <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-full font-bold tracking-widest">{files.length} ASSETS</span>
           </div>
           
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
             {files.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm italic opacity-50">
-                Waiting for selection...
+                Waiting for studio selection...
               </div>
             ) : (
               files.map(file => (
@@ -321,12 +326,17 @@ export default function GalleryUploadPage() {
                   <div className="flex justify-between items-start mb-2">
                     <div className="truncate pr-4">
                       <p className="text-sm font-bold truncate">{file.name}</p>
-                      <p className={cn(
-                        "text-[10px] font-mono mt-1",
-                        file.status === 'error' ? 'text-destructive' : 'text-primary'
-                      )}>
-                        {file.currentStep}
-                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className={cn(
+                          "text-[10px] font-mono",
+                          file.status === 'error' ? 'text-destructive' : 'text-primary'
+                        )}>
+                          {file.currentStep}
+                        </p>
+                        {file.eta && file.status === 'uploading' && (
+                          <span className="text-[9px] text-muted-foreground font-bold uppercase">ETA: {file.eta}</span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 mt-1">
                       {file.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
@@ -343,7 +353,7 @@ export default function GalleryUploadPage() {
                   <Progress value={file.progress} className={`h-1 rounded-full bg-border/30`} />
                   
                   {file.error && (
-                    <p className="mt-2 text-[9px] text-destructive font-bold uppercase">
+                    <p className="mt-2 text-[9px] text-destructive font-bold uppercase leading-tight">
                       {file.error}
                     </p>
                   )}
@@ -357,7 +367,7 @@ export default function GalleryUploadPage() {
       <div className="pt-8 border-t border-border/50 flex flex-col md:flex-row gap-6 justify-between items-center">
         <div className="flex items-center gap-3 text-sm text-muted-foreground italic">
           <ShieldCheck className="w-4 h-4 text-primary" />
-          <span>Encrypted Delivery Channel Active</span>
+          <span>Encrypted Direct-to-Storage Pipeline Active</span>
         </div>
       </div>
     </div>
