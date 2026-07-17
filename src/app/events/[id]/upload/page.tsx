@@ -4,20 +4,18 @@ import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
 import { doc, updateDoc, arrayUnion, collection, query, where } from 'firebase/firestore';
-import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, Activity, ShieldCheck, HardDrive } from 'lucide-react';
+import { Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, X, Info, AlertTriangle, Activity, ShieldCheck, HardDrive, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { UploadEngine, type UploadTask } from '@/lib/storage/upload-engine';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-type UploadStepStatus = 'queued' | 'uploading' | 'completed' | 'error' | 'cancelled';
+type UploadStepStatus = 'queued' | 'uploading' | 'completed' | 'error' | 'cancelled' | 'paused';
 
 interface FileItem {
   id: string;
@@ -40,6 +38,7 @@ export default function GalleryUploadPage() {
   
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [isDone, setIsDone] = useState(false);
   const engineRef = useRef<UploadEngine | null>(null);
 
@@ -75,48 +74,9 @@ export default function GalleryUploadPage() {
 
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
 
-  /**
-   * Handle task updates from the Upload Engine
-   */
-  const handleTaskUpdate = useCallback((task: UploadTask) => {
-    setFiles(prev => prev.map(f => {
-      if (f.id === task.id) {
-        const speedMb = (task.speed / (1024 * 1024)).toFixed(1);
-        const etaMin = Math.floor(task.eta / 60);
-        const etaSec = Math.round(task.eta % 60);
-
-        let step = 'Pending...';
-        if (task.status === 'uploading') step = `Syncing: ${speedMb} MB/s`;
-        if (task.status === 'completed') step = 'Delivered to Cloud';
-        if (task.status === 'error') step = 'Sync Failed';
-
-        return {
-          ...f,
-          progress: task.progress,
-          status: task.status as UploadStepStatus,
-          error: task.error,
-          currentStep: step,
-          speed: `${speedMb} MB/s`,
-          eta: task.eta > 0 ? `${etaMin}m ${etaSec}s` : 'Calculating...'
-        };
-      }
-      return f;
-    }));
-
-    // If a task finishes, update Firestore metadata
-    if (task.status === 'completed' && task.key) {
-      syncMetadata(task);
-    }
-  }, [id, firestore]);
-
-  /**
-   * Finalizes the asset delivery in Firestore
-   */
-  const syncMetadata = async (task: UploadTask) => {
+  const syncMetadata = useCallback(async (task: UploadTask) => {
     if (!firestore || !id) return;
     
-    // In production, the R2_PUBLIC_DOMAIN would be used. 
-    // For this build, we use the signed path or a predictable R2 structure.
     const assetUrl = `https://firebasestorage.googleapis.com/v0/b/hafash-pk.firebasestorage.app/o/${encodeURIComponent(task.key!)}?alt=media`;
     
     const uploadedItem = {
@@ -132,13 +92,46 @@ export default function GalleryUploadPage() {
     };
 
     const galleryRef = doc(firestore, 'galleries', id);
-    updateDoc(galleryRef, { 
-      items: arrayUnion(uploadedItem),
-      updatedAt: new Date().toISOString()
-    }).catch(err => {
+    try {
+      await updateDoc(galleryRef, { 
+        items: arrayUnion(uploadedItem),
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err: any) {
       console.error("METADATA_SYNC_FAILURE:", err.message);
-    });
-  };
+    }
+  }, [id, firestore]);
+
+  const handleTaskUpdate = useCallback((task: UploadTask) => {
+    setFiles(prev => prev.map(f => {
+      if (f.id === task.id) {
+        const speedMb = (task.speed / (1024 * 1024)).toFixed(1);
+        const etaMin = Math.floor(task.eta / 60);
+        const etaSec = Math.round(task.eta % 60);
+
+        let step = 'Pending...';
+        if (task.status === 'uploading') step = `Syncing: ${speedMb} MB/s`;
+        if (task.status === 'completed') step = 'Delivered to Cloud';
+        if (task.status === 'error') step = 'Sync Failed';
+        if (task.status === 'paused') step = 'Paused';
+
+        return {
+          ...f,
+          progress: task.progress,
+          status: task.status as UploadStepStatus,
+          error: task.error,
+          currentStep: step,
+          speed: `${speedMb} MB/s`,
+          eta: task.eta > 0 ? `${etaMin}m ${etaSec}s` : 'Calculating...'
+        };
+      }
+      return f;
+    }));
+
+    if (task.status === 'completed' && task.key) {
+      syncMetadata(task);
+    }
+  }, [syncMetadata]);
 
   const onAllUploadsComplete = useCallback(() => {
     setIsUploading(false);
@@ -146,7 +139,6 @@ export default function GalleryUploadPage() {
     toast({ title: "Portfolio Delivered", description: "All masterpieces have been synchronized with the studio vault." });
   }, [toast]);
 
-  // Initialize Engine
   useEffect(() => {
     if (user && id && !engineRef.current) {
       engineRef.current = new UploadEngine({
@@ -184,22 +176,31 @@ export default function GalleryUploadPage() {
   const startUpload = async () => {
     if (!engineRef.current || files.length === 0) return;
 
-    // Quota Enforcement
-    const pendingSizeGb = files.reduce((acc, f) => acc + f.file.size, 0) / (1024 * 1024 * 1024);
+    const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? f.file.size : 0), 0) / (1024 * 1024 * 1024);
     if ((currentUsageGb + pendingSizeGb) > currentPlan.storageGb) {
       toast({
         variant: "destructive",
         title: "Vault Capacity Exceeded",
-        description: "This delivery exceeds your studio storage limit. Please expand your plan."
+        description: "This delivery exceeds your studio storage limit."
       });
       return;
     }
 
     setIsUploading(true);
+    setIsPaused(false);
     const queuedFiles = files.filter(f => f.status === 'queued').map(f => f.file);
-    
-    // The engine handles the heavy lifting
     engineRef.current.addFiles(queuedFiles);
+  };
+
+  const togglePause = () => {
+    if (!engineRef.current) return;
+    if (isPaused) {
+      engineRef.current.resumeQueue();
+      setIsPaused(false);
+    } else {
+      engineRef.current.pauseQueue();
+      setIsPaused(true);
+    }
   };
 
   if (authLoading || dataLoading) {
@@ -210,7 +211,7 @@ export default function GalleryUploadPage() {
 
   if (!user || !event) return null;
 
-  const pendingSizeGb = files.reduce((acc, f) => acc + f.file.size, 0) / (1024 * 1024 * 1024);
+  const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? f.file.size : 0), 0) / (1024 * 1024 * 1024);
   const isOverLimit = (currentUsageGb + pendingSizeGb) > currentPlan.storageGb;
 
   return (
@@ -280,16 +281,22 @@ export default function GalleryUploadPage() {
             )}
             
             <div className="flex gap-3 w-full sm:w-auto">
+              {isUploading && (
+                <Button variant="outline" className="rounded-full h-12 w-12 p-0 border-primary/30 text-primary" onClick={togglePause}>
+                  {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+                </Button>
+              )}
+
               <Button 
                 className={cn(
                   "rounded-full px-10 h-12 font-bold shadow-lg flex-1 sm:flex-none min-w-[200px]",
                   isOverLimit ? "bg-muted text-muted-foreground" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20"
                 )}
                 onClick={startUpload}
-                disabled={files.length === 0 || isUploading || isOverLimit}
+                disabled={files.length === 0 || (isUploading && !isPaused) || isOverLimit}
               >
-                {isUploading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                {isUploading ? 'Synchronizing...' : isDone ? 'Deliver More' : 'Begin Delivery'}
+                {isUploading && !isPaused ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                {isUploading && !isPaused ? 'Synchronizing...' : isDone ? 'Deliver More' : isPaused ? 'Resume Sync' : 'Begin Delivery'}
               </Button>
 
               {isDone && (
@@ -342,6 +349,7 @@ export default function GalleryUploadPage() {
                       {file.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
                       {file.status === 'uploading' && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                       {file.status === 'error' && <AlertTriangle className="w-4 h-4 text-destructive" />}
+                      {file.status === 'paused' && <Pause className="w-3 h-3 text-amber-500" />}
                       {!isUploading && file.status === 'queued' && (
                         <button onClick={() => removeFile(file.id)} className="text-muted-foreground hover:text-destructive">
                            <X className="w-3 h-3" />

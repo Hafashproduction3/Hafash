@@ -1,8 +1,8 @@
 /**
- * HAFASH UPLOAD ENGINE
+ * HAFASH UPLOAD ENGINE (HARDENED)
  * 
  * A robust, client-side orchestration layer for professional asset delivery.
- * Features: Concurrent workers, progress telemetry, retry logic, and memory-efficient streaming.
+ * Features: Concurrent workers, progress telemetry, exponential retry logic, and memory-efficient streaming.
  */
 
 import { requestUploadUrl } from '@/app/actions/storage';
@@ -21,19 +21,14 @@ export interface UploadTask {
   xhr?: XMLHttpRequest;
   startTime?: number;
   key?: string;
-}
-
-export interface EngineStats {
-  activeTasks: number;
-  queuedTasks: number;
-  completedTasks: number;
-  totalSpeed: number; // aggregate bytes per second
+  retryCount: number;
 }
 
 export class UploadEngine {
   private queue: UploadTask[] = [];
   private workers: number = 3;
-  private maxRetries: number = 2;
+  private maxRetries: number = 3;
+  private isPaused: boolean = false;
   private onUpdate: (task: UploadTask) => void;
   private onComplete: () => void;
   private userId: string;
@@ -53,9 +48,6 @@ export class UploadEngine {
     this.onComplete = params.onComplete;
   }
 
-  /**
-   * Adds files to the upload pipeline.
-   */
   public addFiles(files: File[]) {
     const newTasks: UploadTask[] = files.map(file => ({
       id: Math.random().toString(36).substring(2, 11),
@@ -64,7 +56,8 @@ export class UploadEngine {
       progress: 0,
       bytesUploaded: 0,
       speed: 0,
-      eta: 0
+      eta: 0,
+      retryCount: 0
     }));
 
     this.queue.push(...newTasks);
@@ -72,10 +65,28 @@ export class UploadEngine {
     return newTasks;
   }
 
-  /**
-   * Orchestrates the worker pool.
-   */
+  public pauseQueue() {
+    this.isPaused = true;
+    this.queue.forEach(t => {
+      if (t.status === 'uploading' && t.xhr) {
+        t.xhr.abort();
+        t.status = 'paused';
+        this.onUpdate(t);
+      }
+    });
+  }
+
+  public resumeQueue() {
+    this.isPaused = false;
+    this.queue.forEach(t => {
+      if (t.status === 'paused') t.status = 'queued';
+    });
+    this.processQueue();
+  }
+
   private processQueue() {
+    if (this.isPaused) return;
+
     const active = this.queue.filter(t => t.status === 'uploading').length;
     const availableSlots = this.workers - active;
 
@@ -86,23 +97,22 @@ export class UploadEngine {
       .slice(0, availableSlots);
 
     if (nextTasks.length === 0 && active === 0) {
-      this.onComplete();
+      const allDone = this.queue.every(t => t.status === 'completed' || t.status === 'error' || t.status === 'cancelled');
+      if (allDone) this.onComplete();
       return;
     }
 
     nextTasks.forEach(task => this.executeTask(task));
   }
 
-  /**
-   * Executes a single Direct-to-R2 upload task.
-   */
   private async executeTask(task: UploadTask) {
+    if (this.isPaused) return;
+    
     task.status = 'uploading';
     task.startTime = Date.now();
     this.onUpdate(task);
 
     try {
-      // 1. Request Secure Brokerage from Server
       const { success, uploadUrl, key, error } = await requestUploadUrl({
         userId: this.userId,
         galleryId: this.galleryId,
@@ -111,12 +121,11 @@ export class UploadEngine {
       });
 
       if (!success || !uploadUrl) {
-        throw new Error(error || "Failed to obtain upload authorization.");
+        throw new Error(error || "Authorization failed.");
       }
 
       task.key = key;
 
-      // 2. Direct Browser-to-R2 Transmission via XHR (for progress events)
       const xhr = new XMLHttpRequest();
       task.xhr = xhr;
 
@@ -131,7 +140,7 @@ export class UploadEngine {
           if (duration > 0) {
             task.speed = e.loaded / duration;
             const remainingBytes = e.total - e.loaded;
-            task.eta = remainingBytes / task.speed;
+            task.eta = task.speed > 0 ? remainingBytes / task.speed : 0;
           }
 
           this.onUpdate(task);
@@ -142,15 +151,16 @@ export class UploadEngine {
         if (xhr.status >= 200 && xhr.status < 300) {
           task.status = 'completed';
           task.progress = 100;
+          this.cleanupTask(task);
           this.onUpdate(task);
           this.processQueue();
         } else {
-          throw new Error(`Cloud rejection: ${xhr.statusText}`);
+          this.handleTaskFailure(task, `Cloud rejection: ${xhr.status}`);
         }
       });
 
       xhr.addEventListener('error', () => {
-        throw new Error("Network synchronization failure.");
+        this.handleTaskFailure(task, "Network sync failure.");
       });
 
       xhr.open('PUT', uploadUrl);
@@ -158,10 +168,32 @@ export class UploadEngine {
       xhr.send(task.file);
 
     } catch (err: any) {
+      this.handleTaskFailure(task, err.message);
+    }
+  }
+
+  private handleTaskFailure(task: UploadTask, message: string) {
+    this.cleanupTask(task);
+    
+    if (task.retryCount < this.maxRetries && !this.isPaused) {
+      task.retryCount++;
+      task.status = 'queued';
+      // Exponential backoff delay
+      setTimeout(() => this.processQueue(), Math.pow(2, task.retryCount) * 1000);
+    } else {
       task.status = 'error';
-      task.error = err.message;
+      task.error = message;
       this.onUpdate(task);
       this.processQueue();
+    }
+  }
+
+  private cleanupTask(task: UploadTask) {
+    if (task.xhr) {
+      task.xhr.upload.onprogress = null;
+      task.xhr.onload = null;
+      task.xhr.onerror = null;
+      task.xhr = undefined;
     }
   }
 
@@ -169,6 +201,7 @@ export class UploadEngine {
     const task = this.queue.find(t => t.id === taskId);
     if (task) {
       if (task.xhr) task.xhr.abort();
+      this.cleanupTask(task);
       task.status = 'cancelled';
       this.onUpdate(task);
       this.processQueue();
