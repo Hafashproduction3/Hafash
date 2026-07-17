@@ -114,6 +114,29 @@ export default function GalleryUploadPage() {
 
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
 
+  /**
+   * MONITOR COMPLETION
+   * Effect that handles final cleanup once all tasks (transfer + sync) are done.
+   */
+  useEffect(() => {
+    if (isUploading && files.length > 0) {
+      const allFinished = files.every(f => 
+        f.status === 'completed' || 
+        f.status === 'error' || 
+        f.status === 'cancelled'
+      );
+
+      if (allFinished) {
+        setIsUploading(false);
+        setIsDone(true);
+        toast({ 
+          title: "Portfolio Delivered", 
+          description: "All masterpieces have been synchronized with the studio vault." 
+        });
+      }
+    }
+  }, [files, isUploading, toast]);
+
   const syncMetadata = useCallback(async (task: UploadTask) => {
     if (!user || !id || !task.key) return;
     
@@ -181,28 +204,16 @@ export default function GalleryUploadPage() {
       return f;
     }));
 
+    // Trigger metadata sync once the R2 transfer is physically complete
     if (task.status === 'completed' && task.key) {
       syncMetadata(task);
     }
   }, [syncMetadata]);
 
   const onAllUploadsComplete = useCallback(() => {
-    // We check if everything is really done including metadata
-    const checkAllDone = () => {
-      setFiles(current => {
-        const allDone = current.every(f => f.status === 'completed' || f.status === 'error' || f.status === 'cancelled');
-        if (allDone) {
-          setIsUploading(false);
-          setIsDone(true);
-          toast({ title: "Portfolio Delivered", description: "All masterpieces have been synchronized with the studio vault." });
-        }
-        return current;
-      });
-    };
-    
-    // Slight delay to allow final metadata syncs to start
-    setTimeout(checkAllDone, 1000);
-  }, [toast]);
+    // Engine signaled it is done. The useEffect above will handle 
+    // the final transition to 'isDone' once syncMetadata finishes.
+  }, []);
 
   // UPDATE REFS ON EVERY RENDER
   useEffect(() => {
@@ -290,7 +301,7 @@ export default function GalleryUploadPage() {
   const stats = useMemo(() => {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
-    const uploadingFiles = files.filter(f => f.status === 'uploading').length;
+    const uploadingFiles = files.filter(f => f.status === 'uploading' || f.status === 'syncing').length;
     const totalSize = files.reduce((acc, f) => acc + f.size, 0);
     const uploadedBytes = files.reduce((acc, f) => acc + (f.size * (f.progress / 100)), 0);
     const avgProgress = totalFiles > 0 ? (uploadedBytes / totalSize) * 100 : 0;
@@ -508,7 +519,7 @@ export default function GalleryUploadPage() {
                          <p className="text-xs font-bold truncate pr-2" title={file.name}>{file.name}</p>
                          {file.status === 'completed' ? (
                            <CheckCircle2 className="w-4 h-4 text-green-500" />
-                         ) : file.status === 'uploading' ? (
+                         ) : (file.status === 'uploading' || file.status === 'syncing') ? (
                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
                          ) : file.status === 'error' ? (
                            <AlertTriangle className="w-4 h-4 text-destructive" />
