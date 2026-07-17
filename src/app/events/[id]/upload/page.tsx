@@ -43,6 +43,11 @@ export default function GalleryUploadPage() {
   const [isDone, setIsDone] = useState(false);
   const engineRef = useRef<UploadEngine | null>(null);
 
+  // CALLBACK STABILITY REFS
+  // This prevents closure capture of stale state in the UploadEngine callbacks
+  const handleTaskUpdateRef = useRef<(task: UploadTask) => void>(() => {});
+  const onAllUploadsCompleteRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
@@ -52,7 +57,6 @@ export default function GalleryUploadPage() {
   // ENGINE LIFECYCLE MANAGEMENT
   useEffect(() => {
     return () => {
-      // Abort all active workers on unmount to prevent orphans and leaks
       if (engineRef.current) {
         engineRef.current.abortAll();
       }
@@ -109,6 +113,11 @@ export default function GalleryUploadPage() {
         error: result.error || "Metadata synchronization failed.",
         currentStep: "Sync Failed" 
       } : f));
+    } else {
+      setFiles(prev => prev.map(f => f.id === task.id ? {
+        ...f,
+        currentStep: "Asset Verified"
+      } : f));
     }
   }, [id, user]);
 
@@ -149,16 +158,22 @@ export default function GalleryUploadPage() {
     toast({ title: "Portfolio Delivered", description: "All masterpieces have been synchronized with the studio vault." });
   }, [toast]);
 
+  // UPDATE REFS ON EVERY RENDER
+  useEffect(() => {
+    handleTaskUpdateRef.current = handleTaskUpdate;
+    onAllUploadsCompleteRef.current = onAllUploadsComplete;
+  }, [handleTaskUpdate, onAllUploadsComplete]);
+
   useEffect(() => {
     if (user && id && !engineRef.current) {
       engineRef.current = new UploadEngine({
         userId: user.uid,
         galleryId: id,
-        onUpdate: handleTaskUpdate,
-        onComplete: onAllUploadsComplete
+        onUpdate: (task) => handleTaskUpdateRef.current(task),
+        onComplete: () => onAllUploadsCompleteRef.current()
       });
     }
-  }, [user, id, handleTaskUpdate, onAllUploadsComplete]);
+  }, [user, id]);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {

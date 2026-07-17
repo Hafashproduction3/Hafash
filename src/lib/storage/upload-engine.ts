@@ -136,6 +136,12 @@ export class UploadEngine {
         fileSize: task.file.size
       });
 
+      if (this.isPaused) {
+        task.status = 'paused';
+        this.onUpdate(task);
+        return;
+      }
+
       if (!success || !uploadUrl) {
         throw new Error(error || "Authorization failed.");
       }
@@ -194,6 +200,7 @@ export class UploadEngine {
     if (task.retryCount < this.maxRetries && !this.isPaused) {
       task.retryCount++;
       task.status = 'queued';
+      this.onUpdate(task);
       // Exponential backoff delay
       setTimeout(() => this.processQueue(), Math.pow(2, task.retryCount) * 1000);
     } else {
