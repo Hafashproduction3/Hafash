@@ -16,6 +16,9 @@ export interface StorageStats {
 
 /**
  * SERVICE: Calculate comprehensive storage telemetry for a user.
+ * 
+ * Hardened for production: iterates actual file sizes to ensure 
+ * quota precision.
  */
 export async function getStorageStats(userId: string): Promise<StorageStats> {
   if (!adminDb) throw new Error("Database offline.");
@@ -41,7 +44,9 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
     
     items.forEach((item: any) => {
       // Sum actual fileSize if present, fallback to estimation (8MB) if missing
-      totalBytes += item.fileSize || (8 * 1024 * 1024);
+      // Safeguard against non-numeric values
+      const size = Number(item.fileSize);
+      totalBytes += isNaN(size) ? (8 * 1024 * 1024) : size;
     });
   });
 

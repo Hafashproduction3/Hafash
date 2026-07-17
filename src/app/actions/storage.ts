@@ -98,7 +98,10 @@ export async function completeUpload(params: {
     }
 
     // 2. Firestore Sync
-    const assetUrl = `https://firebasestorage.googleapis.com/v0/b/hafash-pk.firebasestorage.app/o/${encodeURIComponent(task.key)}?alt=media`;
+    // We use a standardized R2 path pattern. 
+    // In a custom domain setup, this would be https://cdn.hafash.pk/...
+    // For now, we store the path which can be resolved to a signed URL or public R2 URL.
+    const assetUrl = `https://${process.env.R2_BUCKET_NAME}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${task.key}`;
     
     const uploadedItem = {
       id: task.id,

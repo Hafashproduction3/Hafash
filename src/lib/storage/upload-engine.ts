@@ -84,6 +84,21 @@ export class UploadEngine {
     this.processQueue();
   }
 
+  public abortAll() {
+    this.isPaused = true;
+    this.queue.forEach(t => {
+      if (t.xhr) {
+        t.xhr.abort();
+        this.cleanupTask(t);
+      }
+      if (t.status === 'uploading' || t.status === 'queued') {
+        t.status = 'cancelled';
+        this.onUpdate(t);
+      }
+    });
+    this.queue = [];
+  }
+
   private processQueue() {
     if (this.isPaused) return;
 
@@ -98,7 +113,7 @@ export class UploadEngine {
 
     if (nextTasks.length === 0 && active === 0) {
       const allDone = this.queue.every(t => t.status === 'completed' || t.status === 'error' || t.status === 'cancelled');
-      if (allDone) this.onComplete();
+      if (allDone && this.queue.length > 0) this.onComplete();
       return;
     }
 
@@ -117,7 +132,8 @@ export class UploadEngine {
         userId: this.userId,
         galleryId: this.galleryId,
         fileName: task.file.name,
-        contentType: task.file.type || 'application/octet-stream'
+        contentType: task.file.type || 'application/octet-stream',
+        fileSize: task.file.size
       });
 
       if (!success || !uploadUrl) {
@@ -137,10 +153,10 @@ export class UploadEngine {
           task.progress = Math.round((e.loaded / e.total) * 100);
           task.bytesUploaded = e.loaded;
           
-          if (duration > 0) {
+          if (duration > 0.5) { // Use windowed speed for stability
             task.speed = e.loaded / duration;
             const remainingBytes = e.total - e.loaded;
-            task.eta = task.speed > 0 ? remainingBytes / task.speed : 0;
+            task.eta = task.speed > 1024 ? remainingBytes / task.speed : 0;
           }
 
           this.onUpdate(task);

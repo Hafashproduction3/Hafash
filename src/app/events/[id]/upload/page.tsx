@@ -49,6 +49,16 @@ export default function GalleryUploadPage() {
     }
   }, [user, authLoading, router]);
 
+  // ENGINE LIFECYCLE MANAGEMENT
+  useEffect(() => {
+    return () => {
+      // Abort all active workers on unmount to prevent orphans and leaks
+      if (engineRef.current) {
+        engineRef.current.abortAll();
+      }
+    };
+  }, []);
+
   const eventRef = useMemo(() => {
     if (!firestore || !id) return null;
     return doc(firestore, 'galleries', id);
@@ -78,7 +88,6 @@ export default function GalleryUploadPage() {
   const syncMetadata = useCallback(async (task: UploadTask) => {
     if (!user || !id || !task.key) return;
     
-    // Call the Server Action for verified, transactional sync
     const result = await completeUpload({
       userId: user.uid,
       galleryId: id,
