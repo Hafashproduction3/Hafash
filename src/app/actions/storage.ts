@@ -4,6 +4,7 @@ import { adminDb } from '@/lib/firebase-admin';
 import { storage } from '@/lib/storage/storage';
 import { getStorageStats } from '@/lib/storage/stats';
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
+import { revalidatePath } from 'next/cache';
 
 /**
  * SERVER ACTION: Request a signed URL for direct-to-R2 upload.
@@ -132,7 +133,7 @@ export async function completeUpload({
 /**
  * SERVER ACTION: Bulk delete R2 objects.
  */
-export async function deleteGalleryFiles(storageKeys: string[]) {
+export async function deleteGalleryFiles(storageKeys: string[], galleryId: string) {
   try {
     if (!storageKeys || storageKeys.length === 0) {
       return { success: true };
@@ -149,6 +150,9 @@ export async function deleteGalleryFiles(storageKeys: string[]) {
     if (failures.length > 0) {
       console.warn(`[STORAGE_ACTION] Deletion partially failed: ${failures.length} errors.`);
     }
+
+    // Trigger Next.js cache revalidation for the gallery view
+    revalidatePath(`/gallery/${galleryId}`);
 
     return { success: true };
   } catch (error: any) {
