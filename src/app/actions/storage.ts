@@ -25,7 +25,8 @@ export async function requestUploadUrl({
   console.log(`[STORAGE_ACTION] START requestUploadUrl for ${fileName} (${fileSize} bytes)`);
 
   if (!adminDb) {
-    return { success: false, error: "Database infrastructure offline." };
+    console.error("[STORAGE_ACTION] Firebase Admin is NOT initialized. Check FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL.");
+    return { success: false, error: "Database infrastructure offline. Please configure Firebase Admin credentials." };
   }
 
   try {
@@ -82,7 +83,9 @@ export async function completeUpload({
 }) {
   console.log(`[STORAGE_ACTION] START completeUpload for ${task.file.name}`);
 
-  if (!adminDb) return { success: false, error: "Database offline." };
+  if (!adminDb) {
+    return { success: false, error: "Database offline. Metadata synchronization failed." };
+  }
 
   try {
     // 1. Verify file exists in R2
