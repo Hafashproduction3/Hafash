@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
@@ -16,8 +16,6 @@ import {
   Activity, 
   ShieldCheck, 
   HardDrive, 
-  Pause, 
-  Play,
   FileIcon,
   ImageIcon,
   RefreshCw,
@@ -31,12 +29,11 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 import { HafashLoader } from '@/components/ui/hafash-loader';
-import { UploadEngine, type UploadTask } from '@/lib/storage/upload-engine';
-import { completeUpload } from '@/app/actions/storage';
+import { requestUploadUrl, completeUpload } from '@/app/actions/storage';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 
-type UploadStepStatus = 'queued' | 'uploading' | 'syncing' | 'completed' | 'error' | 'cancelled' | 'paused';
+type UploadStepStatus = 'queued' | 'uploading' | 'syncing' | 'completed' | 'error' | 'cancelled';
 
 interface FileItem {
   id: string;
@@ -61,33 +58,13 @@ export default function GalleryUploadPage() {
   
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [isDone, setIsDone] = useState(false);
-  const engineRef = useRef<UploadEngine | null>(null);
-
-  // CALLBACK STABILITY REFS
-  const handleTaskUpdateRef = useRef<(task: UploadTask) => void>(() => {});
-  const onAllUploadsCompleteRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
     }
   }, [user, authLoading, router]);
-
-  // ENGINE LIFECYCLE MANAGEMENT
-  useEffect(() => {
-    return () => {
-      if (engineRef.current) {
-        console.log("[UPLOAD_PAGE] Cleaning up upload engine workers...");
-        engineRef.current.abortAll();
-      }
-      // Cleanup preview URLs
-      files.forEach(f => {
-        if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
-      });
-    };
-  }, []);
 
   const eventRef = useMemo(() => {
     if (!firestore || !id) return null;
@@ -115,138 +92,10 @@ export default function GalleryUploadPage() {
 
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
 
-  /**
-   * MONITOR COMPLETION
-   * Effect that handles final cleanup once all tasks (transfer + sync) are done.
-   */
-  useEffect(() => {
-    if (isUploading && files.length > 0) {
-      const allFinished = files.every(f => 
-        f.status === 'completed' || 
-        f.status === 'error' || 
-        f.status === 'cancelled'
-      );
+  const updateFileStatus = (fileId: string, updates: Partial<FileItem>) => {
+    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, ...updates } : f));
+  };
 
-      if (allFinished) {
-        console.log("[UPLOAD_PAGE] Batch sequence finished. Transitioning state.");
-        setIsUploading(false);
-        setIsDone(true);
-        toast({ 
-          title: "Portfolio Delivered", 
-          description: "All masterpieces have been synchronized with the studio vault." 
-        });
-      }
-    }
-  }, [files, isUploading, toast]);
-
-  const syncMetadata = useCallback(async (task: UploadTask) => {
-    if (!user || !id || !task.key) return;
-    
-    console.log(`[UPLOAD_PAGE][SYNC] Starting sync for ${task.file.name}`);
-    
-    setFiles(prev => prev.map(f => f.id === task.id ? { 
-      ...f, 
-      status: 'syncing', 
-      currentStep: "Syncing Metadata..." 
-    } : f));
-
-    try {
-      const result = await completeUpload({
-        userId: user.uid,
-        galleryId: id,
-        task: {
-          id: task.id,
-          key: task.key,
-          file: {
-            name: task.file.name,
-            size: task.file.size,
-            type: task.file.type
-          }
-        }
-      });
-
-      if (!result.success) {
-        console.error(`[UPLOAD_PAGE][SYNC_ERROR] Server returned failure for ${task.file.name}: ${result.error}`);
-        setFiles(prev => prev.map(f => f.id === task.id ? { 
-          ...f, 
-          status: 'error', 
-          error: result.error || "Metadata synchronization failed.",
-          currentStep: "Sync Failed" 
-        } : f));
-      } else {
-        console.log(`[UPLOAD_PAGE][SYNC_SUCCESS] ${task.file.name} verified`);
-        setFiles(prev => prev.map(f => f.id === task.id ? {
-          ...f,
-          status: 'completed',
-          currentStep: "Asset Verified",
-          progress: 100
-        } : f));
-      }
-    } catch (err: any) {
-      console.error(`[UPLOAD_PAGE][SYNC_CRITICAL] Exception during sync for ${task.file.name}:`, err);
-      setFiles(prev => prev.map(f => f.id === task.id ? { 
-        ...f, 
-        status: 'error', 
-        error: "Critical connection error during synchronization.",
-        currentStep: "Sync Failed" 
-      } : f));
-    }
-  }, [id, user]);
-
-  const handleTaskUpdate = useCallback((task: UploadTask) => {
-    setFiles(prev => prev.map(f => {
-      if (f.id === task.id) {
-        let step = 'In Queue';
-        let status: UploadStepStatus = task.status as UploadStepStatus;
-
-        if (task.status === 'uploading') step = 'Transferring...';
-        if (task.status === 'completed') {
-           step = 'Finalizing...';
-           status = 'syncing'; // Transition to sync phase locally
-        }
-        if (task.status === 'error') step = 'Upload Failed';
-        if (task.status === 'paused') step = 'Paused';
-
-        return {
-          ...f,
-          progress: task.progress,
-          status: status,
-          error: task.error,
-          currentStep: step,
-          speed: task.speed,
-          eta: task.eta
-        };
-      }
-      return f;
-    }));
-
-    // Trigger metadata sync once the R2 transfer is physically complete
-    if (task.status === 'completed' && task.key) {
-      syncMetadata(task);
-    }
-  }, [syncMetadata]);
-
-  const onAllUploadsComplete = useCallback(() => {
-    console.log("[UPLOAD_PAGE] Engine signaled transfer completion.");
-  }, []);
-
-  // UPDATE REFS ON EVERY RENDER
-  useEffect(() => {
-    handleTaskUpdateRef.current = handleTaskUpdate;
-    onAllUploadsCompleteRef.current = onAllUploadsComplete;
-  }, [handleTaskUpdate, onAllUploadsComplete]);
-
-  useEffect(() => {
-    if (user && id && !engineRef.current) {
-      engineRef.current = new UploadEngine({
-        userId: user.uid,
-        galleryId: id,
-        onUpdate: (task) => handleTaskUpdateRef.current(task),
-        onComplete: () => onAllUploadsCompleteRef.current()
-      });
-    }
-  }, [user, id]);
-  
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setIsDone(false);
@@ -273,76 +122,118 @@ export default function GalleryUploadPage() {
   };
 
   const removeFile = (fileId: string) => {
-    const file = files.find(f => f.id === fileId);
-    if (file?.previewUrl) URL.revokeObjectURL(file.previewUrl);
-    
-    setFiles(prev => prev.filter(f => f.id !== fileId));
-    if (engineRef.current) engineRef.current.cancelTask(fileId);
+    setFiles(prev => {
+      const file = prev.find(f => f.id === fileId);
+      if (file?.previewUrl) URL.revokeObjectURL(file.previewUrl);
+      return prev.filter(f => f.id !== fileId);
+    });
   };
 
   const startUpload = async () => {
-    if (!engineRef.current || files.length === 0) return;
+    if (files.length === 0 || isUploading) return;
 
-    console.log("[UPLOAD_PAGE] Initializing direct cloud delivery...");
     setIsUploading(true);
-    setIsPaused(false);
-    const queuedFiles = files.filter(f => f.status === 'queued').map(f => f.file);
-    if (queuedFiles.length > 0) {
-      engineRef.current.addFiles(queuedFiles);
-    } else if (isPaused) {
-      engineRef.current.resumeQueue();
-    }
-  };
-
-  const togglePause = () => {
-    if (!engineRef.current) return;
-    if (isPaused) {
-      engineRef.current.resumeQueue();
-      setIsPaused(false);
-    } else {
-      engineRef.current.pauseQueue();
-      setIsPaused(true);
-    }
-  };
-
-  const retryFile = (fileId: string) => {
-    const item = files.find(f => f.id === fileId);
-    if (!item || !engineRef.current) return;
     
-    setFiles(prev => prev.map(f => f.id === fileId ? { ...f, status: 'queued', error: undefined, progress: 0 } : f));
-    engineRef.current.addFiles([item.file]);
+    // Process files sequentially
+    for (const item of files) {
+      if (item.status === 'completed' || item.status === 'cancelled') continue;
+
+      try {
+        console.log(`[UPLOAD_PIPELINE] Starting: ${item.name}`);
+        updateFileStatus(item.id, { status: 'uploading', currentStep: 'Requesting Access...' });
+
+        // 1. Request Signed URL
+        const { success, uploadUrl, key, error } = await requestUploadUrl({
+          userId: user!.uid,
+          galleryId: id,
+          fileName: item.name,
+          contentType: item.file.type || 'application/octet-stream',
+          fileSize: item.size
+        });
+
+        if (!success || !uploadUrl) throw new Error(error || "Failed to authorize upload.");
+
+        // 2. Direct PUT to R2
+        updateFileStatus(item.id, { currentStep: 'Transferring...' });
+        
+        await new Promise<void>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          const startTime = Date.now();
+
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const progress = Math.round((e.loaded / e.total) * 100);
+              const duration = (Date.now() - startTime) / 1000;
+              const speed = duration > 0 ? e.loaded / duration : 0;
+              const eta = speed > 0 ? (e.total - e.loaded) / speed : 0;
+              
+              updateFileStatus(item.id, { progress, speed, eta });
+            }
+          });
+
+          xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`R2 Rejected: ${xhr.status}`));
+          });
+
+          xhr.addEventListener('error', () => reject(new Error("Network connection lost during transfer.")));
+          xhr.open('PUT', uploadUrl);
+          xhr.setRequestHeader('Content-Type', item.file.type || 'application/octet-stream');
+          xhr.send(item.file);
+        });
+
+        // 3. Sync Metadata
+        updateFileStatus(item.id, { status: 'syncing', currentStep: 'Finalizing...' });
+        
+        const syncResult = await completeUpload({
+          userId: user!.uid,
+          galleryId: id,
+          task: {
+            id: item.id,
+            key: key!,
+            file: { name: item.name, size: item.size, type: item.file.type }
+          }
+        });
+
+        if (!syncResult.success) throw new Error(syncResult.error || "Metadata sync failed.");
+
+        updateFileStatus(item.id, { status: 'completed', progress: 100, currentStep: 'Asset Verified' });
+        console.log(`[UPLOAD_PIPELINE] Success: ${item.name}`);
+
+      } catch (err: any) {
+        console.error(`[UPLOAD_PIPELINE] Error uploading ${item.name}:`, err);
+        updateFileStatus(item.id, { status: 'error', error: err.message, currentStep: 'Failed' });
+      }
+    }
+
+    setIsUploading(false);
+    setIsDone(true);
+    toast({ title: "Sequence Completed", description: "Storage pipeline processing finished." });
   };
 
-  // OVERALL STATS
   const stats = useMemo(() => {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
-    const uploadingFiles = files.filter(f => f.status === 'uploading' || f.status === 'syncing').length;
     const totalSize = files.reduce((acc, f) => acc + f.size, 0);
     const uploadedBytes = files.reduce((acc, f) => acc + (f.size * (f.progress / 100)), 0);
     const avgProgress = totalFiles > 0 ? (uploadedBytes / totalSize) * 100 : 0;
-    const totalSpeed = files.reduce((acc, f) => acc + f.speed, 0);
     
     return {
       totalFiles,
       completedFiles,
-      uploadingFiles,
       avgProgress,
       totalSize: (totalSize / (1024 * 1024)).toFixed(1) + " MB",
       uploadedSize: (uploadedBytes / (1024 * 1024)).toFixed(1) + " MB",
-      totalSpeed: (totalSpeed / (1024 * 1024)).toFixed(1) + " MB/s"
     };
   }, [files]);
 
   if (authLoading || dataLoading) {
-    return (
-      <HafashLoader text="Preparing Your Luxury Assets..." />
-    );
+    return <HafashLoader text="Preparing Your Luxury Assets..." />;
   }
 
   if (!user || !event) return null;
 
-  const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? f.file.size : 0), 0) / (1024 * 1024 * 1024);
+  const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? f.size : 0), 0) / (1024 * 1024 * 1024);
   const isOverLimit = (currentUsageGb + pendingSizeGb) > currentPlan.storageGb;
 
   return (
@@ -354,7 +245,7 @@ export default function GalleryUploadPage() {
           </Button>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">Direct Delivery Hub</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">Sequential Delivery Hub</span>
               <div className="h-1 w-1 rounded-full bg-primary/40" />
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{event.category}</span>
             </div>
@@ -393,7 +284,6 @@ export default function GalleryUploadPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-8">
-          {/* Main Dropzone */}
           <div className={cn(
             "relative h-96 border-2 border-dashed rounded-[3rem] flex flex-col items-center justify-center transition-all duration-500 shadow-2xl",
             isOverLimit ? "border-destructive/30 bg-destructive/5 cursor-not-allowed" : "border-border/50 bg-card/30 group hover:border-primary/50 cursor-pointer"
@@ -419,14 +309,12 @@ export default function GalleryUploadPage() {
               <p className="text-sm text-muted-foreground font-medium italic">Drop photos here or click to browse the vault.</p>
             </div>
             
-            {/* Status Floating Badge */}
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border border-border/50">
                <Zap className="w-3 h-3 text-primary animate-pulse" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Direct-to-Cloud Channel Active</span>
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Direct Delivery Channel Active</span>
             </div>
           </div>
 
-          {/* Controls */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-2">
             <div className="flex items-center gap-4">
                {files.length > 0 && !isDone && !isUploading && (
@@ -434,34 +322,22 @@ export default function GalleryUploadPage() {
                    Purge Queue
                  </Button>
                )}
-               {isUploading && (
-                 <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-primary/5 border border-primary/20">
-                   <Activity className="w-4 h-4 text-primary animate-pulse" />
-                   <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{stats.totalSpeed}</span>
-                 </div>
-               )}
             </div>
             
             <div className="flex gap-4 w-full sm:w-auto">
-              {isUploading && (
-                <Button variant="outline" className="rounded-2xl h-14 w-14 p-0 border-primary/30 text-primary hover:bg-primary/10 transition-all shadow-xl" onClick={togglePause}>
-                  {isPaused ? <Play className="w-6 h-6 fill-current" /> : <Pause className="w-6 h-6 fill-current" />}
-                </Button>
-              )}
-
               <Button 
                 className={cn(
                   "rounded-2xl px-12 h-14 font-bold shadow-2xl flex-1 sm:flex-none min-w-[240px] text-lg transition-all",
-                  isOverLimit ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20 hover:scale-[1.02]"
+                  (isOverLimit || isUploading) ? "bg-muted text-muted-foreground cursor-not-allowed" : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20 hover:scale-[1.02]"
                 )}
                 onClick={startUpload}
-                disabled={files.length === 0 || (isUploading && !isPaused) || isOverLimit}
+                disabled={files.length === 0 || isUploading || isOverLimit}
               >
-                {isUploading && !isPaused ? <Loader2 className="w-6 h-6 animate-spin mr-3" /> : isDone ? <RefreshCw className="w-5 h-5 mr-3" /> : <Sparkles className="w-6 h-6 mr-3" />}
-                {isUploading && !isPaused ? 'Synchronizing...' : isDone ? 'Deliver More' : isPaused ? 'Resume Sync' : 'Begin Cloud Delivery'}
+                {isUploading ? <Loader2 className="w-6 h-6 animate-spin mr-3" /> : isDone ? <RefreshCw className="w-5 h-5 mr-3" /> : <Sparkles className="w-6 h-6 mr-3" />}
+                {isUploading ? 'Synchronizing...' : isDone ? 'Deliver More' : 'Begin Cloud Delivery'}
               </Button>
 
-              {isDone && (
+              {isDone && !isUploading && (
                 <Link href={`/events/${id}/manage`} className="flex-1 sm:flex-none">
                   <Button className="w-full rounded-2xl font-bold gap-3 px-10 h-14 bg-white text-black hover:bg-gray-100 shadow-2xl animate-in fade-in slide-in-from-left-4 duration-500">
                     Continue to Event
@@ -473,7 +349,6 @@ export default function GalleryUploadPage() {
           </div>
         </div>
 
-        {/* Sidebar Pipeline */}
         <div className="bg-card/40 backdrop-blur-md border border-border/50 rounded-[2.5rem] p-8 h-[650px] flex flex-col shadow-2xl luxury-card-hover overflow-hidden">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-headline font-bold flex items-center gap-3">
@@ -513,7 +388,6 @@ export default function GalleryUploadPage() {
                   file.status === 'error' ? 'border-destructive/30 bg-destructive/5' : 
                   file.status === 'completed' ? 'border-green-500/20 bg-green-500/5' : 'border-border/30'
                 )}>
-                  {/* Item Loader Progress Bar Background */}
                   <div 
                     className="absolute bottom-0 left-0 h-1 bg-primary/20 transition-all duration-500" 
                     style={{ width: `${file.progress}%` }}
@@ -539,8 +413,6 @@ export default function GalleryUploadPage() {
                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
                          ) : file.status === 'error' ? (
                            <AlertTriangle className="w-4 h-4 text-destructive" />
-                         ) : file.status === 'paused' ? (
-                           <Pause className="w-3.5 h-3.5 text-amber-500" />
                          ) : (
                            <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground">Queued</span>
                          )}
@@ -555,21 +427,11 @@ export default function GalleryUploadPage() {
                            )}>
                              {file.currentStep}
                            </span>
-                           {file.status === 'uploading' && file.speed > 0 && (
-                             <span className="text-[8px] font-mono text-muted-foreground">
-                               {(file.speed / (1024 * 1024)).toFixed(1)}MB/s
-                             </span>
-                           )}
                         </div>
                         <div className="flex items-center gap-2">
                            {!isUploading && file.status === 'queued' && (
                              <button onClick={() => removeFile(file.id)} className="text-muted-foreground hover:text-destructive transition-colors">
                                <X className="w-3.5 h-3.5" />
-                             </button>
-                           )}
-                           {file.status === 'error' && (
-                             <button onClick={() => retryFile(file.id)} className="text-primary hover:text-primary/80 transition-colors">
-                               <RefreshCw className="w-3.5 h-3.5" />
                              </button>
                            )}
                         </div>
@@ -603,7 +465,7 @@ export default function GalleryUploadPage() {
       <footer className="pt-12 border-t border-border/50 flex flex-col md:flex-row gap-8 justify-between items-center opacity-60">
         <div className="flex items-center gap-4 text-xs text-muted-foreground italic font-medium">
           <ShieldCheck className="w-5 h-5 text-primary" />
-          <span>Encrypted Direct-to-Vault Delivery Pipeline • Global CDN Enabled</span>
+          <span>Direct-to-Vault Sequential Pipeline Enabled</span>
         </div>
         <div className="flex items-center gap-6">
            <img src="/hafash-logo.png" className="h-8 w-auto grayscale brightness-200" alt="Hafash" />
