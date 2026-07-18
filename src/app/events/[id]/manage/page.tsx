@@ -214,17 +214,17 @@ export default function EventManagementPage() {
   const confirmDelete = useCallback(async () => {
     if (!eventRef || deleteConfirmText !== 'DELETE' || !event) return;
     
-    setIsDeleting(true);
-    // Release the modal immediately to prevent UI lock while deleting
+    // Close modal and set deleting state immediately to prevent UI race conditions
     setShowDeleteDialog(false);
+    setIsDeleting(true);
 
     try {
-      // 1. Collect all R2 storage keys for this gallery
+      // 1. Collect all R2 storage keys for this gallery before metadata is deleted
       const storageKeys = (event.items || [])
         .map((item: any) => item.storageKey)
         .filter(Boolean);
 
-      // 2. Perform bulk deletion from storage
+      // 2. Perform bulk deletion from R2 storage
       if (storageKeys.length > 0) {
         const storageResult = await deleteGalleryFiles(storageKeys);
         if (!storageResult.success) {
@@ -232,7 +232,7 @@ export default function EventManagementPage() {
         }
       }
 
-      // 3. Delete metadata from Firestore
+      // 3. Delete metadata from Firestore only after assets are purged
       await deleteDoc(eventRef);
       
       toast({ 
