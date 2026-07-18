@@ -344,7 +344,7 @@ export default function SettingsPage() {
                 <CardContent className="p-0">
                   <div className="relative h-64 w-full bg-muted overflow-hidden flex items-center justify-center group">
                     {formData.studioBanner && isCustomBrandingActive ? (
-                      <img src={formData.studioBanner} className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:scale-110 transition-transform duration-[3s]" alt="Banner Preview" />
+                      <img src={formData.studioBanner} className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:scale-110 transition-transform duration-/[3s/]" alt="Banner Preview" />
                     ) : (
                       <div className="absolute inset-0 bg-primary/5 flex items-center justify-center">
                         <ImageIcon className="w-16 h-16 text-primary opacity-10 animate-pulse" />
