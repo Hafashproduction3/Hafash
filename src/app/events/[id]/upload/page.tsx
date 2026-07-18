@@ -79,6 +79,7 @@ export default function GalleryUploadPage() {
   useEffect(() => {
     return () => {
       if (engineRef.current) {
+        console.log("[UPLOAD_PAGE] Cleaning up upload engine workers...");
         engineRef.current.abortAll();
       }
       // Cleanup preview URLs
@@ -127,6 +128,7 @@ export default function GalleryUploadPage() {
       );
 
       if (allFinished) {
+        console.log("[UPLOAD_PAGE] Batch sequence finished. Transitioning state.");
         setIsUploading(false);
         setIsDone(true);
         toast({ 
@@ -140,39 +142,53 @@ export default function GalleryUploadPage() {
   const syncMetadata = useCallback(async (task: UploadTask) => {
     if (!user || !id || !task.key) return;
     
+    console.log(`[UPLOAD_PAGE][SYNC] Starting sync for ${task.file.name}`);
+    
     setFiles(prev => prev.map(f => f.id === task.id ? { 
       ...f, 
       status: 'syncing', 
       currentStep: "Syncing Metadata..." 
     } : f));
 
-    const result = await completeUpload({
-      userId: user.uid,
-      galleryId: id,
-      task: {
-        id: task.id,
-        key: task.key,
-        file: {
-          name: task.file.name,
-          size: task.file.size,
-          type: task.file.type
+    try {
+      const result = await completeUpload({
+        userId: user.uid,
+        galleryId: id,
+        task: {
+          id: task.id,
+          key: task.key,
+          file: {
+            name: task.file.name,
+            size: task.file.size,
+            type: task.file.type
+          }
         }
-      }
-    });
+      });
 
-    if (!result.success) {
+      if (!result.success) {
+        console.error(`[UPLOAD_PAGE][SYNC_ERROR] Server returned failure for ${task.file.name}: ${result.error}`);
+        setFiles(prev => prev.map(f => f.id === task.id ? { 
+          ...f, 
+          status: 'error', 
+          error: result.error || "Metadata synchronization failed.",
+          currentStep: "Sync Failed" 
+        } : f));
+      } else {
+        console.log(`[UPLOAD_PAGE][SYNC_SUCCESS] ${task.file.name} verified`);
+        setFiles(prev => prev.map(f => f.id === task.id ? {
+          ...f,
+          status: 'completed',
+          currentStep: "Asset Verified",
+          progress: 100
+        } : f));
+      }
+    } catch (err: any) {
+      console.error(`[UPLOAD_PAGE][SYNC_CRITICAL] Exception during sync for ${task.file.name}:`, err);
       setFiles(prev => prev.map(f => f.id === task.id ? { 
         ...f, 
         status: 'error', 
-        error: result.error || "Metadata synchronization failed.",
+        error: "Critical connection error during synchronization.",
         currentStep: "Sync Failed" 
-      } : f));
-    } else {
-      setFiles(prev => prev.map(f => f.id === task.id ? {
-        ...f,
-        status: 'completed',
-        currentStep: "Asset Verified",
-        progress: 100
       } : f));
     }
   }, [id, user]);
@@ -211,8 +227,7 @@ export default function GalleryUploadPage() {
   }, [syncMetadata]);
 
   const onAllUploadsComplete = useCallback(() => {
-    // Engine signaled it is done. The useEffect above will handle 
-    // the final transition to 'isDone' once syncMetadata finishes.
+    console.log("[UPLOAD_PAGE] Engine signaled transfer completion.");
   }, []);
 
   // UPDATE REFS ON EVERY RENDER
@@ -268,6 +283,7 @@ export default function GalleryUploadPage() {
   const startUpload = async () => {
     if (!engineRef.current || files.length === 0) return;
 
+    console.log("[UPLOAD_PAGE] Initializing direct cloud delivery...");
     setIsUploading(true);
     setIsPaused(false);
     const queuedFiles = files.filter(f => f.status === 'queued').map(f => f.file);
