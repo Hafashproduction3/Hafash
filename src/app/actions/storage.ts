@@ -120,7 +120,7 @@ export async function completeUpload(params: {
     }
 
     // Construct public-friendly URL if available, otherwise fallback to standard R2 format
-    const assetUrl = `https://${process.env.R2_BUCKET_NAME}.${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${task.key}`;
+    const assetUrl = `${process.env.R2_PUBLIC_URL}/${task.key}`;
     
     const uploadedItem = {
       id: task.id,
