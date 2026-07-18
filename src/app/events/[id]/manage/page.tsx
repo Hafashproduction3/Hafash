@@ -63,6 +63,7 @@ import { useMemo, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { HafashLoader } from '@/components/ui/hafash-loader';
+import { deleteGalleryFiles } from '@/app/actions/storage';
 
 export default function EventManagementPage() {
   const params = useParams();
@@ -211,18 +212,44 @@ export default function EventManagementPage() {
   }, [eventRef, toast]);
 
   const confirmDelete = useCallback(async () => {
-    if (!eventRef || deleteConfirmText !== 'DELETE') return;
+    if (!eventRef || deleteConfirmText !== 'DELETE' || !event) return;
+    
     setIsDeleting(true);
+    // Release the modal immediately to prevent UI lock while deleting
     setShowDeleteDialog(false);
+
     try {
+      // 1. Collect all R2 storage keys for this gallery
+      const storageKeys = (event.items || [])
+        .map((item: any) => item.storageKey)
+        .filter(Boolean);
+
+      // 2. Perform bulk deletion from storage
+      if (storageKeys.length > 0) {
+        const storageResult = await deleteGalleryFiles(storageKeys);
+        if (!storageResult.success) {
+          throw new Error(storageResult.error || "Failed to purge assets from storage.");
+        }
+      }
+
+      // 3. Delete metadata from Firestore
       await deleteDoc(eventRef);
-      toast({ title: "Event Deleted" });
+      
+      toast({ 
+        title: "Gallery Purged", 
+        description: "The gallery and all associated assets have been permanently removed." 
+      });
+
       router.replace('/dashboard');
     } catch (err: any) {
       setIsDeleting(false);
-      toast({ variant: "destructive", title: "Delete Failed", description: err.message });
+      toast({ 
+        variant: "destructive", 
+        title: "Purge Failed", 
+        description: err.message || "An unexpected error occurred." 
+      });
     }
-  }, [eventRef, deleteConfirmText, router, toast]);
+  }, [eventRef, deleteConfirmText, event, router, toast]);
 
   const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;
@@ -254,11 +281,11 @@ export default function EventManagementPage() {
   const passwordTooShort = useMemo(() => settings.isPasswordProtected && newPassword.length > 0 && newPassword.length < 6, [settings.isPasswordProtected, newPassword]);
   const canSaveSecurity = useMemo(() => !isSecurityLoading && (!settings.isPasswordProtected || (newPassword === "" || (newPassword.length >= 6 && newPassword === confirmPassword))), [isSecurityLoading, settings.isPasswordProtected, newPassword, confirmPassword]);
 
-  if (authLoading || dataLoading) return (
-    <HafashLoader text="Preparing Gallery Workspace..." />
+  if (authLoading || dataLoading || isDeleting) return (
+    <HafashLoader text={isDeleting ? "Purging Studio Assets..." : "Preparing Gallery Workspace..."} />
   );
 
-  if (!isDeleting && (error || !event)) return (
+  if (error || !event) return (
     <div className="text-center py-20 bg-card border border-border/50 rounded-[2.5rem]">
       <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
       <h2 className="text-2xl font-headline font-bold">Event not found</h2>
@@ -768,7 +795,7 @@ export default function EventManagementPage() {
             </div>
             <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Final Confirmation</AlertDialogTitle>
             <AlertDialogDescription className="text-center space-y-6 pt-4">
-              <p className="text-sm font-medium italic">To proceed with permanent deletion, please type the confirmation key below.</p>
+              <p className="text-sm font-medium italic">To proceed with permanent deletion, please type the confirmation key below. This will purge all cloud assets.</p>
               <div className="space-y-3">
                 <Label className="text-[10px] font-bold uppercase tracking-widest text-destructive">Verification Key</Label>
                 <Input placeholder="Type DELETE..." className="text-center font-bold h-14 rounded-xl border-destructive/30 focus:border-destructive text-lg tracking-widest bg-destructive/5" value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} />
