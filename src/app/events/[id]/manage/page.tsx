@@ -20,13 +20,9 @@ import {
   Sparkles,
   Lock,
   Unlock,
-  CreditCard,
-  ExternalLink,
-  ShieldCheck,
-  BarChart3,
-  Archive,
-  Calendar,
-  User,
+  KeyRound,
+  X,
+  Camera,
   Copy,
   LayoutGrid,
   ShieldAlert,
@@ -79,6 +75,9 @@ export default function EventManagementPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   
+  // Per-item processing state
+  const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
+
   // Security State
   const [isSecurityLoading, setIsSecurityLoading] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -211,10 +210,48 @@ export default function EventManagementPage() {
     }
   }, [eventRef, toast]);
 
+  const handleDeletePhoto = useCallback(async (item: any) => {
+    if (!eventRef || !event || !item.storageKey) return;
+    
+    setProcessingItems(prev => {
+      const next = new Set(prev);
+      next.add(item.id);
+      return next;
+    });
+
+    try {
+      // 1. Update Firestore first for instant UI response
+      const updatedItems = (event.items || []).filter((i: any) => i.id !== item.id);
+      await updateDoc(eventRef, { 
+        items: updatedItems,
+        updatedAt: new Date().toISOString() 
+      });
+      
+      toast({ title: "Asset Removed", description: "Photo record removed from gallery." });
+
+      // 2. Background purge of physical file
+      deleteGalleryFiles([item.storageKey], id).catch(err => {
+        console.warn("[STORAGE_PURGE] Async cleanup failed:", err);
+      });
+      
+    } catch (err: any) {
+      toast({ 
+        variant: "destructive", 
+        title: "Delete Failed", 
+        description: err.message || "An error occurred while removing the asset." 
+      });
+    } finally {
+      setProcessingItems(prev => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }, [eventRef, event, id, toast]);
+
   const confirmDelete = useCallback(async () => {
     if (!eventRef || deleteConfirmText !== 'DELETE' || !event) return;
     
-    // Close modal and set deleting state immediately to prevent UI race conditions
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
@@ -226,7 +263,7 @@ export default function EventManagementPage() {
 
       // 2. Perform bulk deletion from R2 storage
       if (storageKeys.length > 0) {
-        const storageResult = await deleteGalleryFiles(storageKeys);
+        const storageResult = await deleteGalleryFiles(storageKeys, id);
         if (!storageResult.success) {
           throw new Error(storageResult.error || "Failed to purge assets from storage.");
         }
@@ -242,14 +279,15 @@ export default function EventManagementPage() {
 
       router.replace('/dashboard');
     } catch (err: any) {
-      setIsDeleting(false);
       toast({ 
         variant: "destructive", 
         title: "Purge Failed", 
         description: err.message || "An unexpected error occurred." 
       });
+    } finally {
+      setIsDeleting(false);
     }
-  }, [eventRef, deleteConfirmText, event, router, toast]);
+  }, [eventRef, deleteConfirmText, event, router, toast, id]);
 
   const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;
@@ -387,17 +425,29 @@ export default function EventManagementPage() {
                   {event.items.slice(0, 12).map((item: any) => (
                     <div key={item.id} className="group relative aspect-[4/5] rounded-[1.5rem] overflow-hidden border border-border/30 bg-muted shadow-xl">
                       <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-1000" alt="Asset" />
-                      <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center backdrop-blur-sm">
+                      <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center backdrop-blur-sm gap-2">
                         <Button 
                           size="sm" 
+                          variant="ghost"
                           className={cn(
-                            "w-full rounded-xl font-bold text-[10px] uppercase tracking-widest transition-all h-10 shadow-lg",
+                            "w-full rounded-xl font-bold text-[10px] uppercase tracking-widest h-10 shadow-lg",
                             event.coverImage === item.url ? "bg-green-500 text-white" : "bg-white text-black hover:bg-primary hover:text-white"
                           )}
                           onClick={() => event.coverImage !== item.url && handleSetCover(item.url)}
+                          disabled={processingItems.has(item.id)}
                         >
                           {event.coverImage === item.url ? <Check className="w-4 h-4 mr-2" /> : null}
                           {event.coverImage === item.url ? "Current Cover" : "Set as Cover"}
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          className="w-full rounded-xl font-bold text-[10px] uppercase tracking-widest h-10 shadow-lg"
+                          onClick={() => handleDeletePhoto(item)}
+                          disabled={processingItems.has(item.id)}
+                        >
+                          {processingItems.has(item.id) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                          Remove
                         </Button>
                       </div>
                       {event.coverImage === item.url && (
