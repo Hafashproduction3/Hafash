@@ -26,7 +26,7 @@ export async function requestUploadUrl({
   console.log(`[STORAGE_ACTION] START requestUploadUrl for ${fileName} (${fileSize} bytes)`);
 
   if (!adminDb) {
-    console.error("[STORAGE_ACTION] Firebase Admin is NOT initialized. Check FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL.");
+    console.error("[STORAGE_ACTION] Firebase Admin is NOT initialized. Check credentials.");
     return { success: false, error: "Database infrastructure offline. Please configure Firebase Admin credentials." };
   }
 
@@ -95,16 +95,15 @@ export async function completeUpload({
       return { success: false, error: "Asset missing from storage. Handshake failed." };
     }
 
-    // 2. Construct public-ready asset URL (Using direct R2 worker or public bucket URL pattern)
-    // Note: In production, this would typically point to a custom domain or Cloudflare Worker.
-    const assetUrl = await storage.getSignedUrl(task.key, 604800); // 7-day signed link as fallback
+    // 2. Construct public-ready asset URL (7-day signed link)
+    const assetUrl = await storage.getSignedUrl(task.key, 604800);
 
     // 3. Update Firestore
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
     const newAsset = {
       id: task.id,
       url: assetUrl,
-      masterUrl: assetUrl, // In MVP, master and web-optimized are same
+      masterUrl: assetUrl, 
       storageKey: task.key,
       fileName: task.file.name,
       fileSize: task.file.size,
@@ -123,14 +122,13 @@ export async function completeUpload({
 
   } catch (error: any) {
     console.error("[STORAGE_ACTION] SYNC FAILURE:", error);
-    // Cleanup orphaned file if DB update fails
     await storage.deleteFile(task.key).catch(() => {});
     return { success: false, error: "Metadata synchronization failed. Asset rolled back." };
   }
 }
 
 /**
- * SERVER ACTION: Bulk delete R2 objects.
+ * SERVER ACTION: Bulk delete R2 objects and revalidate paths.
  */
 export async function deleteGalleryFiles(storageKeys: string[], galleryId: string) {
   try {
@@ -150,9 +148,14 @@ export async function deleteGalleryFiles(storageKeys: string[], galleryId: strin
       console.warn(`[STORAGE_ACTION] Deletion partially failed: ${failures.length} errors.`);
     }
 
-    // Trigger Next.js cache revalidation for the gallery view
-    if (galleryId) {
-      revalidatePath(`/gallery/${galleryId}`);
+    // Trigger Next.js cache revalidation for the gallery and manage views
+    try {
+      if (galleryId) {
+        revalidatePath(`/gallery/${galleryId}`);
+        revalidatePath(`/events/${galleryId}/manage`);
+      }
+    } catch (revalError) {
+      console.warn("[STORAGE_ACTION] Cache revalidation skipped in server action.");
     }
 
     return { success: true };

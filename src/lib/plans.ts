@@ -63,20 +63,25 @@ export function estimateZipSizeGb(itemCount: number): number {
 
 /**
  * Calculates total storage usage across all galleries.
- * Returns usage in GB.
+ * Returns usage in GB using actual file sizes where possible.
  */
 export function calculateUsageGb(galleries: any[] | null): number {
   if (!galleries || !Array.isArray(galleries)) return 0;
   
-  const totalItems = galleries.reduce((acc, g) => {
-    const itemCount = Array.isArray(g.items) ? g.items.length : 0;
-    return acc + itemCount;
-  }, 0);
+  let totalBytes = 0;
 
-  if (totalItems === 0) return 0;
+  galleries.forEach(g => {
+    const items = Array.isArray(g.items) ? g.items : [];
+    items.forEach((item: any) => {
+      // Use actual fileSize if available, otherwise fallback to 8MB estimate for legacy tracking
+      const size = Number(item.fileSize);
+      if (!isNaN(size) && size > 0) {
+        totalBytes += size;
+      } else {
+        totalBytes += (8 * 1024 * 1024);
+      }
+    });
+  });
 
-  // Assuming an average high-res masterpiece is ~8MB for telemetry estimation
-  const averageSizeMb = 8;
-  const totalMb = totalItems * averageSizeMb;
-  return totalMb / 1024;
+  return totalBytes / (1024 * 1024 * 1024);
 }

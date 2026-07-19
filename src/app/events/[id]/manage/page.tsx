@@ -80,7 +80,7 @@ export default function EventManagementPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   
-  // Per-item processing state
+  // Per-item processing state to avoid full page freeze
   const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
 
   // Security State
@@ -218,6 +218,7 @@ export default function EventManagementPage() {
   const handleDeletePhoto = useCallback(async (item: any) => {
     if (!eventRef || !event || !item.storageKey) return;
     
+    // Prevent UI glitches by marking as processing
     setProcessingItems(prev => {
       const next = new Set(prev);
       next.add(item.id);
@@ -225,25 +226,33 @@ export default function EventManagementPage() {
     });
 
     try {
-      // 1. Update Firestore first for instant UI response
+      // 1. Physically delete from R2 bucket first to reclaim space
+      const storageResult = await deleteGalleryFiles([item.storageKey], id);
+      if (!storageResult.success) {
+        throw new Error(storageResult.error || "Failed to purge physical cloud asset.");
+      }
+
+      // 2. Update Firestore document only after storage confirms deletion
       const updatedItems = (event.items || []).filter((i: any) => i.id !== item.id);
-      await updateDoc(eventRef, { 
+      const updateData: any = { 
         items: updatedItems,
         updatedAt: new Date().toISOString() 
-      });
+      };
       
-      toast({ title: "Asset Removed", description: "Photo record removed from gallery." });
+      // If we are deleting the current cover, fallback to the next image or generic placeholder
+      if (event.coverImage === item.url) {
+        updateData.coverImage = updatedItems.length > 0 ? updatedItems[0].url : `https://picsum.photos/seed/${id}/800/600`;
+      }
 
-      // 2. Background purge of physical file
-      deleteGalleryFiles([item.storageKey], id).catch(err => {
-        console.warn("[STORAGE_PURGE] Async cleanup failed:", err);
-      });
+      await updateDoc(eventRef, updateData);
+      toast({ title: "Asset Purged", description: "Storage recovered and gallery index updated." });
       
     } catch (err: any) {
+      console.error("[DELETE_FAILURE]", err);
       toast({ 
         variant: "destructive", 
-        title: "Delete Failed", 
-        description: err.message || "An error occurred while removing the asset." 
+        title: "Deletion Error", 
+        description: err.message || "Failed to sync deletion with cloud storage." 
       });
     } finally {
       setProcessingItems(prev => {
@@ -261,12 +270,12 @@ export default function EventManagementPage() {
     setIsDeleting(true);
 
     try {
-      // 1. Collect all R2 storage keys for this gallery before metadata is deleted
+      // 1. Collect all R2 keys for mass purge
       const storageKeys = (event.items || [])
         .map((item: any) => item.storageKey)
         .filter(Boolean);
 
-      // 2. Perform bulk deletion from R2 storage
+      // 2. Perform bulk deletion from storage
       if (storageKeys.length > 0) {
         const storageResult = await deleteGalleryFiles(storageKeys, id);
         if (!storageResult.success) {
@@ -274,7 +283,7 @@ export default function EventManagementPage() {
         }
       }
 
-      // 3. Delete metadata from Firestore only after assets are purged
+      // 3. Delete metadata
       await deleteDoc(eventRef);
       
       toast({ 
