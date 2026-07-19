@@ -3,34 +3,35 @@
 import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import { 
-  Share2, 
-  Trash2, 
+  Share2 as Share2Icon, 
+  Trash2 as Trash2Icon, 
   Image as ImageIcon,
-  ArrowLeft,
-  Eye,
-  EyeOff,
-  Loader2,
-  Globe,
-  Settings,
+  ArrowLeft as ArrowLeftIcon,
+  Eye as EyeIcon,
+  EyeOff as EyeOffIcon,
+  Loader2 as Loader2Icon,
+  Globe as GlobeIcon,
+  Settings as SettingsIcon,
   Link as LinkIcon,
-  Check,
-  FileText,
-  MessageSquare,
-  History,
-  Sparkles,
-  Lock,
-  Unlock,
-  KeyRound,
-  X,
-  Camera,
-  Copy,
-  LayoutGrid,
-  ShieldAlert,
-  AlertCircle,
+  Check as CheckIcon,
+  FileText as FileTextIcon,
+  MessageSquare as MessageSquareIcon,
+  History as HistoryIcon,
+  Sparkles as SparklesIcon,
+  Lock as LockIcon,
+  Unlock as UnlockIcon,
+  KeyRound as KeyRoundIcon,
+  X as XIcon,
+  Camera as CameraIcon,
+  Copy as CopyIcon,
+  LayoutGrid as LayoutGridIcon,
+  ShieldAlert as ShieldAlertIcon,
+  AlertCircle as AlertCircleIcon,
   User as UserIcon,
   Calendar as CalendarIcon,
   Archive as ArchiveIcon,
-  ExternalLink
+  ExternalLink as ExternalLinkIcon,
+  ShieldCheck as ShieldCheckIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -349,7 +350,7 @@ export default function EventManagementPage() {
           <div className="space-y-6">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 hover:bg-primary/10 hover:text-primary transition-all" onClick={() => router.push('/dashboard')}>
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeftIcon className="w-5 h-5" />
               </Button>
               <Badge variant="outline" className="border-primary/30 text-primary text-[10px] uppercase font-bold tracking-[0.3em] px-4 py-1">
                 Studio Workspace / {event.category}
@@ -360,7 +361,7 @@ export default function EventManagementPage() {
               <div className="flex flex-wrap items-center gap-8 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                 <span className="flex items-center gap-2.5 hover:text-primary transition-colors cursor-default"><UserIcon className="w-4 h-4 text-primary" /> {event.clientName}</span>
                 <span className="flex items-center gap-2.5 hover:text-primary transition-colors cursor-default"><CalendarIcon className="w-4 h-4 text-primary" /> {event.date}</span>
-                <span className="flex items-center gap-2.5 text-primary/80"><LayoutGrid className="w-4 h-4" /> {event.items?.length || 0} Delivered Assets</span>
+                <span className="flex items-center gap-2.5 text-primary/80"><LayoutGridIcon className="w-4 h-4" /> {event.items?.length || 0} Delivered Assets</span>
               </div>
             </div>
             <div className="flex flex-wrap gap-3 pt-2">
@@ -372,7 +373,7 @@ export default function EventManagementPage() {
               </Badge>
               {settings.isPasswordProtected && (
                 <Badge className="rounded-xl px-4 py-1.5 font-bold text-[10px] uppercase tracking-wider bg-amber-500/10 text-amber-500 border border-amber-500/30 shadow-lg shadow-amber-500/10">
-                  <Lock className="w-3 h-3 mr-2" /> Password Protected
+                  <LockIcon className="w-3 h-3 mr-2" /> Password Protected
                 </Badge>
               )}
             </div>
@@ -381,7 +382,7 @@ export default function EventManagementPage() {
           <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
             <Link href={`/gallery/${event.slug || event.id}`} target="_blank" className="flex-1">
                <Button className="w-full rounded-2xl h-16 bg-white text-black hover:bg-gray-100 font-bold gap-3 shadow-2xl transition-all hover:scale-105">
-                 <Eye className="w-6 h-6" /> Open Preview
+                 <EyeIcon className="w-6 h-6" /> Open Preview
                </Button>
             </Link>
             <Button 
@@ -389,7 +390,7 @@ export default function EventManagementPage() {
               className="flex-1 rounded-2xl h-16 border-border/50 font-bold gap-3 bg-card/40 backdrop-blur-md transition-all hover:border-primary/40 hover:text-primary"
               onClick={() => handleCopy(galleryUrl)}
             >
-              {copiedLink ? <Check className="w-6 h-6 text-green-500" /> : <Copy className="w-6 h-6" />}
+              {copiedLink ? <CheckIcon className="w-6 h-6 text-green-500" /> : <CopyIcon className="w-6 h-6" />}
               {copiedLink ? "Link Copied" : "Copy Access Link"}
             </Button>
           </div>
@@ -418,7 +419,7 @@ export default function EventManagementPage() {
             <CardContent className="p-10">
               {(!event.items || event.items.length === 0) ? (
                 <div className="text-center py-24 border-2 border-dashed border-border/20 rounded-[2rem] bg-muted/5">
-                  <LayoutGrid className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
+                  <LayoutGridIcon className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
                   <p className="text-muted-foreground italic font-headline text-xl">No photos have been delivered to this workspace yet.</p>
                   <Link href={`/events/${id}/upload`} className="mt-8 inline-block">
                     <Button variant="outline" className="rounded-xl border-primary/30 text-primary font-bold h-12 px-8">Launch Upload Center</Button>
@@ -440,7 +441,7 @@ export default function EventManagementPage() {
                           onClick={() => event.coverImage !== item.url && handleSetCover(item.url)}
                           disabled={processingItems.has(item.id)}
                         >
-                          {event.coverImage === item.url ? <Check className="w-4 h-4 mr-2" /> : null}
+                          {event.coverImage === item.url ? <CheckIcon className="w-4 h-4 mr-2" /> : null}
                           {event.coverImage === item.url ? "Current Cover" : "Set as Cover"}
                         </Button>
                         <Button 
@@ -450,13 +451,13 @@ export default function EventManagementPage() {
                           onClick={() => handleDeletePhoto(item)}
                           disabled={processingItems.has(item.id)}
                         >
-                          {processingItems.has(item.id) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                          {processingItems.has(item.id) ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <Trash2Icon className="w-4 h-4 mr-2" />}
                           Remove
                         </Button>
                       </div>
                       {event.coverImage === item.url && (
                         <div className="absolute top-4 left-4 bg-green-500 text-white p-1.5 rounded-full shadow-2xl ring-2 ring-white/20">
-                          <Check className="w-3 h-3" />
+                          <CheckIcon className="w-3 h-3" />
                         </div>
                       )}
                     </div>
@@ -476,7 +477,7 @@ export default function EventManagementPage() {
           <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
             <CardHeader className="bg-primary/5 border-b border-border/30 px-10 py-10">
               <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
-                <Sparkles className="w-8 h-8 text-primary" /> Engagement & Experience
+                <SparklesIcon className="w-8 h-8 text-primary" /> Engagement & Experience
               </CardTitle>
               <CardDescription className="text-sm font-medium italic mt-1">Configure the luxury welcome sequence and interactive storytelling elements.</CardDescription>
             </CardHeader>
@@ -485,7 +486,7 @@ export default function EventManagementPage() {
               <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary flex items-center gap-3">
-                    <FileText className="w-5 h-5" /> Personalized Welcome Note
+                    <FileTextIcon className="w-5 h-5" /> Personalized Welcome Note
                   </Label>
                   <Badge variant="outline" className="text-[9px] border-border/50 bg-background/50 font-bold px-3">Studio Sync Active</Badge>
                 </div>
@@ -550,14 +551,14 @@ export default function EventManagementPage() {
           <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
             <CardHeader className="bg-primary/5 border-b border-border/30 px-10 py-10">
               <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
-                <MessageSquare className="w-8 h-8 text-primary" /> Client Registry Feed
+                <MessageSquareIcon className="w-8 h-8 text-primary" /> Client Registry Feed
               </CardTitle>
               <CardDescription className="text-sm font-medium italic mt-1">Direct communications submitted via the secure internal feedback channel.</CardDescription>
             </CardHeader>
             <CardContent className="p-10">
               {replies.length === 0 ? (
                 <div className="text-center py-16 border-2 border-dashed border-border/20 rounded-[2rem] bg-muted/5">
-                   <History className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
+                   <HistoryIcon className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
                    <p className="text-muted-foreground italic font-headline text-xl">Your client hasn't sent any internal feedback yet.</p>
                 </div>
               ) : (
@@ -635,7 +636,7 @@ export default function EventManagementPage() {
           <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl border-t-4 border-t-amber-500 luxury-card-hover">
             <CardHeader className="p-8 border-b border-border/30 bg-background/20">
               <CardTitle className="text-base font-headline font-bold flex items-center gap-3">
-                <ShieldAlert className="w-5 h-5 text-amber-500" /> Private Access Rule
+                <ShieldAlertIcon className="w-5 h-5 text-amber-500" /> Private Access Rule
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
@@ -663,7 +664,7 @@ export default function EventManagementPage() {
                          )}
                        </div>
                        <div className="relative">
-                          <Lock className="absolute left-4 top-4 w-5 h-5 text-primary" />
+                          <LockIcon className="absolute left-4 top-4 w-5 h-5 text-primary" />
                           <Input 
                             type={showNewPassword ? "text" : "password"}
                             placeholder="••••••••••••" 
@@ -678,20 +679,20 @@ export default function EventManagementPage() {
                               className="text-muted-foreground hover:text-primary transition-colors p-1"
                               title="Copy Password"
                             >
-                              <Copy className="w-5 h-5" />
+                              <CopyIcon className="w-5 h-5" />
                             </button>
                             <button 
                               type="button" 
                               onClick={() => setShowNewPassword(!showNewPassword)}
                               className="text-muted-foreground hover:text-primary transition-colors p-1"
                             >
-                              {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                              {showNewPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                             </button>
                           </div>
                        </div>
                        {passwordTooShort && (
                          <p className="text-[10px] text-destructive font-bold uppercase tracking-widest flex items-center gap-2 px-1">
-                           <AlertCircle className="w-3.5 h-3.5" /> Minimum 6 characters required.
+                           <AlertCircleIcon className="w-3.5 h-3.5" /> Minimum 6 characters required.
                          </p>
                        )}
                     </div>
@@ -699,7 +700,7 @@ export default function EventManagementPage() {
                     <div className="space-y-3">
                        <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">Confirm Access Key</Label>
                        <div className="relative">
-                          <Lock className="absolute left-4 top-4 w-5 h-5 text-primary" />
+                          <LockIcon className="absolute left-4 top-4 w-5 h-5 text-primary" />
                           <Input 
                             type={showConfirmPassword ? "text" : "password"}
                             placeholder="••••••••••••" 
@@ -715,12 +716,12 @@ export default function EventManagementPage() {
                             onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                             className="absolute right-4 top-4 text-muted-foreground hover:text-primary transition-colors"
                           >
-                            {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                            {showConfirmPassword ? <EyeOffIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
                           </button>
                        </div>
                        {passwordMismatch && (
                          <p className="text-[10px] text-destructive font-bold uppercase tracking-widest flex items-center gap-2 px-1">
-                           <AlertCircle className="w-3.5 h-3.5" /> Access keys do not match.
+                           <AlertCircleIcon className="w-3.5 h-3.5" /> Access keys do not match.
                          </p>
                        )}
                     </div>
@@ -730,7 +731,7 @@ export default function EventManagementPage() {
                       className="w-full h-12 rounded-xl border-dashed border-primary/30 text-[10px] font-bold uppercase tracking-[0.3em] gap-3 bg-primary/5 text-primary hover:bg-primary/10 transition-all"
                       onClick={handleGeneratePassword}
                     >
-                      <Sparkles className="w-4 h-4" /> Generate Secure Key
+                      <SparklesIcon className="w-4 h-4" /> Generate Secure Key
                     </Button>
                     
                     <p className="text-[10px] text-muted-foreground italic leading-relaxed text-center px-4">
@@ -744,7 +745,7 @@ export default function EventManagementPage() {
                 onClick={handleSaveSecurity}
                 disabled={!canSaveSecurity}
                >
-                 {isSecurityLoading ? <Loader2 className="w-5 h-5 animate-spin mr-3" /> : <ShieldCheck className="w-5 h-5 mr-3" />}
+                 {isSecurityLoading ? <Loader2Icon className="w-5 h-5 animate-spin mr-3" /> : <ShieldCheckIcon className="w-5 h-5 mr-3" />}
                  Synchronize Access Rules
                </Button>
             </CardContent>
@@ -780,14 +781,14 @@ export default function EventManagementPage() {
                   </Select>
                </div>
                <div className="bg-primary/5 p-5 rounded-2xl border border-primary/20 flex items-center gap-4 group transition-colors hover:bg-primary/10">
-                  <ShieldCheck className="w-6 h-6 text-primary" />
+                  <ShieldCheckIcon className="w-6 h-6 text-primary" />
                   <span className="text-[10px] font-bold text-primary uppercase tracking-[0.2em]">{favoritesCount} Selection Favorites Syncing</span>
                </div>
             </CardContent>
             <div className="p-8 pt-0">
                <Link href="/album-selections">
                   <Button variant="link" className="w-full text-[11px] font-bold uppercase tracking-widest text-primary gap-3 h-auto py-0 hover:no-underline hover:scale-105 transition-transform">
-                    Open Workflow Portal <ExternalLink className="w-4 h-4" />
+                    Open Workflow Portal <ExternalLinkIcon className="w-4 h-4" />
                   </Button>
                </Link>
             </div>
@@ -798,7 +799,7 @@ export default function EventManagementPage() {
              <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
                 <CardHeader className="p-8 pb-4">
                   <CardTitle className="text-base font-headline font-bold flex items-center gap-3">
-                    <Settings className="w-5 h-5 text-primary" /> Workspace Identity
+                    <SettingsIcon className="w-5 h-5 text-primary" /> Workspace Identity
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-8 space-y-6">
@@ -825,7 +826,7 @@ export default function EventManagementPage() {
              <Card className="bg-destructive/5 border-destructive/20 rounded-[2.5rem] overflow-hidden luxury-card-hover">
                 <CardHeader className="p-8 pb-4">
                   <CardTitle className="text-base font-headline font-bold text-destructive flex items-center gap-3">
-                    <Trash2 className="w-5 h-5" /> Permanent Purge
+                    <Trash2Icon className="w-5 h-5" /> Permanent Purge
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-8">
@@ -845,7 +846,7 @@ export default function EventManagementPage() {
         <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] max-w-md p-10 shadow-2xl">
           <AlertDialogHeader>
             <div className="bg-destructive/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-              <AlertCircle className="w-8 h-8 text-destructive" />
+              <AlertCircleIcon className="w-8 h-8 text-destructive" />
             </div>
             <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Final Confirmation</AlertDialogTitle>
             <AlertDialogDescription className="text-center space-y-6 pt-4">
