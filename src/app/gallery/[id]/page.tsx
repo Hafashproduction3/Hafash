@@ -36,7 +36,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { HafashLoader } from '@/components/ui/hafash-loader';
-import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -64,15 +63,11 @@ const GalleryItem = memo(({
       className="relative group break-inside-avoid overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in mb-8 shadow-xl transition-all duration-700 hover:shadow-primary/5" 
       onClick={() => onSelect(item.url)}
     >
-      <Image 
+      <img 
         src={item.url} 
         alt="Gallery Asset"
-        width={800}
-        height={600}
         className="w-full h-auto object-cover transition-transform duration-1000 group-hover:scale-110"
-        sizes="(max-width: 768px) 100vw, (max-width: 1024px) 50vw, 33vw"
-        style={{ height: 'auto' }}
-        priority={priority}
+        loading={priority ? "eager" : "lazy"}
       />
       {showWatermark && <div className="luxury-watermark" />}
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
@@ -400,7 +395,7 @@ export default function ClientGalleryPage() {
         "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col items-center justify-center bg-card shadow-2xl transition-all duration-1000",
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[4rem] lg:rounded-b-[6rem]"
       )}>
-        <Image src={effectiveHeroImage} fill className="absolute inset-0 w-full h-full object-cover opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]" alt="Cover" priority />
+        <img src={effectiveHeroImage} className="absolute inset-0 w-full h-full object-cover opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]" alt="Cover" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-background" />
         
         <div className="relative z-10 text-center px-6 max-w-5xl space-y-10">
