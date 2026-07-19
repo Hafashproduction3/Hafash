@@ -10,7 +10,7 @@ import * as admin from 'firebase-admin';
 if (!admin.apps.length) {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const projectId = process.env.FIREBASE_PROJECT_ID || "hafash-pk";
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT || "hafash-pk";
 
   if (privateKey && clientEmail) {
     try {
@@ -29,10 +29,11 @@ if (!admin.apps.length) {
   } else {
     try {
       // Try initializing with just the project ID to trigger ADC discovery
+      // This is the primary method for Firebase Studio workstations
       admin.initializeApp({
         projectId: projectId
       });
-      console.info("[DEBUG] Firebase Admin: Initialized using Application Default Credentials (ADC).");
+      console.info(`[DEBUG] Firebase Admin: Initialized using Application Default Credentials (ADC) for project ${projectId}.`);
     } catch (e: any) {
       console.warn("[DEBUG] Firebase Admin: Initialization failed. Service Account env vars missing and ADC unavailable.", e.message);
     }

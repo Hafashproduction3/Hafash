@@ -3,7 +3,6 @@
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { storage } from '@/lib/storage/storage';
 import { getStorageStats } from '@/lib/storage/stats';
-import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 import { revalidatePath } from 'next/cache';
 
 /**
@@ -25,7 +24,10 @@ export async function requestUploadUrl({
   console.log(`[DEBUG] requestUploadUrl start: ${fileName} (${fileSize} bytes)`);
 
   if (!adminDb) {
-    return { success: false, error: "Database infrastructure offline. Please configure Firebase Admin credentials." };
+    return { 
+      success: false, 
+      error: "Database infrastructure offline. Please configure Firebase Admin credentials or ensure you are in a supported cloud environment." 
+    };
   }
 
   try {
@@ -50,7 +52,7 @@ export async function requestUploadUrl({
 
   } catch (error: any) {
     console.error("[DEBUG] Upload authorization failure:", error);
-    return { success: false, error: error.message || "An internal error occurred." };
+    return { success: false, error: error.message || "An internal error occurred during storage handshake." };
   }
 }
 

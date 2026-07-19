@@ -62,7 +62,6 @@ import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { deleteGalleryFiles } from '@/app/actions/storage';
 
@@ -81,12 +80,6 @@ export default function EventManagementPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   
   const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
-
-  const [isSecurityLoading, setIsSecurityLoading] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [settings, setSettings] = useState({
     title: '',
@@ -163,7 +156,6 @@ export default function EventManagementPage() {
     if (!eventRef || !event || !item.storageKey) return;
     
     console.log(`[DEBUG] Image delete start: ${item.id}`);
-    console.log(`[DEBUG] Storage file path: ${item.storageKey}`);
 
     setProcessingItems(prev => {
       const next = new Set(prev);
@@ -188,7 +180,7 @@ export default function EventManagementPage() {
       }
 
       await updateDoc(eventRef, updateData);
-      console.log(`[DEBUG] Firestore update response: Metadata updated, storage recalculated.`);
+      console.log(`[DEBUG] Firestore update response: Metadata updated.`);
       toast({ title: "Asset Purged", description: "Storage usage updated." });
       
     } catch (err: any) {
@@ -259,7 +251,6 @@ export default function EventManagementPage() {
   );
 
   const galleryUrl = `${origin}/gallery/${event.slug || event.id}`;
-  const replies = (event.replies || []) as { text: string, createdAt: string }[];
   const favoritesCount = Array.isArray(event.items) ? event.items.filter((i: any) => i.isFavorite).length : 0;
 
   return (

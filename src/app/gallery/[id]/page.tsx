@@ -11,7 +11,6 @@ import {
   Share2, 
   ShieldAlert,
   ArrowLeft,
-  FileText,
   Send,
   CheckCircle2,
   Sparkles,

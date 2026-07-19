@@ -1,4 +1,3 @@
-
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
@@ -12,7 +11,7 @@ import { firebaseConfig } from './config';
  * Isolated from index.ts to prevent circular dependencies.
  * 
  * Note: Uses experimentalForceLongPolling to resolve connectivity issues
- * in specialized development environments like Cloud Workstations.
+ * in specialized development environments like Firebase Studio Workstations.
  */
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
@@ -32,6 +31,7 @@ export function initializeFirebase(): {
     firestore = initializeFirestore(firebaseApp, {
       experimentalForceLongPolling: true,
     });
+    console.info("[DEBUG] Firebase Client: Initialized Firestore with long-polling enabled.");
   } catch (e) {
     // If already initialized, fallback to getFirestore
     firestore = getFirestore(firebaseApp);

@@ -21,7 +21,7 @@ export async function resolveAlbumByToken(token: string) {
     return {
       __debug: true,
       stage: "INIT_ERROR",
-      error: "Firebase Admin is not initialized. Please ensure FIREBASE_PRIVATE_KEY and FIREBASE_CLIENT_EMAIL environment variables are set.",
+      error: "Firebase Admin is not initialized. Please ensure your project is properly connected to Firestore.",
       token
     };
   }
@@ -36,14 +36,10 @@ export async function resolveAlbumByToken(token: string) {
       .get();
 
     if (snapshot.empty) {
-      // Diagnostic: If not found, check if the collection even has documents
-      const diagnosticSize = (await adminDb.collection("galleries").limit(1).get()).size;
-      
       return {
         __debug: true,
         stage: "QUERY_EMPTY",
         token,
-        collectionNotEmpty: diagnosticSize > 0,
         message: "No matching active album found for this token."
       };
     }
@@ -58,11 +54,9 @@ export async function resolveAlbumByToken(token: string) {
     };
 
   } catch (error: any) {
-    // Capture the specific gRPC/Auth failure details
     console.error("ALBUM_RESOLUTION_FAILURE:", {
       message: error.message,
       code: error.code,
-      details: error.details,
     });
 
     return {
