@@ -1,21 +1,12 @@
-import { initializeApp, getApps } from 'firebase/app'
-import { initializeFirestore, persistentLocalCache } from 'firebase/firestore'
-import { getAuth } from 'firebase/auth'
+"use client";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-}
+import { initializeFirebase } from '@/firebase/init';
 
-const app =!getApps().length? initializeApp(firebaseConfig) : getApps()[0]
+/**
+ * Standard client-side Firebase instances.
+ * Uses the project's central initialization logic which handles 
+ * connectivity fixes for the studio environment.
+ */
+const { firebaseApp, firestore, auth } = initializeFirebase();
 
-// YE LINE FREEZE KHATAM KAREGI
-export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache()
-})
-
-export const auth = getAuth(app)
+export { firebaseApp as app, firestore as db, auth };
