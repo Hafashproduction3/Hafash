@@ -1,6 +1,6 @@
 'use server';
 
-import { adminDb } from '@/lib/firebase-admin';
+import { adminDb, admin } from '@/lib/firebase-admin';
 import { storage } from '@/lib/storage/storage';
 import { getStorageStats } from '@/lib/storage/stats';
 import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
@@ -84,7 +84,7 @@ export async function completeUpload({
 }) {
   console.log(`[STORAGE_ACTION] START completeUpload for ${task.file.name}`);
 
-  if (!adminDb) {
+  if (!adminDb || !admin) {
     return { success: false, error: "Database offline. Metadata synchronization failed." };
   }
 
@@ -113,9 +113,8 @@ export async function completeUpload({
       uploadedAt: new Date().toISOString(),
     };
 
-    const { FieldValue } = require('firebase-admin/firestore');
     await galleryRef.update({
-      items: FieldValue.arrayUnion(newAsset),
+      items: admin.firestore.FieldValue.arrayUnion(newAsset),
       updatedAt: new Date().toISOString()
     });
 
@@ -139,7 +138,7 @@ export async function deleteGalleryFiles(storageKeys: string[], galleryId: strin
       return { success: true };
     }
 
-    console.log(`[STORAGE_ACTION] Purging ${storageKeys.length} assets from R2...`);
+    console.log(`[STORAGE_ACTION] Purging ${storageKeys.length} assets from R2 for gallery ${galleryId}...`);
 
     // Concurrent deletion
     const results = await Promise.allSettled(
@@ -152,7 +151,9 @@ export async function deleteGalleryFiles(storageKeys: string[], galleryId: strin
     }
 
     // Trigger Next.js cache revalidation for the gallery view
-    revalidatePath(`/gallery/${galleryId}`);
+    if (galleryId) {
+      revalidatePath(`/gallery/${galleryId}`);
+    }
 
     return { success: true };
   } catch (error: any) {

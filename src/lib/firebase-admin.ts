@@ -41,7 +41,8 @@ if (!admin.apps.length) {
 }
 
 /**
- * Export the Firestore instance.
+ * Export the Firestore instance and the admin namespace.
  * We perform the check here to ensure we return a valid instance or null if all init attempts failed.
  */
 export const adminDb = (admin.apps.length ? admin.firestore() : null) as admin.firestore.Firestore;
+export { admin };

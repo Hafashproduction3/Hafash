@@ -27,9 +27,9 @@ import {
   LayoutGrid,
   ShieldAlert,
   AlertCircle,
-  User,
-  Calendar,
-  Archive,
+  User as UserIcon,
+  Calendar as CalendarIcon,
+  Archive as ArchiveIcon,
   ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -358,8 +358,8 @@ export default function EventManagementPage() {
             <div className="space-y-2">
               <h1 className="text-5xl lg:text-6xl font-headline font-bold tracking-tight">{event.title}</h1>
               <div className="flex flex-wrap items-center gap-8 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                <span className="flex items-center gap-2.5 hover:text-primary transition-colors cursor-default"><User className="w-4 h-4 text-primary" /> {event.clientName}</span>
-                <span className="flex items-center gap-2.5 hover:text-primary transition-colors cursor-default"><Calendar className="w-4 h-4 text-primary" /> {event.date}</span>
+                <span className="flex items-center gap-2.5 hover:text-primary transition-colors cursor-default"><UserIcon className="w-4 h-4 text-primary" /> {event.clientName}</span>
+                <span className="flex items-center gap-2.5 hover:text-primary transition-colors cursor-default"><CalendarIcon className="w-4 h-4 text-primary" /> {event.date}</span>
                 <span className="flex items-center gap-2.5 text-primary/80"><LayoutGrid className="w-4 h-4" /> {event.items?.length || 0} Delivered Assets</span>
               </div>
             </div>
@@ -754,7 +754,7 @@ export default function EventManagementPage() {
           <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl border-t-4 border-t-primary luxury-card-hover">
             <CardHeader className="p-8 border-b border-border/30 bg-background/20">
               <CardTitle className="text-base font-headline font-bold flex items-center gap-3">
-                <Archive className="w-5 h-5 text-primary" /> Album Production
+                <ArchiveIcon className="w-5 h-5 text-primary" /> Album Production
               </CardTitle>
             </CardHeader>
             <CardContent className="p-8 space-y-6">

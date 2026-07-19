@@ -13,8 +13,8 @@ import {
   ExternalLink, 
   MoreVertical, 
   Camera, 
-  Calendar, 
-  User, 
+  Calendar as CalendarIcon, 
+  User as UserIcon, 
   Heart, 
   ShieldCheck, 
   ArrowRight,
@@ -113,7 +113,7 @@ export default function DashboardPage() {
         .filter(Boolean);
 
       if (storageKeys.length > 0) {
-        const storageResult = await deleteGalleryFiles(storageKeys);
+        const storageResult = await deleteGalleryFiles(storageKeys, idToDelete);
         if (!storageResult.success) {
           throw new Error(storageResult.error || "Failed to purge physical storage.");
         }
@@ -230,8 +230,8 @@ export default function DashboardPage() {
               </div>
               <CardContent className="p-6 space-y-4">
                 <div className="flex flex-col gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                  <span className="flex items-center gap-2"><User className="w-3.5 h-3.5 text-primary" /> {gallery.clientName}</span>
-                  <span className="flex items-center gap-2"><Calendar className="w-3.5 h-3.5 text-primary" /> {gallery.date}</span>
+                  <span className="flex items-center gap-2"><UserIcon className="w-3.5 h-3.5 text-primary" /> {gallery.clientName}</span>
+                  <span className="flex items-center gap-2"><CalendarIcon className="w-3.5 h-3.5 text-primary" /> {gallery.date}</span>
                 </div>
                 <div className="pt-4 border-t border-border/20 flex justify-between items-center">
                    <span className="text-[10px] font-bold text-primary">{gallery.items?.length || 0} Assets Delivered</span>
@@ -255,8 +255,8 @@ export default function DashboardPage() {
               <div className="flex-1 min-w-0">
                 <h4 className="font-headline font-bold text-lg line-clamp-1 group-hover:text-primary transition-colors">{gallery.title}</h4>
                 <p className="text-xs text-muted-foreground flex items-center gap-4 mt-1">
-                  <span className="flex items-center gap-1.5"><User className="w-3 h-3" /> {gallery.clientName}</span>
-                  <span className="flex items-center gap-1.5"><Calendar className="w-3 h-3" /> {gallery.date}</span>
+                  <span className="flex items-center gap-1.5"><UserIcon className="w-3 h-3" /> {gallery.clientName}</span>
+                  <span className="flex items-center gap-1.5"><CalendarIcon className="w-3 h-3" /> {gallery.date}</span>
                 </p>
               </div>
               <div className="hidden md:flex items-center gap-3">
