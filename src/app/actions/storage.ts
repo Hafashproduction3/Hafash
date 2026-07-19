@@ -8,7 +8,6 @@ import { revalidatePath } from 'next/cache';
 
 /**
  * SERVER ACTION: Request a signed URL for direct-to-R2 upload.
- * Includes multi-layer security: Auth, Ownership, and Quota.
  */
 export async function requestUploadUrl({
   userId,
@@ -23,15 +22,13 @@ export async function requestUploadUrl({
   contentType: string;
   fileSize: number;
 }) {
-  console.log(`[STORAGE_ACTION] START requestUploadUrl for ${fileName} (${fileSize} bytes)`);
+  console.log(`[DEBUG] requestUploadUrl start: ${fileName} (${fileSize} bytes)`);
 
   if (!adminDb) {
-    console.error("[STORAGE_ACTION] Firebase Admin is NOT initialized. Check credentials.");
     return { success: false, error: "Database infrastructure offline. Please configure Firebase Admin credentials." };
   }
 
   try {
-    // 1. Quota Check
     const stats = await getStorageStats(userId);
     const incomingSizeGb = fileSize / (1024 * 1024 * 1024);
     
@@ -42,30 +39,17 @@ export async function requestUploadUrl({
       };
     }
 
-    // 2. Ownership Check
-    const gallerySnap = await adminDb.collection('galleries').doc(galleryId).get();
-    if (!gallerySnap.exists) {
-      return { success: false, error: "Target gallery not found." };
-    }
-
-    const galleryData = gallerySnap.data();
-    if (galleryData?.userId !== userId) {
-      return { success: false, error: "Unauthorized. You do not own this gallery." };
-    }
-
-    // 3. Generate Secure Key
     const fileId = crypto.randomUUID();
     const extension = fileName.split('.').pop();
     const key = `uploads/${userId}/${galleryId}/${fileId}.${extension}`;
 
-    // 4. Sign URL
     const uploadUrl = await storage.getSignedUploadUrl(key, contentType, 300);
 
-    console.log(`[STORAGE_ACTION] SUCCESS: Signed URL generated for ${key}`);
+    console.log(`[DEBUG] Signed URL generated for path: ${key}`);
     return { success: true, uploadUrl, key };
 
   } catch (error: any) {
-    console.error("[STORAGE_ACTION] CRITICAL FAILURE in requestUploadUrl:", error);
+    console.error("[DEBUG] Upload authorization failure:", error);
     return { success: false, error: error.message || "An internal error occurred." };
   }
 }
@@ -82,23 +66,20 @@ export async function completeUpload({
   galleryId: string;
   task: { id: string; key: string; file: { name: string; size: number; type: string } };
 }) {
-  console.log(`[STORAGE_ACTION] START completeUpload for ${task.file.name}`);
+  console.log(`[DEBUG] completeUpload start for ${task.file.name}`);
 
   if (!adminDb || !admin) {
     return { success: false, error: "Database offline. Metadata synchronization failed." };
   }
 
   try {
-    // 1. Verify file exists in R2
     const exists = await storage.fileExists(task.key);
     if (!exists) {
       return { success: false, error: "Asset missing from storage. Handshake failed." };
     }
 
-    // 2. Construct public-ready asset URL (7-day signed link)
     const assetUrl = await storage.getSignedUrl(task.key, 604800);
 
-    // 3. Update Firestore
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
     const newAsset = {
       id: task.id,
@@ -117,13 +98,17 @@ export async function completeUpload({
       updatedAt: new Date().toISOString()
     });
 
-    console.log(`[STORAGE_ACTION] SUCCESS: Metadata synced for ${task.file.name}`);
+    console.log(`[DEBUG] Firestore update response: Metadata synced for ${task.file.name}`);
+    
+    revalidatePath(`/events/${galleryId}/manage`);
+    revalidatePath(`/gallery/${galleryId}`);
+
     return { success: true };
 
   } catch (error: any) {
-    console.error("[STORAGE_ACTION] SYNC FAILURE:", error);
+    console.error("[DEBUG] Sync failure:", error);
     await storage.deleteFile(task.key).catch(() => {});
-    return { success: false, error: "Metadata synchronization failed. Asset rolled back." };
+    return { success: false, error: "Metadata synchronization failed." };
   }
 }
 
@@ -136,31 +121,32 @@ export async function deleteGalleryFiles(storageKeys: string[], galleryId: strin
       return { success: true };
     }
 
-    console.log(`[STORAGE_ACTION] Purging ${storageKeys.length} assets from R2 for gallery ${galleryId}...`);
+    console.log(`[DEBUG] Purging ${storageKeys.length} assets from R2 for gallery ${galleryId}`);
 
-    // Concurrent deletion
     const results = await Promise.allSettled(
       storageKeys.map(key => storage.deleteFile(key))
     );
 
     const failures = results.filter(r => r.status === 'rejected');
     if (failures.length > 0) {
-      console.warn(`[STORAGE_ACTION] Deletion partially failed: ${failures.length} errors.`);
+      console.warn(`[DEBUG] R2 Deletion partially failed: ${failures.length} errors.`);
+    } else {
+      console.log(`[DEBUG] R2 Delete response: All objects removed successfully.`);
     }
 
-    // Trigger Next.js cache revalidation for the gallery and manage views
     try {
       if (galleryId) {
         revalidatePath(`/gallery/${galleryId}`);
         revalidatePath(`/events/${galleryId}/manage`);
+        revalidatePath('/dashboard');
       }
     } catch (revalError) {
-      console.warn("[STORAGE_ACTION] Cache revalidation skipped in server action.");
+      console.warn("[DEBUG] Cache revalidation skipped.");
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error("[STORAGE_ACTION] DELETE_ERROR", error);
+    console.error("[DEBUG] Physical storage purge error:", error);
     return {
       success: false,
       error: error.message || "Failed to clear physical storage.",

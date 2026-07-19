@@ -16,7 +16,8 @@ export interface StorageStats {
  * SERVICE: Calculate comprehensive storage telemetry for a user.
  */
 export async function getStorageStats(userId: string): Promise<StorageStats> {
-  console.log(">>> [DEBUG] getStorageStats check adminDb presence:", !!adminDb);
+  console.log(`[DEBUG] getStorageStats: Starting calculation for user ${userId}`);
+  
   if (!adminDb) {
     throw new Error("Database offline. adminDb is null.");
   }
@@ -28,30 +29,26 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
     const planId = (userData?.planId as PlanId) || 'starter';
     const plan = HAFASH_PLANS[planId] || DEFAULT_PLAN;
 
-    console.log(">>> [DEBUG] getStorageStats Plan Details:", { 
-      planId, 
-      planName: plan.name, 
-      limitGb: plan.storageGb 
-    });
+    console.log(`[DEBUG] getStorageStats: Active Plan is ${plan.name} (${plan.storageGb}GB Limit)`);
 
     // 2. Fetch All Galleries
     const galleriesSnap = await adminDb.collection('galleries')
       .where('userId', '==', userId)
       .get();
 
-    console.log(">>> [DEBUG] getStorageStats Gallery Count:", galleriesSnap.size);
+    console.log(`[DEBUG] getStorageStats: Found ${galleriesSnap.size} galleries`);
 
     let totalBytes = 0;
     let totalFiles = 0;
 
     galleriesSnap.docs.forEach(doc => {
       const data = doc.data();
-      // REPLACE: const items = data.items || [];
       const items = Array.isArray(data.items) ? data.items : [];
       
       totalFiles += items.length;
       
       items.forEach((item: any) => {
+        // Real-time summing of actual file sizes
         const size = Number(item.fileSize);
         totalBytes += isNaN(size) ? (8 * 1024 * 1024) : size;
       });
@@ -59,11 +56,7 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
 
     const usedGb = totalBytes / (1024 * 1024 * 1024);
 
-    console.log(">>> [DEBUG] getStorageStats Final Calc:", { 
-      totalFiles, 
-      totalBytes, 
-      usedGb: usedGb.toFixed(4) 
-    });
+    console.log(`[DEBUG] Updated storage usage calculation: ${usedGb.toFixed(4)} GB across ${totalFiles} assets`);
 
     return {
       usedBytes: totalBytes,
@@ -76,9 +69,7 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
       isOverQuota: usedGb >= plan.storageGb
     };
   } catch (error: any) {
-    console.error(">>> [DEBUG] FULL ERROR IN getStorageStats:");
-    console.error(error);
-    if (error.stack) console.error(error.stack);
+    console.error("[DEBUG] CRITICAL ERROR IN getStorageStats:", error);
     throw error;
   }
 }

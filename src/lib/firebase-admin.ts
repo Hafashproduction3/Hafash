@@ -22,27 +22,25 @@ if (!admin.apps.length) {
           privateKey: privateKey.replace(/\\n/g, '\n'),
         }),
       });
-      console.info("Firebase Admin: Initialized with Service Account environment variables.");
+      console.info("[DEBUG] Firebase Admin: Initialized with Service Account environment variables.");
     } catch (e: any) {
-      console.error("Firebase Admin: Initialization with environment variables failed.", e.message);
+      console.error("[DEBUG] Firebase Admin: Initialization with environment variables failed.", e.message);
     }
   } else {
     try {
-      // Try initializing with just the project ID to trigger ADC discovery (Application Default Credentials)
-      // This is especially important for Google Cloud Workstations / Firebase Studio environments.
+      // Try initializing with just the project ID to trigger ADC discovery
       admin.initializeApp({
         projectId: projectId
       });
-      console.info("Firebase Admin: Initialized using Application Default Credentials.");
+      console.info("[DEBUG] Firebase Admin: Initialized using Application Default Credentials (ADC).");
     } catch (e: any) {
-      console.warn("Firebase Admin: Initialization failed. Service Account env vars missing and ADC unavailable.", e.message);
+      console.warn("[DEBUG] Firebase Admin: Initialization failed. Service Account env vars missing and ADC unavailable.", e.message);
     }
   }
 }
 
 /**
  * Export the Firestore instance and the admin namespace.
- * We perform the check here to ensure we return a valid instance or null if all init attempts failed.
  */
 export const adminDb = (admin.apps.length ? admin.firestore() : null) as admin.firestore.Firestore;
 export { admin };

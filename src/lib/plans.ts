@@ -21,7 +21,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     id: 'starter',
     name: 'Starter',
     storageGb: 50,
-    zipLimitGb: 999, // effectively unlimited for V1
+    zipLimitGb: 999,
     price: 'Rs. 2,500',
     features: ['50GB Cloud Storage', 'Unlimited Galleries', 'Download All Originals', 'Standard Processing'],
     priorityLevel: 1,
@@ -52,18 +52,8 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
 export const DEFAULT_PLAN = HAFASH_PLANS.starter;
 
 /**
- * Estimates the total size of a collection of items.
- * For MVP, we assume an average high-res photo is 8MB.
- */
-export function estimateZipSizeGb(itemCount: number): number {
-  const averageSizeMb = 8;
-  const totalMb = itemCount * averageSizeMb;
-  return totalMb / 1024;
-}
-
-/**
  * Calculates total storage usage across all galleries.
- * Returns usage in GB using actual file sizes where possible.
+ * Returns usage in GB using actual file sizes.
  */
 export function calculateUsageGb(galleries: any[] | null): number {
   if (!galleries || !Array.isArray(galleries)) return 0;
@@ -73,11 +63,11 @@ export function calculateUsageGb(galleries: any[] | null): number {
   galleries.forEach(g => {
     const items = Array.isArray(g.items) ? g.items : [];
     items.forEach((item: any) => {
-      // Use actual fileSize if available, otherwise fallback to 8MB estimate for legacy tracking
       const size = Number(item.fileSize);
       if (!isNaN(size) && size > 0) {
         totalBytes += size;
       } else {
+        // Fallback for legacy items without metadata
         totalBytes += (8 * 1024 * 1024);
       }
     });
