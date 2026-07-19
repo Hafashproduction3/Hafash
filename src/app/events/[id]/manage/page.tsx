@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   AlertCircle,
   User,
+  Calendar,
   Archive,
   ExternalLink
 } from 'lucide-react';
