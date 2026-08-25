@@ -3,7 +3,6 @@
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { storage } from '@/lib/storage/storage';
 import { getStorageStats } from '@/lib/storage/stats';
-import { revalidatePath } from 'next/cache';
 
 /**
  * SERVER ACTION: Request a signed URL for direct-to-R2 upload.
@@ -115,7 +114,7 @@ export async function completeUpload({
  * SERVER ACTION: Bulk delete R2 objects.
  * Instrumented for high-performance tracing.
  */
-export async function deleteGalleryFiles(storageKeys: string[], galleryId: string) {
+export async function deleteGalleryFiles(storageKeys: string[]) {
   try {
     if (!storageKeys || storageKeys.length === 0) {
       return { success: true };
@@ -144,9 +143,6 @@ export async function deleteGalleryFiles(storageKeys: string[], galleryId: strin
     } else {
       console.log(`[SERVER_DELETE] SUCCESS: All assets purged.`);
     }
-
-    // revalidatePath REMOVED: Blocks server response and forces client-side transition freeze.
-    // Client SDK useDoc/useCollection handles real-time sync.
 
     return { 
       success: failures.length === 0, 

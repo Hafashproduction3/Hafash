@@ -166,17 +166,16 @@ export default function EventManagementPage() {
         newCover = remainingItems.length > 0 ? remainingItems[0].url : "";
       }
 
-      // DIAGNOSTIC: Firestore-only deletion logic for single photo
       await updateDoc(eventRef, { 
         items: arrayRemove(item),
         coverImage: newCover,
         updatedAt: new Date().toISOString() 
       });
 
-      toast({ title: "Asset Registry Updated" });
+      toast({ title: "Asset Removed" });
       
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Update Error", description: err.message });
+      toast({ variant: "destructive", title: "Remove Failed", description: err.message });
     } finally {
       setProcessingItems(prev => {
         const next = new Set(prev);
@@ -189,29 +188,23 @@ export default function EventManagementPage() {
   const confirmDelete = useCallback(async () => {
     if (!eventRef || deleteConfirmText !== 'DELETE' || !event || isDeleting) return;
     
-    console.log(`[DIAGNOSTIC_GALLERY_DELETE] START: ${id}`);
-    console.time('[DIAGNOSTIC_GALLERY_DELETE] trace');
-    
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
     try {
-      console.log(`[DIAGNOSTIC_GALLERY_DELETE] FIRESTORE_ONLY update START`);
-      // DIAGNOSTIC: Calling standard Firestore delete only. R2 purge disabled.
+      // 1. Atomic Firestore deletion
       await deleteDoc(eventRef);
-      console.log(`[DIAGNOSTIC_GALLERY_DELETE] FIRESTORE_ONLY update COMPLETE`);
       
       toast({ title: "Gallery Registry Purged" });
+      
+      // 2. Immediate navigation to break the snapshot listener for this doc
       router.replace('/dashboard');
     } catch (err: any) {
-      console.error("[DIAGNOSTIC_GALLERY_DELETE] ERROR:", err);
+      console.error("[DELETE_FAILURE] Event page operation failed:", err);
       toast({ variant: "destructive", title: "Delete Failed", description: err.message });
       setIsDeleting(false);
-    } finally {
-      console.log(`[DIAGNOSTIC_GALLERY_DELETE] UI CLEANUP COMPLETE`);
-      console.timeEnd('[DIAGNOSTIC_GALLERY_DELETE] trace');
     }
-  }, [eventRef, deleteConfirmText, event, router, toast, id, isDeleting]);
+  }, [eventRef, deleteConfirmText, event, router, toast, isDeleting]);
 
   const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;
@@ -479,8 +472,7 @@ export default function EventManagementPage() {
             </div>
             <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Final Confirmation</AlertDialogTitle>
             <AlertDialogDescription className="text-center space-y-6 pt-4">
-              <p className="text-sm font-medium italic">Type DELETE below to remove this record.</p>
-              <p className="text-[10px] uppercase font-bold text-destructive">DIAGNOSTIC MODE: R2 storage purge is disabled.</p>
+              <p className="text-sm font-medium italic">Type DELETE below to confirm removal of this luxury event from your registry.</p>
               <Input placeholder="Type DELETE..." className="text-center font-bold h-14 rounded-xl border-destructive/30" value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} />
             </AlertDialogDescription>
           </AlertDialogHeader>

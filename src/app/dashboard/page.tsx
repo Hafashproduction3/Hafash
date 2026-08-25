@@ -94,38 +94,36 @@ export default function DashboardPage() {
   }, [galleries]);
 
   const confirmDelete = useCallback(async () => {
-    if (!firestore || !user || !galleryToDelete) return;
+    if (!firestore || !user || !galleryToDelete || isDeleting) return;
 
-    console.log(`[DIAGNOSTIC_DELETE] START: ${galleryToDelete}`);
-    console.time('[DIAGNOSTIC_DELETE] trace');
-    
     const idToDelete = galleryToDelete;
+    
+    // 1. Close dialog immediately to prevent overlay conflicts
     setGalleryToDelete(null);
+    
+    // 2. Set deletion state
     setIsDeleting(true);
 
     try {
-      console.log(`[DIAGNOSTIC_DELETE] FIRESTORE_ONLY update START`);
-      // DIAGNOSTIC: Calling standard Firestore delete only. R2 purge disabled.
+      // 3. Simple, atomic Firestore deletion only
       await deleteDoc(doc(firestore, "galleries", idToDelete));
-      console.log(`[DIAGNOSTIC_DELETE] FIRESTORE_ONLY update COMPLETE`);
 
       toast({
         title: "Gallery Record Removed",
-        description: "Metadata deleted from Firestore.",
+        description: "The luxury event has been removed from your studio registry.",
       });
     } catch (err: any) {
-      console.error("[DIAGNOSTIC_DELETE] ERROR:", err);
+      console.error("[DELETE_FAILURE] Firestore operation failed:", err);
       toast({
         variant: "destructive",
         title: "Delete Failed",
-        description: err.message,
+        description: "A database error occurred while removing the record.",
       });
     } finally {
+      // 4. Guaranteed UI recovery
       setIsDeleting(false);
-      console.log(`[DIAGNOSTIC_DELETE] UI CLEANUP COMPLETE`);
-      console.timeEnd('[DIAGNOSTIC_DELETE] trace');
     }
-  }, [firestore, user, galleryToDelete, toast]);
+  }, [firestore, user, galleryToDelete, toast, isDeleting]);
 
   return (
     <div className="space-y-10 pb-20">
@@ -282,7 +280,7 @@ export default function DashboardPage() {
             </div>
             <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Permanent Purge</AlertDialogTitle>
             <AlertDialogDescription className="text-center italic mt-2">
-              DIAGNOSTIC MODE: This will only delete the Firestore record. Cloud storage cleanup is currently disabled.
+              Are you sure you want to remove this gallery? This will permanently delete all metadata from the studio registry.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex flex-col sm:flex-row gap-4 mt-8">
