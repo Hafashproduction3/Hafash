@@ -10,13 +10,11 @@ import {
   LayoutGrid, 
   List, 
   Trash2, 
-  ExternalLink, 
   MoreVertical, 
   Camera, 
   Calendar as CalendarIcon, 
   User as UserIcon, 
   Heart, 
-  ShieldCheck, 
   ArrowRight,
   Loader2,
   AlertCircle
@@ -26,9 +24,6 @@ import { Input } from '@/components/ui/input';
 import { 
   Card, 
   CardContent, 
-  CardHeader, 
-  CardTitle,
-  CardDescription 
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -50,7 +45,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
@@ -63,74 +57,48 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [galleryToDelete, setGalleryToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(new Set());
-
-  const profileRef = useMemo(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user?.uid]);
-  const { data: profile } = useDoc(profileRef);
 
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
   }, [firestore, user?.uid]);
+  
   const { data: galleries, loading: dataLoading } = useCollection(galleriesQuery);
+
+  const stats = useMemo(() => {
+    const active = galleries || [];
+    return {
+      totalDeliveries: active.length,
+      totalPhotos: active.reduce((acc, g) => acc + (g.items?.length || 0), 0),
+      totalFavorites: active.reduce((acc, g) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
+    };
+  }, [galleries]);
 
   const filteredGalleries = useMemo(() => {
     if (!galleries) return [];
+    const queryLower = searchQuery.toLowerCase();
     return galleries
-      .filter(g => !optimisticDeletedIds.has(g.id))
       .filter(g => 
-        g.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        g.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
+        g.title?.toLowerCase().includes(queryLower) ||
+        g.clientName?.toLowerCase().includes(queryLower)
       )
       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-  }, [galleries, searchQuery, optimisticDeletedIds]);
-
-  const stats = useMemo(() => {
-    const activeGalleries = galleries?.filter(g => !optimisticDeletedIds.has(g.id)) || [];
-    return {
-      totalDeliveries: activeGalleries.length,
-      totalPhotos: activeGalleries.reduce((acc, g) => acc + (g.items?.length || 0), 0),
-      totalFavorites: activeGalleries.reduce((acc, g) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
-    };
-  }, [galleries, optimisticDeletedIds]);
+  }, [galleries, searchQuery]);
 
   const confirmDelete = useCallback(async () => {
     if (!firestore || !user || !galleryToDelete || isDeleting) return;
 
     const idToDelete = galleryToDelete;
-    
-    // 1. Close dialog immediately to prevent overlay conflicts
     setGalleryToDelete(null);
-    
-    // 2. Set deletion state
     setIsDeleting(true);
 
-    // 3. Optimistic update
-    setOptimisticDeletedIds(prev => {
-      const next = new Set(prev);
-      next.add(idToDelete);
-      return next;
-    });
-
     try {
-      // 4. Atomic Firestore deletion
       await deleteDoc(doc(firestore, "galleries", idToDelete));
-
       toast({
         title: "Gallery Record Removed",
         description: "The luxury event has been removed from your studio registry.",
       });
     } catch (err: any) {
-      // Rollback optimistic update on failure
-      setOptimisticDeletedIds(prev => {
-        const next = new Set(prev);
-        next.delete(idToDelete);
-        return next;
-      });
-
       toast({
         variant: "destructive",
         title: "Delete Failed",
@@ -196,15 +164,15 @@ export default function DashboardPage() {
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredGalleries.map(gallery => (
-            <Card key={gallery.id} className="group overflow-hidden rounded-[2rem] border-border/50 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500 shadow-xl">
+            <Card key={gallery.id} className="group overflow-hidden rounded-[2rem] border-border/50 bg-card/40 hover:border-primary/40 transition-all duration-500 shadow-xl">
               <div className="aspect-[4/3] relative overflow-hidden">
-                {gallery.coverImage ? (
+                {gallery.coverImage && (
                   <img
                     src={gallery.coverImage}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     alt={gallery.title}
                   />
-                ) : null}
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
                 <div className="absolute top-4 right-4">
                   <DropdownMenu>
@@ -234,7 +202,7 @@ export default function DashboardPage() {
                   <h3 className="text-2xl font-headline font-bold text-white tracking-tight line-clamp-1">{gallery.title}</h3>
                 </div>
               </div>
-              <CardContent className="p-6 space-y-4">
+              <div className="p-6 space-y-4">
                 <div className="flex flex-col gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                   <span className="flex items-center gap-2"><UserIcon className="w-3.5 h-3.5 text-primary" /> {gallery.clientName}</span>
                   <span className="flex items-center gap-2"><CalendarIcon className="w-3.5 h-3.5 text-primary" /> {gallery.date}</span>
@@ -247,7 +215,7 @@ export default function DashboardPage() {
                      </Button>
                    </Link>
                 </div>
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>
@@ -256,13 +224,13 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <div key={gallery.id} className="flex items-center gap-6 p-4 bg-card/40 border border-border/50 rounded-2xl group hover:border-primary/40 transition-all">
               <div className="h-16 w-16 rounded-xl overflow-hidden shrink-0 border border-border/30">
-              {gallery.coverImage ? (
+              {gallery.coverImage && (
                 <img 
                   src={gallery.coverImage} 
                   className="w-full h-full object-cover" 
                   alt="Cover" 
                 />
-              ) : null}
+              )}
               </div>
               <div className="flex-1 min-w-0">
                 <h4 className="font-headline font-bold text-lg line-clamp-1 group-hover:text-primary transition-colors">{gallery.title}</h4>
@@ -309,7 +277,7 @@ export default function DashboardPage() {
       </AlertDialog>
 
       {isDeleting && (
-        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-500">
+        <div className="fixed inset-0 z-[100] bg-background/95 flex flex-col items-center justify-center">
            <Loader2 className="w-12 h-12 text-primary animate-spin mb-6" />
            <p className="text-xl font-headline font-bold italic text-primary">Removing Registry Entry...</p>
         </div>
@@ -320,7 +288,7 @@ export default function DashboardPage() {
 
 function StatCard({ label, value, icon, loading }: { label: string, value: number, icon: React.ReactNode, loading: boolean }) {
   return (
-    <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-3xl luxury-card-hover">
+    <Card className="bg-card/40 border-border/50 rounded-3xl luxury-card-hover">
       <CardContent className="p-8 flex items-center justify-between">
         <div className="space-y-1">
           <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">{label}</p>

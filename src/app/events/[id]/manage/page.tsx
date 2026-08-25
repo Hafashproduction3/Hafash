@@ -3,28 +3,17 @@
 import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import { 
-  Share2 as Share2Icon, 
   Trash2 as Trash2Icon, 
   Image as ImageIcon,
   ArrowLeft as ArrowLeftIcon,
   Eye as EyeIcon,
   Loader2 as Loader2Icon,
-  Globe as GlobeIcon,
-  Settings as SettingsIcon,
-  Link as LinkIcon,
-  Check as CheckIcon,
   FileText as FileTextIcon,
-  MessageSquare as MessageSquareIcon,
-  History as HistoryIcon,
   Sparkles as SparklesIcon,
-  Lock as LockIcon,
-  Unlock as UnlockIcon,
-  KeyRound as KeyRoundIcon,
-  X as XIcon,
   Camera as CameraIcon,
   Copy as CopyIcon,
+  Check as CheckIcon,
   LayoutGrid as LayoutGridIcon,
-  ShieldAlert as ShieldAlertIcon,
   AlertCircle as AlertCircleIcon,
   User as UserIcon,
   Calendar as CalendarIcon,
@@ -49,13 +38,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc, arrayRemove } from 'firebase/firestore';
 import Link from 'next/link';
@@ -80,17 +62,11 @@ export default function EventManagementPage() {
   const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
 
   const [settings, setSettings] = useState({
-    title: '',
-    clientName: '',
-    description: '',
     photographerNote: '',
-    welcomeTitle: '',
-    welcomeMessage: '',
-    welcomeScreenEnabled: false,
-    clientRepliesEnabled: true,
-    helpfulButtonEnabled: true,
     albumStatus: 'New Selection',
-    isPasswordProtected: false
+    isPublic: true,
+    isPaid: false,
+    isLocked: true
   });
 
   useEffect(() => {
@@ -115,17 +91,11 @@ export default function EventManagementPage() {
   useEffect(() => {
     if (event) {
       setSettings({
-        title: event.title || '',
-        clientName: event.clientName || '',
-        description: event.description || '',
         photographerNote: event.photographerNote || '',
-        welcomeTitle: event.welcomeTitle || '',
-        welcomeMessage: event.welcomeMessage || '',
-        welcomeScreenEnabled: !!event.welcomeScreenEnabled,
-        clientRepliesEnabled: event.clientRepliesEnabled !== false,
-        helpfulButtonEnabled: event.helpfulButtonEnabled !== false,
         albumStatus: event.albumStatus || 'New Selection',
-        isPasswordProtected: !!event.isPasswordProtected
+        isPublic: !!event.isPublic,
+        isPaid: !!event.isPaid,
+        isLocked: !!event.isLocked
       });
     }
   }, [event]);
@@ -133,12 +103,15 @@ export default function EventManagementPage() {
   const handleUpdateSettings = useCallback(async () => {
     if (!eventRef) return;
     try {
-      await updateDoc(eventRef, { ...settings, updatedAt: new Date().toISOString() });
-      toast({ title: "Settings Saved", description: "Gallery metadata updated." });
+      await updateDoc(eventRef, { 
+        photographerNote: settings.photographerNote,
+        updatedAt: new Date().toISOString() 
+      });
+      toast({ title: "Settings Saved" });
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: err.message });
+      toast({ variant: "destructive", title: "Update Failed" });
     }
-  }, [eventRef, settings, toast]);
+  }, [eventRef, settings.photographerNote, toast]);
 
   const handleSetCover = useCallback(async (imageUrl: string) => {
     if (!eventRef) return;
@@ -146,7 +119,7 @@ export default function EventManagementPage() {
       await updateDoc(eventRef, { coverImage: imageUrl, updatedAt: new Date().toISOString() });
       toast({ title: "Cover Updated" });
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Update Failed", description: err.message });
+      toast({ variant: "destructive", title: "Update Failed" });
     }
   }, [eventRef, toast]);
 
@@ -160,22 +133,13 @@ export default function EventManagementPage() {
     });
 
     try {
-      let newCover = event.coverImage;
-      if (event.coverImage === item.url) {
-        const remainingItems = (event.items || []).filter((i: any) => i.id !== item.id);
-        newCover = remainingItems.length > 0 ? remainingItems[0].url : "";
-      }
-
       await updateDoc(eventRef, { 
         items: arrayRemove(item),
-        coverImage: newCover,
         updatedAt: new Date().toISOString() 
       });
-
       toast({ title: "Asset Removed" });
-      
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Remove Failed", description: err.message });
+      toast({ variant: "destructive", title: "Remove Failed" });
     } finally {
       setProcessingItems(prev => {
         const next = new Set(prev);
@@ -183,23 +147,23 @@ export default function EventManagementPage() {
         return next;
       });
     }
-  }, [eventRef, event, toast, processingItems]);
+  }, [eventRef, event, processingItems, toast]);
 
   const confirmDelete = useCallback(async () => {
-    if (!eventRef || deleteConfirmText !== 'DELETE' || !event || isDeleting) return;
+    if (!eventRef || deleteConfirmText !== 'DELETE' || isDeleting) return;
     
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
     try {
       await deleteDoc(eventRef);
-      toast({ title: "Gallery Registry Purged" });
+      toast({ title: "Gallery Deleted" });
       router.replace('/dashboard');
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Delete Failed", description: err.message });
+      toast({ variant: "destructive", title: "Delete Failed" });
       setIsDeleting(false);
     }
-  }, [eventRef, deleteConfirmText, event, router, toast, isDeleting]);
+  }, [eventRef, deleteConfirmText, router, toast, isDeleting]);
 
   const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;
@@ -207,8 +171,8 @@ export default function EventManagementPage() {
     if (field === 'isPaid') {
       updateData.isLocked = !value;
     }
-    updateDoc(eventRef, updateData).then(() => toast({ title: "Status Updated" }));
-  }, [eventRef, toast]);
+    updateDoc(eventRef, updateData);
+  }, [eventRef]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -218,7 +182,7 @@ export default function EventManagementPage() {
   };
 
   if (authLoading || dataLoading || isDeleting) return (
-    <HafashLoader text={isDeleting ? "Purging Registry..." : "Preparing Gallery Workspace..."} />
+    <HafashLoader text={isDeleting ? "Removing Gallery..." : "Synchronizing Workspace..."} />
   );
 
   if (error || !event) return (
@@ -233,17 +197,17 @@ export default function EventManagementPage() {
   const favoritesCount = Array.isArray(event.items) ? event.items.filter((i: any) => i.isFavorite).length : 0;
 
   return (
-    <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
+    <div className="space-y-12 pb-20 animate-in fade-in duration-700">
       <div className="relative rounded-[2.5rem] overflow-hidden border border-border/50 shadow-2xl">
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/95 to-primary/5 z-0" />
         <div className="relative z-10 p-10 lg:p-14 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-10">
           <div className="space-y-6">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 hover:bg-primary/10 transition-all" onClick={() => router.push('/dashboard')}>
+              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 hover:bg-primary/10" onClick={() => router.push('/dashboard')}>
                 <ArrowLeftIcon className="w-5 h-5" />
               </Button>
               <Badge variant="outline" className="border-primary/30 text-primary text-[10px] uppercase font-bold tracking-[0.3em] px-4 py-1">
-                Studio Workspace / {event.category}
+                Workspace / {event.category}
               </Badge>
             </div>
             <div className="space-y-2">
@@ -251,14 +215,14 @@ export default function EventManagementPage() {
               <div className="flex flex-wrap items-center gap-8 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
                 <span className="flex items-center gap-2.5"><UserIcon className="w-4 h-4 text-primary" /> {event.clientName}</span>
                 <span className="flex items-center gap-2.5"><CalendarIcon className="w-4 h-4 text-primary" /> {event.date}</span>
-                <span className="flex items-center gap-2.5 text-primary/80"><LayoutGridIcon className="w-4 h-4" /> {event.items?.length || 0} Delivered Assets</span>
+                <span className="flex items-center gap-2.5 text-primary/80"><LayoutGridIcon className="w-4 h-4" /> {event.items?.length || 0} Assets</span>
               </div>
             </div>
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
             <Link href={`/gallery/${event.slug || event.id}`} target="_blank" className="flex-1">
-               <Button className="w-full rounded-2xl h-16 bg-white text-black hover:bg-gray-100 font-bold gap-3 shadow-2xl transition-all hover:scale-105">
+               <Button className="w-full rounded-2xl h-16 bg-white text-black hover:bg-gray-100 font-bold gap-3 shadow-2xl">
                  <EyeIcon className="w-6 h-6" /> Preview
                </Button>
             </Link>
@@ -268,7 +232,7 @@ export default function EventManagementPage() {
               onClick={() => handleCopy(galleryUrl)}
             >
               {copiedLink ? <CheckIcon className="w-6 h-6 text-green-500" /> : <CopyIcon className="w-6 h-6" />}
-              {copiedLink ? "Link Copied" : "Copy Link"}
+              {copiedLink ? "Copied" : "Copy Link"}
             </Button>
           </div>
         </div>
@@ -276,13 +240,12 @@ export default function EventManagementPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-10">
-          <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="bg-primary/5 border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between">
               <div>
                 <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
                   <ImageIcon className="w-8 h-8 text-primary" /> Visual Assets
                 </CardTitle>
-                <CardDescription className="text-sm font-medium mt-1">Manage delivered high-resolution masterpieces.</CardDescription>
               </div>
               <Link href={`/events/${id}/upload`}>
                 <Button className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 shadow-xl h-12 px-6">
@@ -300,9 +263,9 @@ export default function EventManagementPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-6">
                   {event.items.slice(0, 12).map((item: any) => (
                     <div key={item.id} className="group relative aspect-[4/5] rounded-[1.5rem] overflow-hidden border border-border/30 bg-muted">
-                      {item.url ? (
+                      {item.url && (
                         <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-1000" alt="Asset" />
-                      ) : null}
+                      )}
                       <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center backdrop-blur-sm gap-2">
                         <Button 
                           size="sm" 
@@ -340,7 +303,7 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="bg-primary/5 border-b border-border/30 px-10 py-10">
               <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
                 <SparklesIcon className="w-8 h-8 text-primary" /> Experience Strategy
@@ -360,7 +323,7 @@ export default function EventManagementPage() {
               </div>
               <div className="flex justify-end">
                 <Button className="rounded-xl px-14 h-14 font-bold shadow-2xl" onClick={handleUpdateSettings}>
-                  Save Client Experience
+                  Save Note
                 </Button>
               </div>
             </CardContent>
@@ -387,20 +350,29 @@ export default function EventManagementPage() {
               <div className="space-y-5 pt-2">
                 <div className="flex items-center justify-between p-1">
                   <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Public Access</span>
-                  <Switch checked={event.isPublic} onCheckedChange={(val) => updateToggle('isPublic', val)} />
+                  <Switch checked={settings.isPublic} onCheckedChange={(val) => {
+                    setSettings({...settings, isPublic: val});
+                    updateToggle('isPublic', val);
+                  }} />
                 </div>
                 <div className="flex items-center justify-between p-1">
                   <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Downloads</span>
-                  <Switch checked={!event.isLocked} onCheckedChange={(val) => updateToggle('isLocked', !val)} />
+                  <Switch checked={!settings.isLocked} onCheckedChange={(val) => {
+                    setSettings({...settings, isLocked: !val});
+                    updateToggle('isLocked', !val);
+                  }} />
                 </div>
                 <div className="flex items-center justify-between pt-6 border-t border-border/20">
                    <div className="space-y-1">
                      <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em] block">Revenue</span>
-                     <span className={cn("text-[10px] font-bold uppercase", event.isPaid ? "text-green-500" : "text-amber-500")}>
-                        {event.isPaid ? "Paid" : "Awaiting"}
+                     <span className={cn("text-[10px] font-bold uppercase", settings.isPaid ? "text-green-500" : "text-amber-500")}>
+                        {settings.isPaid ? "Paid" : "Awaiting"}
                      </span>
                    </div>
-                  <Switch checked={event.isPaid} onCheckedChange={(val) => updateToggle('isPaid', val)} />
+                  <Switch checked={settings.isPaid} onCheckedChange={(val) => {
+                    setSettings({...settings, isPaid: val, isLocked: !val});
+                    updateToggle('isPaid', val);
+                  }} />
                 </div>
               </div>
             </CardContent>
@@ -416,13 +388,12 @@ export default function EventManagementPage() {
                <div className="space-y-3">
                   <Label className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Workflow Phase</Label>
                   <select 
-                    className="w-full h-14 rounded-xl bg-background/50 border border-border/50 font-bold text-[11px] uppercase tracking-widest px-4 focus:outline-none focus:border-primary/50"
+                    className="w-full h-14 rounded-xl bg-background/50 border border-border/50 font-bold text-[11px] uppercase tracking-widest px-4 focus:outline-none"
                     value={settings.albumStatus} 
                     onChange={(e) => {
                       const val = e.target.value;
                       setSettings({...settings, albumStatus: val});
                       if (eventRef) updateDoc(eventRef, { albumStatus: val });
-                      toast({ title: "Workflow Updated" });
                     }}
                   >
                     <option value="New Selection">New Selection</option>
@@ -435,7 +406,7 @@ export default function EventManagementPage() {
             <div className="p-8 pt-0">
                <Link href="/album-selections">
                   <Button variant="link" className="w-full text-[11px] font-bold uppercase text-primary gap-3">
-                    Open Workflow Portal <ExternalLinkIcon className="w-4 h-4" />
+                    Workflow Portal <ExternalLinkIcon className="w-4 h-4" />
                   </Button>
                </Link>
             </div>
@@ -464,7 +435,7 @@ export default function EventManagementPage() {
             </div>
             <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Final Confirmation</AlertDialogTitle>
             <AlertDialogDescription className="text-center space-y-6 pt-4">
-              <p className="text-sm font-medium italic">Type DELETE below to confirm removal of this luxury event from your registry.</p>
+              <p className="text-sm font-medium italic">Type DELETE below to confirm removal.</p>
               <Input placeholder="Type DELETE..." className="text-center font-bold h-14 rounded-xl border-destructive/30" value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} />
             </AlertDialogDescription>
           </AlertDialogHeader>
