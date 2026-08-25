@@ -149,45 +149,43 @@ export default function EventManagementPage() {
     }
   }, [eventRef, event, processingItems, toast]);
 
-  const confirmDelete = useCallback(async () => {
+  const confirmDelete = useCallback(() => {
     if (!eventRef || !event || deleteConfirmText !== 'DELETE' || isDeleting) return;
 
+    // 1. Immediate UI cleanup
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
-    try {
-      const storageKeys = Array.isArray(event.items)
-        ? event.items
-            .map((item: any) => item?.storageKey)
-            .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
-        : [];
-
-      // Primary Operation: Firestore Metadata Removal
-      await deleteDoc(eventRef);
-
-      toast({ title: "Gallery Deleted" });
-
-      // FIX: Ensure body pointer events are reset for navigation safety
+    // 2. Prevent Radix pointer-events lock
+    if (typeof document !== 'undefined') {
       document.body.style.pointerEvents = '';
-
-      // Instant Navigation: Move away from the deleted record immediately
-      router.replace('/dashboard');
-
-      // Best-effort Background Cleanup: Do NOT await this to prevent UI freeze
-      if (storageKeys.length > 0) {
-        void deleteGalleryFiles(storageKeys).catch((error) => {
-          console.error('[GALLERY_DELETE] R2 cleanup failed:', error);
-        });
-      }
-    } catch (err: any) {
-      console.error('[GALLERY_DELETE] Firestore deletion failed:', err);
-      toast({
-        variant: "destructive",
-        title: "Delete Failed",
-        description: err?.message || "Could not delete gallery."
-      });
-      setIsDeleting(false);
     }
+
+    // 3. Prepare background tasks
+    const storageKeys = Array.isArray(event.items)
+      ? event.items
+          .map((item: any) => item?.storageKey)
+          .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
+      : [];
+
+    // 4. Fire background Firestore delete
+    void deleteDoc(eventRef)
+      .then(() => console.log('[GALLERY_DELETE] Firestore purged'))
+      .catch((err) => console.error('[GALLERY_DELETE] Firestore error:', err));
+
+    // 5. Fire background R2 cleanup
+    if (storageKeys.length > 0) {
+      void deleteGalleryFiles(storageKeys)
+        .then((res) => {
+          if (!res.success) console.warn('[GALLERY_DELETE] R2 partial failure:', res.error);
+          else console.log('[GALLERY_DELETE] R2 assets cleared');
+        })
+        .catch((err) => console.error('[GALLERY_DELETE] R2 fatal error:', err));
+    }
+
+    // 6. Navigate immediately - DO NOT await anything
+    toast({ title: "Gallery Deleted" });
+    router.replace('/dashboard');
   }, [eventRef, event, deleteConfirmText, router, toast, isDeleting]);
 
   const updateToggle = useCallback((field: string, value: any) => {
@@ -206,8 +204,9 @@ export default function EventManagementPage() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  if (authLoading || dataLoading || isDeleting) return (
-    <HafashLoader text={isDeleting ? "Removing Gallery..." : "Synchronizing Workspace..."} />
+  // We only block the page for initial data loading, not for the deletion transition.
+  if (authLoading || dataLoading) return (
+    <HafashLoader text="Synchronizing Workspace..." />
   );
 
   if (error || !event) return (
