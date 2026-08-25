@@ -54,7 +54,6 @@ import { format } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
-  console.count('[DASHBOARD] Render');
   const firestore = useFirestore();
   const { user } = useUser();
   const router = useRouter();
@@ -64,6 +63,7 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [galleryToDelete, setGalleryToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [optimisticDeletedIds, setOptimisticDeletedIds] = useState<Set<string>>(new Set());
 
   const profileRef = useMemo(() => {
     if (!firestore || !user) return null;
@@ -79,58 +79,65 @@ export default function DashboardPage() {
 
   const filteredGalleries = useMemo(() => {
     if (!galleries) return [];
-    return galleries.filter(g => 
-      g.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
-    ).sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
-  }, [galleries, searchQuery]);
+    return galleries
+      .filter(g => !optimisticDeletedIds.has(g.id))
+      .filter(g => 
+        g.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        g.clientName?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  }, [galleries, searchQuery, optimisticDeletedIds]);
 
   const stats = useMemo(() => {
-    if (!galleries) return { totalDeliveries: 0, totalPhotos: 0, totalFavorites: 0 };
+    const activeGalleries = galleries?.filter(g => !optimisticDeletedIds.has(g.id)) || [];
     return {
-      totalDeliveries: galleries.length,
-      totalPhotos: galleries.reduce((acc, g) => acc + (g.items?.length || 0), 0),
-      totalFavorites: galleries.reduce((acc, g) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
+      totalDeliveries: activeGalleries.length,
+      totalPhotos: activeGalleries.reduce((acc, g) => acc + (g.items?.length || 0), 0),
+      totalFavorites: activeGalleries.reduce((acc, g) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
     };
-  }, [galleries]);
+  }, [galleries, optimisticDeletedIds]);
 
   const confirmDelete = useCallback(async () => {
     if (!firestore || !user || !galleryToDelete || isDeleting) return;
 
     const idToDelete = galleryToDelete;
-    const timestamp = performance.now();
-    
-    console.log(`[DELETE_FLOW] [${timestamp}] User confirmed gallery deletion:`, idToDelete);
     
     // 1. Close dialog immediately to prevent overlay conflicts
     setGalleryToDelete(null);
     
     // 2. Set deletion state
     setIsDeleting(true);
-    console.log(`[DELETE_FLOW] [${performance.now()}] isDeleting set to true`);
+
+    // 3. Optimistic update
+    setOptimisticDeletedIds(prev => {
+      const next = new Set(prev);
+      next.add(idToDelete);
+      return next;
+    });
 
     try {
-      // 3. Simple, atomic Firestore deletion only
-      console.log(`[DELETE_FLOW] [${performance.now()}] Firestore deleteDoc START`);
+      // 4. Atomic Firestore deletion
       await deleteDoc(doc(firestore, "galleries", idToDelete));
-      console.log(`[DELETE_FLOW] [${performance.now()}] Firestore deleteDoc SUCCESS`);
 
       toast({
         title: "Gallery Record Removed",
         description: "The luxury event has been removed from your studio registry.",
       });
     } catch (err: any) {
-      console.error(`[DELETE_FLOW] [${performance.now()}] Firestore deleteDoc FAILURE:`, err);
+      // Rollback optimistic update on failure
+      setOptimisticDeletedIds(prev => {
+        const next = new Set(prev);
+        next.delete(idToDelete);
+        return next;
+      });
+
       toast({
         variant: "destructive",
         title: "Delete Failed",
         description: "A database error occurred while removing the record.",
       });
     } finally {
-      // 4. Guaranteed UI recovery
-      console.log(`[DELETE_FLOW] [${performance.now()}] isDeleting cleanup finally block START`);
       setIsDeleting(false);
-      console.log(`[DELETE_FLOW] [${performance.now()}] isDeleting cleanup finally block END`);
     }
   }, [firestore, user, galleryToDelete, toast, isDeleting]);
 
