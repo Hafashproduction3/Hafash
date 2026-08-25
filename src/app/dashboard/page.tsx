@@ -198,7 +198,11 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <Card key={gallery.id} className="group overflow-hidden rounded-[2rem] border-border/50 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500 shadow-xl">
               <div className="aspect-[4/3] relative overflow-hidden">
-                <img src={gallery.coverImage} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" alt={gallery.title} />
+              <img
+  src={gallery.coverImage || "/hafash-logo.png"}
+  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+  alt={gallery.title}
+/>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute top-4 right-4">
                   <DropdownMenu>
@@ -250,7 +254,11 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <div key={gallery.id} className="flex items-center gap-6 p-4 bg-card/40 border border-border/50 rounded-2xl group hover:border-primary/40 transition-all">
               <div className="h-16 w-16 rounded-xl overflow-hidden shrink-0 border border-border/30">
-                <img src={gallery.coverImage} className="w-full h-full object-cover" alt="Cover" />
+              <img 
+  src={gallery.coverImage || "/hafash-logo.png"} 
+  className="w-full h-full object-cover" 
+  alt="Cover" 
+/>
               </div>
               <div className="flex-1 min-w-0">
                 <h4 className="font-headline font-bold text-lg line-clamp-1 group-hover:text-primary transition-colors">{gallery.title}</h4>
