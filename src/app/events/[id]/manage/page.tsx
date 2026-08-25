@@ -133,6 +133,7 @@ export default function EventManagementPage() {
     });
 
     try {
+      // Use arrayRemove for high performance delta update
       await updateDoc(eventRef, { 
         items: arrayRemove(item),
         updatedAt: new Date().toISOString() 
@@ -152,39 +153,43 @@ export default function EventManagementPage() {
   const confirmDelete = useCallback(() => {
     if (!eventRef || !event || deleteConfirmText !== 'DELETE' || isDeleting) return;
 
-    // 1. Immediate UI cleanup
+    // 1. Immediate UI state transition
     setShowDeleteDialog(false);
-    setIsDeleting(true);
+    setIsDeleting(false); 
 
-    // 2. Prevent Radix pointer-events lock
+    // Prevent Radix dialog from leaving the document locked
     if (typeof document !== 'undefined') {
       document.body.style.pointerEvents = '';
     }
 
-    // 3. Prepare background tasks
     const storageKeys = Array.isArray(event.items)
       ? event.items
           .map((item: any) => item?.storageKey)
           .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
       : [];
 
-    // 4. Fire background Firestore delete
+    // 2. Fire background Firestore delete (non-blocking)
     void deleteDoc(eventRef)
-      .then(() => console.log('[GALLERY_DELETE] Firestore purged'))
-      .catch((err) => console.error('[GALLERY_DELETE] Firestore error:', err));
+      .then(() => {
+        console.log('[GALLERY_DELETE] Firestore record purged');
+        toast({ title: "Gallery Deleted" });
+      })
+      .catch((err: any) => {
+        console.error('[GALLERY_DELETE] Firestore error:', err);
+        toast({ variant: "destructive", title: "Delete Failed", description: "Metadata record could not be removed." });
+      });
 
-    // 5. Fire background R2 cleanup
+    // 3. Fire background R2 cleanup (non-blocking)
     if (storageKeys.length > 0) {
       void deleteGalleryFiles(storageKeys)
         .then((res) => {
           if (!res.success) console.warn('[GALLERY_DELETE] R2 partial failure:', res.error);
           else console.log('[GALLERY_DELETE] R2 assets cleared');
         })
-        .catch((err) => console.error('[GALLERY_DELETE] R2 fatal error:', err));
+        .catch((err: any) => console.error('[GALLERY_DELETE] R2 fatal error:', err));
     }
 
-    // 6. Navigate immediately - DO NOT await anything
-    toast({ title: "Gallery Deleted" });
+    // 4. Navigate immediately - DO NOT await anything
     router.replace('/dashboard');
   }, [eventRef, event, deleteConfirmText, router, toast, isDeleting]);
 
@@ -204,7 +209,6 @@ export default function EventManagementPage() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  // We only block the page for initial data loading, not for the deletion transition.
   if (authLoading || dataLoading) return (
     <HafashLoader text="Synchronizing Workspace..." />
   );

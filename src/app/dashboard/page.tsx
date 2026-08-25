@@ -16,7 +16,6 @@ import {
   User as UserIcon, 
   Heart, 
   ArrowRight,
-  Loader2,
   AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -90,45 +89,54 @@ export default function DashboardPage() {
       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   }, [galleries, searchQuery]);
 
-  const confirmDelete = useCallback(async () => {
+  const confirmDelete = useCallback(() => {
     if (!firestore || !user || !galleryToDelete || isDeleting) return;
 
     const idToDelete = galleryToDelete;
     const galleryDoc = (galleries || []).find(g => g.id === idToDelete);
     
-    setGalleryToDelete(null);
+    // Immediate UI reset and dialog closure logic
     setIsDeleting(true);
-
-    try {
-      // Collect keys for background cleanup
-      const storageKeys = Array.isArray(galleryDoc?.items)
-        ? galleryDoc.items
-            .map((item: any) => item?.storageKey)
-            .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
-        : [];
-
-      // Primary Operation: Firestore Removal
-      await deleteDoc(doc(firestore, "galleries", idToDelete));
-      
-      toast({
-        title: "Gallery Record Removed",
-        description: "The luxury event has been removed from your studio registry.",
-      });
-
-      // Best-effort Background Storage Cleanup: Do NOT await this
-      if (storageKeys.length > 0) {
-        deleteGalleryFiles(storageKeys).catch(e => console.error('[DASHBOARD_DELETE] Cleanup error:', e));
-      }
-
-    } catch (err: any) {
-      toast({
-        variant: "destructive",
-        title: "Delete Failed",
-        description: "A database error occurred while removing the record.",
-      });
-    } finally {
-      setIsDeleting(false);
+    setGalleryToDelete(null);
+    
+    // Prevent Radix lock
+    if (typeof document !== 'undefined') {
+      document.body.style.pointerEvents = '';
     }
+
+    // Collect keys for background cleanup
+    const storageKeys = Array.isArray(galleryDoc?.items)
+      ? galleryDoc.items
+          .map((item: any) => item?.storageKey)
+          .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
+      : [];
+
+    // 1. Fire background Firestore delete
+    const deletionPromise = deleteDoc(doc(firestore, "galleries", idToDelete));
+    
+    deletionPromise
+      .then(() => {
+        toast({
+          title: "Gallery Record Removed",
+          description: "The luxury event has been removed from your studio registry.",
+        });
+      })
+      .catch((err: any) => {
+        console.error("[DASHBOARD_DELETE] Firestore deletion failed:", err);
+        toast({
+          variant: "destructive",
+          title: "Delete Failed",
+          description: "A database error occurred while removing the record.",
+        });
+      });
+
+    // 2. Fire background R2 cleanup (Best effort, non-blocking)
+    if (storageKeys.length > 0) {
+      void deleteGalleryFiles(storageKeys).catch(e => console.error('[DASHBOARD_DELETE] Cleanup error:', e));
+    }
+
+    // 3. Immediately unlock UI state
+    setIsDeleting(false);
   }, [firestore, user, galleryToDelete, galleries, toast, isDeleting]);
 
   return (
@@ -297,13 +305,6 @@ export default function DashboardPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {isDeleting && (
-        <div className="fixed inset-0 z-[100] bg-background/95 flex flex-col items-center justify-center">
-           <Loader2 className="w-12 h-12 text-primary animate-spin mb-6" />
-           <p className="text-xl font-headline font-bold italic text-primary">Removing Registry Entry...</p>
-        </div>
-      )}
     </div>
   );
 }
