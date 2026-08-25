@@ -58,11 +58,18 @@ export async function photographerAIGalleryHighlights(
   return photographerAIGalleryHighlightsFlow(input);
 }
 
-const highlightTextPrompt = ai.definePrompt({
-  name: 'photographerAIGalleryHighlightsTextPrompt',
-  input: {schema: PhotographerAIGalleryHighlightsInputSchema},
-  output: {schema: PhotographerAIGalleryHighlightsOutputSchema},
-  prompt: `You are an expert wedding photographer's assistant specializing in curating highlight reels. Your task is to review a collection of images from an event and select the most visually impactful and representative photos for a highlight reel.
+const photographerAIGalleryHighlightsFlow = ai.defineFlow(
+  {
+    name: 'photographerAIGalleryHighlightsFlow',
+    inputSchema: PhotographerAIGalleryHighlightsInputSchema,
+    outputSchema: PhotographerAIGalleryHighlightsOutputSchema,
+  },
+  async input => {
+    // Construct the multimodal prompt array correctly according to Genkit 1.x typings.
+    // The instructions must be a string, not an object.
+    const promptParts = [
+      {
+        text: `You are an expert wedding photographer's assistant specializing in curating highlight reels. Your task is to review a collection of images from an event and select the most visually impactful and representative photos for a highlight reel.
 
 Consider the following criteria for selection:
 -   **Emotional Impact**: Does the photo evoke strong emotions (joy, love, tenderness)?
@@ -72,35 +79,18 @@ Consider the following criteria for selection:
 -   **Uniqueness**: Is the photo distinct from others and not redundant?
 -   **Clarity**: Is the subject in focus and clear?
 
-The event is described as: {{{eventDescription}}}
+The event is described as: ${input.eventDescription}
 
-From the provided images, please select the top {{{numberOfHighlights}}} images that best fit these criteria. For each selected image, provide the 'imageUrl' (the exact data URI provided in the prompt) and a brief 'reason' for its selection.
-
-Provide the response in JSON format.
-`,
-});
-
-const photographerAIGalleryHighlightsFlow = ai.defineFlow(
-  {
-    name: 'photographerAIGalleryHighlightsFlow',
-    inputSchema: PhotographerAIGalleryHighlightsInputSchema,
-    outputSchema: PhotographerAIGalleryHighlightsOutputSchema,
-  },
-  async input => {
-    // Generate the text part of the prompt using the defined prompt template.
-    const textPromptPart = await highlightTextPrompt(input);
-
-    // Construct the full prompt array, including the text and all image media parts.
-    const fullPrompt = [
-      { text: textPromptPart.output! }, // Use the rendered text from the prompt template
+From the provided images, please select the top ${input.numberOfHighlights} images that best fit these criteria. For each selected image, provide the 'imageUrl' (the exact data URI provided in the prompt) and a brief 'reason' for its selection.`,
+      },
       ...input.imageUris.map(uri => ({
-        media: { url: uri },
+        media: {url: uri},
       })),
     ];
 
     const {output} = await ai.generate({
-      model: 'googleai/gemini-2.5-flash-image', // Using a multi-modal model for image understanding
-      prompt: fullPrompt,
+      model: 'googleai/gemini-2.5-flash-image',
+      prompt: promptParts,
       output: {
         schema: PhotographerAIGalleryHighlightsOutputSchema,
       },
