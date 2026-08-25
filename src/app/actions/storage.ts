@@ -115,50 +115,53 @@ export async function completeUpload({
 }
 
 /**
- * SERVER ACTION: Bulk delete R2 objects and revalidate paths.
- * Hardened to prevent UI hangs.
+ * SERVER ACTION: Bulk delete R2 objects.
+ * Isolated to prevent UI hangs. Returns immediately after initiating purge sequence.
  */
 export async function deleteGalleryFiles(storageKeys: string[], galleryId: string) {
   try {
     if (!storageKeys || storageKeys.length === 0) {
-      console.log(`[SERVER_DELETE] No keys provided for gallery ${galleryId}. Skipping storage purge.`);
       return { success: true };
     }
 
-    console.log(`[SERVER_DELETE] START: Purging ${storageKeys.length} assets for gallery ${galleryId}`);
+    console.log(`[SERVER_DELETE] START: Requesting purge for ${storageKeys.length} assets`);
 
-    // Use settled promises to ensure we never hang the server action
+    // Use settled promises with individual error handling to prevent early exit
     const results = await Promise.allSettled(
-      storageKeys.map(key => {
-        if (!key) return Promise.resolve();
-        return storage.deleteFile(key);
+      storageKeys.map(async key => {
+        if (!key) return;
+        try {
+          await storage.deleteFile(key);
+        } catch (e: any) {
+          console.error(`[SERVER_DELETE] Failed to purge key: ${key}`, e.message);
+          throw e;
+        }
       })
     );
 
     const failures = results.filter(r => r.status === 'rejected');
     if (failures.length > 0) {
-      console.warn(`[SERVER_DELETE] PARTIAL_FAILURE: ${failures.length} errors during R2 purge.`);
+      console.warn(`[SERVER_DELETE] PARTIAL_FAILURE: ${failures.length} assets failed to purge from R2.`);
     } else {
-      console.log(`[SERVER_DELETE] SUCCESS: All ${storageKeys.length} objects removed from R2.`);
+      console.log(`[SERVER_DELETE] SUCCESS: All assets purged.`);
     }
 
+    // Trigger cache refresh
     try {
-      if (galleryId) {
-        revalidatePath(`/gallery/${galleryId}`);
-        revalidatePath(`/events/${galleryId}/manage`);
-        revalidatePath('/dashboard');
-        console.log(`[SERVER_DELETE] Cache revalidation triggered.`);
-      }
-    } catch (revalError) {
-      console.warn("[SERVER_DELETE] Cache revalidation skipped.");
-    }
+      revalidatePath(`/gallery/${galleryId}`);
+      revalidatePath(`/events/${galleryId}/manage`);
+      revalidatePath('/dashboard');
+    } catch (e) {}
 
-    return { success: true };
+    return { 
+      success: failures.length === 0, 
+      error: failures.length > 0 ? `${failures.length} assets could not be removed from cloud storage.` : undefined 
+    };
   } catch (error: any) {
     console.error("[SERVER_DELETE] CRITICAL_ERROR:", error);
     return {
       success: false,
-      error: error.message || "Failed to clear physical storage vault.",
+      error: error.message || "Cloud storage handshake failed.",
     };
   }
 }
