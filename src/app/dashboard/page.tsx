@@ -97,7 +97,8 @@ export default function DashboardPage() {
   const confirmDelete = useCallback(async () => {
     if (!firestore || !user || !galleryToDelete || !galleries) return;
 
-    console.time('[DELETE] total');
+    console.time('[DASHBOARD_DELETE] trace');
+    console.log(`[DASHBOARD_DELETE] START`);
     const idToDelete = galleryToDelete;
     const targetGallery = galleries.find(g => g.id === idToDelete);
 
@@ -105,31 +106,29 @@ export default function DashboardPage() {
     setIsDeleting(true);
 
     try {
-      console.time('[DELETE] storage');
       const storageKeys = (targetGallery?.items || [])
         .map((item: any) => item.storageKey)
         .filter(Boolean);
 
-      // Trigger R2 purge without awaiting it. We proceed to metadata removal immediately.
       if (storageKeys.length > 0) {
-        console.log(`[DELETE] Initiating background R2 purge for ${storageKeys.length} assets`);
+        console.log(`[DASHBOARD_DELETE] Storage purge triggered (non-awaited)`);
+        console.time('[DASHBOARD_DELETE] action_call');
         deleteGalleryFiles(storageKeys, idToDelete).then(() => {
-          console.timeEnd('[DELETE] storage');
+           console.log(`[DASHBOARD_DELETE] Storage purge COMPLETE (async)`);
         });
-      } else {
-        console.timeEnd('[DELETE] storage');
+        console.timeEnd('[DASHBOARD_DELETE] action_call');
       }
 
-      console.time('[DELETE] firestore');
+      console.log(`[DASHBOARD_DELETE] Firestore delete START`);
       await deleteDoc(doc(firestore, "galleries", idToDelete));
-      console.timeEnd('[DELETE] firestore');
+      console.log(`[DASHBOARD_DELETE] Firestore delete COMPLETE`);
 
       toast({
         title: "Gallery Purged",
         description: "Studio records removed.",
       });
     } catch (err: any) {
-      console.error("[DELETE] DASHBOARD ERROR:", err);
+      console.error("[DASHBOARD_DELETE] ERROR:", err);
       toast({
         variant: "destructive",
         title: "Purge Failed",
@@ -137,7 +136,8 @@ export default function DashboardPage() {
       });
     } finally {
       setIsDeleting(false);
-      console.timeEnd('[DELETE] total');
+      console.log(`[DASHBOARD_DELETE] Trace FINISHED`);
+      console.timeEnd('[DASHBOARD_DELETE] trace');
     }
   }, [firestore, user, galleryToDelete, galleries, toast]);
 
@@ -205,7 +205,7 @@ export default function DashboardPage() {
                     alt={gallery.title}
                   />
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
                 <div className="absolute top-4 right-4">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

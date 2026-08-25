@@ -154,7 +154,7 @@ export default function EventManagementPage() {
   const handleDeletePhoto = useCallback(async (item: any) => {
     if (!eventRef || !event || processingItems.has(item.id)) return;
     
-    console.time('[DELETE] total');
+    console.time('[DELETE_PHOTO] trace');
     console.log(`[DELETE] CLICK: Asset ${item.id}`);
 
     setProcessingItems(prev => {
@@ -164,30 +164,30 @@ export default function EventManagementPage() {
     });
 
     try {
-      console.time('[DELETE] firestore');
-      
-      // Calculate new cover if necessary locally (fast)
+      console.log(`[DELETE] Calculating new cover...`);
       let newCover = event.coverImage;
       if (event.coverImage === item.url) {
         const remainingItems = (event.items || []).filter((i: any) => i.id !== item.id);
         newCover = remainingItems.length > 0 ? remainingItems[0].url : "";
       }
 
-      // METADATA UPDATE: Use arrayRemove to avoid serializing the entire list.
-      // This is the primary fix for the UI freeze.
+      console.log(`[DELETE] Firestore update START`);
+      console.time('[DELETE] firestore_sync');
       await updateDoc(eventRef, { 
         items: arrayRemove(item),
         coverImage: newCover,
         updatedAt: new Date().toISOString() 
       });
-      console.timeEnd('[DELETE] firestore');
+      console.timeEnd('[DELETE] firestore_sync');
+      console.log(`[DELETE] Firestore update COMPLETE`);
 
-      // STORAGE PURGE: Fire-and-forget. Non-blocking for the browser.
       if (item.storageKey) {
-        console.time('[DELETE] storage');
+        console.log(`[DELETE] Storage purge START (non-awaited)`);
+        console.time('[DELETE] storage_call');
         deleteGalleryFiles([item.storageKey], id).then(() => {
-          console.timeEnd('[DELETE] storage');
+          console.log(`[DELETE] Storage purge COMPLETE (async)`);
         });
+        console.timeEnd('[DELETE] storage_call');
       }
 
       toast({ title: "Asset Purged", description: "Storage updated." });
@@ -201,7 +201,8 @@ export default function EventManagementPage() {
         next.delete(item.id);
         return next;
       });
-      console.timeEnd('[DELETE] total');
+      console.log(`[DELETE] State cleanup COMPLETE`);
+      console.timeEnd('[DELETE_PHOTO] trace');
     }
   }, [eventRef, event, id, toast, processingItems]);
 
@@ -209,6 +210,7 @@ export default function EventManagementPage() {
     if (!eventRef || deleteConfirmText !== 'DELETE' || !event || isDeleting) return;
     
     console.time('[DELETE_GALLERY] total');
+    console.log(`[DELETE_GALLERY] START`);
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
@@ -217,23 +219,23 @@ export default function EventManagementPage() {
         .map((item: any) => item.storageKey)
         .filter(Boolean);
 
-      // Trigger background purge
       if (storageKeys.length > 0) {
-        console.log(`[DELETE_GALLERY] Background R2 purge initiated`);
+        console.log(`[DELETE_GALLERY] Storage purge triggered`);
         deleteGalleryFiles(storageKeys, id);
       }
 
-      console.time('[DELETE_GALLERY] firestore');
+      console.log(`[DELETE_GALLERY] Firestore delete START`);
       await deleteDoc(eventRef);
-      console.timeEnd('[DELETE_GALLERY] firestore');
+      console.log(`[DELETE_GALLERY] Firestore delete COMPLETE`);
       
       toast({ title: "Gallery Purged" });
       router.replace('/dashboard');
     } catch (err: any) {
-      console.error("[DELETE] CRITICAL ERROR:", err);
+      console.error("[DELETE_GALLERY] CRITICAL ERROR:", err);
       toast({ variant: "destructive", title: "Purge Failed", description: "The records could not be fully removed." });
       setIsDeleting(false);
     } finally {
+      console.log(`[DELETE_GALLERY] Trace FINISHED`);
       console.timeEnd('[DELETE_GALLERY] total');
     }
   }, [eventRef, deleteConfirmText, event, router, toast, id, isDeleting]);
