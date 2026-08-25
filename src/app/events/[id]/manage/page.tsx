@@ -19,10 +19,9 @@ import {
   Calendar as CalendarIcon,
   Archive as ArchiveIcon,
   ExternalLink as ExternalLinkIcon,
-  ShieldCheck as ShieldCheckIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc, arrayRemove } from 'firebase/firestore';
+import { deleteGalleryFiles } from '@/app/actions/storage';
 import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
@@ -150,20 +150,45 @@ export default function EventManagementPage() {
   }, [eventRef, event, processingItems, toast]);
 
   const confirmDelete = useCallback(async () => {
-    if (!eventRef || deleteConfirmText !== 'DELETE' || isDeleting) return;
-    
+    if (!eventRef || !event || deleteConfirmText !== 'DELETE' || isDeleting) return;
+
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
     try {
+      const storageKeys = Array.isArray(event.items)
+        ? event.items
+            .map((item: any) => item?.storageKey)
+            .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
+        : [];
+
+      // Primary Operation: Firestore Metadata Removal
       await deleteDoc(eventRef);
+
       toast({ title: "Gallery Deleted" });
+
+      // FIX: Ensure body pointer events are reset for navigation safety
+      document.body.style.pointerEvents = '';
+
+      // Instant Navigation: Move away from the deleted record immediately
       router.replace('/dashboard');
+
+      // Best-effort Background Cleanup: Do NOT await this to prevent UI freeze
+      if (storageKeys.length > 0) {
+        void deleteGalleryFiles(storageKeys).catch((error) => {
+          console.error('[GALLERY_DELETE] R2 cleanup failed:', error);
+        });
+      }
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Delete Failed" });
+      console.error('[GALLERY_DELETE] Firestore deletion failed:', err);
+      toast({
+        variant: "destructive",
+        title: "Delete Failed",
+        description: err?.message || "Could not delete gallery."
+      });
       setIsDeleting(false);
     }
-  }, [eventRef, deleteConfirmText, router, toast, isDeleting]);
+  }, [eventRef, event, deleteConfirmText, router, toast, isDeleting]);
 
   const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;

@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useFirestore, useUser, useCollection, useDoc } from '@/firebase';
+import { useFirestore, useUser, useCollection } from '@/firebase';
 import { 
   Plus, 
   Search, 
@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
+import { deleteGalleryFiles } from '@/app/actions/storage';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -67,9 +68,13 @@ export default function DashboardPage() {
 
   const stats = useMemo(() => {
     const active = galleries || [];
+  
     return {
       totalDeliveries: active.length,
-      totalPhotos: active.reduce((acc, g) => acc + (g.items?.length || 0), 0),
+      totalPhotos: active.reduce(
+        (acc, g) => acc + (g.items?.length || 0),
+        0
+      ),
       totalFavorites: active.reduce((acc, g) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
     };
   }, [galleries]);
@@ -89,15 +94,32 @@ export default function DashboardPage() {
     if (!firestore || !user || !galleryToDelete || isDeleting) return;
 
     const idToDelete = galleryToDelete;
+    const galleryDoc = (galleries || []).find(g => g.id === idToDelete);
+    
     setGalleryToDelete(null);
     setIsDeleting(true);
 
     try {
+      // Collect keys for background cleanup
+      const storageKeys = Array.isArray(galleryDoc?.items)
+        ? galleryDoc.items
+            .map((item: any) => item?.storageKey)
+            .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
+        : [];
+
+      // Primary Operation: Firestore Removal
       await deleteDoc(doc(firestore, "galleries", idToDelete));
+      
       toast({
         title: "Gallery Record Removed",
         description: "The luxury event has been removed from your studio registry.",
       });
+
+      // Best-effort Background Storage Cleanup: Do NOT await this
+      if (storageKeys.length > 0) {
+        deleteGalleryFiles(storageKeys).catch(e => console.error('[DASHBOARD_DELETE] Cleanup error:', e));
+      }
+
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -107,7 +129,7 @@ export default function DashboardPage() {
     } finally {
       setIsDeleting(false);
     }
-  }, [firestore, user, galleryToDelete, toast, isDeleting]);
+  }, [firestore, user, galleryToDelete, galleries, toast, isDeleting]);
 
   return (
     <div className="space-y-10 pb-20">
