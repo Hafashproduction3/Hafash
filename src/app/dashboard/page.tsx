@@ -16,7 +16,9 @@ import {
   User as UserIcon, 
   Heart, 
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  TrendingUp,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -67,13 +69,9 @@ export default function DashboardPage() {
 
   const stats = useMemo(() => {
     const active = galleries || [];
-  
     return {
       totalDeliveries: active.length,
-      totalPhotos: active.reduce(
-        (acc, g) => acc + (g.items?.length || 0),
-        0
-      ),
+      totalPhotos: active.reduce((acc, g) => acc + (g.items?.length || 0), 0),
       totalFavorites: active.reduce((acc, g) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
     };
   }, [galleries]);
@@ -95,7 +93,7 @@ export default function DashboardPage() {
     const idToDelete = galleryToDelete;
     const galleryDoc = (galleries || []).find(g => g.id === idToDelete);
     
-    // Immediate UI reset and dialog closure logic
+    // 1. Immediate UI state transition (No blocking overlay)
     setIsDeleting(true);
     setGalleryToDelete(null);
     
@@ -104,14 +102,13 @@ export default function DashboardPage() {
       document.body.style.pointerEvents = '';
     }
 
-    // Collect keys for background cleanup
     const storageKeys = Array.isArray(galleryDoc?.items)
       ? galleryDoc.items
           .map((item: any) => item?.storageKey)
           .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
       : [];
 
-    // 1. Fire background Firestore delete
+    // 2. Fire background Firestore delete
     const deletionPromise = deleteDoc(doc(firestore, "galleries", idToDelete));
     
     deletionPromise
@@ -128,120 +125,149 @@ export default function DashboardPage() {
           title: "Delete Failed",
           description: "A database error occurred while removing the record.",
         });
+      })
+      .finally(() => {
+        setIsDeleting(false);
       });
 
-    // 2. Fire background R2 cleanup (Best effort, non-blocking)
+    // 3. Fire background R2 cleanup (Best effort, non-blocking)
     if (storageKeys.length > 0) {
-      void deleteGalleryFiles(storageKeys).catch(e => console.error('[DASHBOARD_DELETE] Cleanup error:', e));
+      void deleteGalleryFiles(storageKeys).catch(e => console.error('[DASHBOARD_DELETE] R2 cleanup error:', e));
     }
-
-    // 3. Immediately unlock UI state
-    setIsDeleting(false);
   }, [firestore, user, galleryToDelete, galleries, toast, isDeleting]);
 
   return (
-    <div className="space-y-10 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-        <div>
-          <h1 className="text-4xl font-headline font-bold tracking-tight">Studio Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Manage your luxury visual deliveries.</p>
+    <div className="space-y-12 pb-20 animate-in fade-in duration-1000">
+      {/* 3D Premium Header */}
+      <div className="relative group">
+        <div className="absolute -inset-4 bg-gradient-to-r from-primary/10 to-transparent blur-3xl opacity-50 group-hover:opacity-100 transition-opacity duration-1000 -z-10" />
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-1 w-8 bg-primary rounded-full" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">Studio Workspace</span>
+            </div>
+            <h1 className="text-5xl lg:text-6xl font-headline font-bold tracking-tight text-white drop-shadow-2xl">
+              Studio <span className="text-primary italic">Dashboard</span>
+            </h1>
+            <p className="text-muted-foreground text-sm font-medium tracking-wide">Manage your luxury visual deliveries with precision.</p>
+          </div>
+          <Link href="/events/create">
+            <Button className="rounded-full h-16 px-10 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-[0_20px_50px_rgba(212,175,55,0.2)] hover:translate-y-[-4px] transition-all duration-300 active:scale-95 group">
+              <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" /> 
+              <span>Create Luxury Event</span>
+            </Button>
+          </Link>
         </div>
-        <Link href="/events/create">
-          <Button className="rounded-full h-14 px-8 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 shadow-xl shadow-primary/20">
-            <Plus className="w-5 h-5" /> Create Luxury Event
-          </Button>
-        </Link>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Floating 3D Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <StatCard label="Total Deliveries" value={stats.totalDeliveries} icon={<Camera className="w-5 h-5" />} loading={dataLoading} />
         <StatCard label="Cloud Assets" value={stats.totalPhotos} icon={<LayoutGrid className="w-5 h-5" />} loading={dataLoading} />
-        <StatCard label="Client Favorites" value={stats.totalFavorites} icon={<Heart className="w-5 h-5" />} loading={dataLoading} />
+        <StatCard label="Client Favorites" value={stats.totalFavorites} icon={<Heart className="w-5 h-5" />} loading={dataLoading} color="text-red-400" />
       </div>
 
-      <div className="flex flex-col xl:flex-row gap-4 items-center justify-between bg-card/30 p-4 rounded-2xl border border-border/50">
-        <div className="relative flex-1 w-full">
-          <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
+      {/* Glassmorphic Controls */}
+      <div className="flex flex-col xl:flex-row gap-6 items-center justify-between bg-card/20 backdrop-blur-xl p-5 rounded-[2rem] border border-white/5 shadow-2xl">
+        <div className="relative flex-1 w-full group">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input 
             placeholder="Search galleries or clients..." 
-            className="pl-10 h-11 bg-background/50 rounded-xl"
+            className="pl-12 h-14 bg-background/40 border-white/5 rounded-2xl focus:ring-primary/20 text-base"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-3 w-full xl:w-auto">
-          <div className="flex bg-background/50 p-1 rounded-xl border border-border/50">
-            <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-lg" onClick={() => setViewMode('grid')}>
-              <LayoutGrid className="w-4 h-4" />
+        <div className="flex items-center gap-4 w-full xl:w-auto">
+          <div className="flex bg-background/40 p-1.5 rounded-2xl border border-white/5 shadow-inner">
+            <Button variant={viewMode === 'grid' ? 'secondary' : 'ghost'} size="icon" className={cn("h-11 w-11 rounded-xl transition-all", viewMode === 'grid' && "bg-primary text-primary-foreground shadow-lg")} onClick={() => setViewMode('grid')}>
+              <LayoutGrid className="w-5 h-5" />
             </Button>
-            <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" className="h-9 w-9 rounded-lg" onClick={() => setViewMode('list')}>
-              <List className="w-4 h-4" />
+            <Button variant={viewMode === 'list' ? 'secondary' : 'ghost'} size="icon" className={cn("h-11 w-11 rounded-xl transition-all", viewMode === 'list' && "bg-primary text-primary-foreground shadow-lg")} onClick={() => setViewMode('list')}>
+              <List className="w-5 h-5" />
             </Button>
           </div>
         </div>
       </div>
 
       {dataLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-80 rounded-3xl" />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+          {[1, 2, 3].map(i => <Skeleton key={i} className="h-96 rounded-[2.5rem] bg-card/20" />)}
         </div>
       ) : filteredGalleries.length === 0 ? (
-        <div className="text-center py-40 border-2 border-dashed border-border/20 rounded-[3rem] bg-card/10">
-          <Camera className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
-          <h3 className="text-xl font-headline font-bold">No galleries found</h3>
-          <p className="text-muted-foreground mt-2 italic">Start by creating your first luxury event.</p>
+        <div className="text-center py-40 border-2 border-dashed border-white/5 rounded-[3rem] bg-card/5 backdrop-blur-sm">
+          <div className="bg-primary/5 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner ring-1 ring-white/5">
+            <Camera className="w-10 h-10 text-muted-foreground/30" />
+          </div>
+          <h3 className="text-2xl font-headline font-bold text-white mb-2">No galleries found</h3>
+          <p className="text-muted-foreground italic max-w-xs mx-auto">Start your studio journey by creating your first luxury event.</p>
         </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
           {filteredGalleries.map(gallery => (
-            <Card key={gallery.id} className="group overflow-hidden rounded-[2rem] border-border/50 bg-card/40 hover:border-primary/40 transition-all duration-500 shadow-xl">
+            <Card key={gallery.id} className="group relative overflow-hidden rounded-[2.5rem] border-white/5 bg-card/30 hover:border-primary/40 transition-all duration-700 shadow-2xl hover:translate-y-[-8px] hover:shadow-primary/5">
               <div className="aspect-[4/3] relative overflow-hidden">
-                {gallery.coverImage && (
+                {gallery.coverImage ? (
                   <img
                     src={gallery.coverImage}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                     alt={gallery.title}
                   />
+                ) : (
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <ImageIcon className="w-12 h-12 text-white/5" />
+                  </div>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
-                <div className="absolute top-4 right-4">
+                <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent opacity-90" />
+                
+                <div className="absolute top-5 right-5">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-white/20">
+                      <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/10 hover:bg-white/20 transition-all shadow-2xl">
                         <MoreVertical className="w-5 h-5" />
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 rounded-xl">
-                      <DropdownMenuItem onClick={() => router.push(`/events/${gallery.id}/manage`)}>
-                        Manage Gallery
+                    <DropdownMenuContent align="end" className="w-56 rounded-2xl bg-card/95 backdrop-blur-2xl border-white/10 p-2 shadow-2xl">
+                      <DropdownMenuItem className="rounded-xl px-4 py-3 focus:bg-primary/20" onClick={() => router.push(`/events/${gallery.id}/manage`)}>
+                        <Settings className="w-4 h-4 mr-3" /> Manage Gallery
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => router.push(`/events/${gallery.id}/upload`)}>
-                        Add Assets
+                      <DropdownMenuItem className="rounded-xl px-4 py-3 focus:bg-primary/20" onClick={() => router.push(`/events/${gallery.id}/upload`)}>
+                        <ImageIcon className="w-4 h-4 mr-3" /> Add Assets
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => window.open(`/gallery/${gallery.slug || gallery.id}`, '_blank')}>
-                        Open Public View
+                      <DropdownMenuItem className="rounded-xl px-4 py-3 focus:bg-primary/20" onClick={() => window.open(`/gallery/${gallery.slug || gallery.id}`, '_blank')}>
+                        <LayoutGrid className="w-4 h-4 mr-3" /> Open Public View
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive font-bold" onClick={() => setGalleryToDelete(gallery.id)}>
-                        Delete Record
+                      <div className="h-px bg-white/5 my-2" />
+                      <DropdownMenuItem className="rounded-xl px-4 py-3 text-destructive focus:bg-destructive/10 font-bold" onClick={() => setGalleryToDelete(gallery.id)}>
+                        <Trash2 className="w-4 h-4 mr-3" /> Delete Record
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-                <div className="absolute bottom-6 left-6 right-6">
-                  <Badge className="bg-primary/20 text-primary border-primary/30 mb-3 px-3 py-0.5 text-[10px] font-bold uppercase tracking-widest">{gallery.category}</Badge>
-                  <h3 className="text-2xl font-headline font-bold text-white tracking-tight line-clamp-1">{gallery.title}</h3>
+
+                <div className="absolute bottom-6 left-8 right-8">
+                  <Badge className="bg-primary/20 text-primary border border-primary/30 mb-4 px-4 py-1 text-[10px] font-bold uppercase tracking-[0.2em] backdrop-blur-md rounded-lg">
+                    {gallery.category}
+                  </Badge>
+                  <h3 className="text-3xl font-headline font-bold text-white tracking-tight line-clamp-1 drop-shadow-2xl">{gallery.title}</h3>
                 </div>
               </div>
-              <div className="p-6 space-y-4">
-                <div className="flex flex-col gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                  <span className="flex items-center gap-2"><UserIcon className="w-3.5 h-3.5 text-primary" /> {gallery.clientName}</span>
-                  <span className="flex items-center gap-2"><CalendarIcon className="w-3.5 h-3.5 text-primary" /> {gallery.date}</span>
+              
+              <div className="p-8 space-y-6">
+                <div className="flex flex-col gap-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  <span className="flex items-center gap-3"><UserIcon className="w-4 h-4 text-primary" /> {gallery.clientName}</span>
+                  <span className="flex items-center gap-3"><CalendarIcon className="w-4 h-4 text-primary" /> {gallery.date}</span>
                 </div>
-                <div className="pt-4 border-t border-border/20 flex justify-between items-center">
-                   <span className="text-[10px] font-bold text-primary">{gallery.items?.length || 0} Assets Delivered</span>
+                
+                <div className="pt-6 border-t border-white/5 flex justify-between items-center">
+                   <div className="flex flex-col">
+                     <span className="text-[10px] font-bold text-primary tracking-widest uppercase mb-1">Status</span>
+                     <span className="text-xs font-medium text-white/80">{gallery.items?.length || 0} Assets Delivered</span>
+                   </div>
                    <Link href={`/events/${gallery.id}/manage`}>
-                     <Button variant="ghost" size="sm" className="h-8 rounded-lg gap-2 text-[10px] font-bold uppercase hover:bg-primary/10 hover:text-primary">
-                       Manage <ArrowRight className="w-3 h-3" />
+                     <Button variant="ghost" size="sm" className="h-10 rounded-xl px-5 gap-2 text-[10px] font-bold uppercase hover:bg-primary/10 hover:text-primary transition-all active:scale-95">
+                       Manage <ArrowRight className="w-4 h-4" />
                      </Button>
                    </Link>
                 </div>
@@ -250,35 +276,33 @@ export default function DashboardPage() {
           ))}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {filteredGalleries.map(gallery => (
-            <div key={gallery.id} className="flex items-center gap-6 p-4 bg-card/40 border border-border/50 rounded-2xl group hover:border-primary/40 transition-all">
-              <div className="h-16 w-16 rounded-xl overflow-hidden shrink-0 border border-border/30">
-              {gallery.coverImage && (
-                <img 
-                  src={gallery.coverImage} 
-                  className="w-full h-full object-cover" 
-                  alt="Cover" 
-                />
-              )}
+            <div key={gallery.id} className="flex items-center gap-8 p-6 bg-card/30 backdrop-blur-md border border-white/5 rounded-3xl group hover:border-primary/40 transition-all duration-500 shadow-xl hover:translate-x-2">
+              <div className="h-20 w-20 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
+                {gallery.coverImage ? (
+                  <img src={gallery.coverImage} className="w-full h-full object-cover" alt="Cover" />
+                ) : (
+                  <div className="w-full h-full bg-muted flex items-center justify-center"><ImageIcon className="w-6 h-6 text-white/5" /></div>
+                )}
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-headline font-bold text-lg line-clamp-1 group-hover:text-primary transition-colors">{gallery.title}</h4>
-                <p className="text-xs text-muted-foreground flex items-center gap-4 mt-1">
-                  <span className="flex items-center gap-1.5"><UserIcon className="w-3 h-3" /> {gallery.clientName}</span>
-                  <span className="flex items-center gap-1.5"><CalendarIcon className="w-3 h-3" /> {gallery.date}</span>
-                </p>
+                <div className="flex items-center gap-4 mb-2">
+                  <h4 className="font-headline font-bold text-xl line-clamp-1 group-hover:text-primary transition-colors">{gallery.title}</h4>
+                  <Badge variant="outline" className="text-[9px] uppercase font-bold px-3 py-1 border-primary/20 text-primary bg-primary/5">{gallery.category}</Badge>
+                </div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-6">
+                  <span className="flex items-center gap-2"><UserIcon className="w-3.5 h-3.5 text-primary" /> {gallery.clientName}</span>
+                  <span className="flex items-center gap-2"><CalendarIcon className="w-3.5 h-3.5 text-primary" /> {gallery.date}</span>
+                  <span className="flex items-center gap-2 text-white/40"><LayoutGrid className="w-3.5 h-3.5" /> {gallery.items?.length || 0} Assets</span>
+                </div>
               </div>
-              <div className="hidden md:flex items-center gap-3">
-                 <Badge variant="outline" className="text-[9px] uppercase font-bold px-3 py-1 border-primary/20 text-primary">{gallery.category}</Badge>
-                 <span className="text-[10px] font-bold text-muted-foreground px-4 border-l border-border/50">{gallery.items?.length || 0} Assets</span>
-              </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <Link href={`/events/${gallery.id}/manage`}>
-                  <Button variant="outline" size="sm" className="h-10 px-4 rounded-xl font-bold">Manage</Button>
+                  <Button variant="outline" size="sm" className="h-12 px-6 rounded-xl border-white/10 font-bold hover:bg-primary hover:text-primary-foreground shadow-lg transition-all active:scale-95">Manage</Button>
                 </Link>
-                <Button variant="ghost" size="icon" className="h-10 w-10 text-destructive hover:bg-destructive/10" onClick={() => setGalleryToDelete(gallery.id)}>
-                   <Trash2 className="w-4 h-4" />
+                <Button variant="ghost" size="icon" className="h-12 w-12 text-destructive hover:bg-destructive/10 rounded-xl transition-all" onClick={() => setGalleryToDelete(gallery.id)}>
+                   <Trash2 className="w-5 h-5" />
                 </Button>
               </div>
             </div>
@@ -286,20 +310,22 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* 3D Premium Alert Dialog */}
       <AlertDialog open={!!galleryToDelete} onOpenChange={(open) => !open && setGalleryToDelete(null)}>
-        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] p-10 shadow-2xl max-w-md">
+        <AlertDialogContent className="bg-card/90 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-12 shadow-[0_50px_100px_rgba(0,0,0,0.5)] max-w-md ring-1 ring-white/10 overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-destructive to-transparent opacity-50" />
           <AlertDialogHeader>
-            <div className="bg-destructive/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-              <AlertCircle className="w-8 h-8 text-destructive" />
+            <div className="bg-destructive/10 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 ring-8 ring-destructive/5 shadow-inner">
+              <AlertCircle className="w-12 h-12 text-destructive" />
             </div>
-            <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Permanent Purge</AlertDialogTitle>
-            <AlertDialogDescription className="text-center italic mt-2">
+            <AlertDialogTitle className="text-3xl font-headline font-bold text-center text-white">Permanent Purge</AlertDialogTitle>
+            <AlertDialogDescription className="text-center italic mt-4 text-muted-foreground text-base">
               Are you sure you want to remove this gallery? This will permanently delete all metadata from the studio registry.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex flex-col sm:flex-row gap-4 mt-8">
-            <AlertDialogCancel className="rounded-xl h-12 flex-1 font-bold">Abort</AlertDialogCancel>
-            <AlertDialogAction className="rounded-xl h-12 flex-1 bg-destructive text-white hover:bg-destructive/90 font-bold" onClick={confirmDelete}>
+          <AlertDialogFooter className="flex flex-col sm:flex-row gap-5 mt-10">
+            <AlertDialogCancel className="rounded-2xl h-14 flex-1 font-bold text-[11px] uppercase tracking-[0.2em] border-white/10 hover:bg-white/5 transition-all">Abort</AlertDialogCancel>
+            <AlertDialogAction className="rounded-2xl h-14 flex-1 bg-destructive text-white hover:bg-destructive/90 font-bold text-[11px] uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95" onClick={confirmDelete}>
               Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -309,18 +335,27 @@ export default function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon, loading }: { label: string, value: number, icon: React.ReactNode, loading: boolean }) {
+function StatCard({ label, value, icon, loading, color = "text-primary" }: { label: string, value: number, icon: React.ReactNode, loading: boolean, color?: string }) {
   return (
-    <Card className="bg-card/40 border-border/50 rounded-3xl luxury-card-hover">
-      <CardContent className="p-8 flex items-center justify-between">
-        <div className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">{label}</p>
-          {loading ? <Skeleton className="h-10 w-16" /> : <h3 className="text-4xl font-headline font-bold text-primary">{value}</h3>}
+    <Card className="group relative overflow-hidden bg-card/20 backdrop-blur-xl border border-white/5 rounded-[2.5rem] shadow-2xl transition-all duration-500 hover:translate-y-[-6px] hover:border-primary/30 hover:shadow-primary/5">
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+      <CardContent className="p-10 flex items-center justify-between relative z-10">
+        <div className="space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-muted-foreground/60 group-hover:text-primary transition-colors">{label}</p>
+          {loading ? (
+            <Skeleton className="h-12 w-20 bg-white/5" />
+          ) : (
+            <h3 className={cn("text-5xl font-headline font-bold tracking-tighter drop-shadow-2xl", color)}>{value}</h3>
+          )}
         </div>
-        <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
+        <div className="h-16 w-16 rounded-[1.5rem] bg-background/60 flex items-center justify-center text-primary shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] border border-white/5 group-hover:scale-110 transition-transform duration-500">
           {icon}
         </div>
       </CardContent>
     </Card>
   );
+}
+
+function Settings({ className }: { className?: string }) {
+  return <TrendingUp className={className} />;
 }

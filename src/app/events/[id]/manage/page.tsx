@@ -19,6 +19,7 @@ import {
   Calendar as CalendarIcon,
   Archive as ArchiveIcon,
   ExternalLink as ExternalLinkIcon,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -133,7 +134,6 @@ export default function EventManagementPage() {
     });
 
     try {
-      // Use arrayRemove for high performance delta update
       await updateDoc(eventRef, { 
         items: arrayRemove(item),
         updatedAt: new Date().toISOString() 
@@ -150,12 +150,12 @@ export default function EventManagementPage() {
     }
   }, [eventRef, event, processingItems, toast]);
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = useCallback(async () => {
     if (!eventRef || !event || deleteConfirmText !== 'DELETE' || isDeleting) return;
 
-    // 1. Immediate UI state transition
+    // 1. Immediate UI state transition (No blocking loader)
     setShowDeleteDialog(false);
-    setIsDeleting(false); 
+    setIsDeleting(true); 
 
     // Prevent Radix dialog from leaving the document locked
     if (typeof document !== 'undefined') {
@@ -168,29 +168,24 @@ export default function EventManagementPage() {
           .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
       : [];
 
-    // 2. Fire background Firestore delete (non-blocking)
-    void deleteDoc(eventRef)
-      .then(() => {
-        console.log('[GALLERY_DELETE] Firestore record purged');
-        toast({ title: "Gallery Deleted" });
-      })
-      .catch((err: any) => {
-        console.error('[GALLERY_DELETE] Firestore error:', err);
-        toast({ variant: "destructive", title: "Delete Failed", description: "Metadata record could not be removed." });
-      });
+    try {
+      // 2. Delete Firestore record first - this is the source of truth for the UI
+      await deleteDoc(eventRef);
+      
+      toast({ title: "Gallery Deleted" });
+      
+      // 3. Navigate away immediately while storage cleanups happen in background
+      router.replace('/dashboard');
 
-    // 3. Fire background R2 cleanup (non-blocking)
-    if (storageKeys.length > 0) {
-      void deleteGalleryFiles(storageKeys)
-        .then((res) => {
-          if (!res.success) console.warn('[GALLERY_DELETE] R2 partial failure:', res.error);
-          else console.log('[GALLERY_DELETE] R2 assets cleared');
-        })
-        .catch((err: any) => console.error('[GALLERY_DELETE] R2 fatal error:', err));
+      // 4. Fire background R2 cleanup (Non-blocking)
+      if (storageKeys.length > 0) {
+        void deleteGalleryFiles(storageKeys).catch(e => console.error('[GALLERY_DELETE] R2 cleanup error:', e));
+      }
+    } catch (err: any) {
+      console.error('[GALLERY_DELETE] Firestore error:', err);
+      toast({ variant: "destructive", title: "Delete Failed", description: "Metadata record could not be removed." });
+      setIsDeleting(false);
     }
-
-    // 4. Navigate immediately - DO NOT await anything
-    router.replace('/dashboard');
   }, [eventRef, event, deleteConfirmText, router, toast, isDeleting]);
 
   const updateToggle = useCallback((field: string, value: any) => {
@@ -214,10 +209,10 @@ export default function EventManagementPage() {
   );
 
   if (error || !event) return (
-    <div className="text-center py-20 bg-card border border-border/50 rounded-[2.5rem]">
-      <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-      <h2 className="text-2xl font-headline font-bold">Event not found</h2>
-      <Button className="mt-6 rounded-xl px-8" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
+    <div className="text-center py-40 bg-card/20 backdrop-blur-md border border-white/5 rounded-[3rem] animate-in fade-in duration-700">
+      <ImageIcon className="w-20 h-20 text-muted-foreground mx-auto mb-8 opacity-20" />
+      <h2 className="text-4xl font-headline font-bold text-white uppercase tracking-tight">Event not found</h2>
+      <Button className="mt-10 rounded-2xl h-14 px-12 bg-primary text-primary-foreground font-bold shadow-2xl" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
     </div>
   );
 
@@ -225,92 +220,96 @@ export default function EventManagementPage() {
   const favoritesCount = Array.isArray(event.items) ? event.items.filter((i: any) => i.isFavorite).length : 0;
 
   return (
-    <div className="space-y-12 pb-20 animate-in fade-in duration-700">
-      <div className="relative rounded-[2.5rem] overflow-hidden border border-border/50 shadow-2xl">
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/95 to-primary/5 z-0" />
-        <div className="relative z-10 p-10 lg:p-14 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-10">
-          <div className="space-y-6">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 hover:bg-primary/10" onClick={() => router.push('/dashboard')}>
-                <ArrowLeftIcon className="w-5 h-5" />
+    <div className="space-y-16 pb-32 animate-in fade-in duration-1000">
+      {/* 3D Glass Hero Section */}
+      <div className="relative rounded-[3.5rem] overflow-hidden border border-white/5 shadow-[0_50px_100px_rgba(0,0,0,0.5)] group">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background/95 to-background z-0" />
+        <div className="absolute -inset-20 bg-[radial-gradient(circle_at_center,var(--primary)_0%,transparent_70%)] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity duration-1000" />
+        
+        <div className="relative z-10 p-12 lg:p-20 flex flex-col lg:row justify-between items-start lg:items-center gap-12">
+          <div className="space-y-8">
+            <div className="flex items-center gap-5">
+              <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 bg-white/5 hover:bg-primary hover:text-primary-foreground border border-white/10 transition-all shadow-xl" onClick={() => router.push('/dashboard')}>
+                <ArrowLeftIcon className="w-6 h-6" />
               </Button>
-              <Badge variant="outline" className="border-primary/30 text-primary text-[10px] uppercase font-bold tracking-[0.3em] px-4 py-1">
+              <Badge variant="outline" className="border-primary/30 text-primary text-[10px] uppercase font-bold tracking-[0.4em] px-6 py-2 rounded-xl backdrop-blur-md">
                 Workspace / {event.category}
               </Badge>
             </div>
-            <div className="space-y-2">
-              <h1 className="text-5xl lg:text-6xl font-headline font-bold tracking-tight">{event.title}</h1>
-              <div className="flex flex-wrap items-center gap-8 text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-                <span className="flex items-center gap-2.5"><UserIcon className="w-4 h-4 text-primary" /> {event.clientName}</span>
-                <span className="flex items-center gap-2.5"><CalendarIcon className="w-4 h-4 text-primary" /> {event.date}</span>
-                <span className="flex items-center gap-2.5 text-primary/80"><LayoutGridIcon className="w-4 h-4" /> {event.items?.length || 0} Assets</span>
+            <div className="space-y-3">
+              <h1 className="text-6xl lg:text-8xl font-headline font-bold tracking-tighter text-white drop-shadow-2xl leading-none">
+                {event.title}
+              </h1>
+              <div className="flex flex-wrap items-center gap-10 text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground/80">
+                <span className="flex items-center gap-3"><UserIcon className="w-4 h-4 text-primary" /> {event.clientName}</span>
+                <span className="flex items-center gap-3"><CalendarIcon className="w-4 h-4 text-primary" /> {event.date}</span>
+                <span className="flex items-center gap-3 text-primary"><LayoutGridIcon className="w-4 h-4" /> {event.items?.length || 0} Assets</span>
               </div>
             </div>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
+          <div className="flex flex-col sm:flex-row gap-5 w-full lg:w-auto">
             <Link href={`/gallery/${event.slug || event.id}`} target="_blank" className="flex-1">
-               <Button className="w-full rounded-2xl h-16 bg-white text-black hover:bg-gray-100 font-bold gap-3 shadow-2xl">
-                 <EyeIcon className="w-6 h-6" /> Preview
+               <Button className="w-full rounded-[1.5rem] h-20 bg-white text-black hover:bg-gray-100 font-bold gap-4 shadow-[0_20px_40px_rgba(255,255,255,0.1)] hover:translate-y-[-4px] transition-all active:scale-95 text-lg">
+                 <EyeIcon className="w-7 h-7" /> Preview
                </Button>
             </Link>
             <Button 
               variant="outline" 
-              className="flex-1 rounded-2xl h-16 border-border/50 font-bold gap-3 bg-card/40 backdrop-blur-md"
+              className="flex-1 rounded-[1.5rem] h-20 border-white/10 font-bold gap-4 bg-white/5 backdrop-blur-2xl hover:bg-white/10 transition-all hover:translate-y-[-4px] shadow-2xl text-lg"
               onClick={() => handleCopy(galleryUrl)}
             >
-              {copiedLink ? <CheckIcon className="w-6 h-6 text-green-500" /> : <CopyIcon className="w-6 h-6" />}
+              {copiedLink ? <CheckIcon className="w-7 h-7 text-green-500" /> : <CopyIcon className="w-7 h-7" />}
               {copiedLink ? "Copied" : "Copy Link"}
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        <div className="lg:col-span-2 space-y-10">
-          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
-            <CardHeader className="bg-primary/5 border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
-                  <ImageIcon className="w-8 h-8 text-primary" /> Visual Assets
-                </CardTitle>
-              </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+        <div className="lg:col-span-2 space-y-12">
+          {/* Visual Assets 3D Grid */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl luxury-card-hover">
+            <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12 flex flex-row items-center justify-between">
+              <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
+                <ImageIcon className="w-10 h-10 text-primary" /> Visual Assets
+              </CardTitle>
               <Link href={`/events/${id}/upload`}>
-                <Button className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 shadow-xl h-12 px-6">
+                <Button className="rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-[0_15px_30px_rgba(212,175,55,0.2)] h-14 px-10 hover:translate-y-[-2px] transition-all">
                   <ImageIcon className="w-5 h-5" /> Add Assets
                 </Button>
               </Link>
             </CardHeader>
-            <CardContent className="p-10">
+            <CardContent className="p-12">
               {(!event.items || event.items.length === 0) ? (
-                <div className="text-center py-24 border-2 border-dashed border-border/20 rounded-[2rem]">
-                  <LayoutGridIcon className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
-                  <p className="text-muted-foreground italic font-headline text-xl">No photos delivered yet.</p>
+                <div className="text-center py-32 border-2 border-dashed border-white/5 rounded-[2.5rem] bg-background/20">
+                  <LayoutGridIcon className="w-20 h-20 text-muted-foreground mx-auto mb-8 opacity-10" />
+                  <p className="text-muted-foreground italic font-headline text-2xl">No photos delivered yet.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-8">
                   {event.items.slice(0, 12).map((item: any) => (
-                    <div key={item.id} className="group relative aspect-[4/5] rounded-[1.5rem] overflow-hidden border border-border/30 bg-muted">
+                    <div key={item.id} className="group relative aspect-[4/5] rounded-[2rem] overflow-hidden border border-white/5 bg-background shadow-2xl hover:translate-y-[-8px] transition-all duration-700">
                       {item.url && (
-                        <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-1000" alt="Asset" />
+                        <img src={item.url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="Asset" />
                       )}
-                      <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center backdrop-blur-sm gap-2">
+                      <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center backdrop-blur-md gap-3">
                         <Button 
                           size="sm" 
                           variant="ghost"
                           className={cn(
-                            "w-full rounded-xl font-bold text-[10px] uppercase tracking-widest h-10",
-                            event.coverImage === item.url ? "bg-green-500 text-white" : "bg-white text-black"
+                            "w-full rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] h-12 shadow-2xl transition-all",
+                            event.coverImage === item.url ? "bg-primary text-primary-foreground border-none" : "bg-white text-black hover:bg-gray-100"
                           )}
                           onClick={() => event.coverImage !== item.url && handleSetCover(item.url)}
                           disabled={processingItems.has(item.id)}
                         >
-                          {event.coverImage === item.url ? "Cover" : "Set Cover"}
+                          {event.coverImage === item.url ? "Active Cover" : "Set Cover"}
                         </Button>
                         <Button 
                           size="sm" 
                           variant="destructive"
-                          className="w-full rounded-xl font-bold text-[10px] uppercase h-10"
+                          className="w-full rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] h-12 shadow-2xl transition-all active:scale-95"
                           onClick={() => handleDeletePhoto(item)}
                           disabled={processingItems.has(item.id)}
                         >
@@ -321,9 +320,9 @@ export default function EventManagementPage() {
                     </div>
                   ))}
                   {event.items.length > 12 && (
-                    <div className="aspect-[4/5] rounded-[1.5rem] border-2 border-dashed border-border/50 flex flex-col items-center justify-center bg-muted/20">
-                      <span className="text-3xl font-headline font-bold text-primary">{event.items.length - 12}</span>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground mt-2">More Assets</span>
+                    <div className="aspect-[4/5] rounded-[2rem] border-2 border-dashed border-white/5 flex flex-col items-center justify-center bg-white/5 backdrop-blur-sm group hover:border-primary/40 transition-all">
+                      <span className="text-5xl font-headline font-bold text-primary drop-shadow-2xl">{event.items.length - 12}</span>
+                      <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-muted-foreground/60 mt-4 group-hover:text-primary transition-colors">More Assets</span>
                     </div>
                   )}
                 </div>
@@ -331,92 +330,98 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
-            <CardHeader className="bg-primary/5 border-b border-border/30 px-10 py-10">
-              <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
-                <SparklesIcon className="w-8 h-8 text-primary" /> Experience Strategy
+          {/* Strategy Section */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl luxury-card-hover">
+            <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12">
+              <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
+                <SparklesIcon className="w-10 h-10 text-primary" /> Experience Strategy
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-10 space-y-12">
-              <div className="space-y-6">
-                <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary flex items-center gap-3">
-                  <FileTextIcon className="w-5 h-5" /> Welcome Note
+            <CardContent className="p-12 space-y-12">
+              <div className="space-y-8">
+                <Label className="text-[11px] font-bold uppercase tracking-[0.4em] text-primary flex items-center gap-4">
+                  <FileTextIcon className="w-5 h-5" /> Personalized Welcome Note
                 </Label>
                 <Textarea 
-                  placeholder="Compose a beautiful personalized note..." 
-                  className="min-h-[160px] rounded-[2rem] bg-background/50 border-border/50 p-8 text-lg italic focus:border-primary/50"
+                  placeholder="Compose a beautiful personalized note for your clients..." 
+                  className="min-h-[200px] rounded-[2.5rem] bg-background/40 border-white/10 p-10 text-xl italic focus:border-primary/50 text-white/90 shadow-inner transition-all leading-relaxed"
                   value={settings.photographerNote}
                   onChange={(e) => setSettings({...settings, photographerNote: e.target.value})}
                 />
               </div>
               <div className="flex justify-end">
-                <Button className="rounded-xl px-14 h-14 font-bold shadow-2xl" onClick={handleUpdateSettings}>
-                  Save Note
+                <Button className="rounded-2xl px-16 h-16 font-bold shadow-[0_20px_40px_rgba(212,175,55,0.1)] text-lg hover:translate-y-[-2px] transition-all active:scale-95" onClick={handleUpdateSettings}>
+                  Save Configuration
                 </Button>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="space-y-10">
-          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl border-t-4 border-t-primary">
-            <CardHeader className="p-8 border-b border-border/30 bg-background/20">
-              <CardTitle className="text-[11px] font-bold uppercase tracking-[0.4em] text-primary">Live Asset Telemetry</CardTitle>
+        {/* Sidebar Telemetry Panels */}
+        <div className="space-y-12">
+          {/* Telemetry Panel */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary luxury-card-hover">
+            <CardHeader className="p-10 border-b border-white/5 bg-background/20">
+              <CardTitle className="text-[11px] font-bold uppercase tracking-[0.5em] text-primary flex items-center gap-3">
+                <Zap className="w-4 h-4 animate-pulse" /> Live Telemetry
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-8">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="bg-background/80 p-6 rounded-[1.5rem] border border-border/30 text-center space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Views</p>
-                  <p className="text-4xl font-headline font-bold text-primary">{event.viewCount || 0}</p>
+            <CardContent className="p-10 space-y-10">
+              <div className="grid grid-cols-2 gap-8">
+                <div className="bg-background/60 p-8 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner group">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground group-hover:text-primary transition-colors">Total Views</p>
+                  <p className="text-5xl font-headline font-bold text-primary drop-shadow-2xl">{event.viewCount || 0}</p>
                 </div>
-                <div className="bg-background/80 p-6 rounded-[1.5rem] border border-border/30 text-center space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Hearts</p>
-                  <p className="text-4xl font-headline font-bold text-primary">{favoritesCount}</p>
+                <div className="bg-background/60 p-8 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner group">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground group-hover:text-primary transition-colors">Favorites</p>
+                  <p className="text-5xl font-headline font-bold text-primary drop-shadow-2xl">{favoritesCount}</p>
                 </div>
               </div>
               
-              <div className="space-y-5 pt-2">
-                <div className="flex items-center justify-between p-1">
-                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Public Access</span>
+              <div className="space-y-6 pt-4">
+                <div className="flex items-center justify-between p-2">
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em]">Public Access</span>
                   <Switch checked={settings.isPublic} onCheckedChange={(val) => {
                     setSettings({...settings, isPublic: val});
                     updateToggle('isPublic', val);
-                  }} />
+                  }} className="data-[state=checked]:bg-primary" />
                 </div>
-                <div className="flex items-center justify-between p-1">
-                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em]">Downloads</span>
+                <div className="flex items-center justify-between p-2">
+                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em]">Download Rights</span>
                   <Switch checked={!settings.isLocked} onCheckedChange={(val) => {
                     setSettings({...settings, isLocked: !val});
                     updateToggle('isLocked', !val);
-                  }} />
+                  }} className="data-[state=checked]:bg-primary" />
                 </div>
-                <div className="flex items-center justify-between pt-6 border-t border-border/20">
-                   <div className="space-y-1">
-                     <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.2em] block">Revenue</span>
-                     <span className={cn("text-[10px] font-bold uppercase", settings.isPaid ? "text-green-500" : "text-amber-500")}>
-                        {settings.isPaid ? "Paid" : "Awaiting"}
-                     </span>
+                <div className="flex items-center justify-between pt-10 border-t border-white/5">
+                   <div className="space-y-2">
+                     <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em] block">Revenue Status</span>
+                     <Badge className={cn("text-[10px] font-bold uppercase tracking-widest px-4 py-1", settings.isPaid ? "bg-green-500/20 text-green-500" : "bg-amber-500/20 text-amber-500")}>
+                        {settings.isPaid ? "Payment Received" : "Awaiting Transfer"}
+                     </Badge>
                    </div>
                   <Switch checked={settings.isPaid} onCheckedChange={(val) => {
                     setSettings({...settings, isPaid: val, isLocked: !val});
                     updateToggle('isPaid', val);
-                  }} />
+                  }} className="data-[state=checked]:bg-green-500" />
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl border-t-4 border-t-primary">
-            <CardHeader className="p-8 border-b border-border/30 bg-background/20">
-              <CardTitle className="text-base font-headline font-bold flex items-center gap-3">
-                <ArchiveIcon className="w-5 h-5 text-primary" /> Album Production
+          {/* Workflow Panel */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary luxury-card-hover">
+            <CardHeader className="p-10 border-b border-white/5 bg-background/20">
+              <CardTitle className="text-lg font-headline font-bold flex items-center gap-4 text-white">
+                <ArchiveIcon className="w-6 h-6 text-primary" /> Workflow Phase
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8 space-y-6">
-               <div className="space-y-3">
-                  <Label className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Workflow Phase</Label>
+            <CardContent className="p-10 space-y-8">
+               <div className="space-y-4">
+                  <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Select Current Phase</Label>
                   <select 
-                    className="w-full h-14 rounded-xl bg-background/50 border border-border/50 font-bold text-[11px] uppercase tracking-widest px-4 focus:outline-none"
+                    className="w-full h-16 rounded-2xl bg-background/60 border border-white/10 font-bold text-[11px] uppercase tracking-[0.3em] px-6 focus:outline-none focus:border-primary/50 text-white shadow-inner transition-all appearance-none"
                     value={settings.albumStatus} 
                     onChange={(e) => {
                       const val = e.target.value;
@@ -424,53 +429,65 @@ export default function EventManagementPage() {
                       if (eventRef) updateDoc(eventRef, { albumStatus: val });
                     }}
                   >
-                    <option value="New Selection">New Selection</option>
-                    <option value="Album Package Generated">Package Ready</option>
-                    <option value="Shared with Album Designer">In Production</option>
-                    <option value="Completed">Completed</option>
+                    <option value="New Selection" className="bg-card">New Selection</option>
+                    <option value="Album Package Generated" className="bg-card">Package Ready</option>
+                    <option value="Shared with Album Designer" className="bg-card">In Production</option>
+                    <option value="Completed" className="bg-card">Completed</option>
                   </select>
                </div>
-            </CardContent>
-            <div className="p-8 pt-0">
-               <Link href="/album-selections">
-                  <Button variant="link" className="w-full text-[11px] font-bold uppercase text-primary gap-3">
-                    Workflow Portal <ExternalLinkIcon className="w-4 h-4" />
+               <Link href="/album-selections" className="block">
+                  <Button variant="ghost" className="w-full h-14 rounded-2xl text-[11px] font-bold uppercase tracking-[0.3em] text-primary gap-4 hover:bg-primary/10 transition-all">
+                    Open Workflow Portal <ExternalLinkIcon className="w-4 h-4" />
                   </Button>
                </Link>
-            </div>
+            </CardContent>
           </Card>
 
-          <Card className="bg-destructive/5 border-destructive/20 rounded-[2.5rem] overflow-hidden">
-            <CardHeader className="p-8 pb-4">
-              <CardTitle className="text-base font-headline font-bold text-destructive flex items-center gap-3">
-                <Trash2Icon className="w-5 h-5" /> Permanent Purge
+          {/* Dangerous Zone */}
+          <Card className="bg-destructive/5 border border-destructive/20 rounded-[3rem] overflow-hidden group shadow-2xl">
+            <CardHeader className="p-10 pb-4">
+              <CardTitle className="text-lg font-headline font-bold text-destructive flex items-center gap-4">
+                <Trash2Icon className="w-6 h-6" /> Permanent Removal
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-8">
-              <Button variant="destructive" className="w-full rounded-xl font-bold h-12 text-[10px] uppercase tracking-[0.3em]" onClick={() => setShowDeleteDialog(true)}>
-                Delete Gallery Record
+            <CardContent className="p-10">
+              <Button variant="destructive" className="w-full rounded-2xl font-bold h-16 text-[11px] uppercase tracking-[0.4em] shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95" onClick={() => setShowDeleteDialog(true)}>
+                Destroy Gallery Record
               </Button>
             </CardContent>
           </Card>
         </div>
       </div>
 
+      {/* 3D Premium Alert Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] max-w-md p-10 shadow-2xl">
+        <AlertDialogContent className="bg-card/90 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] max-w-md p-12 shadow-[0_50px_100px_rgba(0,0,0,0.6)] overflow-hidden ring-1 ring-white/10">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-destructive to-transparent opacity-50" />
           <AlertDialogHeader>
-            <div className="bg-destructive/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-              <AlertCircleIcon className="w-8 h-8 text-destructive" />
+            <div className="bg-destructive/10 w-28 h-28 rounded-full flex items-center justify-center mx-auto mb-10 ring-8 ring-destructive/5 shadow-inner">
+              <AlertCircleIcon className="w-14 h-14 text-destructive" />
             </div>
-            <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Final Confirmation</AlertDialogTitle>
-            <AlertDialogDescription className="text-center space-y-6 pt-4">
-              <p className="text-sm font-medium italic">Type DELETE below to confirm removal.</p>
-              <Input placeholder="Type DELETE..." className="text-center font-bold h-14 rounded-xl border-destructive/30" value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} />
+            <AlertDialogTitle className="text-3xl font-headline font-bold text-center text-white">Final Confirmation</AlertDialogTitle>
+            <AlertDialogDescription className="text-center space-y-8 pt-6">
+              <p className="text-base font-medium italic text-muted-foreground leading-relaxed px-4">
+                This action will permanently purge this record from your studio registry. Type <span className="text-destructive font-bold not-italic">DELETE</span> below.
+              </p>
+              <Input 
+                placeholder="Type DELETE..." 
+                className="text-center font-bold h-16 rounded-2xl border-white/10 bg-background/50 text-xl tracking-[0.2em] focus:border-destructive/50" 
+                value={deleteConfirmText} 
+                onChange={(e) => setDeleteConfirmText(e.target.value)} 
+              />
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex flex-col sm:flex-row gap-4 mt-10">
-            <AlertDialogCancel className="rounded-xl flex-1 h-14 font-bold uppercase text-[10px]">Abort</AlertDialogCancel>
-            <AlertDialogAction className="rounded-xl bg-destructive text-white hover:bg-destructive/90 font-bold flex-1 h-14 uppercase text-[10px]" onClick={confirmDelete} disabled={deleteConfirmText !== 'DELETE'}>
-              Confirm Delete
+          <AlertDialogFooter className="flex flex-col sm:flex-row gap-5 mt-12">
+            <AlertDialogCancel className="rounded-2xl flex-1 h-16 font-bold uppercase text-[11px] tracking-[0.2em] border-white/10 hover:bg-white/5 transition-all">Abort</AlertDialogCancel>
+            <AlertDialogAction 
+              className="rounded-2xl bg-destructive text-white hover:bg-destructive/90 font-bold flex-1 h-16 uppercase text-[11px] tracking-[0.2em] shadow-2xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed" 
+              onClick={confirmDelete} 
+              disabled={deleteConfirmText !== 'DELETE'}
+            >
+              Confirm Deletion
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
