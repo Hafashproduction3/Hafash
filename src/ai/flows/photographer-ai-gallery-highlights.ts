@@ -101,8 +101,8 @@ const photographerAIGalleryHighlightsFlow = ai.defineFlow(
     const {output} = await ai.generate({
       model: 'googleai/gemini-2.5-flash-image', // Using a multi-modal model for image understanding
       prompt: fullPrompt,
-      config: {
-        responseMimeType: 'application/json', // Request JSON output
+      output: {
+        schema: PhotographerAIGalleryHighlightsOutputSchema,
       },
     });
 
@@ -110,8 +110,6 @@ const photographerAIGalleryHighlightsFlow = ai.defineFlow(
       throw new Error('AI model did not return any output.');
     }
 
-    // The output should be a JSON string, which needs to be parsed.
-    const parsedOutput = JSON.parse(output.text) as PhotographerAIGalleryHighlightsOutput;
-    return parsedOutput;
+    return output;
   }
 );

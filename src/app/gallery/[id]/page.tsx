@@ -380,13 +380,16 @@ export default function ClientGalleryPage() {
     );
   }
 
+  // TypeScript Guard: Narrow gallery type to non-null for the rest of the component
+  if (!gallery) return null;
+
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
   const isCustomBrandingActive = photographerPlan !== 'starter';
-  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
-  const studioLogo = gallery?.studioLogo || profile?.studioLogo;
-  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
-  const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
-  const hasNoteContent = !!(gallery?.photographerNote || gallery?.welcomeTitle || gallery?.welcomeMessage);
+  const studioName = gallery.studioName || profile?.studioName || 'Professional Studio';
+  const studioLogo = gallery.studioLogo || profile?.studioLogo;
+  const whatsappNumber = gallery.whatsappNumber || profile?.whatsappNumber;
+  const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
+  const hasNoteContent = !!(gallery.photographerNote || gallery.welcomeTitle || gallery.welcomeMessage);
 
   return (
     <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-1000">
@@ -474,12 +477,12 @@ export default function ClientGalleryPage() {
                         <span className="text-2xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
                       )}
                       <DialogTitle className="text-3xl lg:text-4xl font-headline font-bold uppercase tracking-tight leading-tight">
-                        {gallery?.welcomeTitle || "Message From Your Photographer"}
+                        {gallery.welcomeTitle || "Message From Your Photographer"}
                       </DialogTitle>
                     </div>
                   </DialogHeader>
                   <div className="space-y-10">
-                    {gallery?.welcomeMessage && <p className="text-center text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold px-4">{gallery.welcomeMessage}</p>}
+                    {gallery.welcomeMessage && <p className="text-center text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold px-4">{gallery.welcomeMessage}</p>}
                     {gallery.photographerNote && <p className="text-2xl lg:text-3xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-6">"{gallery.photographerNote}"</p>}
                     <div className="flex justify-center">
                       <Button variant="outline" className={cn("rounded-full gap-3 font-bold transition-all h-12 px-8 border-primary/30 text-base shadow-lg", helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10")} onClick={handleHelpfulClick} disabled={helpfulClicked}>
@@ -487,7 +490,7 @@ export default function ClientGalleryPage() {
                         {helpfulClicked ? "Helpful!" : "Appreciate this"}
                       </Button>
                     </div>
-                    {(gallery?.clientRepliesEnabled !== false) && (
+                    {(gallery.clientRepliesEnabled !== false) && (
                       <div className="pt-10 border-t border-border/20">
                         {replySuccess ? (
                           <div className="flex flex-col items-center justify-center py-6 text-center animate-in zoom-in-95 duration-500">
