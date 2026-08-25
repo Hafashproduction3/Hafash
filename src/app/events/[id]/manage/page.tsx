@@ -62,7 +62,6 @@ import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { HafashLoader } from '@/components/ui/hafash-loader';
-import { deleteGalleryFiles } from '@/app/actions/storage';
 
 export default function EventManagementPage() {
   const params = useParams();
@@ -154,9 +153,6 @@ export default function EventManagementPage() {
   const handleDeletePhoto = useCallback(async (item: any) => {
     if (!eventRef || !event || processingItems.has(item.id)) return;
     
-    console.time('[DELETE_PHOTO] trace');
-    console.log(`[DELETE] CLICK: Asset ${item.id}`);
-
     setProcessingItems(prev => {
       const next = new Set(prev);
       next.add(item.id);
@@ -164,79 +160,56 @@ export default function EventManagementPage() {
     });
 
     try {
-      console.log(`[DELETE] Calculating new cover...`);
       let newCover = event.coverImage;
       if (event.coverImage === item.url) {
         const remainingItems = (event.items || []).filter((i: any) => i.id !== item.id);
         newCover = remainingItems.length > 0 ? remainingItems[0].url : "";
       }
 
-      console.log(`[DELETE] Firestore update START`);
-      console.time('[DELETE] firestore_sync');
+      // DIAGNOSTIC: Firestore-only deletion logic for single photo
       await updateDoc(eventRef, { 
         items: arrayRemove(item),
         coverImage: newCover,
         updatedAt: new Date().toISOString() 
       });
-      console.timeEnd('[DELETE] firestore_sync');
-      console.log(`[DELETE] Firestore update COMPLETE`);
 
-      if (item.storageKey) {
-        console.log(`[DELETE] Storage purge START (non-awaited)`);
-        console.time('[DELETE] storage_call');
-        deleteGalleryFiles([item.storageKey], id).then(() => {
-          console.log(`[DELETE] Storage purge COMPLETE (async)`);
-        });
-        console.timeEnd('[DELETE] storage_call');
-      }
-
-      toast({ title: "Asset Purged", description: "Storage updated." });
+      toast({ title: "Asset Registry Updated" });
       
     } catch (err: any) {
-      console.error("[DELETE] ERROR:", err);
-      toast({ variant: "destructive", title: "Deletion Error", description: "Failed to remove metadata." });
+      toast({ variant: "destructive", title: "Update Error", description: err.message });
     } finally {
       setProcessingItems(prev => {
         const next = new Set(prev);
         next.delete(item.id);
         return next;
       });
-      console.log(`[DELETE] State cleanup COMPLETE`);
-      console.timeEnd('[DELETE_PHOTO] trace');
     }
-  }, [eventRef, event, id, toast, processingItems]);
+  }, [eventRef, event, toast, processingItems]);
 
   const confirmDelete = useCallback(async () => {
     if (!eventRef || deleteConfirmText !== 'DELETE' || !event || isDeleting) return;
     
-    console.time('[DELETE_GALLERY] total');
-    console.log(`[DELETE_GALLERY] START`);
+    console.log(`[DIAGNOSTIC_GALLERY_DELETE] START: ${id}`);
+    console.time('[DIAGNOSTIC_GALLERY_DELETE] trace');
+    
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
     try {
-      const storageKeys = (event.items || [])
-        .map((item: any) => item.storageKey)
-        .filter(Boolean);
-
-      if (storageKeys.length > 0) {
-        console.log(`[DELETE_GALLERY] Storage purge triggered`);
-        deleteGalleryFiles(storageKeys, id);
-      }
-
-      console.log(`[DELETE_GALLERY] Firestore delete START`);
+      console.log(`[DIAGNOSTIC_GALLERY_DELETE] FIRESTORE_ONLY update START`);
+      // DIAGNOSTIC: Calling standard Firestore delete only. R2 purge disabled.
       await deleteDoc(eventRef);
-      console.log(`[DELETE_GALLERY] Firestore delete COMPLETE`);
+      console.log(`[DIAGNOSTIC_GALLERY_DELETE] FIRESTORE_ONLY update COMPLETE`);
       
-      toast({ title: "Gallery Purged" });
+      toast({ title: "Gallery Registry Purged" });
       router.replace('/dashboard');
     } catch (err: any) {
-      console.error("[DELETE_GALLERY] CRITICAL ERROR:", err);
-      toast({ variant: "destructive", title: "Purge Failed", description: "The records could not be fully removed." });
+      console.error("[DIAGNOSTIC_GALLERY_DELETE] ERROR:", err);
+      toast({ variant: "destructive", title: "Delete Failed", description: err.message });
       setIsDeleting(false);
     } finally {
-      console.log(`[DELETE_GALLERY] Trace FINISHED`);
-      console.timeEnd('[DELETE_GALLERY] total');
+      console.log(`[DIAGNOSTIC_GALLERY_DELETE] UI CLEANUP COMPLETE`);
+      console.timeEnd('[DIAGNOSTIC_GALLERY_DELETE] trace');
     }
   }, [eventRef, deleteConfirmText, event, router, toast, id, isDeleting]);
 
@@ -257,7 +230,7 @@ export default function EventManagementPage() {
   };
 
   if (authLoading || dataLoading || isDeleting) return (
-    <HafashLoader text={isDeleting ? "Purging Studio Assets..." : "Preparing Gallery Workspace..."} />
+    <HafashLoader text={isDeleting ? "Purging Registry..." : "Preparing Gallery Workspace..."} />
   );
 
   if (error || !event) return (
@@ -339,9 +312,9 @@ export default function EventManagementPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-6">
                   {event.items.slice(0, 12).map((item: any) => (
                     <div key={item.id} className="group relative aspect-[4/5] rounded-[1.5rem] overflow-hidden border border-border/30 bg-muted">
-                      {item.url && (
+                      {item.url ? (
                         <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-1000" alt="Asset" />
-                      )}
+                      ) : null}
                       <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center backdrop-blur-sm gap-2">
                         <Button 
                           size="sm" 
@@ -506,14 +479,15 @@ export default function EventManagementPage() {
             </div>
             <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Final Confirmation</AlertDialogTitle>
             <AlertDialogDescription className="text-center space-y-6 pt-4">
-              <p className="text-sm font-medium italic">Type DELETE below to purge all cloud assets.</p>
+              <p className="text-sm font-medium italic">Type DELETE below to remove this record.</p>
+              <p className="text-[10px] uppercase font-bold text-destructive">DIAGNOSTIC MODE: R2 storage purge is disabled.</p>
               <Input placeholder="Type DELETE..." className="text-center font-bold h-14 rounded-xl border-destructive/30" value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} />
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex flex-col sm:flex-row gap-4 mt-10">
             <AlertDialogCancel className="rounded-xl flex-1 h-14 font-bold uppercase text-[10px]">Abort</AlertDialogCancel>
             <AlertDialogAction className="rounded-xl bg-destructive text-white hover:bg-destructive/90 font-bold flex-1 h-14 uppercase text-[10px]" onClick={confirmDelete} disabled={deleteConfirmText !== 'DELETE'}>
-              Destroy Now
+              Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

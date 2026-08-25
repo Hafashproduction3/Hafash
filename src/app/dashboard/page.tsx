@@ -49,7 +49,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
-import { deleteGalleryFiles } from '@/app/actions/storage';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -95,51 +94,38 @@ export default function DashboardPage() {
   }, [galleries]);
 
   const confirmDelete = useCallback(async () => {
-    if (!firestore || !user || !galleryToDelete || !galleries) return;
+    if (!firestore || !user || !galleryToDelete) return;
 
-    console.time('[DASHBOARD_DELETE] trace');
-    console.log(`[DASHBOARD_DELETE] START`);
+    console.log(`[DIAGNOSTIC_DELETE] START: ${galleryToDelete}`);
+    console.time('[DIAGNOSTIC_DELETE] trace');
+    
     const idToDelete = galleryToDelete;
-    const targetGallery = galleries.find(g => g.id === idToDelete);
-
     setGalleryToDelete(null);
     setIsDeleting(true);
 
     try {
-      const storageKeys = (targetGallery?.items || [])
-        .map((item: any) => item.storageKey)
-        .filter(Boolean);
-
-      if (storageKeys.length > 0) {
-        console.log(`[DASHBOARD_DELETE] Storage purge triggered (non-awaited)`);
-        console.time('[DASHBOARD_DELETE] action_call');
-        deleteGalleryFiles(storageKeys, idToDelete).then(() => {
-           console.log(`[DASHBOARD_DELETE] Storage purge COMPLETE (async)`);
-        });
-        console.timeEnd('[DASHBOARD_DELETE] action_call');
-      }
-
-      console.log(`[DASHBOARD_DELETE] Firestore delete START`);
+      console.log(`[DIAGNOSTIC_DELETE] FIRESTORE_ONLY update START`);
+      // DIAGNOSTIC: Calling standard Firestore delete only. R2 purge disabled.
       await deleteDoc(doc(firestore, "galleries", idToDelete));
-      console.log(`[DASHBOARD_DELETE] Firestore delete COMPLETE`);
+      console.log(`[DIAGNOSTIC_DELETE] FIRESTORE_ONLY update COMPLETE`);
 
       toast({
-        title: "Gallery Purged",
-        description: "Studio records removed.",
+        title: "Gallery Record Removed",
+        description: "Metadata deleted from Firestore.",
       });
     } catch (err: any) {
-      console.error("[DASHBOARD_DELETE] ERROR:", err);
+      console.error("[DIAGNOSTIC_DELETE] ERROR:", err);
       toast({
         variant: "destructive",
-        title: "Purge Failed",
-        description: "Record could not be removed.",
+        title: "Delete Failed",
+        description: err.message,
       });
     } finally {
       setIsDeleting(false);
-      console.log(`[DASHBOARD_DELETE] Trace FINISHED`);
-      console.timeEnd('[DASHBOARD_DELETE] trace');
+      console.log(`[DIAGNOSTIC_DELETE] UI CLEANUP COMPLETE`);
+      console.timeEnd('[DIAGNOSTIC_DELETE] trace');
     }
-  }, [firestore, user, galleryToDelete, galleries, toast]);
+  }, [firestore, user, galleryToDelete, toast]);
 
   return (
     <div className="space-y-10 pb-20">
@@ -198,13 +184,13 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <Card key={gallery.id} className="group overflow-hidden rounded-[2rem] border-border/50 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500 shadow-xl">
               <div className="aspect-[4/3] relative overflow-hidden">
-                {gallery.coverImage && (
+                {gallery.coverImage ? (
                   <img
                     src={gallery.coverImage}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     alt={gallery.title}
                   />
-                )}
+                ) : null}
                 <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
                 <div className="absolute top-4 right-4">
                   <DropdownMenu>
@@ -256,13 +242,13 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <div key={gallery.id} className="flex items-center gap-6 p-4 bg-card/40 border border-border/50 rounded-2xl group hover:border-primary/40 transition-all">
               <div className="h-16 w-16 rounded-xl overflow-hidden shrink-0 border border-border/30">
-              {gallery.coverImage && (
+              {gallery.coverImage ? (
                 <img 
                   src={gallery.coverImage} 
                   className="w-full h-full object-cover" 
                   alt="Cover" 
                 />
-              )}
+              ) : null}
               </div>
               <div className="flex-1 min-w-0">
                 <h4 className="font-headline font-bold text-lg line-clamp-1 group-hover:text-primary transition-colors">{gallery.title}</h4>
@@ -296,13 +282,13 @@ export default function DashboardPage() {
             </div>
             <AlertDialogTitle className="text-2xl font-headline font-bold text-center">Permanent Purge</AlertDialogTitle>
             <AlertDialogDescription className="text-center italic mt-2">
-              This will immediately revoke client access and permanently destroy all high-resolution masterpieces in the cloud vault.
+              DIAGNOSTIC MODE: This will only delete the Firestore record. Cloud storage cleanup is currently disabled.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="flex flex-col sm:flex-row gap-4 mt-8">
             <AlertDialogCancel className="rounded-xl h-12 flex-1 font-bold">Abort</AlertDialogCancel>
             <AlertDialogAction className="rounded-xl h-12 flex-1 bg-destructive text-white hover:bg-destructive/90 font-bold" onClick={confirmDelete}>
-              Confirm Purge
+              Confirm Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -311,7 +297,7 @@ export default function DashboardPage() {
       {isDeleting && (
         <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-500">
            <Loader2 className="w-12 h-12 text-primary animate-spin mb-6" />
-           <p className="text-xl font-headline font-bold italic text-primary">Purging Studio Assets...</p>
+           <p className="text-xl font-headline font-bold italic text-primary">Removing Registry Entry...</p>
         </div>
       )}
     </div>
