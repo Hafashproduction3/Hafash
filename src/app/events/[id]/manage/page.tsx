@@ -153,9 +153,9 @@ export default function EventManagementPage() {
   }, [eventRef, toast]);
 
   const handleDeletePhoto = useCallback(async (item: any) => {
-    if (!eventRef || !event || !item.storageKey) return;
+    if (!eventRef || !event || !item.storageKey || processingItems.has(item.id)) return;
     
-    console.log(`[DEBUG] Image delete start: ${item.id}`);
+    console.log(`[DELETE_PHOTO] START for ID: ${item.id}`);
 
     setProcessingItems(prev => {
       const next = new Set(prev);
@@ -164,11 +164,14 @@ export default function EventManagementPage() {
     });
 
     try {
+      console.log(`[DELETE_PHOTO] Purging R2 storage key: ${item.storageKey}`);
       const storageResult = await deleteGalleryFiles([item.storageKey], id);
+      
       if (!storageResult.success) {
-        throw new Error(storageResult.error || "Failed to purge storage asset.");
+        console.warn(`[DELETE_PHOTO] R2 purge error: ${storageResult.error}. Continuing with metadata cleanup.`);
       }
 
+      console.log(`[DELETE_PHOTO] Updating Firestore items list...`);
       const updatedItems = (event.items || []).filter((i: any) => i.id !== item.id);
       const updateData: any = { 
         items: updatedItems,
@@ -176,29 +179,30 @@ export default function EventManagementPage() {
       };
       
       if (event.coverImage === item.url) {
-        updateData.coverImage = updatedItems.length > 0 ? updatedItems[0].url : `https://picsum.photos/seed/${id}/800/600`;
+        updateData.coverImage = updatedItems.length > 0 ? updatedItems[0].url : "";
       }
 
       await updateDoc(eventRef, updateData);
-      console.log(`[DEBUG] Firestore update response: Metadata updated.`);
+      console.log(`[DELETE_PHOTO] COMPLETE`);
       toast({ title: "Asset Purged", description: "Storage usage updated." });
       
     } catch (err: any) {
-      console.error("[DEBUG] Deletion sequence failure:", err);
-      toast({ variant: "destructive", title: "Deletion Error", description: err.message });
+      console.error("[DELETE_PHOTO] ERROR:", err);
+      toast({ variant: "destructive", title: "Deletion Error", description: err.message || "Failed to remove photo." });
     } finally {
       setProcessingItems(prev => {
         const next = new Set(prev);
         next.delete(item.id);
         return next;
       });
+      console.log(`[DELETE_PHOTO] UI state reset.`);
     }
-  }, [eventRef, event, id, toast]);
+  }, [eventRef, event, id, toast, processingItems]);
 
   const confirmDelete = useCallback(async () => {
-    if (!eventRef || deleteConfirmText !== 'DELETE' || !event) return;
+    if (!eventRef || deleteConfirmText !== 'DELETE' || !event || isDeleting) return;
     
-    console.log(`[DEBUG] Gallery purge start: ${id}`);
+    console.log(`[DELETE_GALLERY_MANAGE] START for: ${id}`);
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
@@ -208,19 +212,24 @@ export default function EventManagementPage() {
         .filter(Boolean);
 
       if (storageKeys.length > 0) {
+        console.log(`[DELETE_GALLERY_MANAGE] Purging ${storageKeys.length} R2 assets...`);
         await deleteGalleryFiles(storageKeys, id);
       }
 
+      console.log(`[DELETE_GALLERY_MANAGE] Removing Firestore document...`);
       await deleteDoc(eventRef);
-      console.log(`[DEBUG] Firestore response: Gallery record deleted.`);
+      
+      console.log(`[DELETE_GALLERY_MANAGE] COMPLETE`);
       toast({ title: "Gallery Purged" });
       router.replace('/dashboard');
     } catch (err: any) {
-      toast({ variant: "destructive", title: "Purge Failed", description: err.message });
+      console.error("[DELETE_GALLERY_MANAGE] ERROR:", err);
+      toast({ variant: "destructive", title: "Purge Failed", description: err.message || "An error occurred." });
+      setIsDeleting(false); // Reset only on error, otherwise router.replace handles it
     } finally {
-      setIsDeleting(false);
+      // isDeleting reset is handled by router navigation or error catch
     }
-  }, [eventRef, deleteConfirmText, event, router, toast, id]);
+  }, [eventRef, deleteConfirmText, event, router, toast, id, isDeleting]);
 
   const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;
@@ -321,7 +330,9 @@ export default function EventManagementPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-6">
                   {event.items.slice(0, 12).map((item: any) => (
                     <div key={item.id} className="group relative aspect-[4/5] rounded-[1.5rem] overflow-hidden border border-border/30 bg-muted">
-                      <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-1000" alt="Asset" />
+                      {item.url ? (
+                        <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-1000" alt="Asset" />
+                      ) : null}
                       <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center backdrop-blur-sm gap-2">
                         <Button 
                           size="sm" 

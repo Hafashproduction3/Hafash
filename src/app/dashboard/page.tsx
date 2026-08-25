@@ -102,6 +102,8 @@ export default function DashboardPage() {
     const idToDelete = galleryToDelete;
     const targetGallery = galleries.find(g => g.id === idToDelete);
 
+    console.log(`[DELETE_GALLERY] START for: ${idToDelete}`);
+
     // Close modal immediately to prevent DOM race conditions during async purge
     setGalleryToDelete(null);
     setIsDeleting(true);
@@ -113,20 +115,25 @@ export default function DashboardPage() {
         .filter(Boolean);
 
       if (storageKeys.length > 0) {
+        console.log(`[DELETE_GALLERY] R2 cleanup starting for ${storageKeys.length} keys...`);
         const storageResult = await deleteGalleryFiles(storageKeys, idToDelete);
         if (!storageResult.success) {
-          throw new Error(storageResult.error || "Failed to purge physical storage.");
+          console.warn(`[DELETE_GALLERY] R2 partial error: ${storageResult.error}`);
+          // We continue anyway to ensure metadata is cleaned up
         }
       }
 
       // 2. Delete Firestore document
+      console.log(`[DELETE_GALLERY] Firestore record deletion starting...`);
       await deleteDoc(doc(firestore, "galleries", idToDelete));
 
+      console.log(`[DELETE_GALLERY] COMPLETE`);
       toast({
         title: "Gallery Purged",
         description: "Studio records and cloud assets removed successfully.",
       });
     } catch (err: any) {
+      console.error("[DELETE_GALLERY] ERROR:", err);
       toast({
         variant: "destructive",
         title: "Purge Failed",
@@ -134,6 +141,7 @@ export default function DashboardPage() {
       });
     } finally {
       setIsDeleting(false);
+      console.log(`[DELETE_GALLERY] UI state reset.`);
     }
   }, [firestore, user, galleryToDelete, galleries, toast]);
 
@@ -198,11 +206,17 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <Card key={gallery.id} className="group overflow-hidden rounded-[2rem] border-border/50 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500 shadow-xl">
               <div className="aspect-[4/3] relative overflow-hidden">
-              <img
-  src={gallery.coverImage || "/hafash-logo.png"}
-  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-  alt={gallery.title}
-/>
+                {gallery.coverImage ? (
+                  <img
+                    src={gallery.coverImage}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    alt={gallery.title}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-muted flex items-center justify-center">
+                    <img src="/hafash-logo.png" className="h-20 w-auto opacity-20" alt="Logo" />
+                  </div>
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute top-4 right-4">
                   <DropdownMenu>
@@ -254,11 +268,17 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <div key={gallery.id} className="flex items-center gap-6 p-4 bg-card/40 border border-border/50 rounded-2xl group hover:border-primary/40 transition-all">
               <div className="h-16 w-16 rounded-xl overflow-hidden shrink-0 border border-border/30">
-              <img 
-  src={gallery.coverImage || "/hafash-logo.png"} 
-  className="w-full h-full object-cover" 
-  alt="Cover" 
-/>
+              {gallery.coverImage ? (
+                <img 
+                  src={gallery.coverImage} 
+                  className="w-full h-full object-cover" 
+                  alt="Cover" 
+                />
+              ) : (
+                <div className="w-full h-full bg-muted flex items-center justify-center">
+                   <img src="/hafash-logo.png" className="h-8 w-auto opacity-10" alt="Logo" />
+                </div>
+              )}
               </div>
               <div className="flex-1 min-w-0">
                 <h4 className="font-headline font-bold text-lg line-clamp-1 group-hover:text-primary transition-colors">{gallery.title}</h4>

@@ -116,24 +116,30 @@ export async function completeUpload({
 
 /**
  * SERVER ACTION: Bulk delete R2 objects and revalidate paths.
+ * Hardened to prevent UI hangs.
  */
 export async function deleteGalleryFiles(storageKeys: string[], galleryId: string) {
   try {
     if (!storageKeys || storageKeys.length === 0) {
+      console.log(`[SERVER_DELETE] No keys provided for gallery ${galleryId}. Skipping storage purge.`);
       return { success: true };
     }
 
-    console.log(`[DEBUG] Purging ${storageKeys.length} assets from R2 for gallery ${galleryId}`);
+    console.log(`[SERVER_DELETE] START: Purging ${storageKeys.length} assets for gallery ${galleryId}`);
 
+    // Use settled promises to ensure we never hang the server action
     const results = await Promise.allSettled(
-      storageKeys.map(key => storage.deleteFile(key))
+      storageKeys.map(key => {
+        if (!key) return Promise.resolve();
+        return storage.deleteFile(key);
+      })
     );
 
     const failures = results.filter(r => r.status === 'rejected');
     if (failures.length > 0) {
-      console.warn(`[DEBUG] R2 Deletion partially failed: ${failures.length} errors.`);
+      console.warn(`[SERVER_DELETE] PARTIAL_FAILURE: ${failures.length} errors during R2 purge.`);
     } else {
-      console.log(`[DEBUG] R2 Delete response: All objects removed successfully.`);
+      console.log(`[SERVER_DELETE] SUCCESS: All ${storageKeys.length} objects removed from R2.`);
     }
 
     try {
@@ -141,17 +147,18 @@ export async function deleteGalleryFiles(storageKeys: string[], galleryId: strin
         revalidatePath(`/gallery/${galleryId}`);
         revalidatePath(`/events/${galleryId}/manage`);
         revalidatePath('/dashboard');
+        console.log(`[SERVER_DELETE] Cache revalidation triggered.`);
       }
     } catch (revalError) {
-      console.warn("[DEBUG] Cache revalidation skipped.");
+      console.warn("[SERVER_DELETE] Cache revalidation skipped.");
     }
 
     return { success: true };
   } catch (error: any) {
-    console.error("[DEBUG] Physical storage purge error:", error);
+    console.error("[SERVER_DELETE] CRITICAL_ERROR:", error);
     return {
       success: false,
-      error: error.message || "Failed to clear physical storage.",
+      error: error.message || "Failed to clear physical storage vault.",
     };
   }
 }
