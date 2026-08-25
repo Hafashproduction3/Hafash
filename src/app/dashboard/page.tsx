@@ -65,14 +65,12 @@ export default function DashboardPage() {
   const [galleryToDelete, setGalleryToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 1. Fetch User Profile for stats
   const profileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user?.uid]);
   const { data: profile } = useDoc(profileRef);
 
-  // 2. Fetch User Galleries
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
@@ -99,34 +97,32 @@ export default function DashboardPage() {
   const confirmDelete = useCallback(async () => {
     if (!firestore || !user || !galleryToDelete || !galleries) return;
 
+    console.time('[DELETE] total');
     const idToDelete = galleryToDelete;
     const targetGallery = galleries.find(g => g.id === idToDelete);
 
-    console.log(`[DELETE] DASHBOARD START: ${idToDelete}`);
-
-    // Close modal and set loading early to prevent transition hang
     setGalleryToDelete(null);
     setIsDeleting(true);
 
     try {
-      // 1. Storage Purge (Triggered early, race with timeout)
+      console.time('[DELETE] storage');
       const storageKeys = (targetGallery?.items || [])
         .map((item: any) => item.storageKey)
         .filter(Boolean);
 
+      // Trigger R2 purge without awaiting it. We proceed to metadata removal immediately.
       if (storageKeys.length > 0) {
-        console.log(`[DELETE] R2 PURGE TRIGGERED`);
-        // Force-resolve after 3 seconds if purge stalls to keep UI responsive
-        const purgeTask = deleteGalleryFiles(storageKeys, idToDelete);
-        const timeoutTask = new Promise(r => setTimeout(r, 3000, { success: true }));
-        await Promise.race([purgeTask, timeoutTask]);
-        console.log(`[DELETE] R2 PURGE DONE`);
+        console.log(`[DELETE] Initiating background R2 purge for ${storageKeys.length} assets`);
+        deleteGalleryFiles(storageKeys, idToDelete).then(() => {
+          console.timeEnd('[DELETE] storage');
+        });
+      } else {
+        console.timeEnd('[DELETE] storage');
       }
 
-      // 2. FIRESTORE RECORD REMOVAL
-      console.log(`[DELETE] FIRESTORE REMOVAL START`);
+      console.time('[DELETE] firestore');
       await deleteDoc(doc(firestore, "galleries", idToDelete));
-      console.log(`[DELETE] FIRESTORE REMOVAL END`);
+      console.timeEnd('[DELETE] firestore');
 
       toast({
         title: "Gallery Purged",
@@ -136,18 +132,17 @@ export default function DashboardPage() {
       console.error("[DELETE] DASHBOARD ERROR:", err);
       toast({
         variant: "destructive",
-        title: "Purge Partial",
-        description: "Record deleted but some cloud assets may remain.",
+        title: "Purge Failed",
+        description: "Record could not be removed.",
       });
     } finally {
       setIsDeleting(false);
-      console.log(`[DELETE] DASHBOARD COMPLETE`);
+      console.timeEnd('[DELETE] total');
     }
   }, [firestore, user, galleryToDelete, galleries, toast]);
 
   return (
     <div className="space-y-10 pb-20">
-      {/* Header Section */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-4xl font-headline font-bold tracking-tight">Studio Dashboard</h1>
@@ -160,14 +155,12 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <StatCard label="Total Deliveries" value={stats.totalDeliveries} icon={<Camera className="w-5 h-5" />} loading={dataLoading} />
         <StatCard label="Cloud Assets" value={stats.totalPhotos} icon={<LayoutGrid className="w-5 h-5" />} loading={dataLoading} />
         <StatCard label="Client Favorites" value={stats.totalFavorites} icon={<Heart className="w-5 h-5" />} loading={dataLoading} />
       </div>
 
-      {/* Controls */}
       <div className="flex flex-col xl:flex-row gap-4 items-center justify-between bg-card/30 p-4 rounded-2xl border border-border/50">
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
@@ -190,7 +183,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Galleries List */}
       {dataLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {[1, 2, 3].map(i => <Skeleton key={i} className="h-80 rounded-3xl" />)}
@@ -206,16 +198,12 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <Card key={gallery.id} className="group overflow-hidden rounded-[2rem] border-border/50 bg-card/40 backdrop-blur-sm hover:border-primary/40 transition-all duration-500 shadow-xl">
               <div className="aspect-[4/3] relative overflow-hidden">
-                {gallery.coverImage ? (
+                {gallery.coverImage && (
                   <img
                     src={gallery.coverImage}
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     alt={gallery.title}
                   />
-                ) : (
-                  <div className="w-full h-full bg-muted flex items-center justify-center">
-                    <img src="/hafash-logo.png" className="h-20 w-auto opacity-20" alt="Logo" />
-                  </div>
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                 <div className="absolute top-4 right-4">
@@ -268,16 +256,12 @@ export default function DashboardPage() {
           {filteredGalleries.map(gallery => (
             <div key={gallery.id} className="flex items-center gap-6 p-4 bg-card/40 border border-border/50 rounded-2xl group hover:border-primary/40 transition-all">
               <div className="h-16 w-16 rounded-xl overflow-hidden shrink-0 border border-border/30">
-              {gallery.coverImage ? (
+              {gallery.coverImage && (
                 <img 
                   src={gallery.coverImage} 
                   className="w-full h-full object-cover" 
                   alt="Cover" 
                 />
-              ) : (
-                <div className="w-full h-full bg-muted flex items-center justify-center">
-                   <img src="/hafash-logo.png" className="h-8 w-auto opacity-10" alt="Logo" />
-                </div>
               )}
               </div>
               <div className="flex-1 min-w-0">
@@ -304,7 +288,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Delete Confirmation */}
       <AlertDialog open={!!galleryToDelete} onOpenChange={(open) => !open && setGalleryToDelete(null)}>
         <AlertDialogContent className="bg-card border-border/50 rounded-[2.5rem] p-10 shadow-2xl max-w-md">
           <AlertDialogHeader>
@@ -325,7 +308,6 @@ export default function DashboardPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Global Deleting Overlay */}
       {isDeleting && (
         <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-500">
            <Loader2 className="w-12 h-12 text-primary animate-spin mb-6" />

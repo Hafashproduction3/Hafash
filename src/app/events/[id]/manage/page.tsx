@@ -57,7 +57,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
-import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, arrayRemove } from 'firebase/firestore';
 import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
@@ -154,6 +154,7 @@ export default function EventManagementPage() {
   const handleDeletePhoto = useCallback(async (item: any) => {
     if (!eventRef || !event || processingItems.has(item.id)) return;
     
+    console.time('[DELETE] total');
     console.log(`[DELETE] CLICK: Asset ${item.id}`);
 
     setProcessingItems(prev => {
@@ -163,28 +164,29 @@ export default function EventManagementPage() {
     });
 
     try {
-      // 1. FIRESTORE UPDATE START (Metadata first so UI updates instantly)
-      console.log(`[DELETE] FIRESTORE UPDATE START`);
-      const updatedItems = (event.items || []).filter((i: any) => i.id !== item.id);
-      const updateData: any = { 
-        items: updatedItems,
-        updatedAt: new Date().toISOString() 
-      };
+      console.time('[DELETE] firestore');
       
+      // Calculate new cover if necessary locally (fast)
+      let newCover = event.coverImage;
       if (event.coverImage === item.url) {
-        updateData.coverImage = updatedItems.length > 0 ? updatedItems[0].url : "";
+        const remainingItems = (event.items || []).filter((i: any) => i.id !== item.id);
+        newCover = remainingItems.length > 0 ? remainingItems[0].url : "";
       }
 
-      await updateDoc(eventRef, updateData);
-      console.log(`[DELETE] FIRESTORE UPDATE END`);
+      // METADATA UPDATE: Use arrayRemove to avoid serializing the entire list.
+      // This is the primary fix for the UI freeze.
+      await updateDoc(eventRef, { 
+        items: arrayRemove(item),
+        coverImage: newCover,
+        updatedAt: new Date().toISOString() 
+      });
+      console.timeEnd('[DELETE] firestore');
 
-      // 2. R2 DELETE START (Background task, non-blocking for UI)
+      // STORAGE PURGE: Fire-and-forget. Non-blocking for the browser.
       if (item.storageKey) {
-        console.log(`[DELETE] R2 DELETE START: ${item.storageKey}`);
-        // We do not await this strictly to prevent UI hangs, but we trigger it
-        deleteGalleryFiles([item.storageKey], id).then(res => {
-          if (res.success) console.log(`[DELETE] R2 DELETE END: Success`);
-          else console.warn(`[DELETE] R2 DELETE END: Partial Failure`, res.error);
+        console.time('[DELETE] storage');
+        deleteGalleryFiles([item.storageKey], id).then(() => {
+          console.timeEnd('[DELETE] storage');
         });
       }
 
@@ -199,14 +201,14 @@ export default function EventManagementPage() {
         next.delete(item.id);
         return next;
       });
-      console.log(`[DELETE] COMPLETE`);
+      console.timeEnd('[DELETE] total');
     }
   }, [eventRef, event, id, toast, processingItems]);
 
   const confirmDelete = useCallback(async () => {
     if (!eventRef || deleteConfirmText !== 'DELETE' || !event || isDeleting) return;
     
-    console.log(`[DELETE] GALLERY START: ${id}`);
+    console.time('[DELETE_GALLERY] total');
     setShowDeleteDialog(false);
     setIsDeleting(true);
 
@@ -215,26 +217,15 @@ export default function EventManagementPage() {
         .map((item: any) => item.storageKey)
         .filter(Boolean);
 
-      // We wrap the purge in a race to prevent permanent UI lock
-      const purgePromise = storageKeys.length > 0 
-        ? deleteGalleryFiles(storageKeys, id)
-        : Promise.resolve({ success: true });
-
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Storage purge timed out. Metadata will still be removed.")), 5000)
-      );
-
-      console.log(`[DELETE] R2 PURGE TRIGGERED`);
-      try {
-        await Promise.race([purgePromise, timeoutPromise]);
-        console.log(`[DELETE] R2 PURGE RESOLVED`);
-      } catch (e: any) {
-        console.warn(`[DELETE] R2 PURGE NON-BLOCKING WARNING:`, e.message);
+      // Trigger background purge
+      if (storageKeys.length > 0) {
+        console.log(`[DELETE_GALLERY] Background R2 purge initiated`);
+        deleteGalleryFiles(storageKeys, id);
       }
 
-      console.log(`[DELETE] FIRESTORE RECORD REMOVAL START`);
+      console.time('[DELETE_GALLERY] firestore');
       await deleteDoc(eventRef);
-      console.log(`[DELETE] FIRESTORE RECORD REMOVAL END`);
+      console.timeEnd('[DELETE_GALLERY] firestore');
       
       toast({ title: "Gallery Purged" });
       router.replace('/dashboard');
@@ -242,6 +233,8 @@ export default function EventManagementPage() {
       console.error("[DELETE] CRITICAL ERROR:", err);
       toast({ variant: "destructive", title: "Purge Failed", description: "The records could not be fully removed." });
       setIsDeleting(false);
+    } finally {
+      console.timeEnd('[DELETE_GALLERY] total');
     }
   }, [eventRef, deleteConfirmText, event, router, toast, id, isDeleting]);
 
@@ -344,9 +337,9 @@ export default function EventManagementPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-6">
                   {event.items.slice(0, 12).map((item: any) => (
                     <div key={item.id} className="group relative aspect-[4/5] rounded-[1.5rem] overflow-hidden border border-border/30 bg-muted">
-                      {item.url ? (
+                      {item.url && (
                         <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110 duration-1000" alt="Asset" />
-                      ) : null}
+                      )}
                       <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-4 text-center backdrop-blur-sm gap-2">
                         <Button 
                           size="sm" 

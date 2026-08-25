@@ -102,9 +102,6 @@ export async function completeUpload({
 
     console.log(`[DEBUG] Firestore update response: Metadata synced for ${task.file.name}`);
     
-    revalidatePath(`/events/${galleryId}/manage`);
-    revalidatePath(`/gallery/${galleryId}`);
-
     return { success: true };
 
   } catch (error: any) {
@@ -116,7 +113,7 @@ export async function completeUpload({
 
 /**
  * SERVER ACTION: Bulk delete R2 objects.
- * Isolated to prevent UI hangs. Returns immediately after initiating purge sequence.
+ * Instrumented for high-performance tracing.
  */
 export async function deleteGalleryFiles(storageKeys: string[], galleryId: string) {
   try {
@@ -126,12 +123,14 @@ export async function deleteGalleryFiles(storageKeys: string[], galleryId: strin
 
     console.log(`[SERVER_DELETE] START: Requesting purge for ${storageKeys.length} assets`);
 
-    // Use settled promises with individual error handling to prevent early exit
     const results = await Promise.allSettled(
       storageKeys.map(async key => {
         if (!key) return;
         try {
-          await storage.deleteFile(key);
+          // Hard 5-second internal timeout per file to prevent action hang
+          const deletePromise = storage.deleteFile(key);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
+          await Promise.race([deletePromise, timeoutPromise]);
         } catch (e: any) {
           console.error(`[SERVER_DELETE] Failed to purge key: ${key}`, e.message);
           throw e;
@@ -141,17 +140,13 @@ export async function deleteGalleryFiles(storageKeys: string[], galleryId: strin
 
     const failures = results.filter(r => r.status === 'rejected');
     if (failures.length > 0) {
-      console.warn(`[SERVER_DELETE] PARTIAL_FAILURE: ${failures.length} assets failed to purge from R2.`);
+      console.warn(`[SERVER_DELETE] PARTIAL_FAILURE: ${failures.length} assets failed to purge.`);
     } else {
       console.log(`[SERVER_DELETE] SUCCESS: All assets purged.`);
     }
 
-    // Trigger cache refresh
-    try {
-      revalidatePath(`/gallery/${galleryId}`);
-      revalidatePath(`/events/${galleryId}/manage`);
-      revalidatePath('/dashboard');
-    } catch (e) {}
+    // revalidatePath REMOVED: Blocks server response and forces client-side transition freeze.
+    // Client SDK useDoc/useCollection handles real-time sync.
 
     return { 
       success: failures.length === 0, 
