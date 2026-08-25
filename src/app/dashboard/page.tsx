@@ -54,6 +54,7 @@ import { format } from 'date-fns';
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
+  console.count('[DASHBOARD] Render');
   const firestore = useFirestore();
   const { user } = useUser();
   const router = useRouter();
@@ -97,23 +98,29 @@ export default function DashboardPage() {
     if (!firestore || !user || !galleryToDelete || isDeleting) return;
 
     const idToDelete = galleryToDelete;
+    const timestamp = performance.now();
+    
+    console.log(`[DELETE_FLOW] [${timestamp}] User confirmed gallery deletion:`, idToDelete);
     
     // 1. Close dialog immediately to prevent overlay conflicts
     setGalleryToDelete(null);
     
     // 2. Set deletion state
     setIsDeleting(true);
+    console.log(`[DELETE_FLOW] [${performance.now()}] isDeleting set to true`);
 
     try {
       // 3. Simple, atomic Firestore deletion only
+      console.log(`[DELETE_FLOW] [${performance.now()}] Firestore deleteDoc START`);
       await deleteDoc(doc(firestore, "galleries", idToDelete));
+      console.log(`[DELETE_FLOW] [${performance.now()}] Firestore deleteDoc SUCCESS`);
 
       toast({
         title: "Gallery Record Removed",
         description: "The luxury event has been removed from your studio registry.",
       });
     } catch (err: any) {
-      console.error("[DELETE_FAILURE] Firestore operation failed:", err);
+      console.error(`[DELETE_FLOW] [${performance.now()}] Firestore deleteDoc FAILURE:`, err);
       toast({
         variant: "destructive",
         title: "Delete Failed",
@@ -121,7 +128,9 @@ export default function DashboardPage() {
       });
     } finally {
       // 4. Guaranteed UI recovery
+      console.log(`[DELETE_FLOW] [${performance.now()}] isDeleting cleanup finally block START`);
       setIsDeleting(false);
+      console.log(`[DELETE_FLOW] [${performance.now()}] isDeleting cleanup finally block END`);
     }
   }, [firestore, user, galleryToDelete, toast, isDeleting]);
 

@@ -21,10 +21,13 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    const hookId = Math.random().toString(36).substring(7);
+    const path = docRef?.path || 'NULL_REF';
+    console.log(`[USE_DOC] [${performance.now()}] [ID:${hookId}] useEffect mounted for path: ${path}`);
+
     if (!docRef) {
       setData(null);
       setError(null);
-      // Keep loading as true while waiting for a valid reference
       return;
     }
 
@@ -33,6 +36,9 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
     const unsubscribe = onSnapshot(
       docRef,
       (snapshot: DocumentSnapshot<T>) => {
+        const timestamp = performance.now();
+        console.log(`[USE_DOC] [${timestamp}] [ID:${hookId}] Snapshot received for path: ${path}. Exists: ${snapshot.exists()}`);
+        
         if (snapshot.exists()) {
           setData({ ...snapshot.data(), id: snapshot.id } as T);
         } else {
@@ -40,8 +46,10 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
         }
         setError(null);
         setLoading(false);
+        console.log(`[USE_DOC] [${performance.now()}] [ID:${hookId}] State updated (data exists: ${snapshot.exists()})`);
       },
       async (err: FirestoreError) => {
+        console.error(`[USE_DOC] [${performance.now()}] [ID:${hookId}] Error for path: ${path}:`, err);
         if (err.code === 'permission-denied') {
           const permissionError = new FirestorePermissionError({
             path: docRef.path,
@@ -56,7 +64,10 @@ export function useDoc<T = DocumentData>(docRef: DocumentReference<T> | null) {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      console.log(`[USE_DOC] [${performance.now()}] [ID:${hookId}] Unsubscribing from path: ${path}`);
+      unsubscribe();
+    };
   }, [docRef?.path]);
 
   return { data, loading, error };

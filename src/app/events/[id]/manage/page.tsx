@@ -64,6 +64,7 @@ import { cn } from '@/lib/utils';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function EventManagementPage() {
+  console.count('[MANAGE_PAGE] Render');
   const params = useParams();
   const id = params?.id as string;
   const firestore = useFirestore();
@@ -114,6 +115,7 @@ export default function EventManagementPage() {
 
   useEffect(() => {
     if (event) {
+      console.log(`[MANAGE_PAGE] [${performance.now()}] useEffect reacting to 'event' data change`);
       setSettings({
         title: event.title || '',
         clientName: event.clientName || '',
@@ -160,6 +162,7 @@ export default function EventManagementPage() {
     });
 
     try {
+      console.log(`[PHOTO_DELETE] [${performance.now()}] START:`, item.id);
       let newCover = event.coverImage;
       if (event.coverImage === item.url) {
         const remainingItems = (event.items || []).filter((i: any) => i.id !== item.id);
@@ -171,10 +174,12 @@ export default function EventManagementPage() {
         coverImage: newCover,
         updatedAt: new Date().toISOString() 
       });
+      console.log(`[PHOTO_DELETE] [${performance.now()}] SUCCESS`);
 
       toast({ title: "Asset Removed" });
       
     } catch (err: any) {
+      console.error(`[PHOTO_DELETE] [${performance.now()}] ERROR:`, err);
       toast({ variant: "destructive", title: "Remove Failed", description: err.message });
     } finally {
       setProcessingItems(prev => {
@@ -188,23 +193,30 @@ export default function EventManagementPage() {
   const confirmDelete = useCallback(async () => {
     if (!eventRef || deleteConfirmText !== 'DELETE' || !event || isDeleting) return;
     
+    const timestamp = performance.now();
+    console.log(`[GALLERY_DELETE] [${timestamp}] User confirmed full gallery purge:`, id);
+
     setShowDeleteDialog(false);
     setIsDeleting(true);
+    console.log(`[GALLERY_DELETE] [${performance.now()}] isDeleting set to true`);
 
     try {
       // 1. Atomic Firestore deletion
+      console.log(`[GALLERY_DELETE] [${performance.now()}] Firestore deleteDoc START`);
       await deleteDoc(eventRef);
+      console.log(`[GALLERY_DELETE] [${performance.now()}] Firestore deleteDoc SUCCESS`);
       
       toast({ title: "Gallery Registry Purged" });
       
       // 2. Immediate navigation to break the snapshot listener for this doc
+      console.log(`[GALLERY_DELETE] [${performance.now()}] router.replace START`);
       router.replace('/dashboard');
     } catch (err: any) {
-      console.error("[DELETE_FAILURE] Event page operation failed:", err);
+      console.error(`[GALLERY_DELETE] [${performance.now()}] Firestore deleteDoc FAILURE:`, err);
       toast({ variant: "destructive", title: "Delete Failed", description: err.message });
       setIsDeleting(false);
     }
-  }, [eventRef, deleteConfirmText, event, router, toast, isDeleting]);
+  }, [eventRef, deleteConfirmText, event, router, toast, isDeleting, id]);
 
   const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;
