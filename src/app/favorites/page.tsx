@@ -143,9 +143,11 @@ export default function FavoritesPanelPage() {
                     <div className="w-full xl:w-80 bg-muted/30 p-8 border-b xl:border-b-0 xl:border-r border-border/30 flex flex-col justify-between">
                       <div className="space-y-6">
                         <div className="aspect-video rounded-2xl overflow-hidden relative shadow-lg">
-                          <img src={event.coverImage} className="w-full h-full object-cover" alt={event.title} />
+                          {event.coverImage ? (
+                            <img src={event.coverImage} className="w-full h-full object-cover" alt={event.title} />
+                          ) : null}
                           <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <span className="text-[10px] uppercase font-bold text-white tracking-[0.2em]">{event.category}</span>
+                            <span className="text-10px] uppercase font-bold text-white tracking-[0.2em]">{event.category}</span>
                           </div>
                         </div>
                         
@@ -273,7 +275,9 @@ export default function FavoritesPanelPage() {
                          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
                             {favorites.slice(0, 10).map((item: any) => (
                               <div key={item.id} className="aspect-square rounded-xl overflow-hidden border border-border/30 group relative">
-                                <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="Selected" />
+                                {item.url ? (
+                                  <img src={item.url} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="Selected" />
+                                ) : null}
                               </div>
                             ))}
                             {favorites.length > 10 && (

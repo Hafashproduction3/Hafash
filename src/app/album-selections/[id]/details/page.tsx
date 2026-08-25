@@ -224,14 +224,16 @@ export default function AlbumSelectionDetailPage() {
                 onClick={() => toggleSelect(item.id)}
               >
                 <div className="aspect-[4/5] relative overflow-hidden bg-background">
-                  <img 
-                    src={item.url} 
-                    className={cn(
-                      "w-full h-full object-cover transition-transform duration-700",
-                      isSelected ? "scale-105" : "group-hover:scale-105"
-                    )} 
-                    alt="Selection" 
-                  />
+                  {item.url ? (
+                    <img 
+                      src={item.url} 
+                      className={cn(
+                        "w-full h-full object-cover transition-transform duration-700",
+                        isSelected ? "scale-105" : "group-hover:scale-105"
+                      )} 
+                      alt="Selection" 
+                    />
+                  ) : null}
                   <div className={cn(
                     "absolute top-3 left-3 h-6 w-6 rounded-full flex items-center justify-center transition-all shadow-lg border-2",
                     isSelected ? "bg-primary text-primary-foreground border-primary" : "bg-black/20 text-transparent border-white/40 group-hover:border-white"
