@@ -40,6 +40,11 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { type PlanId } from '@/lib/plans';
 
+/**
+ * Optimized Gallery Item Component
+ * Memoized to prevent re-renders when other items in the array change.
+ * Implements decoding="async" and dynamic loading attributes.
+ */
 const GalleryItem = memo(({ 
   item, 
   showWatermark, 
@@ -57,6 +62,8 @@ const GalleryItem = memo(({
   onSelect: (url: string) => void,
   priority?: boolean
 }) => {
+  if (!item?.url) return null;
+
   return (
     <div 
       className="relative group break-inside-avoid overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in mb-8 shadow-xl transition-all duration-700 hover:shadow-primary/5" 
@@ -67,6 +74,7 @@ const GalleryItem = memo(({
         alt="Gallery Asset"
         className="w-full h-auto object-cover transition-transform duration-1000 group-hover:scale-110"
         loading={priority ? "eager" : "lazy"}
+        decoding="async"
       />
       {showWatermark && <div className="luxury-watermark" />}
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
@@ -107,19 +115,16 @@ export default function ClientGalleryPage() {
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
   
-  // Security Logic
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
-  // Internal Note Reply State
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [replySuccess, setReplySuccess] = useState(false);
   const [helpfulClicked, setHelpfulClicked] = useState(false);
 
-  // Secure Multi-Stage Resolution Logic
   useEffect(() => {
     async function resolve() {
       if (!firestore || !galleryParam) {
@@ -204,7 +209,7 @@ export default function ClientGalleryPage() {
   }, [firestore, gallery, galleryId]);
 
   const handleDownloadSingle = useCallback(async (item: any) => {
-    if (!canDownload) return;
+    if (!canDownload || !item?.url) return;
     try {
       const url = item.masterUrl || item.url;
       const res = await fetch(url);
@@ -225,6 +230,7 @@ export default function ClientGalleryPage() {
       for (let i = 0; i < items.length; i++) {
         setPreparationStep(`Fetching: ${i + 1} / ${items.length}`);
         const url = items[i].masterUrl || items[i].url;
+        if (!url) continue;
         const res = await fetch(url);
         const blob = await res.blob();
         zip.file(items[i].fileName || `photo-${i + 1}.jpg`, blob);
@@ -323,7 +329,9 @@ export default function ClientGalleryPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-15">
-          <img src={gallery.coverImage} className="w-full h-full object-cover grayscale blur-md scale-110" alt="Background" />
+          {gallery.coverImage && (
+            <img src={gallery.coverImage} className="w-full h-full object-cover grayscale blur-md scale-110" alt="Background" decoding="async" />
+          )}
         </div>
         <div className="w-full max-w-md relative z-10 space-y-12 animate-in fade-in zoom-in-95 duration-1000">
           <div className="text-center space-y-4">
@@ -394,7 +402,15 @@ export default function ClientGalleryPage() {
         "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col items-center justify-center bg-card shadow-2xl transition-all duration-1000",
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[4rem] lg:rounded-b-[6rem]"
       )}>
-        <img src={effectiveHeroImage} className="absolute inset-0 w-full h-full object-cover opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]" alt="Cover" />
+        {effectiveHeroImage && (
+          <img 
+            src={effectiveHeroImage} 
+            className="absolute inset-0 w-full h-full object-cover opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]" 
+            alt="Cover" 
+            loading="eager"
+            decoding="async"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-background" />
         
         <div className="relative z-10 text-center px-6 max-w-5xl space-y-10">
@@ -402,7 +418,7 @@ export default function ClientGalleryPage() {
             {isCustomBrandingActive ? (
               <div className="flex flex-col items-center space-y-8 animate-in fade-in slide-in-from-top-6 duration-1000">
                 {studioLogo ? (
-                  <img src={studioLogo} className="h-20 lg:h-24 w-auto mb-4 object-contain drop-shadow-2xl" alt="Logo" />
+                  <img src={studioLogo} className="h-20 lg:h-24 w-auto mb-4 object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
                 ) : (
                   <span className="text-4xl lg:text-6xl font-headline font-bold text-white uppercase tracking-tighter mb-2 drop-shadow-2xl">{studioName}</span>
                 )}
@@ -453,7 +469,7 @@ export default function ClientGalleryPage() {
                   <DialogHeader className="mb-10">
                     <div className="flex flex-col items-center text-center space-y-6">
                       {isCustomBrandingActive && studioLogo ? (
-                        <img src={studioLogo} className="h-16 w-auto mb-2 object-contain" alt="Studio Logo" />
+                        <img src={studioLogo} className="h-16 w-auto mb-2 object-contain" alt="Studio Logo" decoding="async" />
                       ) : (
                         <span className="text-2xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
                       )}
@@ -515,7 +531,6 @@ export default function ClientGalleryPage() {
           </div>
         </div>
         
-        {/* Floating Indicator */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce flex flex-col items-center gap-2 opacity-50">
            <div className="w-px h-12 bg-gradient-to-b from-primary to-transparent" />
         </div>
@@ -532,7 +547,7 @@ export default function ClientGalleryPage() {
               onFavorite={handleFavorite}
               onDownload={handleDownloadSingle}
               onSelect={setSelectedImage}
-              priority={idx < 6}
+              priority={idx < 2}
             />
           ))}
         </div>
@@ -561,7 +576,9 @@ export default function ClientGalleryPage() {
       {selectedImage && (
         <div className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-3xl flex items-center justify-center p-4 lg:p-10 animate-in fade-in duration-500" onClick={() => setSelectedImage(null)}>
           <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
-            <img src={selectedImage} className="max-w-full max-h-[95vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5" alt="Fullscreen" />
+            {selectedImage && (
+              <img src={selectedImage} className="max-w-full max-h-[95vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5" alt="Fullscreen" decoding="async" />
+            )}
             {showWatermark && <div className="luxury-watermark" />}
           </div>
           <Button variant="ghost" size="icon" className="absolute top-6 right-6 lg:top-12 lg:right-12 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl">
