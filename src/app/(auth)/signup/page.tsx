@@ -89,7 +89,8 @@ export default function SignupPage() {
           photographerName,
           whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
           planId: 'starter',
-          updatedAt: new Date().toISOString()
+subscriptionStatus: 'inactive',
+updatedAt: new Date().toISOString()
         };
         
         await setDoc(doc(firestore, 'users', newUser.uid), userProfile);

@@ -1,4 +1,5 @@
 'use server';
+import { getSubscriptionInfo } from '@/lib/subscription/status';
 
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { storage } from '@/lib/storage/storage';
@@ -30,6 +31,26 @@ export async function requestUploadUrl({
   }
 
   try {
+    const userRef = adminDb.collection("users").doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return { success: false, error: "User profile not found." };
+    }
+
+    const userData = userSnap.data();
+
+    const subscription = getSubscriptionInfo(userData);
+
+    if (subscription.state !== "active") {
+      return {
+        success: false,
+        error: subscription.state === "grace"
+          ? "Your subscription has expired. Please renew your plan to continue uploading."
+          : "Your subscription is inactive. Please complete payment to activate your storage plan."
+      };
+    }
+
     const stats = await getStorageStats(userId);
     const incomingSizeGb = fileSize / (1024 * 1024 * 1024);
     

@@ -90,6 +90,8 @@ export default function GalleryUploadPage() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
+  const isSubscriptionActive = profile?.subscriptionStatus === 'active';
+
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
 
   const updateFileStatus = (fileId: string, updates: Partial<FileItem>) => {
@@ -234,7 +236,7 @@ export default function GalleryUploadPage() {
   if (!user || !event) return null;
 
   const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? f.size : 0), 0) / (1024 * 1024 * 1024);
-  const isOverLimit = (currentUsageGb + pendingSizeGb) > currentPlan.storageGb;
+  const isOverLimit = !isSubscriptionActive || (currentUsageGb + pendingSizeGb) > currentPlan.storageGb;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
