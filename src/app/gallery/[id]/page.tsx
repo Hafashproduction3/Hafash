@@ -140,6 +140,12 @@ export default function ClientGalleryPage() {
         return;
       }
 
+      if (galleryParam === 'demo') {
+        setGalleryId('demo');
+        setIsResolving(false);
+        return;
+      }
+
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
 
@@ -156,7 +162,7 @@ export default function ClientGalleryPage() {
           return;
         } 
 
-        if (/^[a-zA-Z0-9]{20}$/.test(cleanParam) || cleanParam === 'demo') {
+        if (/^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
           setGalleryId(cleanParam);
           return;
         }
@@ -173,38 +179,31 @@ export default function ClientGalleryPage() {
   }, [firestore, galleryParam]);
 
   const galleryRef = useMemo(() => {
-    if (!firestore || !galleryId) return null;
+    if (!firestore || !galleryId || galleryId === 'demo') return null;
     return doc(firestore, 'galleries', galleryId);
   }, [firestore, galleryId]);
 
   const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
 
-  // Effective Gallery Logic: Injects demo items for the 'demo' ID
+  // Effective Gallery Logic: Independent of Firestore for 'demo'
   const gallery = useMemo(() => {
     if (galleryParam === 'demo' || galleryId === 'demo') {
-      if (!dbGallery) {
-        return {
-          id: 'demo',
-          title: 'Hafash Showcase',
-          clientName: 'Luxury Experience',
-          date: 'Dec 2024',
-          category: 'Wedding',
-          coverImage: 'https://picsum.photos/seed/hafash-demo-1/1920/1080',
-          items: demoItems,
-          mediaCount: 6,
-          isPublic: true,
-          isLocked: false,
-          isPaid: true,
-          photographerNote: "Welcome to the Hafash premium delivery experience. This demo highlights our cinematic image presentation and seamless client interaction.",
-          welcomeTitle: "Explore Your Moments",
-          studioName: "Hafash.pk Studios",
-          whatsappNumber: "+920000000000"
-        };
-      }
       return {
-        ...dbGallery,
+        id: 'demo',
+        title: 'Hafash Showcase',
+        clientName: 'Luxury Experience',
+        date: 'Dec 2024',
+        category: 'Wedding',
+        coverImage: 'https://picsum.photos/seed/hafash-demo-1/1920/1080',
         items: demoItems,
-        mediaCount: 6
+        mediaCount: 6,
+        isPublic: true,
+        isLocked: false,
+        isPaid: true,
+        photographerNote: "Welcome to the Hafash premium delivery experience. This demo highlights our cinematic image presentation and seamless client interaction.",
+        welcomeTitle: "Explore Your Moments",
+        studioName: "Hafash.pk Studios",
+        whatsappNumber: "+920000000000"
       };
     }
     return dbGallery;
@@ -230,10 +229,11 @@ export default function ClientGalleryPage() {
   }, [user?.uid, gallery?.userId]);
 
   const isAvailable = useMemo(() => {
+    if (galleryParam === 'demo') return true;
     if (isResolving || (galleryId && docLoading) || authLoading) return false;
     if (!gallery) return false;
     return isOwner || gallery.isPublic === true;
-  }, [gallery, isOwner, isResolving, docLoading, authLoading, galleryId]);
+  }, [gallery, isOwner, isResolving, docLoading, authLoading, galleryId, galleryParam]);
 
   const canDownload = useMemo(() => gallery ? (!gallery.isLocked && !!gallery.isPaid) : false, [gallery]);
   const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
@@ -338,7 +338,13 @@ export default function ClientGalleryPage() {
     handleSubmitReply("[System]: Client found the photographer note helpful ❤️");
   }, [helpfulClicked, handleSubmitReply]);
 
-  if (isResolving || (galleryId && docLoading) || authLoading) {
+  // Loading Logic: Ignore docLoading for demo
+  const isLoading = useMemo(() => {
+    if (galleryParam === 'demo') return isResolving || authLoading;
+    return isResolving || (galleryId && docLoading) || authLoading;
+  }, [galleryParam, isResolving, galleryId, docLoading, authLoading]);
+
+  if (isLoading) {
     return (
       <HafashLoader text="Synchronizing Luxury Assets..." />
     );
