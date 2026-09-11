@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -8,7 +7,7 @@ import {
   Upload, 
   CheckCircle2, 
   ArrowRight, 
-  ArrowLeft, 
+  ArrowLeft as ArrowLeftIcon, 
   Loader2, 
   Sparkles, 
   X, 
