@@ -9,6 +9,7 @@ export interface GalleryItem {
   url: string;
   type: 'image' | 'video';
   isFavorite: boolean;
+  fileName?: string;
 }
 
 export interface EventGallery {
@@ -20,6 +21,8 @@ export interface EventGallery {
   coverImage: string;
   items: GalleryItem[];
   isLocked: boolean;
+  isPaid: boolean;
+  albumStatus?: string;
   viewCount: number;
 }
 
@@ -32,22 +35,25 @@ interface HafashStore {
   toggleLock: (id: string) => void;
   toggleFavorite: (eventId: string, itemId: string) => void;
   setUserRole: (role: 'photographer' | 'client' | null) => void;
+  addItems: (eventId: string, newItems: GalleryItem[]) => void;
 }
 
 const initialEvents: EventGallery[] = [
   {
-    id: '1',
-    title: 'The Royal Wedding',
+    id: 'test-1',
+    title: 'The Royal Wedding (Sample)',
     clientName: 'Ahmed & Fatima',
     date: '2024-05-15',
     category: 'Wedding',
     coverImage: 'https://picsum.photos/seed/hafash-hero/800/600',
     items: [
-      { id: 'i1', url: 'https://picsum.photos/seed/1/800/600', type: 'image', isFavorite: false },
-      { id: 'i2', url: 'https://picsum.photos/seed/2/800/600', type: 'image', isFavorite: true },
-      { id: 'i3', url: 'https://picsum.photos/seed/3/800/600', type: 'image', isFavorite: false },
+      { id: 'i1', url: 'https://picsum.photos/seed/1/800/600', type: 'image', isFavorite: false, fileName: 'shot-01.jpg' },
+      { id: 'i2', url: 'https://picsum.photos/seed/2/800/600', type: 'image', isFavorite: true, fileName: 'shot-02.jpg' },
+      { id: 'i3', url: 'https://picsum.photos/seed/3/800/600', type: 'image', isFavorite: false, fileName: 'shot-03.jpg' },
     ],
     isLocked: true,
+    isPaid: false,
+    albumStatus: "New Selection",
     viewCount: 128,
   }
 ];
@@ -55,7 +61,7 @@ const initialEvents: EventGallery[] = [
 export const useStore = create<HafashStore>((set) => ({
   userRole: 'photographer',
   events: initialEvents,
-  addEvent: (event) => set((state) => ({ events: [...state.events, event] })),
+  addEvent: (event) => set((state) => ({ events: [event, ...state.events] })),
   updateEvent: (id, updates) => set((state) => ({
     events: state.events.map(e => e.id === id ? { ...e, ...updates } : e)
   })),
@@ -72,4 +78,10 @@ export const useStore = create<HafashStore>((set) => ({
     } : e)
   })),
   setUserRole: (role) => set({ userRole: role }),
+  addItems: (eventId, newItems) => set((state) => ({
+    events: state.events.map(e => e.id === eventId ? {
+      ...e,
+      items: [...e.items, ...newItems]
+    } : e)
+  })),
 }));

@@ -43,6 +43,9 @@ export default function LandingPage() {
           </div>
           
           <div className="relative z-10 text-center px-6 max-w-4xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold uppercase tracking-[0.2em] mb-8 animate-in fade-in slide-in-from-bottom-2">
+              <Sparkles className="w-3.5 h-3.5" /> Experience The Future of Delivery
+            </div>
             <h1 className="text-4xl sm:text-6xl lg:text-8xl font-headline font-bold mb-6 tracking-tight leading-[1.1]">
               Deliver Memories <span className="text-primary italic">Beautifully</span>
             </h1>
@@ -51,13 +54,13 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link href="/signup" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full sm:w-auto h-14 px-10 text-lg bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-bold">
+                <Button size="lg" className="w-full sm:w-auto h-14 px-10 text-lg bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-bold shadow-xl shadow-primary/20">
                   Start Your Studio
                 </Button>
               </Link>
-              <Link href="/gallery/demo" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-10 text-lg border-primary text-primary hover:bg-primary/10 rounded-full font-bold">
-                  Explore Sample Gallery
+              <Link href="/test-drive" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-10 text-lg border-white/20 text-white hover:bg-white/5 rounded-full font-bold backdrop-blur-md">
+                  Explore Test Mode
                 </Button>
               </Link>
             </div>
