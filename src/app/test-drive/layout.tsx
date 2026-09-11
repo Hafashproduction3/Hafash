@@ -42,11 +42,22 @@ export default function TestDriveLayout({ children }: { children: React.ReactNod
   const [open, setOpen] = useState(false);
   const { events } = useStore();
 
+  const isGalleryView = pathname?.includes('/test-drive/gallery/');
+
   const totalSizeMb = useMemo(() => {
     return events.reduce((acc, e) => acc + (e.items?.length || 0) * 12.5, 0);
   }, [events]);
 
   const usagePercent = Math.min((totalSizeMb / 50000) * 100, 100);
+
+  // If we are in the gallery client view, do not wrap in the dashboard layout
+  if (isGalleryView) {
+    return (
+      <div className="min-h-screen bg-background">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-background">
