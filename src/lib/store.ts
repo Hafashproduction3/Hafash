@@ -1,7 +1,7 @@
-
 "use client";
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type EventCategory = 'Wedding' | 'Mehndi' | 'Barat' | 'Engagement' | 'Other';
 
@@ -38,6 +38,9 @@ export interface EventGallery {
   studioName?: string;
   whatsappNumber?: string;
   createdAt?: string;
+  albumLinkToken?: string;
+  albumLinkEnabled?: boolean;
+  albumLinkCreated?: string;
 }
 
 interface HafashStore {
@@ -73,25 +76,32 @@ const initialEvents: EventGallery[] = [
   }
 ];
 
-export const useStore = create<HafashStore>((set) => ({
-  events: initialEvents,
-  addEvent: (event) => set((state) => ({ events: [event, ...state.events] })),
-  updateEvent: (id, updates) => set((state) => ({
-    events: state.events.map(e => e.id === id ? { ...e, ...updates } : e)
-  })),
-  deleteEvent: (id) => set((state) => ({
-    events: state.events.filter(e => e.id !== id)
-  })),
-  toggleFavorite: (eventId, itemId) => set((state) => ({
-    events: state.events.map(e => e.id === eventId ? {
-      ...e,
-      items: (e.items || []).map(i => i.id === itemId ? { ...i, isFavorite: !i.isFavorite } : i)
-    } : e)
-  })),
-  addItems: (eventId, newItems) => set((state) => ({
-    events: state.events.map(e => e.id === eventId ? {
-      ...e,
-      items: [...(e.items || []), ...newItems]
-    } : e)
-  })),
-}));
+export const useStore = create<HafashStore>()(
+  persist(
+    (set) => ({
+      events: initialEvents,
+      addEvent: (event) => set((state) => ({ events: [event, ...state.events] })),
+      updateEvent: (id, updates) => set((state) => ({
+        events: state.events.map(e => e.id === id ? { ...e, ...updates } : e)
+      })),
+      deleteEvent: (id) => set((state) => ({
+        events: state.events.filter(e => e.id !== id)
+      })),
+      toggleFavorite: (eventId, itemId) => set((state) => ({
+        events: state.events.map(e => e.id === eventId ? {
+          ...e,
+          items: (e.items || []).map(i => i.id === itemId ? { ...i, isFavorite: !i.isFavorite } : i)
+        } : e)
+      })),
+      addItems: (eventId, newItems) => set((state) => ({
+        events: state.events.map(e => e.id === eventId ? {
+          ...e,
+          items: [...(e.items || []), ...newItems]
+        } : e)
+      })),
+    }),
+    {
+      name: 'hafash-test-drive-storage',
+    }
+  )
+);
