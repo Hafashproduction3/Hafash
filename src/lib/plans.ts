@@ -11,6 +11,7 @@ export interface HafashPlan {
   storageGb: number;
   zipLimitGb: number;
   price: string;
+  priceAmount: number; // numeric price in PKR, used for Safepay payments.create()
   features: string[];
   priorityLevel: number; // 1 (Starter), 2 (Pro), 3 (Studio)
   priorityLabel: string;
@@ -23,6 +24,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     storageGb: 50,
     zipLimitGb: 999,
     price: 'Rs. 1,200',
+    priceAmount: 1200,
     features: ['50GB Cloud Storage', 'Unlimited Galleries', 'Download All Originals', 'Standard Processing'],
     priorityLevel: 1,
     priorityLabel: 'Standard',
@@ -33,6 +35,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     storageGb: 100,
     zipLimitGb: 999,
     price: 'Rs. 1,999',
+    priceAmount: 1999,
     features: ['100GB Cloud Storage', 'Unlimited Galleries', 'Download All Originals', 'Priority Processing', 'Custom Branding'],
     priorityLevel: 2,
     priorityLabel: 'High Priority',
@@ -43,6 +46,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     storageGb: 250,
     zipLimitGb: 999,
     price: 'Rs. 3,500',
+    priceAmount: 3500,
     features: ['250GB Cloud Storage', 'Unlimited Galleries', 'Download All Originals', 'Premium Processing', 'Custom Branding', 'Advanced Analytics (Future)'],
     priorityLevel: 3,
     priorityLabel: 'Premium',

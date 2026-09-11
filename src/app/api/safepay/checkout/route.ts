@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
 import { safepay } from '@/lib/safepay';
 import { admin } from '@/lib/firebase-admin';
+import { HAFASH_PLANS, type PlanId } from '@/lib/plans';
 
-const SAFEPAY_PLAN_IDS = {
-  starter: 'plan_7f8cff7f-4e19-4dfe-a17d-5cc83b5e0511',
-  pro: 'plan_72682b27-b3c2-44cf-98b5-43b9da2effcd',
-  business: 'plan_06c27bc6-a7e7-4173-b815-9e7ad87badf2',
-} as const;
-
-type HafashPlanId = keyof typeof SAFEPAY_PLAN_IDS;
+// NOTE: These prices must be in the smallest currency unit Safepay expects
+// for PKR (paisa). If HAFASH_PLANS.price is a display string like "Rs. 2,500",
+// you need a separate numeric amount field per plan (e.g. priceAmount: 2500).
+// Below assumes HAFASH_PLANS[planId].priceAmount exists as a number in PKR.
 
 export async function POST(request: Request) {
   try {
@@ -34,9 +32,11 @@ export async function POST(request: Request) {
     const userId = decodedToken.uid;
 
     const body = await request.json();
-    const planId = body?.planId as HafashPlanId;
+    const planId = body?.planId as PlanId;
 
-    if (!planId || !SAFEPAY_PLAN_IDS[planId]) {
+    const plan = HAFASH_PLANS[planId];
+
+    if (!plan) {
       return NextResponse.json(
         { error: 'Invalid subscription plan.' },
         { status: 400 }
@@ -45,11 +45,23 @@ export async function POST(request: Request) {
 
     const origin = new URL(request.url).origin;
 
-    const checkoutUrl = await safepay.checkout.createSubscription({
+    // 1. Create a one-time payment intent (amount in PKR).
+    //    Adjust `plan.priceAmount` to whatever numeric field holds
+    //    the plan's price in your plans.ts file.
+    const { token } = await safepay.payments.create({
+      amount: plan.priceAmount, // e.g. 2500 for the 32GB plan
+      currency: 'PKR',
+    });
+
+    // 2. Create the guest checkout link tied to that payment token.
+    //    No Safepay account/login is required for the customer here.
+    const checkoutUrl = safepay.checkout.create({
+      token,
+      orderId: `hafash_${userId}_${planId}_${Date.now()}`,
       cancelUrl: `${origin}/checkout/${planId}/payment?cancelled=true`,
-      redirectUrl: `${origin}/checkout/${planId}/payment?success=true`,
-      planId: SAFEPAY_PLAN_IDS[planId],
-      reference: `hafash_${userId}_${planId}_${Date.now()}`,
+      redirectUrl: `${origin}/checkout/${planId}/payment?success=true&plan=${planId}`,
+      source: 'custom',
+      webhooks: true,
     });
 
     if (typeof checkoutUrl !== 'string') {
