@@ -42,8 +42,6 @@ import { type PlanId } from '@/lib/plans';
 
 /**
  * Optimized Gallery Item Component
- * Memoized to prevent re-renders when other items in the array change.
- * Implements decoding="async" and dynamic loading attributes.
  */
 const GalleryItem = memo(({ 
   item, 
@@ -125,6 +123,16 @@ export default function ClientGalleryPage() {
   const [replySuccess, setReplySuccess] = useState(false);
   const [helpfulClicked, setHelpfulClicked] = useState(false);
 
+  // Demo Data Definition
+  const demoItems = useMemo(() => [
+    { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', fileName: 'demo-1.jpg', isFavorite: false },
+    { id: 'demo-2', url: 'https://picsum.photos/seed/hafash-demo-2/1200/1600', fileName: 'demo-2.jpg', isFavorite: true },
+    { id: 'demo-3', url: 'https://picsum.photos/seed/hafash-demo-3/1200/1600', fileName: 'demo-3.jpg', isFavorite: false },
+    { id: 'demo-4', url: 'https://picsum.photos/seed/hafash-demo-4/1200/1600', fileName: 'demo-4.jpg', isFavorite: false },
+    { id: 'demo-5', url: 'https://picsum.photos/seed/hafash-demo-5/1200/1600', fileName: 'demo-5.jpg', isFavorite: false },
+    { id: 'demo-6', url: 'https://picsum.photos/seed/hafash-demo-6/1200/1600', fileName: 'demo-6.jpg', isFavorite: false },
+  ], []);
+
   useEffect(() => {
     async function resolve() {
       if (!firestore || !galleryParam) {
@@ -148,7 +156,7 @@ export default function ClientGalleryPage() {
           return;
         } 
 
-        if (/^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
+        if (/^[a-zA-Z0-9]{20}$/.test(cleanParam) || cleanParam === 'demo') {
           setGalleryId(cleanParam);
           return;
         }
@@ -169,7 +177,38 @@ export default function ClientGalleryPage() {
     return doc(firestore, 'galleries', galleryId);
   }, [firestore, galleryId]);
 
-  const { data: gallery, loading: docLoading } = useDoc(galleryRef);
+  const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
+
+  // Effective Gallery Logic: Injects demo items for the 'demo' ID
+  const gallery = useMemo(() => {
+    if (galleryParam === 'demo' || galleryId === 'demo') {
+      if (!dbGallery) {
+        return {
+          id: 'demo',
+          title: 'Hafash Showcase',
+          clientName: 'Luxury Experience',
+          date: 'Dec 2024',
+          category: 'Wedding',
+          coverImage: 'https://picsum.photos/seed/hafash-demo-1/1920/1080',
+          items: demoItems,
+          mediaCount: 6,
+          isPublic: true,
+          isLocked: false,
+          isPaid: true,
+          photographerNote: "Welcome to the Hafash premium delivery experience. This demo highlights our cinematic image presentation and seamless client interaction.",
+          welcomeTitle: "Explore Your Moments",
+          studioName: "Hafash.pk Studios",
+          whatsappNumber: "+920000000000"
+        };
+      }
+      return {
+        ...dbGallery,
+        items: demoItems,
+        mediaCount: 6
+      };
+    }
+    return dbGallery;
+  }, [dbGallery, galleryId, galleryParam, demoItems]);
 
   useEffect(() => {
     if (galleryId) {
@@ -200,7 +239,7 @@ export default function ClientGalleryPage() {
   const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
 
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
-    if (!firestore || !gallery || !galleryId) return;
+    if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
     const gRef = doc(firestore, 'galleries', galleryId);
     const updatedItems = (gallery.items || []).map((item: any) => 
       item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
@@ -274,7 +313,7 @@ export default function ClientGalleryPage() {
 
   const handleSubmitReply = useCallback(async (manualText?: string) => {
     const textToSubmit = manualText || replyText;
-    if (!textToSubmit.trim() || !galleryRef) return;
+    if (!textToSubmit.trim() || !galleryRef || galleryId === 'demo') return;
     setIsSubmittingReply(true);
     try {
       await updateDoc(galleryRef, {
@@ -291,7 +330,7 @@ export default function ClientGalleryPage() {
     } finally {
       setIsSubmittingReply(false);
     }
-  }, [replyText, galleryRef, toast]);
+  }, [replyText, galleryRef, galleryId, toast]);
 
   const handleHelpfulClick = useCallback(() => {
     if (helpfulClicked) return;
@@ -380,7 +419,6 @@ export default function ClientGalleryPage() {
     );
   }
 
-  // TypeScript Guard: Narrow gallery type to non-null for the rest of the component
   if (!gallery) return null;
 
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
