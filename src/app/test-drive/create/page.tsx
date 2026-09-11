@@ -1,9 +1,10 @@
+
 "use client";
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useStore, type EventCategory } from '@/lib/store';
-import { Camera, User, Calendar as CalendarIcon, Mail, Phone, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { Calendar as CalendarIcon, User, Camera, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,10 +16,12 @@ import {
   SelectValue 
 } from '@/components/ui/select';
 import Link from 'next/link';
+import { useToast } from '@/hooks/use-toast';
 
 export default function TestDriveCreatePage() {
   const router = useRouter();
   const { addEvent } = useStore();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -32,7 +35,6 @@ export default function TestDriveCreatePage() {
     e.preventDefault();
     setLoading(true);
 
-    // Simulate delay
     setTimeout(() => {
       const newId = `test-${Math.random().toString(36).substring(2, 9)}`;
       const newEvent = {
@@ -44,44 +46,41 @@ export default function TestDriveCreatePage() {
         coverImage: `https://picsum.photos/seed/${newId}/1200/800`,
         items: [],
         isLocked: true,
+        isPublic: true,
         isPaid: false,
         albumStatus: "New Selection",
         viewCount: 0,
+        createdAt: new Date().toISOString(),
+        photographerNote: "Welcome to your test gallery!",
+        studioName: "Test Studio"
       };
 
       addEvent(newEvent);
+      toast({ title: "Test Gallery Created", description: "Proceeding to upload simulation..." });
       router.push(`/test-drive/upload/${newId}`);
-    }, 1000);
+    }, 800);
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700 pb-20">
-      <div className="flex items-center gap-6">
+    <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex items-center gap-4">
         <Link href="/test-drive">
-          <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 bg-white/5 border border-white/10 hover:bg-primary transition-all">
-            <ArrowLeft className="w-6 h-6" />
+          <Button variant="ghost" size="icon" className="rounded-full hover:bg-primary/10 hover:text-primary">
+            <ArrowLeft className="w-5 h-5" />
           </Button>
         </Link>
-        <div>
-           <div className="flex items-center gap-2 mb-1">
-             <Sparkles className="w-3.5 h-3.5 text-primary" />
-             <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">Test Creation Flow</span>
-           </div>
-           <h1 className="text-4xl font-headline font-bold tracking-tight text-white">Create Test Event</h1>
-        </div>
+        <h1 className="text-3xl font-headline font-bold tracking-tight text-white">Create Test Event</h1>
       </div>
 
-      <div className="bg-card/30 backdrop-blur-2xl border border-white/5 rounded-[3rem] p-10 lg:p-16 shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-30" />
-        
-        <form onSubmit={handleSubmit} className="space-y-10">
-          <div className="space-y-4">
-            <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Event Master Title</Label>
-            <div className="relative group">
-              <Camera className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary group-focus-within:scale-110 transition-transform" />
+      <div className="bg-card border border-border/50 rounded-3xl p-8 lg:p-12 shadow-2xl">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label className="text-muted-foreground font-bold">Event Title</Label>
+            <div className="relative">
+              <Camera className="absolute left-3 top-3 w-4 h-4 text-primary" />
               <Input 
-                placeholder="e.g. Cinematic Wedding of Ahmed & Fatima" 
-                className="pl-12 h-16 rounded-2xl bg-background/50 border-white/10 focus:border-primary/50 text-lg font-medium shadow-inner"
+                placeholder="e.g., Ahmed & Fatima's Barat" 
+                className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl text-white"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
@@ -89,14 +88,14 @@ export default function TestDriveCreatePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Premium Client Name</Label>
-              <div className="relative group">
-                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary group-focus-within:scale-110 transition-transform" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-muted-foreground font-bold">Client Name</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-3 w-4 h-4 text-primary" />
                 <Input 
-                  placeholder="Full Legal Name" 
-                  className="pl-12 h-16 rounded-2xl bg-background/50 border-white/10 focus:border-primary/50 text-lg shadow-inner"
+                  placeholder="Full Name" 
+                  className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl text-white"
                   required
                   value={formData.clientName}
                   onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
@@ -104,16 +103,16 @@ export default function TestDriveCreatePage() {
               </div>
             </div>
 
-            <div className="space-y-4">
-              <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Visual Category</Label>
+            <div className="space-y-2">
+              <Label className="text-muted-foreground font-bold">Category</Label>
               <Select 
                 value={formData.category} 
                 onValueChange={(val) => setFormData({ ...formData, category: val as EventCategory })}
               >
-                <SelectTrigger className="h-16 rounded-2xl bg-background/50 border-white/10 focus:border-primary/50 text-lg shadow-inner">
+                <SelectTrigger className="h-12 bg-background/50 border-border/50 rounded-xl text-white">
                   <SelectValue placeholder="Select Category" />
                 </SelectTrigger>
-                <SelectContent className="bg-card border-white/10">
+                <SelectContent className="bg-card border-border/50">
                   <SelectItem value="Wedding">Wedding</SelectItem>
                   <SelectItem value="Mehndi">Mehndi</SelectItem>
                   <SelectItem value="Barat">Barat</SelectItem>
@@ -124,13 +123,13 @@ export default function TestDriveCreatePage() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Primary Event Date</Label>
-            <div className="relative group">
-              <CalendarIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary group-focus-within:scale-110 transition-transform" />
+          <div className="space-y-2">
+            <Label className="text-muted-foreground font-bold">Event Date</Label>
+            <div className="relative">
+              <CalendarIcon className="absolute left-3 top-3 w-4 h-4 text-primary" />
               <Input 
                 type="date"
-                className="pl-12 h-16 rounded-2xl bg-background/50 border-white/10 focus:border-primary/50 text-lg shadow-inner"
+                className="pl-10 h-12 bg-background/50 border-border/50 rounded-xl text-white"
                 required
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
@@ -138,10 +137,10 @@ export default function TestDriveCreatePage() {
             </div>
           </div>
 
-          <div className="pt-8">
-            <Button type="submit" className="w-full h-20 bg-primary text-primary-foreground hover:bg-primary/90 text-xl font-bold rounded-3xl shadow-[0_30px_60px_rgba(212,175,55,0.2)] transition-all hover:translate-y-[-4px] active:scale-95" disabled={loading}>
-              {loading ? <Loader2 className="w-6 h-6 animate-spin mr-3" /> : <Sparkles className="w-6 h-6 mr-3" />}
-              {loading ? "Initializing Workspace..." : "Create Test Workspace"}
+          <div className="pt-6">
+            <Button type="submit" className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold rounded-2xl shadow-lg shadow-primary/20 transition-all hover:translate-y-[-2px]" disabled={loading}>
+              {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Sparkles className="w-5 h-5 mr-2" />}
+              {loading ? "Initializing..." : "Create Test Workspace"}
             </Button>
           </div>
         </form>
