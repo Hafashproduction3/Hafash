@@ -55,7 +55,7 @@ export default function LandingPage() {
                   Start Your Studio
                 </Button>
               </Link>
-              <Link href="/gallery/demo" className="w-full sm:w-auto">
+              <Link href="/dashboard" className="w-full sm:w-auto">
                 <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-10 text-lg border-primary text-primary hover:bg-primary/10 rounded-full font-bold">
                   Explore Sample Gallery
                 </Button>
