@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN, calculateUsageGb } from '@/lib/plans';
+import { HAFASH_PLANS, type PlanId, getUserPlan, calculateUsageGb } from '@/lib/plans';
 import { doc, collection, query, where } from 'firebase/firestore';
 import Link from 'next/link';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -43,10 +43,11 @@ export default function StoragePage() {
 
   const { data: galleries, loading: galleriesLoading } = useCollection(galleriesQuery);
 
-  const currentPlan = useMemo(() => {
-    const planId = (profile?.planId as PlanId) || 'starter';
-    return HAFASH_PLANS[planId] || DEFAULT_PLAN;
-  }, [profile?.planId]);
+  // FIX: this used to default to HAFASH_PLANS.starter when profile.planId
+  // was missing, which made every unpaid user appear to have a real
+  // (50GB) plan active. getUserPlan() correctly returns "No Active Plan"
+  // (0GB) instead when there's no valid planId.
+  const currentPlan = useMemo(() => getUserPlan(profile?.planId), [profile?.planId]);
 
   const usageGb = useMemo(() => {
     return calculateUsageGb(galleries);
@@ -70,6 +71,8 @@ export default function StoragePage() {
   const canUpgrade = useMemo(() => {
     return currentPlan.id !== 'business';
   }, [currentPlan.id]);
+
+  const hasNoPlan = currentPlan.id === 'none';
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20 max-w-7xl mx-auto">
@@ -101,7 +104,7 @@ export default function StoragePage() {
               {canUpgrade && (
                 <Link href="#plans-section">
                   <Button className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold rounded-xl gap-2 h-12 px-6 shadow-lg shadow-primary/20">
-                    <ArrowUpCircle className="w-4 h-4" /> Upgrade Workspace
+                    <ArrowUpCircle className="w-4 h-4" /> {hasNoPlan ? 'Activate a Plan' : 'Upgrade Workspace'}
                   </Button>
                 </Link>
               )}
@@ -112,7 +115,7 @@ export default function StoragePage() {
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground uppercase tracking-widest font-bold">Active Subscription</p>
                 <h3 className="text-4xl font-headline font-bold text-primary">
-                  {profileLoading ? <Skeleton className="h-10 w-32" /> : `${currentPlan.name} Plan`}
+                  {profileLoading ? <Skeleton className="h-10 w-32" /> : (hasNoPlan ? 'No Active Plan' : `${currentPlan.name} Plan`)}
                 </h3>
               </div>
               <div className="text-right space-y-2">
@@ -160,7 +163,7 @@ export default function StoragePage() {
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Storage Status</p>
-                  <p className="text-xl font-headline font-bold">Cloud Active</p>
+                  <p className="text-xl font-headline font-bold">{hasNoPlan ? 'No Plan' : 'Cloud Active'}</p>
                 </div>
               </div>
               <div className="bg-background/50 rounded-3xl p-6 border border-border/30 flex items-center gap-4">
@@ -178,7 +181,7 @@ export default function StoragePage() {
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">Delivery</p>
-                  <p className="text-xl font-headline font-bold">Max Speed</p>
+                  <p className="text-xl font-headline font-bold">{hasNoPlan ? '\u2014' : 'Max Speed'}</p>
                 </div>
               </div>
             </div>
@@ -208,7 +211,9 @@ export default function StoragePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         {Object.values(HAFASH_PLANS).map(plan => {
           const isCurrent = currentPlan.id === plan.id;
-          const isUpgrade = plan.priorityLevel > currentPlan.priorityLevel;
+          // Only call it an "upgrade" if the user already has a real plan;
+          // a first-time purchase should say "Select Plan", not "Upgrade".
+          const isUpgrade = !hasNoPlan && plan.priorityLevel > currentPlan.priorityLevel;
           
           return (
             <Card key={plan.id} className={`relative overflow-hidden border-border/50 bg-card transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 rounded-[2.5rem] ${plan.id === 'pro' ? 'ring-2 ring-primary scale-105 z-10' : ''}`}>

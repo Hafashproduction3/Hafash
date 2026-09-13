@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { useUser, useFirestore, useDoc } from '@/firebase';
-import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
+import { HAFASH_PLANS, type PlanId, getUserPlan } from '@/lib/plans';
 import { useMemo, useEffect } from 'react';
 import { doc } from 'firebase/firestore';
 import { 
@@ -40,14 +40,17 @@ export default function CheckoutPage() {
 
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
-  const currentPlan = useMemo(() => {
-    const id = (profile?.planId as PlanId) || 'starter';
-    return HAFASH_PLANS[id] || DEFAULT_PLAN;
-  }, [profile?.planId]);
+  // FIX: this used to default to HAFASH_PLANS.starter when profile.planId
+  // was missing, making every unpaid user appear to already have a real
+  // 50GB plan. getUserPlan() correctly returns "No Active Plan" (0GB)
+  // when there's no valid planId yet.
+  const currentPlan = useMemo(() => getUserPlan(profile?.planId), [profile?.planId]);
 
   const targetPlan = useMemo(() => {
     return HAFASH_PLANS[planId] || HAFASH_PLANS.pro;
   }, [planId]);
+
+  const hasNoPlan = currentPlan.id === 'none';
 
   if (authLoading || profileLoading) {
     return (
@@ -62,7 +65,9 @@ export default function CheckoutPage() {
           <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-3xl font-headline font-bold">Review Your Upgrade</h1>
+          <h1 className="text-3xl font-headline font-bold">
+            {hasNoPlan ? 'Review Your Plan' : 'Review Your Upgrade'}
+          </h1>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -76,7 +81,9 @@ export default function CheckoutPage() {
               <CardContent className="p-8 space-y-6">
                 <div className="flex justify-between items-center py-2 border-b border-border/30">
                   <span className="text-muted-foreground">Current Plan</span>
-                  <span className="font-bold text-sm uppercase tracking-widest">{currentPlan.name}</span>
+                  <span className="font-bold text-sm uppercase tracking-widest">
+                    {hasNoPlan ? 'No Active Plan' : currentPlan.name}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center py-2 border-b border-border/30">
                   <span className="text-muted-foreground">New Plan</span>
@@ -103,7 +110,7 @@ export default function CheckoutPage() {
                 <h4 className="font-bold text-sm uppercase tracking-widest">Studio Activation</h4>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Your upgraded plan will be activated immediately after successful payment confirmation.
+                Your {hasNoPlan ? 'plan' : 'upgraded plan'} will be activated immediately after successful payment confirmation.
               </p>
             </div>
           </div>
@@ -126,8 +133,14 @@ export default function CheckoutPage() {
                     <HardDrive className="w-5 h-5" />
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Expansion Capacity</p>
-                    <p className="text-lg font-headline font-bold">+{targetPlan.storageGb - currentPlan.storageGb} GB New Storage</p>
+                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                      {hasNoPlan ? 'Storage Capacity' : 'Expansion Capacity'}
+                    </p>
+                    <p className="text-lg font-headline font-bold">
+                      {hasNoPlan
+                        ? `${targetPlan.storageGb} GB Storage`
+                        : `+${targetPlan.storageGb - currentPlan.storageGb} GB New Storage`}
+                    </p>
                   </div>
                 </div>
               </CardContent>
