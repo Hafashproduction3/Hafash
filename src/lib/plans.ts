@@ -6,7 +6,7 @@
 export type PlanId = 'starter' | 'pro' | 'business';
 
 export interface HafashPlan {
-  id: PlanId;
+  id: PlanId | 'none';
   name: string;
   storageGb: number;
   zipLimitGb: number;
@@ -53,7 +53,36 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
   },
 };
 
-export const DEFAULT_PLAN = HAFASH_PLANS.starter;
+// Represents a user who has NOT paid for any plan yet. 0GB storage,
+// no features. This is what new signups should see — NOT the Starter
+// plan — until they actually complete a payment.
+export const NO_PLAN: HafashPlan = {
+  id: 'none',
+  name: 'No Active Plan',
+  storageGb: 0,
+  zipLimitGb: 0,
+  price: 'Rs. 0',
+  priceAmount: 0,
+  features: [],
+  priorityLevel: 0,
+  priorityLabel: 'None',
+};
+
+// IMPORTANT: this used to default to HAFASH_PLANS.starter, which meant
+// every new (unpaid) user silently appeared to have the 50GB Starter
+// plan active. Changed to NO_PLAN so unpaid accounts correctly show
+// 0GB / no plan until they pay.
+export const DEFAULT_PLAN = NO_PLAN;
+
+/**
+ * Looks up a user's plan safely. Returns NO_PLAN if they don't have a
+ * valid, recognized planId set (e.g. brand new signup, never paid).
+ */
+export function getUserPlan(planId?: string | null): HafashPlan {
+  if (!planId) return NO_PLAN;
+  if (planId in HAFASH_PLANS) return HAFASH_PLANS[planId as PlanId];
+  return NO_PLAN;
+}
 
 /**
  * Calculates total storage usage across all galleries.
