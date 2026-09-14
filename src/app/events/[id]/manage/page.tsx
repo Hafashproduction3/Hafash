@@ -387,29 +387,22 @@ export default function EventManagementPage() {
                     updateToggle('isPublic', val);
                   }} className="data-[state=checked]:bg-primary" />
                 </div>
-                <div className="flex items-center justify-between p-2">
-                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em]">Download Rights</span>
-                  <Switch checked={!settings.isLocked} onCheckedChange={(val) => {
-                    setSettings({...settings, isLocked: !val});
-                    updateToggle('isLocked', !val);
-                  }} className="data-[state=checked]:bg-primary" />
-                </div>
                 <div className="flex items-center justify-between pt-10 border-t border-white/5">
-                   <div className="space-y-2">
-                     <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em] block">Revenue Status</span>
-                     <Badge className={cn("text-[10px] font-bold uppercase tracking-widest px-4 py-1", settings.isPaid ? "bg-green-500/20 text-green-500" : "bg-amber-500/20 text-amber-500")}>
-                        {settings.isPaid ? "Payment Received" : "Awaiting Transfer"}
-                     </Badge>
-                   </div>
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em] block">Download Access</span>
+                    <span className="text-[10px] text-muted-foreground/70 block">Download is enabled when payment is received.</span>
+                    <Badge className={cn("text-[10px] font-bold uppercase tracking-widest px-4 py-1", settings.isPaid ? "bg-green-500/20 text-green-500" : "bg-amber-500/20 text-amber-500")}>
+                      {settings.isPaid ? "Payment Received" : "Awaiting Transfer"}
+                    </Badge>
+                  </div>
                   <Switch checked={settings.isPaid} onCheckedChange={(val) => {
                     setSettings({...settings, isPaid: val, isLocked: !val});
                     updateToggle('isPaid', val);
                   }} className="data-[state=checked]:bg-green-500" />
                 </div>
               </div>
-            </CardContent>
-          </Card>
-
+              </CardContent>
+            </Card>
           {/* Workflow Panel */}
           <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary luxury-card-hover">
             <CardHeader className="p-10 border-b border-white/5 bg-background/20">
