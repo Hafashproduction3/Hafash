@@ -135,6 +135,8 @@ export default function JoinNetworkPage() {
         doc(firestore, 'networkProfiles', user.uid),
         {
           userId: user.uid,
+          studioName: profile?.studioName || '',
+          photographerName: profile?.photographerName || profile?.name || '',
           roles: selectedRoles,
           equipment: selectedEquipment.map((e) => ({ id: e.id, category: e.category, name: e.name })),
           rate: { amount: Number(rateAmount), unit: rateUnit },
