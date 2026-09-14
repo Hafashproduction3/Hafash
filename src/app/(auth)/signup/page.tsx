@@ -40,7 +40,7 @@ export default function SignupPage() {
   }, [user, authLoading, router]);
 
   const validateWhatsApp = (number: string) => {
-    const regex = /^\+?[1-9]\d{1,14}$/;
+    const regex = /^03\d{9}$/;
     return regex.test(number.replace(/\s+/g, ''));
   };
 
@@ -68,7 +68,7 @@ export default function SignupPage() {
       toast({
         variant: "destructive",
         title: "Invalid WhatsApp",
-        description: "Please enter a valid international number (e.g., +923001234567).",
+        description: "Please enter a valid Pakistani WhatsApp number (e.g., 03001234567).",
       });
       return;
     }
@@ -200,7 +200,7 @@ updatedAt: new Date().toISOString()
                 <Phone className="absolute left-3 top-3 w-4 h-4 text-primary" />
                 <Input 
                   id="whatsapp" 
-                  placeholder="+923001234567" 
+                  placeholder="03001234567" 
                   className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
                   required 
                   value={whatsappNumber}
