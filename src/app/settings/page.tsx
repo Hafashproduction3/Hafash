@@ -113,7 +113,7 @@ export default function SettingsPage() {
   };
 
   const validateWhatsApp = (number: string) => {
-    const regex = /^\+?[1-9]\d{1,14}$/;
+    const regex = /^03\d{9}$/;
     return regex.test(number.replace(/\s+/g, ''));
   };
 
@@ -133,7 +133,7 @@ export default function SettingsPage() {
       toast({
         variant: "destructive",
         title: "Invalid WhatsApp",
-        description: "Please enter a valid international number (e.g., +923001234567).",
+        description: "Please enter a valid Pakistani WhatsApp number (e.g., 03001234567).",
       });
       return;
     }
@@ -262,7 +262,7 @@ export default function SettingsPage() {
                             <Input 
                               value={formData.whatsappNumber} 
                               onChange={(e) => updateField('whatsappNumber', e.target.value)}
-                              placeholder="+923001234567" 
+                              placeholder="03001234567" 
                               className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
                             />
                           </div>
