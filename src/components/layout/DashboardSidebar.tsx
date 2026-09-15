@@ -27,7 +27,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useMemo, useCallback, useState, useEffect } from 'react';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { collection, query, where, doc, getDoc } from 'firebase/firestore';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
 const NAV_ITEMS = [
@@ -106,6 +106,93 @@ export function DashboardSidebar() {
   const { data: incomingRequests } = useCollection(incomingQuery);
   const newRequestsCount = incomingRequests?.length || 0;
 
+  // Accepted requests (for counting unread chats)
+  const hirerAcceptedQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'networkRequests'),
+      where('hirerId', '==', user.uid),
+      where('status', 'in', ['accepted', 'completed'])
+    );
+  }, [firestore, user?.uid]);
+
+  const profAcceptedQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'networkRequests'),
+      where('professionalId', '==', user.uid),
+      where('status', 'in', ['accepted', 'completed'])
+    );
+  }, [firestore, user?.uid]);
+
+  const { data: hirerAccepted } = useCollection(hirerAcceptedQuery);
+  const { data: profAccepted } = useCollection(profAcceptedQuery);
+
+  const [unreadChats, setUnreadChats] = useState(0);
+
+  // Count unread chats
+  useEffect(() => {
+    if (!firestore || !user) return;
+
+    const acceptedIds = new Set<string>();
+    (hirerAccepted || []).forEach((r: any) => r.id && acceptedIds.add(r.id));
+    (profAccepted || []).forEach((r: any) => r.id && acceptedIds.add(r.id));
+
+    if (acceptedIds.size === 0) {
+      setUnreadChats(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function countUnread() {
+      let count = 0;
+      const ids = Array.from(acceptedIds);
+
+      await Promise.all(
+        ids.map(async (chatId) => {
+          try {
+            const snap = await getDoc(doc(firestore!, 'networkChats', chatId));
+            if (!snap.exists()) return;
+
+            const data = snap.data();
+            const lastMessageBy = data.lastMessageBy;
+            const lastMessageAt = data.lastMessageAt;
+
+            if (!lastMessageBy || lastMessageBy === user!.uid) return;
+
+            // Check if there's an unread message
+            // Determine if user is hirer or professional in this chat
+            const reqSnap = await getDoc(doc(firestore!, 'networkRequests', chatId));
+            if (!reqSnap.exists()) return;
+            const reqData = reqSnap.data();
+            const isHirer = reqData.hirerId === user!.uid;
+
+            const readAt = isHirer ? data.readByHirerAt : data.readByProfessionalAt;
+
+            if (!readAt) {
+              count++;
+            } else {
+              const lastAt = lastMessageAt?.seconds || 0;
+              const readAtSec = readAt?.seconds || 0;
+              if (lastAt > readAtSec) count++;
+            }
+          } catch (e) {
+            // Silent
+          }
+        })
+      );
+
+      if (!cancelled) setUnreadChats(count);
+    }
+
+    countUnread();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firestore, user, hirerAccepted, profAccepted, pathname]);
+
   const networkProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'networkProfiles', user.uid);
@@ -128,6 +215,7 @@ export function DashboardSidebar() {
   }, [galleries, currentPlan.storageGb]);
 
   const networkActive = pathname.startsWith('/network');
+  const totalNetworkBadge = newRequestsCount + unreadChats;
 
   const networkItems = [
     {
@@ -156,6 +244,7 @@ export function DashboardSidebar() {
       icon: MessageSquare,
       label: 'Messages',
       href: '/network/messages',
+      badge: unreadChats > 0 ? unreadChats : null,
     },
     {
       icon: CalendarDays,
@@ -227,8 +316,11 @@ export function DashboardSidebar() {
                 Hafash Network
               </span>
 
-              {newRequestsCount > 0 && (
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+              {/* Total badge (requests + unread chats) */}
+              {totalNetworkBadge > 0 && (
+                <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                  {totalNetworkBadge > 9 ? '9+' : totalNetworkBadge}
+                </span>
               )}
 
               <ChevronDown
@@ -262,7 +354,7 @@ export function DashboardSidebar() {
                       <span className="flex-1 text-left truncate">{item.label}</span>
 
                       {item.badge != null && item.badge > 0 && (
-                        <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                        <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center animate-in zoom-in-50 duration-300">
                           {item.badge > 9 ? '9+' : item.badge}
                         </span>
                       )}

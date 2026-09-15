@@ -29,7 +29,7 @@ import { useAuth, useUser, useFirestore, useCollection, useDoc } from '@/firebas
 import { signOut } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { collection, query, where, doc, getDoc } from 'firebase/firestore';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
 const navItems = [
@@ -47,6 +47,7 @@ const navItems = [
 export function MobileNav() {
   const [open, setOpen] = useState(false);
   const [networkOpen, setNetworkOpen] = useState(false);
+  const [unreadChats, setUnreadChats] = useState(0);
   const pathname = usePathname();
   const auth = useAuth();
   const firestore = useFirestore();
@@ -105,6 +106,88 @@ export function MobileNav() {
   const { data: incomingRequests } = useCollection(incomingQuery);
   const newRequestsCount = incomingRequests?.length || 0;
 
+  // Accepted requests (for counting unread chats)
+  const hirerAcceptedQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'networkRequests'),
+      where('hirerId', '==', user.uid),
+      where('status', 'in', ['accepted', 'completed'])
+    );
+  }, [firestore, user?.uid]);
+
+  const profAcceptedQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'networkRequests'),
+      where('professionalId', '==', user.uid),
+      where('status', 'in', ['accepted', 'completed'])
+    );
+  }, [firestore, user?.uid]);
+
+  const { data: hirerAccepted } = useCollection(hirerAcceptedQuery);
+  const { data: profAccepted } = useCollection(profAcceptedQuery);
+
+  useEffect(() => {
+    if (!firestore || !user) return;
+
+    const acceptedIds = new Set<string>();
+    (hirerAccepted || []).forEach((r: any) => r.id && acceptedIds.add(r.id));
+    (profAccepted || []).forEach((r: any) => r.id && acceptedIds.add(r.id));
+
+    if (acceptedIds.size === 0) {
+      setUnreadChats(0);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function countUnread() {
+      let count = 0;
+      const ids = Array.from(acceptedIds);
+
+      await Promise.all(
+        ids.map(async (chatId) => {
+          try {
+            const snap = await getDoc(doc(firestore!, 'networkChats', chatId));
+            if (!snap.exists()) return;
+
+            const data = snap.data();
+            const lastMessageBy = data.lastMessageBy;
+            const lastMessageAt = data.lastMessageAt;
+
+            if (!lastMessageBy || lastMessageBy === user!.uid) return;
+
+            const reqSnap = await getDoc(doc(firestore!, 'networkRequests', chatId));
+            if (!reqSnap.exists()) return;
+            const reqData = reqSnap.data();
+            const isHirer = reqData.hirerId === user!.uid;
+
+            const readAt = isHirer ? data.readByHirerAt : data.readByProfessionalAt;
+
+            if (!readAt) {
+              count++;
+            } else {
+              const lastAt = lastMessageAt?.seconds || 0;
+              const readAtSec = readAt?.seconds || 0;
+              if (lastAt > readAtSec) count++;
+            }
+          } catch (e) {
+            // Silent
+          }
+        })
+      );
+
+      if (!cancelled) setUnreadChats(count);
+    }
+
+    countUnread();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [firestore, user, hirerAccepted, profAccepted, pathname]);
+
   const networkProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'networkProfiles', user.uid);
@@ -123,6 +206,8 @@ export function MobileNav() {
     if (currentPlan.storageGb <= 0) return 0;
     return Math.min((usageGb / currentPlan.storageGb) * 100, 100);
   }, [usageGb, currentPlan.storageGb]);
+
+  const totalNetworkBadge = newRequestsCount + unreadChats;
 
   const networkItems = [
     {
@@ -151,6 +236,7 @@ export function MobileNav() {
       icon: MessageSquare,
       label: 'Messages',
       href: '/network/messages',
+      badge: unreadChats > 0 ? unreadChats : null,
     },
     {
       icon: CalendarDays,
@@ -170,8 +256,10 @@ export function MobileNav() {
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10 h-12 w-12 rounded-full relative">
             <Menu className="w-7 h-7" />
-            {newRequestsCount > 0 && (
-              <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+            {totalNetworkBadge > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                {totalNetworkBadge > 9 ? '9+' : totalNetworkBadge}
+              </span>
             )}
           </Button>
         </SheetTrigger>
@@ -227,8 +315,10 @@ export function MobileNav() {
 
                   <span className="text-sm flex-1 text-left">Hafash Network</span>
 
-                  {newRequestsCount > 0 && (
-                    <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                  {totalNetworkBadge > 0 && (
+                    <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                      {totalNetworkBadge > 9 ? '9+' : totalNetworkBadge}
+                    </span>
                   )}
 
                   <ChevronDown

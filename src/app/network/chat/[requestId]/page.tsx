@@ -126,6 +126,29 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
+  // Mark chat as read when opened
+  useEffect(() => {
+    if (!firestore || !chatId || !user || !request) return;
+
+    const markAsRead = async () => {
+      try {
+        const chatRef = doc(firestore, "networkChats", chatId);
+        const isHirer = request.hirerId === user.uid;
+        await setDoc(
+          chatRef,
+          {
+            [isHirer ? "readByHirerAt" : "readByProfessionalAt"]: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.error("[CHAT] Mark read error:", err);
+      }
+    };
+
+    markAsRead();
+  }, [firestore, chatId, user, request]);
+
   // Send message
   const handleSend = useCallback(async () => {
     if (!user || !firestore || !chatId || !messageText.trim() || isSending || !request) return;
@@ -135,7 +158,6 @@ export default function ChatPage() {
     setMessageText("");
 
     try {
-      // Add message
       await addDoc(collection(firestore, "networkChats", chatId, "messages"), {
         senderId: user.uid,
         senderName: user.displayName || "Hafash User",
@@ -144,7 +166,6 @@ export default function ChatPage() {
         read: false,
       });
 
-      // Update chat meta (create if not exists)
       const chatRef = doc(firestore, "networkChats", chatId);
       await setDoc(
         chatRef,
