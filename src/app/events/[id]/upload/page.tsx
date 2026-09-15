@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
@@ -17,7 +17,6 @@ import {
   ShieldCheck, 
   HardDrive, 
   FileIcon,
-  ImageIcon,
   RefreshCw,
   Clock,
   Zap
@@ -27,7 +26,7 @@ import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
-import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
+import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN, isOwnerEmail } from '@/lib/plans';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { requestUploadUrl, completeUpload } from '@/app/actions/storage';
 import Link from 'next/link';
@@ -60,6 +59,9 @@ export default function GalleryUploadPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDone, setIsDone] = useState(false);
 
+  // 👑 Owner check
+  const isOwner = useMemo(() => isOwnerEmail(user?.email), [user?.email]);
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
@@ -85,12 +87,33 @@ export default function GalleryUploadPage() {
   }, [firestore, user?.uid]);
   const { data: galleries } = useCollection(galleriesQuery);
 
+  // ✅ Owner bypass — uses email
   const currentPlan = useMemo(() => {
-    const planId = (profile?.planId as PlanId) || 'starter';
+    if (isOwner) {
+      return {
+        id: 'business' as PlanId,
+        name: 'Owner (Unlimited)',
+        storageGb: 999999,
+        zipLimitGb: 999999,
+        price: 'Rs. 0',
+        priceAmount: 0,
+        features: ['Unlimited Storage', 'All Features'],
+        priorityLevel: 999,
+        priorityLabel: 'Owner',
+      };
+    }
+    const planId = (profile?.planId as PlanId) || 'none';
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
-  }, [profile?.planId]);
+  }, [profile?.planId, isOwner]);
 
-  const isSubscriptionActive = profile?.subscriptionStatus === 'active';
+  const isSubscriptionActive = useMemo(() => {
+    if (isOwner) return true;
+    if (!profile?.planId || currentPlan.id === 'none') return false;
+    const raw = profile?.planExpiryDate;
+    if (!raw) return false;
+    const expiry = typeof raw?.toDate === 'function' ? raw.toDate() : new Date(raw);
+    return expiry.getTime() > Date.now();
+  }, [isOwner, profile?.planId, profile?.planExpiryDate, currentPlan.id]);
 
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
 
@@ -136,7 +159,6 @@ export default function GalleryUploadPage() {
 
     setIsUploading(true);
     
-    // Process files sequentially
     for (const item of files) {
       if (item.status === 'completed' || item.status === 'cancelled') continue;
 
@@ -144,7 +166,6 @@ export default function GalleryUploadPage() {
         console.log(`[UPLOAD_PIPELINE] Starting: ${item.name}`);
         updateFileStatus(item.id, { status: 'uploading', currentStep: 'Requesting Access...' });
 
-        // 1. Request Signed URL
         const { success, uploadUrl, key, error } = await requestUploadUrl({
           userId: user!.uid,
           galleryId: id,
@@ -155,7 +176,6 @@ export default function GalleryUploadPage() {
 
         if (!success || !uploadUrl) throw new Error(error || "Failed to authorize upload.");
 
-        // 2. Direct PUT to R2
         updateFileStatus(item.id, { currentStep: 'Transferring...' });
         
         await new Promise<void>((resolve, reject) => {
@@ -184,7 +204,6 @@ export default function GalleryUploadPage() {
           xhr.send(item.file);
         });
 
-        // 3. Sync Metadata
         updateFileStatus(item.id, { status: 'syncing', currentStep: 'Finalizing...' });
         
         const syncResult = await completeUpload({
@@ -236,7 +255,7 @@ export default function GalleryUploadPage() {
   if (!user || !event) return null;
 
   const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? f.size : 0), 0) / (1024 * 1024 * 1024);
-  const isOverLimit = !isSubscriptionActive || (currentUsageGb + pendingSizeGb) > currentPlan.storageGb;
+  const isOverLimit = !isSubscriptionActive || (!isOwner && (currentUsageGb + pendingSizeGb) > currentPlan.storageGb);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
@@ -250,6 +269,11 @@ export default function GalleryUploadPage() {
               <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">Sequential Delivery Hub</span>
               <div className="h-1 w-1 rounded-full bg-primary/40" />
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">{event.category}</span>
+              {isOwner && (
+                <Badge className="bg-primary/20 text-primary border border-primary/30 text-[9px] uppercase tracking-widest ml-2">
+                  👑 Owner
+                </Badge>
+              )}
             </div>
             <h1 className="text-4xl font-headline font-bold">{event.title}</h1>
           </div>
@@ -261,7 +285,9 @@ export default function GalleryUploadPage() {
               <div className="flex items-center gap-2">
                  <HardDrive className={cn("w-3.5 h-3.5", isOverLimit ? "text-destructive" : "text-primary")} />
                  <span className={cn("text-xs font-bold font-mono", isOverLimit ? "text-destructive" : "text-foreground")}>
-                   {(currentUsageGb + pendingSizeGb).toFixed(2)} / {currentPlan.storageGb} GB
+                   {isOwner 
+                     ? `${(currentUsageGb + pendingSizeGb).toFixed(2)} / ∞ GB`
+                     : `${(currentUsageGb + pendingSizeGb).toFixed(2)} / ${currentPlan.storageGb} GB`}
                  </span>
               </div>
            </div>
@@ -276,9 +302,13 @@ export default function GalleryUploadPage() {
       {isOverLimit && (
         <Alert variant="destructive" className="rounded-2xl border-destructive/50 bg-destructive/5 animate-in slide-in-from-top-4">
           <AlertTriangle className="h-5 w-5" />
-          <AlertTitle className="font-bold">Storage Limit Exceeded</AlertTitle>
+          <AlertTitle className="font-bold">
+            {!isSubscriptionActive ? "No Active Plan" : "Storage Limit Exceeded"}
+          </AlertTitle>
           <AlertDescription className="text-sm">
-            This batch would exceed your {currentPlan.storageGb}GB limit. Remove assets or 
+            {!isSubscriptionActive 
+              ? "Activate a storage plan to start uploading photos."
+              : `This batch would exceed your ${currentPlan.storageGb}GB limit. Remove assets or`}
             <Link href="/storage" className="ml-1 underline font-bold">upgrade your studio tier</Link>.
           </AlertDescription>
         </Alert>
@@ -351,7 +381,7 @@ export default function GalleryUploadPage() {
           </div>
         </div>
 
-        <div className="bg-card/40 backdrop-blur-md border border-border/50 rounded-[2.5rem] p-8 h-[650px] flex flex-col shadow-2xl luxury-card-hover overflow-hidden">
+        <div className="bg-card/40 backdrop-blur-md border border-border/50 rounded-[2.5rem] p-8 h-[650px] flex flex-col shadow-2xl overflow-hidden">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-headline font-bold flex items-center gap-3">
               <Activity className="w-6 h-6 text-primary" /> Active Pipeline
@@ -373,11 +403,11 @@ export default function GalleryUploadPage() {
                     </p>
                   </div>
                </div>
-               <Progress value={stats.avgProgress} className="h-1.5 bg-primary/10" indicatorClassName="bg-primary" />
+               <Progress value={stats.avgProgress} className="h-1.5 bg-primary/10" />
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-4 pr-2">
             {files.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm italic opacity-30 text-center px-10">
                 <FileIcon className="w-12 h-12 mb-4 mx-auto opacity-10" />

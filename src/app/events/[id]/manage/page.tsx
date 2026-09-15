@@ -10,7 +10,6 @@ import {
   Loader2 as Loader2Icon,
   FileText as FileTextIcon,
   Sparkles as SparklesIcon,
-  Camera as CameraIcon,
   Copy as CopyIcon,
   Check as CheckIcon,
   LayoutGrid as LayoutGridIcon,
@@ -19,6 +18,10 @@ import {
   Calendar as CalendarIcon,
   Archive as ArchiveIcon,
   ExternalLink as ExternalLinkIcon,
+  Music as MusicIcon,
+  Play as PlayIcon,
+  Pause as PauseIcon,
+  Upload as UploadIcon,
   Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,9 +43,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc, arrayRemove } from 'firebase/firestore';
-import { deleteGalleryFiles } from '@/app/actions/storage';
+import { deleteGalleryFiles, requestUploadUrl, getMusicSignedUrl } from '@/app/actions/storage';
 import Link from 'next/link';
-import { useMemo, useEffect, useState, useCallback } from 'react';
+import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 
@@ -61,6 +64,14 @@ export default function EventManagementPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   
   const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
+
+  // 🎵 Music state
+  const [isUploadingMusic, setIsUploadingMusic] = useState(false);
+  const [musicUploadProgress, setMusicUploadProgress] = useState(0);
+  const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+  const [currentMusicUrl, setCurrentMusicUrl] = useState<string>('');
+  const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
+  const musicInputRef = useRef<HTMLInputElement | null>(null);
 
   const [settings, setSettings] = useState({
     photographerNote: '',
@@ -98,8 +109,18 @@ export default function EventManagementPage() {
         isPaid: !!event.isPaid,
         isLocked: !!event.isLocked
       });
+      setCurrentMusicUrl(event.musicUrl || '');
     }
   }, [event]);
+
+  useEffect(() => {
+    return () => {
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause();
+        audioPreviewRef.current = null;
+      }
+    };
+  }, []);
 
   const handleUpdateSettings = useCallback(async () => {
     if (!eventRef) return;
@@ -150,34 +171,160 @@ export default function EventManagementPage() {
     }
   }, [eventRef, event, processingItems, toast]);
 
+  // 🎵 MUSIC UPLOAD HANDLER
+  const handleMusicUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !eventRef || !user || !id) return;
+
+    if (!file.type.startsWith('audio/')) {
+      toast({ variant: "destructive", title: "Invalid File", description: "Please select an audio file (MP3, WAV, etc.)" });
+      return;
+    }
+
+    if (file.size > 20 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "File Too Large", description: "Music file must be under 20MB." });
+      return;
+    }
+
+    setIsUploadingMusic(true);
+    setMusicUploadProgress(0);
+
+    try {
+      const { success, uploadUrl, key, error } = await requestUploadUrl({
+        userId: user.uid,
+        galleryId: id,
+        fileName: `music-${file.name}`,
+        contentType: file.type,
+        fileSize: file.size
+      });
+
+      if (!success || !uploadUrl) throw new Error(error || "Failed to authorize upload.");
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const progress = Math.round((e.loaded / e.total) * 100);
+            setMusicUploadProgress(progress);
+          }
+        });
+
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve();
+          else reject(new Error(`Upload failed: ${xhr.status}`));
+        });
+
+        xhr.addEventListener('error', () => reject(new Error("Network error")));
+        xhr.open('PUT', uploadUrl);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
+      });
+
+      // ✅ Use server action instead of direct R2 import
+      const urlResult = await getMusicSignedUrl(key!);
+      if (!urlResult.success || !urlResult.url) {
+        throw new Error(urlResult.error || "Failed to generate music URL");
+      }
+      const musicUrl = urlResult.url;
+
+      await updateDoc(eventRef, {
+        musicUrl: musicUrl,
+        musicStorageKey: key,
+        updatedAt: new Date().toISOString()
+      });
+
+      setCurrentMusicUrl(musicUrl);
+      toast({ title: "Music Added", description: "Background music will play when clients open this gallery." });
+    } catch (err: any) {
+      console.error('[MUSIC_UPLOAD] Error:', err);
+      toast({ variant: "destructive", title: "Upload Failed", description: err.message });
+    } finally {
+      setIsUploadingMusic(false);
+      setMusicUploadProgress(0);
+      if (musicInputRef.current) musicInputRef.current.value = '';
+    }
+  }, [eventRef, user, id, toast]);
+
+  // 🎵 REMOVE MUSIC
+  const handleRemoveMusic = useCallback(async () => {
+    if (!eventRef || !event) return;
+
+    try {
+      const oldKey = event.musicStorageKey;
+      
+      await updateDoc(eventRef, {
+        musicUrl: '',
+        musicStorageKey: '',
+        updatedAt: new Date().toISOString()
+      });
+
+      setCurrentMusicUrl('');
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause();
+        setIsPlayingMusic(false);
+      }
+
+      if (oldKey) {
+        void deleteGalleryFiles([oldKey]).catch(e => console.error('[MUSIC_DELETE] R2 error:', e));
+      }
+
+      toast({ title: "Music Removed" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Remove Failed" });
+    }
+  }, [eventRef, event, toast]);
+
+  // 🎵 PREVIEW TOGGLE
+  const toggleMusicPreview = useCallback(() => {
+    if (!currentMusicUrl) return;
+    
+    if (isPlayingMusic) {
+      if (audioPreviewRef.current) {
+        audioPreviewRef.current.pause();
+      }
+      setIsPlayingMusic(false);
+    } else {
+      if (!audioPreviewRef.current) {
+        audioPreviewRef.current = new Audio(currentMusicUrl);
+        audioPreviewRef.current.volume = 0.5;
+        audioPreviewRef.current.onended = () => setIsPlayingMusic(false);
+      }
+      audioPreviewRef.current.play().catch(err => {
+        console.error('[MUSIC_PREVIEW] Error:', err);
+        toast({ variant: "destructive", title: "Playback Failed" });
+      });
+      setIsPlayingMusic(true);
+    }
+  }, [currentMusicUrl, isPlayingMusic, toast]);
+
   const confirmDelete = useCallback(async () => {
     if (!eventRef || !event || deleteConfirmText !== 'DELETE' || isDeleting) return;
 
-    // 1. Immediate UI state transition (No blocking loader)
     setShowDeleteDialog(false);
     setIsDeleting(true); 
 
-    // Prevent Radix dialog from leaving the document locked
     if (typeof document !== 'undefined') {
       document.body.style.pointerEvents = '';
     }
 
-    const storageKeys = Array.isArray(event.items)
-      ? event.items
-          .map((item: any) => item?.storageKey)
-          .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
-      : [];
+    const storageKeys: string[] = [];
+    if (Array.isArray(event.items)) {
+      event.items.forEach((item: any) => {
+        if (item?.storageKey && typeof item.storageKey === 'string') {
+          storageKeys.push(item.storageKey);
+        }
+      });
+    }
+    if (event.musicStorageKey && typeof event.musicStorageKey === 'string') {
+      storageKeys.push(event.musicStorageKey);
+    }
 
     try {
-      // 2. Delete Firestore record first - this is the source of truth for the UI
       await deleteDoc(eventRef);
-      
       toast({ title: "Gallery Deleted" });
-      
-      // 3. Navigate away immediately while storage cleanups happen in background
       router.replace('/dashboard');
 
-      // 4. Fire background R2 cleanup (Non-blocking)
       if (storageKeys.length > 0) {
         void deleteGalleryFiles(storageKeys).catch(e => console.error('[GALLERY_DELETE] R2 cleanup error:', e));
       }
@@ -221,7 +368,7 @@ export default function EventManagementPage() {
 
   return (
     <div className="space-y-16 pb-32 animate-in fade-in duration-1000">
-      {/* 3D Glass Hero Section */}
+      {/* Hero */}
       <div className="relative rounded-[3.5rem] overflow-hidden border border-white/5 shadow-[0_50px_100px_rgba(0,0,0,0.5)] group">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background/95 to-background z-0" />
         <div className="absolute -inset-20 bg-[radial-gradient(circle_at_center,var(--primary)_0%,transparent_70%)] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity duration-1000" />
@@ -268,8 +415,8 @@ export default function EventManagementPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 space-y-12">
-          {/* Visual Assets 3D Grid */}
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl luxury-card-hover">
+          {/* Visual Assets */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
             <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12 flex flex-row items-center justify-between">
               <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
                 <ImageIcon className="w-10 h-10 text-primary" /> Visual Assets
@@ -330,8 +477,139 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Strategy Section */}
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl luxury-card-hover">
+          {/* 🎵 Background Music */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
+            <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12">
+              <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
+                <MusicIcon className="w-10 h-10 text-primary" /> Background Music
+              </CardTitle>
+              <p className="text-sm text-muted-foreground italic mt-4">
+                Add a romantic background track that plays when clients open this gallery.
+              </p>
+            </CardHeader>
+            <CardContent className="p-12 space-y-8">
+              <input
+                ref={musicInputRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={handleMusicUpload}
+                disabled={isUploadingMusic}
+              />
+
+              {!currentMusicUrl ? (
+                <div 
+                  onClick={() => !isUploadingMusic && musicInputRef.current?.click()}
+                  className={cn(
+                    "relative h-64 border-2 border-dashed rounded-[2.5rem] flex flex-col items-center justify-center transition-all duration-500 cursor-pointer group",
+                    isUploadingMusic 
+                      ? "border-primary/50 bg-primary/5 cursor-wait" 
+                      : "border-border/50 bg-background/30 hover:border-primary/50 hover:bg-primary/5"
+                  )}
+                >
+                  <div className={cn(
+                    "p-6 rounded-full mb-6 transition-all duration-500",
+                    isUploadingMusic 
+                      ? "bg-primary/20" 
+                      : "bg-primary/10 group-hover:scale-110"
+                  )}>
+                    {isUploadingMusic ? (
+                      <Loader2Icon className="w-10 h-10 text-primary animate-spin" />
+                    ) : (
+                      <UploadIcon className="w-10 h-10 text-primary" />
+                    )}
+                  </div>
+                  <p className="text-xl font-headline font-bold text-white mb-2">
+                    {isUploadingMusic ? `Uploading... ${musicUploadProgress}%` : "Upload Background Music"}
+                  </p>
+                  <p className="text-sm text-muted-foreground italic">
+                    {isUploadingMusic ? "Please wait..." : "Click to select an audio file (MP3, WAV, up to 20MB)"}
+                  </p>
+                  {isUploadingMusic && (
+                    <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-primary/20 rounded-b-[2.5rem] overflow-hidden">
+                      <div 
+                        className="h-full bg-primary transition-all duration-300"
+                        style={{ width: `${musicUploadProgress}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="relative overflow-hidden rounded-[2.5rem] border border-primary/30 bg-gradient-to-br from-primary/10 via-background/50 to-background p-8 shadow-2xl">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.15)_0%,transparent_60%)]" />
+                    
+                    <div className="relative z-10 flex items-center gap-6">
+                      <Button
+                        size="icon"
+                        className="h-20 w-20 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xl shrink-0 transition-all hover:scale-105 active:scale-95"
+                        onClick={toggleMusicPreview}
+                      >
+                        {isPlayingMusic ? (
+                          <PauseIcon className="w-9 h-9" />
+                        ) : (
+                          <PlayIcon className="w-9 h-9 ml-1" />
+                        )}
+                      </Button>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <MusicIcon className="w-5 h-5 text-primary" />
+                          <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">
+                            {isPlayingMusic ? "Now Playing" : "Background Track Ready"}
+                          </span>
+                        </div>
+                        <p className="text-lg font-headline font-bold text-white truncate">
+                          Gallery Theme Music
+                        </p>
+                        <p className="text-xs text-muted-foreground italic mt-1">
+                          Plays automatically when clients enter the gallery
+                        </p>
+                      </div>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-14 w-14 rounded-full text-destructive hover:bg-destructive/10 shrink-0"
+                        onClick={handleRemoveMusic}
+                        title="Remove Music"
+                      >
+                        <Trash2Icon className="w-6 h-6" />
+                      </Button>
+                    </div>
+
+                    {isPlayingMusic && (
+                      <div className="relative z-10 flex items-end justify-center gap-1 mt-6 h-8">
+                        {[...Array(24)].map((_, i) => (
+                          <div
+                            key={i}
+                            className="w-1.5 bg-primary/60 rounded-full animate-pulse"
+                            style={{
+                              height: `${20 + Math.random() * 80}%`,
+                              animationDelay: `${i * 50}ms`,
+                              animationDuration: `${600 + Math.random() * 400}ms`
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-2xl h-14 border-white/10 font-bold gap-3 hover:bg-white/5 transition-all"
+                    onClick={() => musicInputRef.current?.click()}
+                    disabled={isUploadingMusic}
+                  >
+                    <UploadIcon className="w-5 h-5" /> Replace Music
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Strategy */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
             <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12">
               <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
                 <SparklesIcon className="w-10 h-10 text-primary" /> Experience Strategy
@@ -358,10 +636,10 @@ export default function EventManagementPage() {
           </Card>
         </div>
 
-        {/* Sidebar Telemetry Panels */}
+        {/* Sidebar */}
         <div className="space-y-12">
-          {/* Telemetry Panel */}
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary luxury-card-hover">
+          {/* Telemetry */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary">
             <CardHeader className="p-10 border-b border-white/5 bg-background/20">
               <CardTitle className="text-[11px] font-bold uppercase tracking-[0.5em] text-primary flex items-center gap-3">
                 <Zap className="w-4 h-4 animate-pulse" /> Live Telemetry
@@ -401,10 +679,11 @@ export default function EventManagementPage() {
                   }} className="data-[state=checked]:bg-green-500" />
                 </div>
               </div>
-              </CardContent>
-            </Card>
-          {/* Workflow Panel */}
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary luxury-card-hover">
+            </CardContent>
+          </Card>
+
+          {/* Workflow */}
+          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary">
             <CardHeader className="p-10 border-b border-white/5 bg-background/20">
               <CardTitle className="text-lg font-headline font-bold flex items-center gap-4 text-white">
                 <ArchiveIcon className="w-6 h-6 text-primary" /> Workflow Phase
@@ -436,7 +715,7 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Dangerous Zone */}
+          {/* Danger Zone */}
           <Card className="bg-destructive/5 border border-destructive/20 rounded-[3rem] overflow-hidden group shadow-2xl">
             <CardHeader className="p-10 pb-4">
               <CardTitle className="text-lg font-headline font-bold text-destructive flex items-center gap-4">
@@ -452,7 +731,7 @@ export default function EventManagementPage() {
         </div>
       </div>
 
-      {/* 3D Premium Alert Dialog */}
+      {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="bg-card/90 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] max-w-md p-12 shadow-[0_50px_100px_rgba(0,0,0,0.6)] overflow-hidden ring-1 ring-white/10">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-destructive to-transparent opacity-50" />

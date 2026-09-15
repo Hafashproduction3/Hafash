@@ -4,22 +4,25 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth, useUser, useFirestore, useCollection, useDoc } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { 
-  LayoutDashboard, 
-  PlusCircle, 
-  Heart, 
-  HardDrive, 
-  Settings, 
+import {
+  LayoutDashboard,
+  PlusCircle,
+  Heart,
+  HardDrive,
+  Settings,
   LogOut,
   Package,
   Users,
   CreditCard,
-  MessageSquare
+  MessageSquare,
+  Search,
+  CalendarDays,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState } from 'react';
 import { collection, query, where, doc } from 'firebase/firestore';
 import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
@@ -43,8 +46,13 @@ export function DashboardSidebar() {
   const router = useRouter();
   const { toast } = useToast();
 
+  const [networkOpen, setNetworkOpen] = useState(
+    pathname.startsWith('/network')
+  );
+
   const handleLogout = useCallback(async () => {
     if (!auth) return;
+
     try {
       await signOut(auth);
       toast({
@@ -63,7 +71,11 @@ export function DashboardSidebar() {
 
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
-    return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
+
+    return query(
+      collection(firestore, 'galleries'),
+      where('userId', '==', user.uid)
+    );
   }, [firestore, user?.uid]);
 
   const { data: galleries } = useCollection(galleriesQuery);
@@ -82,19 +94,29 @@ export function DashboardSidebar() {
 
   const usageStats = useMemo(() => {
     const usageGb = calculateUsageGb(galleries);
-    const usagePercent = Math.min((usageGb / currentPlan.storageGb) * 100, 100);
+    const usagePercent = Math.min(
+      (usageGb / currentPlan.storageGb) * 100,
+      100
+    );
+
     return { usageGb, usagePercent };
   }, [galleries, currentPlan.storageGb]);
+
+  const networkActive = pathname.startsWith('/network');
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
       <div className="p-8 border-b border-border/20">
-        <Link href="/dashboard" className="flex items-center justify-center gap-2 group">
-          <img 
-            src="/hafash-logo.png" 
-            alt="Hafash Logo" 
-            className="w-[64px] h-[64px] min-w-[64px] min-h-[64px] shrink-0 object-contain transition-transform duration-500 group-hover:scale-105" 
+        <Link
+          href="/dashboard"
+          className="flex items-center justify-center gap-2 group"
+        >
+          <img
+            src="/hafash-logo.png"
+            alt="Hafash Logo"
+            className="w-[64px] h-[64px] min-w-[64px] min-h-[64px] shrink-0 object-contain transition-transform duration-500 group-hover:scale-105"
           />
+
           <span className="text-[24px] font-headline font-bold text-primary italic tracking-tighter">
             Hafash.pk
           </span>
@@ -104,8 +126,13 @@ export function DashboardSidebar() {
       <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href;
+
           return (
-            <Link key={item.href} href={item.href} prefetch={item.priority}>
+            <Link
+              key={item.href}
+              href={item.href}
+              prefetch={item.priority}
+            >
               <Button
                 variant="ghost"
                 className={cn(
@@ -119,21 +146,88 @@ export function DashboardSidebar() {
             </Link>
           );
         })}
+
+        {/* Hafash Network */}
+        <div className="pt-1">
+          <Button
+            variant="ghost"
+            onClick={() => setNetworkOpen((open) => !open)}
+            className={cn(
+              "w-full justify-start gap-3 h-12 rounded-xl transition-all duration-300",
+              networkActive
+                ? "bg-primary/10 text-primary font-bold"
+                : "text-muted-foreground hover:text-primary hover:bg-primary/5"
+            )}
+          >
+            <Users className="w-5 h-5" />
+
+            <span className="text-sm flex-1 text-left">
+              Hafash Network
+            </span>
+
+            <ChevronDown
+              className={cn(
+                "w-4 h-4 transition-transform duration-200",
+                networkOpen && "rotate-180"
+              )}
+            />
+          </Button>
+
+          {networkOpen && (
+            <div className="ml-5 mt-1 pl-4 border-l border-border/50 space-y-1">
+              <Link href="/network">
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "w-full justify-start gap-3 h-10 rounded-lg text-xs",
+                    pathname === '/network'
+                      ? "bg-primary/10 text-primary font-bold"
+                      : "text-muted-foreground hover:text-primary hover:bg-primary/5"
+                  )}
+                >
+                  <Search className="w-4 h-4" />
+                  Find Professionals
+                </Button>
+              </Link>
+
+              <Link href="/network/availability">
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "w-full justify-start gap-3 h-10 rounded-lg text-xs",
+                    pathname === '/network/availability'
+                      ? "bg-primary/10 text-primary font-bold"
+                      : "text-muted-foreground hover:text-primary hover:bg-primary/5"
+                  )}
+                >
+                  <CalendarDays className="w-4 h-4" />
+                  My Availability
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
       </nav>
 
       <div className="p-6 border-t border-border/50 space-y-4">
         <div className="bg-background/50 p-4 rounded-xl border border-border/50 shadow-inner">
           <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-2">
             <span className="text-muted-foreground">Storage</span>
-            <span className="text-primary">{usageStats.usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB</span>
+            <span className="text-primary">
+              {usageStats.usageGb.toFixed(1)}GB / {currentPlan.storageGb}GB
+            </span>
           </div>
+
           <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-            <div className="h-full bg-primary transition-all duration-1000" style={{ width: `${usageStats.usagePercent}%` }} />
+            <div
+              className="h-full bg-primary transition-all duration-1000"
+              style={{ width: `${usageStats.usagePercent}%` }}
+            />
           </div>
         </div>
-        
-        <Button 
-          variant="ghost" 
+
+        <Button
+          variant="ghost"
           className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 h-11 rounded-xl font-bold text-sm"
           onClick={handleLogout}
         >

@@ -18,13 +18,20 @@ import {
   Unlock,
   KeyRound,
   X,
-  Camera
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  ArrowUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useEffect, useMemo, memo, useCallback } from 'react';
+import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -39,9 +46,12 @@ import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { type PlanId } from '@/lib/plans';
+import { getFreshMusicUrl } from '@/app/actions/storage';
+
+const SLIDESHOW_INTERVAL = 4000;
 
 /**
- * Optimized Gallery Item Component
+ * Gallery Item Component
  */
 const GalleryItem = memo(({ 
   item, 
@@ -57,22 +67,30 @@ const GalleryItem = memo(({
   canDownload: boolean, 
   onFavorite: (id: string, current: boolean) => void, 
   onDownload: (item: any) => void,
-  onSelect: (url: string) => void,
+  onSelect: () => void,
   priority?: boolean
 }) => {
+  const [loaded, setLoaded] = useState(false);
   if (!item?.url) return null;
 
   return (
     <div 
       className="relative group break-inside-avoid overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in mb-8 shadow-xl transition-all duration-700 hover:shadow-primary/5" 
-      onClick={() => onSelect(item.url)}
+      onClick={onSelect}
     >
+      {!loaded && (
+        <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />
+      )}
       <img 
         src={item.url} 
         alt="Gallery Asset"
-        className="w-full h-auto object-cover transition-transform duration-1000 group-hover:scale-110"
+        className={cn(
+          "w-full h-auto object-cover transition-all duration-1000 group-hover:scale-110",
+          loaded ? "opacity-100" : "opacity-0"
+        )}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
+        onLoad={() => setLoaded(true)}
       />
       {showWatermark && <div className="luxury-watermark" />}
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
@@ -109,7 +127,7 @@ export default function ClientGalleryPage() {
   
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(true);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
   
@@ -123,7 +141,22 @@ export default function ClientGalleryPage() {
   const [replySuccess, setReplySuccess] = useState(false);
   const [helpfulClicked, setHelpfulClicked] = useState(false);
 
-  // Demo Data Definition
+  // 🎬 Cinematic Intro
+  const [showIntro, setShowIntro] = useState(true);
+  const [introLeaving, setIntroLeaving] = useState(false);
+
+  // 🎬 Slideshow
+  const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
+
+  // 🎵 Music
+  const [isMusicMuted, setIsMusicMuted] = useState(false);
+  const [freshMusicUrl, setFreshMusicUrl] = useState<string>('');
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Touch tracking
+  const touchStartX = useRef<number>(0);
+  const touchEndX = useRef<number>(0);
+
   const demoItems = useMemo(() => [
     { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', fileName: 'demo-1.jpg', isFavorite: false },
     { id: 'demo-2', url: 'https://picsum.photos/seed/hafash-demo-2/1200/1600', fileName: 'demo-2.jpg', isFavorite: true },
@@ -185,7 +218,6 @@ export default function ClientGalleryPage() {
 
   const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
 
-  // Effective Gallery Logic: Independent of Firestore for 'demo'
   const gallery = useMemo(() => {
     if (galleryParam === 'demo' || galleryId === 'demo') {
       return {
@@ -203,7 +235,8 @@ export default function ClientGalleryPage() {
         photographerNote: "Welcome to the Hafash premium delivery experience. This demo highlights our cinematic image presentation and seamless client interaction.",
         welcomeTitle: "Explore Your Moments",
         studioName: "Hafash.pk Studios",
-        whatsappNumber: "+920000000000"
+        whatsappNumber: "+920000000000",
+        musicUrl: ''
       };
     }
     return dbGallery;
@@ -213,8 +246,28 @@ export default function ClientGalleryPage() {
     if (galleryId) {
       const stored = sessionStorage.getItem(`unlocked_gallery_${galleryId}`);
       if (stored === 'true') setIsUnlocked(true);
+      
+      const introSeen = sessionStorage.getItem(`intro_seen_${galleryId}`);
+      if (introSeen === 'true') setShowIntro(false);
     }
   }, [galleryId]);
+
+  // 🎵 Fetch fresh music URL whenever gallery loads
+  useEffect(() => {
+    async function fetchFreshMusic() {
+      if (gallery?.musicStorageKey) {
+        try {
+          const result = await getFreshMusicUrl(gallery.musicStorageKey);
+          if (result.success && result.url) {
+            setFreshMusicUrl(result.url);
+          }
+        } catch (err) {
+          console.error('[FRESH_MUSIC] Error:', err);
+        }
+      }
+    }
+    fetchFreshMusic();
+  }, [gallery?.musicStorageKey]);
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
@@ -237,6 +290,120 @@ export default function ClientGalleryPage() {
 
   const canDownload = useMemo(() => gallery ? (!gallery.isLocked && !!gallery.isPaid) : false, [gallery]);
   const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
+  const totalItems = gallery?.items?.length || 0;
+  
+  // 🎵 Prefer fresh URL, fallback to stored
+  const musicUrl = freshMusicUrl || gallery?.musicUrl || gallery?.backgroundMusic || '';
+  const hasMusic = !!musicUrl;
+
+  // 🎬 Enter Gallery + Start Music
+  const handleEnterGallery = useCallback(() => {
+    setIntroLeaving(true);
+    
+    if (hasMusic && audioRef.current) {
+      audioRef.current.volume = 0.5;
+      audioRef.current.play().catch(err => {
+        console.log('Music autoplay blocked:', err);
+      });
+    }
+    
+    setTimeout(() => {
+      setShowIntro(false);
+      if (galleryId) {
+        sessionStorage.setItem(`intro_seen_${galleryId}`, 'true');
+      }
+    }, 800);
+  }, [galleryId, hasMusic]);
+
+  // 🎵 Toggle Music Mute
+  const toggleMusic = useCallback(() => {
+    if (!audioRef.current) return;
+    if (isMusicMuted) {
+      audioRef.current.muted = false;
+      setIsMusicMuted(false);
+    } else {
+      audioRef.current.muted = true;
+      setIsMusicMuted(true);
+    }
+  }, [isMusicMuted]);
+
+  // 🎬 Lightbox controls
+  const openLightbox = useCallback((index: number) => {
+    setSelectedIndex(index);
+    setIsSlideshowPlaying(false);
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setSelectedIndex(null);
+    setIsSlideshowPlaying(false);
+  }, []);
+
+  const goNext = useCallback(() => {
+    if (totalItems === 0) return;
+    setSelectedIndex(prev => {
+      if (prev === null) return 0;
+      return prev < totalItems - 1 ? prev + 1 : 0;
+    });
+  }, [totalItems]);
+
+  const goPrev = useCallback(() => {
+    if (totalItems === 0) return;
+    setSelectedIndex(prev => {
+      if (prev === null) return 0;
+      return prev > 0 ? prev - 1 : totalItems - 1;
+    });
+  }, [totalItems]);
+
+  // 🎬 Slideshow auto-advance
+  useEffect(() => {
+    if (!isSlideshowPlaying || selectedIndex === null) return;
+    
+    const timer = setInterval(() => {
+      setSelectedIndex(prev => {
+        if (prev === null) return 0;
+        return prev < totalItems - 1 ? prev + 1 : 0;
+      });
+    }, SLIDESHOW_INTERVAL);
+
+    return () => clearInterval(timer);
+  }, [isSlideshowPlaying, selectedIndex, totalItems]);
+
+  // Keyboard
+  useEffect(() => {
+    if (selectedIndex === null) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeLightbox();
+      if (e.key === 'ArrowRight') { setIsSlideshowPlaying(false); goNext(); }
+      if (e.key === 'ArrowLeft') { setIsSlideshowPlaying(false); goPrev(); }
+      if (e.key === ' ') { e.preventDefault(); setIsSlideshowPlaying(p => !p); }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [selectedIndex, closeLightbox, goNext, goPrev]);
+
+  // Body scroll lock
+  useEffect(() => {
+    if (selectedIndex !== null || (showIntro && !introLeaving)) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [selectedIndex, showIntro, introLeaving]);
+
+  // Touch
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    touchEndX.current = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX.current;
+    if (Math.abs(diff) > 60) {
+      setIsSlideshowPlaying(false);
+      if (diff > 0) goNext();
+      else goPrev();
+    }
+  };
 
   const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
@@ -249,11 +416,17 @@ export default function ClientGalleryPage() {
 
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload || !item?.url) return;
+    const url = item.masterUrl || item.url;
+    const filename = item.fileName || `photo-${item.id}.jpg`;
+    const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+    
     try {
-      const url = item.masterUrl || item.url;
-      const res = await fetch(url);
-      const blob = await res.blob();
-      saveAs(blob, item.fileName || `photo-${item.id}.jpg`);
+      const link = document.createElement('a');
+      link.href = proxyUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
       toast({ variant: "destructive", title: "Download Failed" });
     }
@@ -270,9 +443,12 @@ export default function ClientGalleryPage() {
         setPreparationStep(`Fetching: ${i + 1} / ${items.length}`);
         const url = items[i].masterUrl || items[i].url;
         if (!url) continue;
-        const res = await fetch(url);
+        
+        const fileName = items[i].fileName || `photo-${i + 1}.jpg`;
+        const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(fileName)}`;
+        const res = await fetch(proxyUrl);
         const blob = await res.blob();
-        zip.file(items[i].fileName || `photo-${i + 1}.jpg`, blob);
+        zip.file(fileName, blob);
       }
       setPreparationStep('Compiling Package...');
       const content = await zip.generateAsync({ type: 'blob' });
@@ -338,16 +514,17 @@ export default function ClientGalleryPage() {
     handleSubmitReply("[System]: Client found the photographer note helpful ❤️");
   }, [helpfulClicked, handleSubmitReply]);
 
-  // Loading Logic: Ignore docLoading for demo
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
   const isLoading = useMemo(() => {
     if (galleryParam === 'demo') return isResolving || authLoading;
     return isResolving || (galleryId && docLoading) || authLoading;
   }, [galleryParam, isResolving, galleryId, docLoading, authLoading]);
 
   if (isLoading) {
-    return (
-      <HafashLoader text="Synchronizing Luxury Assets..." />
-    );
+    return <HafashLoader text="Synchronizing Luxury Assets..." />;
   }
 
   if (!isAvailable) {
@@ -435,8 +612,112 @@ export default function ClientGalleryPage() {
   const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
   const hasNoteContent = !!(gallery.photographerNote || gallery.welcomeTitle || gallery.welcomeMessage);
 
+  // 🎬 Cinematic Intro
+  if (showIntro) {
+    return (
+      <div 
+        className={cn(
+          "fixed inset-0 z-[999] bg-black flex items-center justify-center overflow-hidden",
+          introLeaving ? "animate-out fade-out zoom-out-105 duration-800" : "animate-in fade-in duration-1000"
+        )}
+      >
+        {/* 🎵 Hidden Audio */}
+        {hasMusic && (
+          <audio ref={audioRef} src={musicUrl} loop preload="auto" />
+        )}
+
+        <div className="absolute inset-0">
+          {effectiveHeroImage ? (
+            <img 
+              src={effectiveHeroImage} 
+              className="w-full h-full object-cover opacity-60 scale-110 animate-[kenburns_15s_ease-out_infinite_alternate]" 
+              alt="Cover" 
+              loading="eager"
+            />
+          ) : null}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black" />
+        </div>
+
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.7)_100%)]" />
+
+        <div className="relative z-10 text-center px-6 max-w-4xl mx-auto space-y-12">
+          <div className="animate-in fade-in slide-in-from-top-8 duration-1200 delay-200">
+            {isCustomBrandingActive && studioLogo ? (
+              <img src={studioLogo} className="h-24 lg:h-32 w-auto mx-auto object-contain drop-shadow-[0_10px_40px_rgba(212,175,55,0.3)]" alt="Logo" />
+            ) : (
+              <div className="flex items-center justify-center gap-3">
+                <img src="/hafash-logo.png" className="h-14 w-auto drop-shadow-2xl" alt="Logo" />
+                <span className="text-4xl lg:text-6xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center justify-center gap-4 animate-in fade-in duration-1000 delay-700">
+            <div className="h-px w-16 bg-gradient-to-r from-transparent to-primary/60" />
+            <Sparkles className="w-4 h-4 text-primary" />
+            <div className="h-px w-16 bg-gradient-to-l from-transparent to-primary/60" />
+          </div>
+
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1200 delay-500">
+            <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg">
+              {studioName}
+            </p>
+            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-headline font-bold text-white uppercase tracking-tight leading-[1.05] drop-shadow-2xl">
+              {gallery.title}
+            </h1>
+            <p className="text-2xl lg:text-4xl italic text-primary/90 font-headline drop-shadow-xl">
+              Dear {gallery.clientName},
+            </p>
+            <div className="flex items-center justify-center gap-6 text-white/60 uppercase tracking-[0.4em] text-[10px] lg:text-xs font-bold pt-4">
+              <span>{gallery.category}</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>{gallery.date}</span>
+            </div>
+          </div>
+
+          <div className="pt-8 animate-in fade-in slide-in-from-bottom-10 duration-1200 delay-1000">
+            <Button 
+              onClick={handleEnterGallery}
+              className="group relative rounded-full px-16 lg:px-20 h-16 lg:h-18 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-4 shadow-[0_20px_60px_rgba(212,175,55,0.4)] text-base lg:text-lg transition-all hover:scale-105 active:scale-95 overflow-hidden"
+            >
+              <span className="relative z-10">Enter Gallery</span>
+              <ChevronRight className="w-5 h-5 lg:w-6 lg:h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+            </Button>
+            <p className="mt-6 text-white/40 text-[10px] uppercase tracking-[0.4em] font-bold">
+              {totalItems} Masterpieces {hasMusic && "• 🎵 Music On"}
+            </p>
+          </div>
+        </div>
+
+        <style jsx global>{`
+          @keyframes kenburns {
+            from { transform: scale(1.1) translate(0, 0); }
+            to { transform: scale(1.25) translate(-1%, -1%); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-1000">
+      {/* 🎵 Hidden Audio */}
+      {hasMusic && <audio ref={audioRef} src={musicUrl} loop preload="auto" />}
+
+      {/* 🎵 Music Toggle */}
+      {hasMusic && (
+        <Button 
+          variant="ghost" 
+          size="icon"
+          className="fixed top-6 right-6 lg:top-10 lg:right-10 z-[70] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-2xl"
+          onClick={toggleMusic}
+          title={isMusicMuted ? "Unmute Music" : "Mute Music"}
+        >
+          {isMusicMuted ? <VolumeX className="w-5 h-5 lg:w-6 lg:h-6" /> : <Volume2 className="w-5 h-5 lg:w-6 lg:h-6" />}
+        </Button>
+      )}
+
       <Button 
         variant="ghost" size="icon" 
         className="fixed top-6 left-6 lg:top-10 lg:left-10 z-[60] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-2xl"
@@ -490,7 +771,9 @@ export default function ClientGalleryPage() {
 
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-300">
             <h1 className="text-4xl sm:text-6xl lg:text-8xl font-headline font-bold text-white uppercase tracking-tight leading-[1.1] drop-shadow-2xl">{gallery.title}</h1>
-            <p className="text-2xl lg:text-3xl italic text-primary font-headline drop-shadow-xl">{gallery.clientName}</p>
+            <p className="text-2xl lg:text-3xl italic text-primary font-headline drop-shadow-xl">
+              Dear {gallery.clientName},
+            </p>
             <div className="flex items-center justify-center gap-6 text-white/80 uppercase tracking-[0.4em] text-[10px] lg:text-[12px] font-bold">
               <span>{gallery.category}</span>
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
@@ -502,6 +785,15 @@ export default function ClientGalleryPage() {
             {whatsappNumber && (
               <Button className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-4 shadow-2xl text-sm lg:text-base transition-all hover:scale-105 active:scale-95" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
                 <MessageCircle className="w-5 h-5 lg:w-6 lg:h-6" /> Contact Studio
+              </Button>
+            )}
+
+            {totalItems > 0 && (
+              <Button 
+                className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-4 shadow-2xl backdrop-blur-xl text-sm lg:text-base transition-all hover:scale-105"
+                onClick={() => { openLightbox(0); setIsSlideshowPlaying(true); }}
+              >
+                <Play className="w-5 h-5 lg:w-6 lg:h-6" /> Play Slideshow
               </Button>
             )}
 
@@ -547,7 +839,7 @@ export default function ClientGalleryPage() {
                           <div className="space-y-6">
                             <Label className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground ml-1">Send a reply to the studio</Label>
                             <div className="relative">
-                              <Textarea placeholder="Type your beautiful thoughts or requests here..." className="rounded-[2rem] bg-background/30 border-border/30 focus:border-primary/50 min-h-[100px] p-6 text-base italic shadow-inner custom-scrollbar" value={replyText} onChange={(e) => setReplyText(e.target.value)} />
+                              <Textarea placeholder="Type your beautiful thoughts or requests here..." className="rounded-[2rem] bg-background/30 border-border/30 focus:border-primary/50 min-h-[100px] p-6 text-base italic shadow-inner" value={replyText} onChange={(e) => setReplyText(e.target.value)} />
                               <Button size="icon" className="absolute bottom-4 right-4 rounded-2xl bg-primary text-primary-foreground h-12 w-12 shadow-2xl hover:scale-105 transition-transform" onClick={() => handleSubmitReply()} disabled={isSubmittingReply || !replyText.trim()}>
                                 {isSubmittingReply ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                               </Button>
@@ -593,7 +885,7 @@ export default function ClientGalleryPage() {
               canDownload={canDownload}
               onFavorite={handleFavorite}
               onDownload={handleDownloadSingle}
-              onSelect={setSelectedImage}
+              onSelect={() => openLightbox(idx)}
               priority={idx < 2}
             />
           ))}
@@ -607,9 +899,79 @@ export default function ClientGalleryPage() {
         )}
       </div>
 
-      <footer className="mt-40 pt-24 border-t border-border/20 px-8">
-        <div className="max-w-4xl mx-auto text-center space-y-12">
-          <div className="flex flex-col items-center gap-8">
+      {/* 💝 Thank You End Screen */}
+      {totalItems > 0 && (
+        <div className="relative mt-40 py-32 lg:py-40 overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.08)_0%,transparent_70%)]" />
+
+          <div className="relative z-10 max-w-4xl mx-auto px-6 text-center space-y-10">
+            <div className="animate-in fade-in zoom-in-95 duration-1000">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 border border-primary/30 shadow-2xl">
+                <Sparkles className="w-9 h-9 text-primary" />
+              </div>
+            </div>
+
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
+              <div className="flex items-center justify-center gap-4">
+                <div className="h-px w-16 bg-gradient-to-r from-transparent to-primary/60" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.6em] text-primary">The End</span>
+                <div className="h-px w-16 bg-gradient-to-l from-transparent to-primary/60" />
+              </div>
+
+              <h2 className="text-4xl sm:text-6xl lg:text-7xl font-headline font-bold text-white uppercase tracking-tight leading-[1.1] drop-shadow-2xl">
+                Thank You,<br />
+                <span className="text-primary italic">{gallery.clientName}</span>
+              </h2>
+
+              <p className="text-lg lg:text-xl text-muted-foreground italic font-headline max-w-2xl mx-auto leading-relaxed pt-4">
+                {gallery.thankYouMessage || `It was an honor to capture your beautiful moments. Thank you for choosing ${studioName}.`}
+              </p>
+            </div>
+
+            <div className="pt-8 animate-in fade-in duration-1000 delay-500">
+              {isCustomBrandingActive && studioLogo ? (
+                <img src={studioLogo} className="h-16 w-auto mx-auto object-contain opacity-80" alt="Studio Logo" />
+              ) : (
+                <p className="text-primary italic font-headline tracking-[0.4em] text-sm uppercase">
+                  — {studioName}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap justify-center items-center gap-4 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-700">
+              {whatsappNumber && (
+                <Button 
+                  className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl transition-all hover:scale-105 active:scale-95"
+                  onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}
+                >
+                  <MessageCircle className="w-5 h-5" /> Contact Studio
+                </Button>
+              )}
+
+              <Button 
+                variant="outline"
+                className="rounded-full px-10 h-14 border-white/20 text-white hover:bg-white/10 gap-3 backdrop-blur-xl font-bold transition-all hover:scale-105"
+                onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}
+              >
+                <Share2 className="w-5 h-5" /> Share Gallery
+              </Button>
+
+              <Button 
+                variant="outline"
+                className="rounded-full px-10 h-14 border-white/20 text-white hover:bg-white/10 gap-3 backdrop-blur-xl font-bold transition-all hover:scale-105"
+                onClick={scrollToTop}
+              >
+                <ArrowUp className="w-5 h-5" /> Back to Top
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <footer className="mt-20 pt-16 pb-12 border-t border-border/20 px-8">
+        <div className="max-w-4xl mx-auto text-center space-y-8">
+          <div className="flex flex-col items-center gap-6">
             <div className="flex items-center gap-4 opacity-50 hover:opacity-100 transition-all duration-700 cursor-default">
               <img src="/hafash-logo.png" alt="Hafash" className="h-10 w-auto grayscale brightness-200" />
               <div className="h-8 w-px bg-border/50" />
@@ -620,17 +982,126 @@ export default function ClientGalleryPage() {
         </div>
       </footer>
 
-      {selectedImage && (
-        <div className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-3xl flex items-center justify-center p-4 lg:p-10 animate-in fade-in duration-500" onClick={() => setSelectedImage(null)}>
-          <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
-            {selectedImage ? (
-              <img src={selectedImage} className="max-w-full max-h-[95vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5" alt="Fullscreen" decoding="async" />
-            ) : null}
-            {showWatermark && <div className="luxury-watermark" />}
+      {/* ============ LIGHTBOX WITH SLIDESHOW ============ */}
+      {selectedIndex !== null && gallery?.items?.[selectedIndex] && (
+        <div 
+          className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-3xl flex items-center justify-center p-4 lg:p-10 animate-in fade-in duration-500"
+          onClick={closeLightbox}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div className="absolute top-6 lg:top-10 left-1/2 -translate-x-1/2 z-30 px-6 py-2 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 text-white text-[11px] font-bold uppercase tracking-[0.3em]">
+            {selectedIndex + 1} / {totalItems}
           </div>
-          <Button variant="ghost" size="icon" className="absolute top-6 right-6 lg:top-12 lg:right-12 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl">
-            <X className="w-8 h-8 lg:w-10 lg:h-10" />
+
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute top-6 right-6 lg:top-10 lg:right-10 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
+            onClick={(e) => { e.stopPropagation(); closeLightbox(); }}
+          >
+            <X className="w-6 h-6 lg:w-8 lg:h-8" />
           </Button>
+
+          {totalItems > 1 && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute left-4 lg:left-10 top-1/2 -translate-y-1/2 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
+              onClick={(e) => { e.stopPropagation(); setIsSlideshowPlaying(false); goPrev(); }}
+            >
+              <ChevronLeft className="w-7 h-7 lg:w-9 lg:h-9" />
+            </Button>
+          )}
+
+          {totalItems > 1 && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="absolute right-4 lg:right-10 top-1/2 -translate-y-1/2 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
+              onClick={(e) => { e.stopPropagation(); setIsSlideshowPlaying(false); goNext(); }}
+            >
+              <ChevronRight className="w-7 h-7 lg:w-9 lg:h-9" />
+            </Button>
+          )}
+
+          <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
+            <img 
+              key={selectedIndex}
+              src={gallery.items[selectedIndex].url} 
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-300" 
+              alt="Fullscreen" 
+              decoding="async"
+              onClick={(e) => e.stopPropagation()}
+            />
+            {showWatermark && <div className="luxury-watermark pointer-events-none" />}
+          </div>
+
+          <div 
+            className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-3 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {totalItems > 1 && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className={cn(
+                  "h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all",
+                  isSlideshowPlaying && "bg-primary text-primary-foreground"
+                )}
+                onClick={() => setIsSlideshowPlaying(p => !p)}
+                title={isSlideshowPlaying ? "Pause Slideshow" : "Play Slideshow"}
+              >
+                {isSlideshowPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+              </Button>
+            )}
+
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className={cn(
+                "h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all",
+                gallery.items[selectedIndex].isFavorite && "bg-primary text-primary-foreground"
+              )}
+              onClick={() => handleFavorite(gallery.items[selectedIndex].id, !!gallery.items[selectedIndex].isFavorite)}
+            >
+              <Heart className={cn("w-6 h-6", gallery.items[selectedIndex].isFavorite && "fill-current")} />
+            </Button>
+
+            {canDownload && (
+              <Button 
+                variant="ghost" 
+                size="icon"
+                className="h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all"
+                onClick={() => handleDownloadSingle(gallery.items[selectedIndex])}
+              >
+                <Download className="w-6 h-6" />
+              </Button>
+            )}
+
+            <div className="w-px h-6 bg-white/20 mx-1" />
+
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className="h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all"
+              onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}
+            >
+              <Share2 className="w-5 h-5" />
+            </Button>
+          </div>
+
+          {isSlideshowPlaying && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 z-40">
+              <div 
+                className="h-full bg-primary transition-all ease-linear"
+                style={{ 
+                  width: `${((selectedIndex + 1) / totalItems) * 100}%`,
+                  transitionDuration: `${SLIDESHOW_INTERVAL}ms`
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
       
@@ -638,6 +1109,10 @@ export default function ClientGalleryPage() {
         @keyframes slow-zoom {
           from { transform: scale(1); }
           to { transform: scale(1.15); }
+        }
+        @keyframes kenburns {
+          from { transform: scale(1.1) translate(0, 0); }
+          to { transform: scale(1.25) translate(-1%, -1%); }
         }
       `}</style>
     </div>

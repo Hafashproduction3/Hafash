@@ -11,9 +11,9 @@ export interface HafashPlan {
   storageGb: number;
   zipLimitGb: number;
   price: string;
-  priceAmount: number; // numeric price in PKR, used for Safepay payments.create()
+  priceAmount: number;
   features: string[];
-  priorityLevel: number; // 1 (Starter), 2 (Pro), 3 (Studio)
+  priorityLevel: number;
   priorityLabel: string;
 }
 
@@ -53,9 +53,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
   },
 };
 
-// Represents a user who has NOT paid for any plan yet. 0GB storage,
-// no features. This is what new signups should see — NOT the Starter
-// plan — until they actually complete a payment.
+// Represents a user who has NOT paid for any plan yet.
 export const NO_PLAN: HafashPlan = {
   id: 'none',
   name: 'No Active Plan',
@@ -68,17 +66,49 @@ export const NO_PLAN: HafashPlan = {
   priorityLabel: 'None',
 };
 
-// IMPORTANT: this used to default to HAFASH_PLANS.starter, which meant
-// every new (unpaid) user silently appeared to have the 50GB Starter
-// plan active. Changed to NO_PLAN so unpaid accounts correctly show
-// 0GB / no plan until they pay.
 export const DEFAULT_PLAN = NO_PLAN;
 
+// ─────────────────────────────────────────────────────────────
+// 👑 OWNER BYPASS — Unlimited plan for the Hafash owner account
+// ─────────────────────────────────────────────────────────────
+export const OWNER_EMAILS: string[] = [
+  'hafashgroup60@gmail.com',
+];
+
+export const OWNER_PLAN: HafashPlan = {
+  id: 'business', // Map to a valid PlanId so custom branding features activate
+  name: 'Owner (Unlimited)',
+  storageGb: 999999, // Practically unlimited
+  zipLimitGb: 999999,
+  price: 'Rs. 0',
+  priceAmount: 0,
+  features: [
+    'Unlimited Storage',
+    'All Features Unlocked',
+    'Custom Branding',
+    'Priority Processing',
+    'Owner Account',
+  ],
+  priorityLevel: 999,
+  priorityLabel: 'Owner',
+};
+
 /**
- * Looks up a user's plan safely. Returns NO_PLAN if they don't have a
- * valid, recognized planId set (e.g. brand new signup, never paid).
+ * Check if an email is the owner.
  */
-export function getUserPlan(planId?: string | null): HafashPlan {
+export function isOwnerEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return OWNER_EMAILS.includes(email.toLowerCase().trim());
+}
+
+/**
+ * Looks up a user's plan safely.
+ * - If the user is the owner → OWNER_PLAN (unlimited)
+ * - If planId is valid → that plan
+ * - Otherwise → NO_PLAN
+ */
+export function getUserPlan(planId?: string | null, email?: string | null): HafashPlan {
+  if (isOwnerEmail(email)) return OWNER_PLAN;
   if (!planId) return NO_PLAN;
   if (planId in HAFASH_PLANS) return HAFASH_PLANS[planId as PlanId];
   return NO_PLAN;
@@ -86,11 +116,10 @@ export function getUserPlan(planId?: string | null): HafashPlan {
 
 /**
  * Calculates total storage usage across all galleries.
- * Returns usage in GB using actual file sizes.
  */
 export function calculateUsageGb(galleries: any[] | null): number {
   if (!galleries || !Array.isArray(galleries)) return 0;
-  
+
   let totalBytes = 0;
 
   galleries.forEach(g => {
@@ -100,7 +129,6 @@ export function calculateUsageGb(galleries: any[] | null): number {
       if (!isNaN(size) && size > 0) {
         totalBytes += size;
       } else {
-        // Fallback for legacy items without metadata
         totalBytes += (8 * 1024 * 1024);
       }
     });

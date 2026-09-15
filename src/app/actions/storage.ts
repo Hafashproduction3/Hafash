@@ -133,7 +133,6 @@ export async function completeUpload({
 
 /**
  * SERVER ACTION: Bulk delete R2 objects.
- * Instrumented for high-performance tracing.
  */
 export async function deleteGalleryFiles(storageKeys: string[]) {
   try {
@@ -147,7 +146,6 @@ export async function deleteGalleryFiles(storageKeys: string[]) {
       storageKeys.map(async key => {
         if (!key) return;
         try {
-          // Hard 5-second internal timeout per file to prevent action hang
           const deletePromise = storage.deleteFile(key);
           const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 5000));
           await Promise.race([deletePromise, timeoutPromise]);
@@ -175,5 +173,39 @@ export async function deleteGalleryFiles(storageKeys: string[]) {
       success: false,
       error: error.message || "Cloud storage handshake failed.",
     };
+  }
+}
+
+/**
+ * SERVER ACTION: Generate a signed URL for a music file (7 days max).
+ */
+export async function getMusicSignedUrl(key: string) {
+  try {
+    if (!key) {
+      return { success: false, error: "Missing storage key" };
+    }
+    // Max 7 days (S3/R2 hard limit)
+    const url = await storage.getSignedUrl(key, 604800);
+    return { success: true, url };
+  } catch (error: any) {
+    console.error("[MUSIC_URL] Error:", error);
+    return { success: false, error: error.message || "Failed to generate music URL" };
+  }
+}
+
+/**
+ * SERVER ACTION: Get a fresh signed URL for a music file by storage key.
+ * Called by client gallery page on load to ensure music always plays.
+ */
+export async function getFreshMusicUrl(storageKey: string) {
+  try {
+    if (!storageKey) {
+      return { success: false, error: "Missing key" };
+    }
+    const url = await storage.getSignedUrl(storageKey, 604800);
+    return { success: true, url };
+  } catch (error: any) {
+    console.error("[FRESH_MUSIC_URL] Error:", error);
+    return { success: false, error: error.message };
   }
 }

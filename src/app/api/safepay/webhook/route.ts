@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { safepay } from '@/lib/safepay';
 import { admin } from '@/lib/firebase-admin';
 
@@ -13,18 +14,24 @@ import { admin } from '@/lib/firebase-admin';
 
 export async function POST(request: Request) {
   try {
-    // Clone the request because we need to read the body twice:
-    // once (raw) for signature verification, once (as JSON) for our logic.
-    const clonedRequest = request.clone();
+    const rawBody = await request.text();
+    const event = JSON.parse(rawBody);
 
-    const isValid = await safepay.verify.webhook(request);
+    const signature = request.headers.get('x-sfpy-signature');
+    const data = Buffer.from(JSON.stringify(event.data));
+    const expectedSignature = crypto
+      .createHmac('sha512', process.env.SAFEPAY_WEBHOOK_SECRET!)
+      .update(data)
+      .digest('hex');
+
+    const isValid = !!signature && signature === expectedSignature;
 
     if (!isValid) {
       console.error('[SAFEPAY WEBHOOK] Invalid signature — rejecting event');
       return NextResponse.json({ received: false }, { status: 401 });
     }
 
-    const event = await clonedRequest.json();
+    console.log('[SAFEPAY WEBHOOK] Verified event payload:', JSON.stringify(event));
 
     console.log('[SAFEPAY WEBHOOK] Verified event payload:', JSON.stringify(event));
 
