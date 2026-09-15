@@ -30,7 +30,6 @@ import {
   Loader2,
   MessageSquare,
   Sparkles,
-  Send,
   Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -162,14 +161,8 @@ export default function IncomingRequestsPage() {
     <div className="min-h-screen bg-background p-6 lg:p-12 animate-in fade-in duration-500">
       <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* Header */}
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => router.back()}
-          >
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
@@ -188,7 +181,6 @@ export default function IncomingRequestsPage() {
           </div>
         </div>
 
-        {/* New badge */}
         {counts.pending > 0 && (
           <Card className="rounded-2xl border-amber-500/30 bg-amber-500/5">
             <CardContent className="p-4 flex items-center gap-3">
@@ -207,7 +199,6 @@ export default function IncomingRequestsPage() {
           </Card>
         )}
 
-        {/* Filters */}
         <div className="flex flex-wrap gap-2">
           <FilterChip active={filter === "all"} onClick={() => setFilter("all")} label={`All (${counts.all})`} />
           <FilterChip active={filter === "pending"} onClick={() => setFilter("pending")} label={`New (${counts.pending})`} />
@@ -215,7 +206,6 @@ export default function IncomingRequestsPage() {
           <FilterChip active={filter === "declined"} onClick={() => setFilter("declined")} label={`Declined (${counts.declined})`} />
         </div>
 
-        {/* Content */}
         {loading ? (
           <LoadingState />
         ) : filteredRequests.length === 0 ? (
@@ -246,7 +236,6 @@ export default function IncomingRequestsPage() {
         )}
       </div>
 
-      {/* Accept/Decline Dialog */}
       <AlertDialog open={!!actionTarget} onOpenChange={(o) => !o && setActionTarget(null)}>
         <AlertDialogContent className="rounded-[2rem] border-border/40">
           <AlertDialogHeader>
@@ -289,10 +278,6 @@ export default function IncomingRequestsPage() {
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────
-// Components
-// ─────────────────────────────────────────────────────────────
 
 function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
@@ -471,6 +456,15 @@ function IncomingRequestCard({
                 Decline
               </Button>
             </>
+          ) : request.status === "accepted" ? (
+            <Button
+              size="sm"
+              className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5"
+              onClick={() => (window.location.href = `/network/chat/${request.id}`)}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Open Chat
+            </Button>
           ) : null}
 
           <Button

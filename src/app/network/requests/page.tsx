@@ -102,7 +102,6 @@ export default function MyRequestsPage() {
 
   const { data: requests, loading } = useCollection(requestsQuery);
 
-  // Sort newest first
   const sortedRequests = useMemo(() => {
     if (!requests) return [];
     return [...requests].sort((a: any, b: any) => {
@@ -155,14 +154,8 @@ export default function MyRequestsPage() {
     <div className="min-h-screen bg-background p-6 lg:p-12 animate-in fade-in duration-500">
       <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* Header */}
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            onClick={() => router.back()}
-          >
+          <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div>
@@ -181,36 +174,14 @@ export default function MyRequestsPage() {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-wrap gap-2">
-          <FilterChip
-            active={filter === "all"}
-            onClick={() => setFilter("all")}
-            label={`All (${counts.all})`}
-          />
-          <FilterChip
-            active={filter === "pending"}
-            onClick={() => setFilter("pending")}
-            label={`Pending (${counts.pending})`}
-          />
-          <FilterChip
-            active={filter === "accepted"}
-            onClick={() => setFilter("accepted")}
-            label={`Accepted (${counts.accepted})`}
-          />
-          <FilterChip
-            active={filter === "declined"}
-            onClick={() => setFilter("declined")}
-            label={`Declined (${counts.declined})`}
-          />
-          <FilterChip
-            active={filter === "cancelled"}
-            onClick={() => setFilter("cancelled")}
-            label={`Cancelled (${counts.cancelled})`}
-          />
+          <FilterChip active={filter === "all"} onClick={() => setFilter("all")} label={`All (${counts.all})`} />
+          <FilterChip active={filter === "pending"} onClick={() => setFilter("pending")} label={`Pending (${counts.pending})`} />
+          <FilterChip active={filter === "accepted"} onClick={() => setFilter("accepted")} label={`Accepted (${counts.accepted})`} />
+          <FilterChip active={filter === "declined"} onClick={() => setFilter("declined")} label={`Declined (${counts.declined})`} />
+          <FilterChip active={filter === "cancelled"} onClick={() => setFilter("cancelled")} label={`Cancelled (${counts.cancelled})`} />
         </div>
 
-        {/* Content */}
         {loading ? (
           <LoadingState />
         ) : filteredRequests.length === 0 ? (
@@ -241,7 +212,6 @@ export default function MyRequestsPage() {
         )}
       </div>
 
-      {/* Cancel Dialog */}
       <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
         <AlertDialogContent className="rounded-[2rem] border-border/40">
           <AlertDialogHeader>
@@ -274,19 +244,7 @@ export default function MyRequestsPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Components
-// ─────────────────────────────────────────────────────────────
-
-function FilterChip({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
+function FilterChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
   return (
     <button
       type="button"
@@ -360,21 +318,16 @@ function RequestCard({
   request,
   viewMode,
   onCancel,
-  onAccept,
-  onDecline,
   onViewProfile,
 }: {
   request: NetworkRequest;
   viewMode: "hirer" | "professional";
   onCancel?: () => void;
-  onAccept?: () => void;
-  onDecline?: () => void;
   onViewProfile: () => void;
 }) {
   const statusConfig = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
-  const personName =
-    viewMode === "hirer" ? request.professionalName : request.hirerName;
-  const personLabel = viewMode === "hirer" ? "Professional" : "Requested by";
+  const personName = request.professionalName;
+  const personLabel = "Professional";
 
   let formattedDate = request.eventDate;
   try {
@@ -386,7 +339,6 @@ function RequestCard({
       <div className="h-1 bg-gradient-to-r from-primary/40 via-primary/10 to-transparent" />
       <CardContent className="p-6 space-y-5">
 
-        {/* Top Row */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
@@ -412,7 +364,6 @@ function RequestCard({
           </Badge>
         </div>
 
-        {/* Details */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <DetailRow
             icon={<Briefcase className="w-3.5 h-3.5" />}
@@ -440,7 +391,6 @@ function RequestCard({
           )}
         </div>
 
-        {/* Message */}
         {request.message && (
           <div className="p-4 rounded-2xl bg-background/40 border border-border/30">
             <div className="flex items-start gap-2">
@@ -452,8 +402,21 @@ function RequestCard({
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border/20">
+
+          {/* Open Chat - when accepted */}
+          {request.status === "accepted" && (
+            <Button
+              size="sm"
+              className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5"
+              onClick={() => (window.location.href = `/network/chat/${request.id}`)}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Open Chat
+            </Button>
+          )}
+
+          {/* Cancel - only if pending */}
           {viewMode === "hirer" && request.status === "pending" && onCancel && (
             <Button
               variant="outline"
@@ -464,28 +427,6 @@ function RequestCard({
               <X className="w-3.5 h-3.5 mr-1.5" />
               Cancel Request
             </Button>
-          )}
-
-          {viewMode === "professional" && request.status === "pending" && (
-            <>
-              <Button
-                size="sm"
-                className="rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold gap-1.5"
-                onClick={onAccept}
-              >
-                <Check className="w-3.5 h-3.5" />
-                Accept
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl text-destructive hover:bg-destructive/10 border-destructive/30 gap-1.5"
-                onClick={onDecline}
-              >
-                <X className="w-3.5 h-3.5" />
-                Decline
-              </Button>
-            </>
           )}
 
           <Button
