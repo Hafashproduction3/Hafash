@@ -22,7 +22,6 @@ import {
   Send,
   Inbox,
   Sparkles,
-  Crown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -53,7 +52,6 @@ export function DashboardSidebar() {
 
   const [networkOpen, setNetworkOpen] = useState(pathname.startsWith('/network'));
 
-  // Auto-expand when on network pages
   useEffect(() => {
     if (pathname.startsWith('/network')) {
       setNetworkOpen(true);
@@ -95,7 +93,7 @@ export function DashboardSidebar() {
 
   const { data: profile } = useDoc(profileRef);
 
-  // Incoming pending requests count (for notification badge)
+  // Incoming pending requests count
   const incomingQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(
@@ -108,7 +106,6 @@ export function DashboardSidebar() {
   const { data: incomingRequests } = useCollection(incomingQuery);
   const newRequestsCount = incomingRequests?.length || 0;
 
-  // Check if user has a network profile
   const networkProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'networkProfiles', user.uid);
@@ -132,7 +129,6 @@ export function DashboardSidebar() {
 
   const networkActive = pathname.startsWith('/network');
 
-  // Network sub-items
   const networkItems = [
     {
       icon: Search,
@@ -157,6 +153,11 @@ export function DashboardSidebar() {
       badge: newRequestsCount > 0 ? newRequestsCount : null,
     },
     {
+      icon: MessageSquare,
+      label: 'Messages',
+      href: '/network/messages',
+    },
+    {
       icon: CalendarDays,
       label: 'My Availability',
       href: '/network/availability',
@@ -165,7 +166,6 @@ export function DashboardSidebar() {
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
-      {/* Logo */}
       <div className="p-8 border-b border-border/20">
         <Link href="/dashboard" className="flex items-center justify-center gap-2 group">
           <img
@@ -179,7 +179,6 @@ export function DashboardSidebar() {
         </Link>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto custom-scrollbar">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href;
@@ -211,7 +210,6 @@ export function DashboardSidebar() {
                 : "text-muted-foreground hover:text-primary hover:bg-primary/5"
             )}
           >
-            {/* Shine effect on hover */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
 
             <div className="relative flex items-center gap-3 flex-1">
@@ -229,7 +227,6 @@ export function DashboardSidebar() {
                 Hafash Network
               </span>
 
-              {/* Notification dot */}
               {newRequestsCount > 0 && (
                 <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               )}
@@ -264,7 +261,6 @@ export function DashboardSidebar() {
                       <item.icon className="w-4 h-4 shrink-0" />
                       <span className="flex-1 text-left truncate">{item.label}</span>
 
-                      {/* Badge for pending requests */}
                       {item.badge != null && item.badge > 0 && (
                         <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                           {item.badge > 9 ? '9+' : item.badge}
@@ -279,9 +275,7 @@ export function DashboardSidebar() {
         </div>
       </nav>
 
-      {/* Footer */}
       <div className="p-6 border-t border-border/50 space-y-4">
-        {/* Storage widget */}
         <div className="bg-background/50 p-4 rounded-xl border border-border/50 shadow-inner">
           <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-2">
             <span className="text-muted-foreground">Storage</span>
@@ -301,7 +295,6 @@ export function DashboardSidebar() {
           </div>
         </div>
 
-        {/* Logout */}
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 h-11 rounded-xl font-bold text-sm"

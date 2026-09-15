@@ -54,7 +54,6 @@ export function MobileNav() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Auto-expand network if on network page
   useEffect(() => {
     if (pathname.startsWith('/network')) {
       setNetworkOpen(true);
@@ -94,7 +93,6 @@ export function MobileNav() {
 
   const { data: profile } = useDoc(profileRef);
 
-  // Incoming requests count (for badge)
   const incomingQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(
@@ -107,7 +105,6 @@ export function MobileNav() {
   const { data: incomingRequests } = useCollection(incomingQuery);
   const newRequestsCount = incomingRequests?.length || 0;
 
-  // Check if user has network profile
   const networkProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'networkProfiles', user.uid);
@@ -151,6 +148,11 @@ export function MobileNav() {
       badge: newRequestsCount > 0 ? newRequestsCount : null,
     },
     {
+      icon: MessageSquare,
+      label: 'Messages',
+      href: '/network/messages',
+    },
+    {
       icon: CalendarDays,
       label: 'My Availability',
       href: '/network/availability',
@@ -168,7 +170,6 @@ export function MobileNav() {
         <SheetTrigger asChild>
           <Button variant="ghost" size="icon" className="text-primary hover:bg-primary/10 h-12 w-12 rounded-full relative">
             <Menu className="w-7 h-7" />
-            {/* Notification dot on menu button */}
             {newRequestsCount > 0 && (
               <span className="absolute top-2 right-2 w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
             )}
@@ -202,7 +203,6 @@ export function MobileNav() {
               );
             })}
 
-            {/* Hafash Network Section (Mobile) */}
             <div className="pt-3 mt-3 border-t border-border/30">
               <Button
                 variant="ghost"
