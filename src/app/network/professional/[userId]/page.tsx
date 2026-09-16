@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useUser, useFirestore, useDoc } from "@/firebase";
 import {
   addDoc,
@@ -23,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
+  ArrowRight,
   Camera,
   Video,
   Plane,
@@ -53,17 +55,23 @@ import {
   Loader2,
   Info,
   TrendingUp,
+  Clock,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { RATE_UNIT_LABELS, TRAVEL_RANGE_LABELS } from "@/lib/equipment";
+import {
+  RATE_UNIT_LABELS,
+  TRAVEL_RANGE_LABELS,
+  ROLE_DEFINITIONS,
+  TURNAROUND_OPTIONS,
+} from "@/lib/equipment";
 import { EventTypePicker } from "@/components/event-type-picker";
 import {
   calculateTrustScore,
   getAchievements,
   isVerifiedPro,
   getMemberDuration,
-  type Achievement,
 } from "@/lib/trust-score";
 
 const ROLE_ICONS: Record<string, React.ReactNode> = {
@@ -89,6 +97,8 @@ const ROLE_LABELS: Record<string, string> = {
   helper: "Helper / Assistant",
   makeup_artist: "Makeup Artist",
 };
+
+const REMOTE_ROLES = ['video_editor', 'photo_editor', 'album_designer'];
 
 interface ReviewData {
   id: string;
@@ -147,7 +157,6 @@ export default function ProfessionalProfilePage() {
   const isSaved = !!userId && savedProfiles.includes(userId);
   const isOwnProfile = !!user && user.uid === userId;
 
-  // Fetch reviews
   useEffect(() => {
     async function fetchReviews() {
       if (!firestore || !userId) return;
@@ -185,9 +194,7 @@ export default function ProfessionalProfilePage() {
       await updateDoc(doc(firestore, "users", user.uid), {
         savedNetworkProfiles: isSaved ? arrayRemove(userId) : arrayUnion(userId),
       });
-      toast({
-        title: isSaved ? "Removed from saved" : "Saved to your list",
-      });
+      toast({ title: isSaved ? "Removed from saved" : "Saved to your list" });
     } catch (error) {
       console.error("[NETWORK_PROFILE] Save error:", error);
     } finally {
@@ -234,7 +241,6 @@ export default function ProfessionalProfilePage() {
     toast({ title: "Link copied!" });
   }, [toast]);
 
-  // Aggregate rating
   const calculatedRating = useMemo(() => {
     if (!reviews || reviews.length === 0) {
       return {
@@ -246,11 +252,7 @@ export default function ProfessionalProfilePage() {
         communication: profile?.rating?.communication || 0,
       };
     }
-    let totalOverall = 0;
-    let totalPunc = 0;
-    let totalBeh = 0;
-    let totalWork = 0;
-    let totalComm = 0;
+    let totalOverall = 0, totalPunc = 0, totalBeh = 0, totalWork = 0, totalComm = 0;
     reviews.forEach((r) => {
       totalOverall += Number(r.overallRating || 0);
       totalPunc += Number(r.ratings?.punctuality || 0);
@@ -273,23 +275,17 @@ export default function ProfessionalProfilePage() {
   const ratingCount = calculatedRating.count;
   const completedJobs = reviews.length || profile?.completedJobs || 0;
 
-  // Trust score calculation
   const trustScore = useMemo(() => {
     return calculateTrustScore({
       ratingAverage: ratingAvg,
       ratingCount,
       completedJobs,
       isVerified: !!profile?.isVerified,
-      punctualityAvg: calculatedRating.punctuality,
-      behaviorAvg: calculatedRating.behavior,
-      workQualityAvg: calculatedRating.workQuality,
-      communicationAvg: calculatedRating.communication,
     });
-  }, [ratingAvg, ratingCount, completedJobs, profile?.isVerified, calculatedRating]);
+  }, [ratingAvg, ratingCount, completedJobs, profile?.isVerified]);
 
   const isVerified = isVerifiedPro(ratingAvg, ratingCount, trustScore.score);
 
-  // Achievements
   const achievements = useMemo(() => {
     return getAchievements({
       ratingAverage: ratingAvg,
@@ -300,10 +296,19 @@ export default function ProfessionalProfilePage() {
     });
   }, [ratingAvg, ratingCount, completedJobs, isVerified, trustScore.score]);
 
-  // Member since
   const memberDuration = useMemo(() => {
     return getMemberDuration(profile?.createdAt);
   }, [profile?.createdAt]);
+
+  const remoteRoles = useMemo(() => {
+    const roles = profile?.roles || [];
+    return roles.filter((r: string) => REMOTE_ROLES.includes(r));
+  }, [profile?.roles]);
+
+  const onSiteRoles = useMemo(() => {
+    const roles = profile?.roles || [];
+    return roles.filter((r: string) => !REMOTE_ROLES.includes(r));
+  }, [profile?.roles]);
 
   if (loading) {
     return (
@@ -345,6 +350,8 @@ export default function ProfessionalProfilePage() {
   const areas = profile?.serviceAreas || [];
   const travelRange = profile?.travelRange || "anywhere_in_city";
   const rates = profile?.rates || (profile?.rate ? [{ eventType: "Standard", amount: profile.rate.amount, unit: profile.rate.unit }] : []);
+  const turnarounds = profile?.turnarounds || {};
+  const services = profile?.services || {};
 
   const next7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -353,6 +360,9 @@ export default function ProfessionalProfilePage() {
     const status = profile?.availability?.[key] || "available";
     return { date: d, status, key };
   });
+
+  const hasOnSite = onSiteRoles.length > 0;
+  const hasRemote = remoteRoles.length > 0;
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -507,36 +517,16 @@ export default function ProfessionalProfilePage() {
           </div>
         </Card>
 
-        {/* 🏆 TRUST SCORE CARD */}
+        {/* TRUST SCORE */}
         {ratingCount > 0 && (
           <Card className="relative overflow-hidden rounded-[2rem] border-border/40 bg-gradient-to-br from-card/80 to-background shadow-xl">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
             <CardContent className="p-6 lg:p-8">
               <div className="flex flex-col md:flex-row items-center gap-6">
-
-                {/* Score circle */}
                 <div className="relative shrink-0">
                   <svg className="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="6"
-                      className="text-muted-foreground/10"
-                    />
-                    <circle
-                      cx="50"
-                      cy="50"
-                      r="42"
-                      fill="none"
-                      stroke="url(#trustGradient)"
-                      strokeWidth="6"
-                      strokeLinecap="round"
-                      strokeDasharray={`${(trustScore.score / 100) * 264} 264`}
-                      className="transition-all duration-1000"
-                    />
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="currentColor" strokeWidth="6" className="text-muted-foreground/10" />
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="url(#trustGradient)" strokeWidth="6" strokeLinecap="round" strokeDasharray={`${(trustScore.score / 100) * 264} 264`} className="transition-all duration-1000" />
                     <defs>
                       <linearGradient id="trustGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                         <stop offset="0%" stopColor="#d4af37" />
@@ -545,22 +535,15 @@ export default function ProfessionalProfilePage() {
                     </defs>
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <p className="text-3xl font-headline font-bold text-primary">
-                      {trustScore.score}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-                      / 100
-                    </p>
+                    <p className="text-3xl font-headline font-bold text-primary">{trustScore.score}</p>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">/ 100</p>
                   </div>
                 </div>
 
-                {/* Score info */}
                 <div className="flex-1 text-center md:text-left space-y-3">
                   <div className="flex items-center justify-center md:justify-start gap-2">
                     <TrendingUp className="w-5 h-5 text-primary" />
-                    <h3 className="font-headline font-bold text-lg">
-                      Trust Score
-                    </h3>
+                    <h3 className="font-headline font-bold text-lg">Trust Score</h3>
                     <Badge className={cn(
                       "rounded-lg border",
                       trustScore.level === 'elite' && "bg-purple-500/15 text-purple-400 border-purple-500/30",
@@ -573,8 +556,7 @@ export default function ProfessionalProfilePage() {
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    Calculated from ratings, reviews, completed events, and verification.
-                    Higher scores rank better in search results.
+                    Calculated from ratings, reviews, completed events, and verification. Higher scores rank better in search results.
                   </p>
                   <div className="flex flex-wrap gap-4 text-xs">
                     <div className="flex items-center gap-1.5">
@@ -588,14 +570,8 @@ export default function ProfessionalProfilePage() {
                       <span className="text-muted-foreground">events</span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <ShieldCheck className={cn(
-                        "w-3.5 h-3.5",
-                        isVerified ? "text-primary" : "text-muted-foreground"
-                      )} />
-                      <span className={cn(
-                        "font-bold",
-                        isVerified ? "text-primary" : "text-muted-foreground"
-                      )}>
+                      <ShieldCheck className={cn("w-3.5 h-3.5", isVerified ? "text-primary" : "text-muted-foreground")} />
+                      <span className={cn("font-bold", isVerified ? "text-primary" : "text-muted-foreground")}>
                         {isVerified ? "Verified" : "Not Verified"}
                       </span>
                     </div>
@@ -608,37 +584,13 @@ export default function ProfessionalProfilePage() {
 
         {/* STATS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatBox
-            icon={<Star className="w-4 h-4" />}
-            label="Rating"
-            value={ratingCount > 0 ? ratingAvg.toFixed(1) : "New"}
-            sub={ratingCount > 0 ? `${ratingCount} reviews` : "No reviews yet"}
-            color="yellow"
-          />
-          <StatBox
-            icon={<Briefcase className="w-4 h-4" />}
-            label="Events"
-            value={String(completedJobs)}
-            sub="completed"
-            color="primary"
-          />
-          <StatBox
-            icon={<Zap className="w-4 h-4" />}
-            label="Response"
-            value="~2h"
-            sub="typically"
-            color="green"
-          />
-          <StatBox
-            icon={<Award className="w-4 h-4" />}
-            label="Member"
-            value={memberDuration}
-            sub="on Hafash"
-            color="blue"
-          />
+          <StatBox icon={<Star className="w-4 h-4" />} label="Rating" value={ratingCount > 0 ? ratingAvg.toFixed(1) : "New"} sub={ratingCount > 0 ? `${ratingCount} reviews` : "No reviews yet"} color="yellow" />
+          <StatBox icon={<Briefcase className="w-4 h-4" />} label="Events" value={String(completedJobs)} sub="completed" color="primary" />
+          <StatBox icon={<Zap className="w-4 h-4" />} label="Response" value="~2h" sub="typically" color="green" />
+          <StatBox icon={<Award className="w-4 h-4" />} label="Member" value={memberDuration} sub="on Hafash" color="blue" />
         </div>
 
-        {/* 🏆 ACHIEVEMENTS */}
+        {/* ACHIEVEMENTS */}
         {achievements.length > 0 && (
           <Card className="rounded-[2rem] border-border/40 bg-card/70 overflow-hidden">
             <div className="px-6 pt-5 pb-3 flex items-center gap-2 border-b border-border/20">
@@ -652,21 +604,73 @@ export default function ProfessionalProfilePage() {
             <CardContent className="p-6">
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {achievements.map((ach) => (
-                  <div
-                    key={ach.id}
-                    className={cn(
-                      "p-4 rounded-2xl border bg-gradient-to-br transition-all hover:scale-[1.02]",
-                      ach.color
-                    )}
-                  >
+                  <div key={ach.id} className={cn("p-4 rounded-2xl border bg-gradient-to-br transition-all hover:scale-[1.02]", ach.color)}>
                     <div className="text-3xl mb-2">{ach.icon}</div>
                     <p className="font-headline font-bold text-sm">{ach.label}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
-                      {ach.description}
-                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{ach.description}</p>
                   </div>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* DELIVERY TIME */}
+        {hasRemote && (
+          <Card className="rounded-[2rem] border-border/40 bg-gradient-to-br from-purple-500/5 via-card/60 to-background overflow-hidden">
+            <div className="px-6 pt-5 pb-3 flex items-center gap-2 border-b border-border/20">
+              <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-400">
+                <Clock className="w-4 h-4" />
+              </div>
+              <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">
+                Delivery Time
+              </h3>
+            </div>
+            <CardContent className="p-6 space-y-4">
+              {remoteRoles.map((roleId: string) => {
+                const role = ROLE_DEFINITIONS[roleId as keyof typeof ROLE_DEFINITIONS];
+                const turnId = turnarounds[roleId];
+                const turnOpt = TURNAROUND_OPTIONS.find(t => t.id === turnId);
+                const roleServices = services[roleId] || [];
+
+                if (!turnOpt) return null;
+
+                return (
+                  <div key={roleId} className="p-5 rounded-2xl bg-background/40 border border-purple-500/20 space-y-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                          {ROLE_ICONS[roleId]}
+                        </div>
+                        <div>
+                          <p className="font-bold text-sm">{role?.label}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Remote Service</p>
+                        </div>
+                      </div>
+
+                      <Badge className="rounded-xl bg-purple-500/15 text-purple-400 border-purple-500/30 px-3 py-1.5 font-bold gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        {turnOpt.short}
+                      </Badge>
+                    </div>
+
+                    {roleServices.length > 0 && (
+                      <div className="pt-3 border-t border-border/20">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                          Services Offered
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {roleServices.map((s: string) => (
+                            <Badge key={s} variant="outline" className="rounded-lg bg-purple-500/5 border-purple-500/20 text-purple-400 text-[11px] font-medium">
+                              {s}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         )}
@@ -677,9 +681,7 @@ export default function ProfessionalProfilePage() {
 
             {profile.bio && (
               <SectionCard title="About" icon={<Info className="w-4 h-4" />}>
-                <p className="text-sm leading-7 text-muted-foreground whitespace-pre-wrap">
-                  {profile.bio}
-                </p>
+                <p className="text-sm leading-7 text-muted-foreground whitespace-pre-wrap">{profile.bio}</p>
               </SectionCard>
             )}
 
@@ -687,10 +689,7 @@ export default function ProfessionalProfilePage() {
               <SectionCard title="Rate Card" icon={<Briefcase className="w-4 h-4" />}>
                 <div className="space-y-2">
                   {rates.map((rate: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-4 rounded-2xl bg-background/40 border border-border/30 hover:border-primary/30 transition-all"
-                    >
+                    <div key={idx} className="flex items-center justify-between p-4 rounded-2xl bg-background/40 border border-border/30 hover:border-primary/30 transition-all">
                       <div>
                         <p className="font-bold text-sm">{rate.eventType || "Standard"}</p>
                         <p className="text-[10px] uppercase tracking-widest text-muted-foreground mt-0.5">
@@ -710,11 +709,7 @@ export default function ProfessionalProfilePage() {
               <SectionCard title="Equipment" icon={<Camera className="w-4 h-4" />}>
                 <div className="flex flex-wrap gap-2">
                   {profile.equipment.map((eq: any) => (
-                    <Badge
-                      key={eq.id}
-                      variant="outline"
-                      className="rounded-xl bg-background/40 border-border/40 px-3 py-2 text-xs font-medium"
-                    >
+                    <Badge key={eq.id} variant="outline" className="rounded-xl bg-background/40 border-border/40 px-3 py-2 text-xs font-medium">
                       {eq.name}
                     </Badge>
                   ))}
@@ -735,16 +730,10 @@ export default function ProfessionalProfilePage() {
 
                   {areas.length > 0 && (
                     <div>
-                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-2">
-                        Works in
-                      </p>
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold mb-2">Works in</p>
                       <div className="flex flex-wrap gap-1.5">
                         {areas.map((area: string) => (
-                          <Badge
-                            key={area}
-                            variant="outline"
-                            className="rounded-lg bg-primary/5 border-primary/20 text-primary text-[11px] font-medium"
-                          >
+                          <Badge key={area} variant="outline" className="rounded-lg bg-primary/5 border-primary/20 text-primary text-[11px] font-medium">
                             {area}
                           </Badge>
                         ))}
@@ -765,65 +754,112 @@ export default function ProfessionalProfilePage() {
               </SectionCard>
             )}
 
+            {/* ═══ PORTFOLIO ═══ */}
             <SectionCard title="Portfolio" icon={<ImageIcon className="w-4 h-4" />}>
+              {/* PAID USER — Hafash Gallery Portfolio */}
               {profile.portfolioType === "hafash_gallery" ? (
                 <div className="space-y-4">
                   {profile.portfolioGalleryIds && profile.portfolioGalleryIds.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {profile.portfolioGalleryIds.map((gId: string) => (
-                        <div
-                          key={gId}
-                          className="aspect-[4/3] rounded-2xl overflow-hidden border border-border/40 bg-background/50 flex items-center justify-center"
-                        >
-                          <ImageIcon className="w-6 h-6 text-muted-foreground/30" />
-                        </div>
-                      ))}
-                    </div>
+                    <>
+                      <div className="flex items-center gap-2 pb-2">
+                        <Badge className="rounded-lg bg-primary/15 text-primary border border-primary/30 gap-1.5 text-[10px] font-bold uppercase tracking-widest">
+                          <Sparkles className="w-3 h-3" />
+                          Hafash Gallery
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">
+                          {profile.portfolioGalleryIds.length} {profile.portfolioGalleryIds.length === 1 ? "gallery" : "galleries"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        {profile.portfolioGalleryIds.map((gId: string) => (
+                          <a
+                            key={gId}
+                            href={`/gallery/${gId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="aspect-[4/3] rounded-2xl overflow-hidden border border-border/40 bg-gradient-to-br from-primary/10 to-background hover:border-primary/50 transition-all group relative cursor-pointer"
+                          >
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                              <ImageIcon className="w-8 h-8 text-primary/50 group-hover:text-primary transition-colors" />
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground group-hover:text-primary transition-colors">
+                                View Gallery
+                              </span>
+                            </div>
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none" />
+                          </a>
+                        ))}
+                      </div>
+                    </>
                   ) : (
-                    <p className="text-sm text-muted-foreground italic">
-                      Gallery portfolio coming soon.
-                    </p>
+                    <div className="text-center py-8 rounded-2xl bg-background/30 border border-dashed border-border/40">
+                      <ImageIcon className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+                      <p className="text-sm text-muted-foreground font-medium">No galleries selected</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Select galleries from Edit Profile to showcase your work.
+                      </p>
+                    </div>
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {profile.instagramLink && (
-                    <SocialCard
-                      icon={<Instagram className="w-5 h-5" />}
-                      label="Instagram"
-                      url={profile.instagramLink}
-                      gradient="from-pink-500/20 to-purple-500/20"
-                      textColor="text-pink-400"
-                    />
+                /* FREE USER — Social Links Only */
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {profile.instagramLink && (
+                      <SocialCard icon={<Instagram className="w-5 h-5" />} label="Instagram" url={profile.instagramLink} gradient="from-pink-500/20 to-purple-500/20" textColor="text-pink-400" />
+                    )}
+                    {profile.facebookLink && (
+                      <SocialCard icon={<Facebook className="w-5 h-5" />} label="Facebook" url={profile.facebookLink} gradient="from-blue-500/20 to-blue-600/20" textColor="text-blue-400" />
+                    )}
+                    {profile.youtubeLink && (
+                      <SocialCard icon={<Youtube className="w-5 h-5" />} label="YouTube" url={profile.youtubeLink} gradient="from-red-500/20 to-red-600/20" textColor="text-red-400" />
+                    )}
+                    {!profile.instagramLink && !profile.facebookLink && !profile.youtubeLink && (
+                      <p className="text-sm text-muted-foreground italic col-span-full text-center py-6">
+                        No portfolio links added.
+                      </p>
+                    )}
+                  </div>
+
+                  {isOwnProfile && (
+                    <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card/60 to-background p-5">
+                      <div className="absolute -top-16 -right-16 h-32 w-32 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
+
+                      <div className="relative flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
+                          <Sparkles className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="font-headline font-bold text-sm text-white">
+                            Showcase Your Work on Hafash
+                          </h4>
+                          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                            Activate a storage plan to display your photo galleries directly on your profile.
+                          </p>
+                          <Link href="/storage">
+                            <Button size="sm" className="mt-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5">
+                              Upgrade Plan
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
                   )}
-                  {profile.facebookLink && (
-                    <SocialCard
-                      icon={<Facebook className="w-5 h-5" />}
-                      label="Facebook"
-                      url={profile.facebookLink}
-                      gradient="from-blue-500/20 to-blue-600/20"
-                      textColor="text-blue-400"
-                    />
-                  )}
-                  {profile.youtubeLink && (
-                    <SocialCard
-                      icon={<Youtube className="w-5 h-5" />}
-                      label="YouTube"
-                      url={profile.youtubeLink}
-                      gradient="from-red-500/20 to-red-600/20"
-                      textColor="text-red-400"
-                    />
-                  )}
-                  {!profile.instagramLink && !profile.facebookLink && !profile.youtubeLink && (
-                    <p className="text-sm text-muted-foreground italic col-span-full">
-                      No portfolio links added.
-                    </p>
+
+                  {!isOwnProfile && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl bg-background/40 border border-border/30">
+                      <Info className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <p className="text-[11px] text-muted-foreground italic">
+                        This professional showcases their work through external links.
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
             </SectionCard>
 
-            {/* REVIEWS SECTION */}
+            {/* REVIEWS */}
             <SectionCard title={`Reviews (${reviews.length})`} icon={<Star className="w-4 h-4" />}>
               {reviewsLoading ? (
                 <div className="space-y-3">
@@ -838,9 +874,7 @@ export default function ProfessionalProfilePage() {
                 <div className="text-center py-8 rounded-2xl bg-background/30 border border-dashed border-border/40">
                   <Star className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
                   <p className="text-sm text-muted-foreground font-medium">No reviews yet</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Reviews appear after completed bookings
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Reviews appear after completed bookings</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -848,25 +882,13 @@ export default function ProfessionalProfilePage() {
                     <div className="p-5 rounded-2xl bg-gradient-to-br from-primary/5 to-background border border-primary/15 space-y-3">
                       <div className="flex items-center gap-4">
                         <div className="text-center">
-                          <p className="text-4xl font-headline font-bold text-primary">
-                            {ratingAvg.toFixed(1)}
-                          </p>
+                          <p className="text-4xl font-headline font-bold text-primary">{ratingAvg.toFixed(1)}</p>
                           <div className="flex items-center gap-0.5 mt-1">
                             {[1, 2, 3, 4, 5].map((s) => (
-                              <Star
-                                key={s}
-                                className={cn(
-                                  "w-3 h-3",
-                                  s <= Math.round(ratingAvg)
-                                    ? "fill-yellow-400 text-yellow-400"
-                                    : "text-muted-foreground/30"
-                                )}
-                              />
+                              <Star key={s} className={cn("w-3 h-3", s <= Math.round(ratingAvg) ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/30")} />
                             ))}
                           </div>
-                          <p className="text-[10px] text-muted-foreground mt-1">
-                            {ratingCount} reviews
-                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-1">{ratingCount} reviews</p>
                         </div>
 
                         <div className="flex-1 space-y-2">
@@ -891,72 +913,43 @@ export default function ProfessionalProfilePage() {
           {/* SIDEBAR */}
           <div className="space-y-6">
 
-            <SectionCard title="Next 7 Days" icon={<CalendarDays className="w-4 h-4" />}>
-              <div className="space-y-2">
-                {next7Days.map((day) => (
-                  <div
-                    key={day.key}
-                    className="flex items-center justify-between p-3 rounded-xl bg-background/40 border border-border/30"
-                  >
-                    <div>
-                      <p className="text-xs font-bold">
-                        {day.date.toLocaleDateString("en-US", { weekday: "short" })}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {day.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      </p>
-                    </div>
-                    <div
-                      className={cn(
+            {hasOnSite && (
+              <SectionCard title="Next 7 Days" icon={<CalendarDays className="w-4 h-4" />}>
+                <div className="space-y-2">
+                  {next7Days.map((day) => (
+                    <div key={day.key} className="flex items-center justify-between p-3 rounded-xl bg-background/40 border border-border/30">
+                      <div>
+                        <p className="text-xs font-bold">{day.date.toLocaleDateString("en-US", { weekday: "short" })}</p>
+                        <p className="text-[10px] text-muted-foreground">{day.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}</p>
+                      </div>
+                      <div className={cn(
                         "px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-widest",
                         day.status === "available" && "bg-green-500/15 text-green-400 border border-green-500/30",
                         day.status === "partial" && "bg-yellow-500/15 text-yellow-400 border border-yellow-500/30",
                         day.status === "busy" && "bg-red-500/15 text-red-400 border border-red-500/30"
-                      )}
-                    >
-                      {day.status}
+                      )}>
+                        {day.status}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </SectionCard>
+                  ))}
+                </div>
+              </SectionCard>
+            )}
 
             <SectionCard title="Quick Info" icon={<Sparkles className="w-4 h-4" />}>
               <div className="space-y-3">
-                <QuickInfoRow
-                  icon={<Briefcase className="w-4 h-4" />}
-                  label="Completed Events"
-                  value={String(completedJobs)}
-                />
-                <QuickInfoRow
-                  icon={<Star className="w-4 h-4" />}
-                  label="Rating"
-                  value={ratingCount > 0 ? `${ratingAvg.toFixed(1)} / 5.0` : "New"}
-                />
-                <QuickInfoRow
-                  icon={<TrendingUp className="w-4 h-4" />}
-                  label="Trust Score"
-                  value={`${trustScore.score} / 100`}
-                />
-                <QuickInfoRow
-                  icon={<ShieldCheck className="w-4 h-4" />}
-                  label="Verified"
-                  value={isVerified ? "Yes" : "No"}
-                />
-                <QuickInfoRow
-                  icon={<MapPin className="w-4 h-4" />}
-                  label="Based in"
-                  value={city || "—"}
-                />
-                <QuickInfoRow
-                  icon={<Award className="w-4 h-4" />}
-                  label="Member Since"
-                  value={memberDuration}
-                />
+                <QuickInfoRow icon={<Briefcase className="w-4 h-4" />} label="Completed Events" value={String(completedJobs)} />
+                <QuickInfoRow icon={<Star className="w-4 h-4" />} label="Rating" value={ratingCount > 0 ? `${ratingAvg.toFixed(1)} / 5.0` : "New"} />
+                <QuickInfoRow icon={<TrendingUp className="w-4 h-4" />} label="Trust Score" value={`${trustScore.score} / 100`} />
+                <QuickInfoRow icon={<ShieldCheck className="w-4 h-4" />} label="Verified" value={isVerified ? "Yes" : "No"} />
+                {city && (
+                  <QuickInfoRow icon={<MapPin className="w-4 h-4" />} label="Based in" value={city} />
+                )}
+                <QuickInfoRow icon={<Award className="w-4 h-4" />} label="Member Since" value={memberDuration} />
               </div>
             </SectionCard>
 
-            {isOwnProfile && (
+            {isOwnProfile && hasOnSite && (
               <Button
                 variant="outline"
                 className="w-full rounded-2xl h-12 gap-2"
@@ -964,6 +957,17 @@ export default function ProfessionalProfilePage() {
               >
                 <CalendarDays className="w-4 h-4" />
                 Manage Availability
+              </Button>
+            )}
+
+            {isOwnProfile && (
+              <Button
+                variant="outline"
+                className="w-full rounded-2xl h-12 gap-2"
+                onClick={() => router.push("/network/join")}
+              >
+                <Sparkles className="w-4 h-4" />
+                Edit Profile
               </Button>
             )}
 
@@ -985,79 +989,37 @@ export default function ProfessionalProfilePage() {
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-2xl font-headline font-bold">Send Work Request</h2>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Tell {displayName} about your event.
-                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">Tell {displayName} about your event.</p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full shrink-0"
-                  onClick={() => !isSendingRequest && setRequestOpen(false)}
-                >
+                <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => !isSendingRequest && setRequestOpen(false)}>
                   <X className="w-5 h-5" />
                 </Button>
               </div>
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Event Type *
-                  </label>
-                  <EventTypePicker
-                    value={eventType}
-                    onChange={setEventType}
-                    placeholder="Select event type..."
-                  />
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Event Type *</label>
+                  <EventTypePicker value={eventType} onChange={setEventType} placeholder="Select event type..." />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Event Date *
-                  </label>
-                  <Input
-                    type="date"
-                    value={eventDate}
-                    onChange={(e) => setEventDate(e.target.value)}
-                    className="h-12 rounded-xl"
-                  />
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Event Date *</label>
+                  <Input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} className="h-12 rounded-xl" />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Location
-                  </label>
-                  <Input
-                    placeholder="e.g. DHA Phase 5, Karachi"
-                    value={eventLocation}
-                    onChange={(e) => setEventLocation(e.target.value)}
-                    className="h-12 rounded-xl"
-                  />
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Location</label>
+                  <Input placeholder="e.g. DHA Phase 5, Karachi" value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} className="h-12 rounded-xl" />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Your Budget (PKR)
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="e.g. 15000"
-                    value={budget}
-                    onChange={(e) => setBudget(e.target.value)}
-                    className="h-12 rounded-xl"
-                  />
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Your Budget (PKR)</label>
+                  <Input type="number" placeholder="e.g. 15000" value={budget} onChange={(e) => setBudget(e.target.value)} className="h-12 rounded-xl" />
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                    Message
-                  </label>
-                  <Textarea
-                    placeholder="Tell them what you need..."
-                    value={requestMessage}
-                    onChange={(e) => setRequestMessage(e.target.value)}
-                    className="min-h-[110px] rounded-xl resize-none"
-                  />
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Message</label>
+                  <Textarea placeholder="Tell them what you need..." value={requestMessage} onChange={(e) => setRequestMessage(e.target.value)} className="min-h-[110px] rounded-xl resize-none" />
                 </div>
               </div>
 
@@ -1069,19 +1031,10 @@ export default function ProfessionalProfilePage() {
               </div>
 
               <div className="flex gap-3 pt-2">
-                <Button
-                  variant="outline"
-                  className="flex-1 rounded-xl h-12"
-                  onClick={() => setRequestOpen(false)}
-                  disabled={isSendingRequest}
-                >
+                <Button variant="outline" className="flex-1 rounded-xl h-12" onClick={() => setRequestOpen(false)} disabled={isSendingRequest}>
                   Cancel
                 </Button>
-                <Button
-                  className="flex-1 rounded-xl h-12 font-bold gap-2"
-                  onClick={sendWorkRequest}
-                  disabled={!eventDate || !eventType || isSendingRequest}
-                >
+                <Button className="flex-1 rounded-xl h-12 font-bold gap-2" onClick={sendWorkRequest} disabled={!eventDate || !eventType || isSendingRequest}>
                   {isSendingRequest ? (
                     <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
                   ) : (
@@ -1097,47 +1050,19 @@ export default function ProfessionalProfilePage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Helper Components
-// ─────────────────────────────────────────────────────────────
-
-function SectionCard({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <Card className="rounded-[2rem] border-border/40 bg-card/70 overflow-hidden">
       <div className="px-6 pt-5 pb-3 flex items-center gap-2 border-b border-border/20">
-        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-          {icon}
-        </div>
-        <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">
-          {title}
-        </h3>
+        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">{icon}</div>
+        <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">{title}</h3>
       </div>
       <div className="p-6">{children}</div>
     </Card>
   );
 }
 
-function StatBox({
-  icon,
-  label,
-  value,
-  sub,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  sub: string;
-  color: "yellow" | "primary" | "green" | "blue";
-}) {
+function StatBox({ icon, label, value, sub, color }: { icon: React.ReactNode; label: string; value: string; sub: string; color: "yellow" | "primary" | "green" | "blue"; }) {
   const colorClasses = {
     yellow: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
     primary: "text-primary bg-primary/10 border-primary/20",
@@ -1148,9 +1073,7 @@ function StatBox({
   return (
     <Card className="rounded-2xl border-border/40 bg-card/60 overflow-hidden">
       <CardContent className="p-4 lg:p-5">
-        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3 border", colorClasses)}>
-          {icon}
-        </div>
+        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3 border", colorClasses)}>{icon}</div>
         <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">{label}</p>
         <p className="text-xl lg:text-2xl font-headline font-bold mt-1">{value}</p>
         <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>
@@ -1159,15 +1082,7 @@ function StatBox({
   );
 }
 
-function QuickInfoRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function QuickInfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string; }) {
   return (
     <div className="flex items-center justify-between py-2 border-b border-border/20 last:border-0">
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -1179,29 +1094,9 @@ function QuickInfoRow({
   );
 }
 
-function SocialCard({
-  icon,
-  label,
-  url,
-  gradient,
-  textColor,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  url: string;
-  gradient: string;
-  textColor: string;
-}) {
+function SocialCard({ icon, label, url, gradient, textColor }: { icon: React.ReactNode; label: string; url: string; gradient: string; textColor: string; }) {
   return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={cn(
-        "flex flex-col items-center justify-center gap-2 p-5 rounded-2xl border border-border/40 bg-gradient-to-br transition-all hover:scale-[1.03] hover:border-primary/30",
-        gradient
-      )}
-    >
+    <a href={url} target="_blank" rel="noopener noreferrer" className={cn("flex flex-col items-center justify-center gap-2 p-5 rounded-2xl border border-border/40 bg-gradient-to-br transition-all hover:scale-[1.03] hover:border-primary/30", gradient)}>
       <div className={textColor}>{icon}</div>
       <span className="text-xs font-bold">{label}</span>
       <ChevronRight className="w-3 h-3 text-muted-foreground" />
@@ -1214,10 +1109,7 @@ function CategoryBar({ label, value }: { label: string; value: number }) {
     <div className="flex items-center gap-2">
       <span className="text-[10px] text-muted-foreground w-24 shrink-0">{label}</span>
       <div className="flex-1 h-1.5 bg-background/60 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-primary rounded-full transition-all"
-          style={{ width: `${(value / 5) * 100}%` }}
-        />
+        <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${(value / 5) * 100}%` }} />
       </div>
       <span className="text-[10px] font-bold w-6 text-right">{value.toFixed(1)}</span>
     </div>
@@ -1242,9 +1134,7 @@ function ReviewItem({ review }: { review: ReviewData }) {
           </div>
           <div className="min-w-0">
             <p className="font-bold text-sm truncate">{review.reviewerName || "Anonymous"}</p>
-            <p className="text-[10px] text-muted-foreground">
-              {roleLabel} • {dateStr}
-            </p>
+            <p className="text-[10px] text-muted-foreground">{roleLabel} • {dateStr}</p>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">

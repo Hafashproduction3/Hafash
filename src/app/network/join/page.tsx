@@ -14,6 +14,10 @@ import {
   TRAVEL_RANGE_LABELS,
   PAKISTAN_CITIES,
   RATE_UNIT_LABELS,
+  TURNAROUND_OPTIONS,
+  REMOTE_SERVICES,
+  hasOnSiteRole,
+  hasRemoteRole,
   type EquipmentItem,
   type EquipmentCategory,
   type Role,
@@ -44,6 +48,9 @@ import {
   Compass,
   Info,
   DollarSign,
+  Clock,
+  Zap,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,13 +87,15 @@ const ALL_ROLES: Role[] = [
   'makeup_artist',
 ];
 
+const REMOTE_ROLES: Role[] = ['video_editor', 'photo_editor', 'album_designer'];
+
 export default function JoinNetworkPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
 
-  // ── Plan status ──
+  // Plan status
   const profileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
@@ -95,21 +104,21 @@ export default function JoinNetworkPage() {
   const currentPlan = useMemo(() => getUserPlan(profile?.planId), [profile?.planId]);
   const hasActivePlan = currentPlan.id !== 'none';
 
-  // ── User's existing galleries ──
+  // User's galleries
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user || !hasActivePlan) return null;
     return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
   }, [firestore, user?.uid, hasActivePlan]);
   const { data: galleries } = useCollection(galleriesQuery);
 
-  // ── Load existing profile ──
+  // Load existing profile
   const networkProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'networkProfiles', user.uid);
   }, [firestore, user?.uid]);
   const { data: existingProfile } = useDoc(networkProfileRef);
 
-  // ── Form state ──
+  // Form state
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [equipmentQuery, setEquipmentQuery] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentItem[]>([]);
@@ -121,13 +130,17 @@ export default function JoinNetworkPage() {
   const [rates, setRates] = useState<Array<{ eventType: string; amount: string; unit: RateUnit }>>([
     { eventType: 'All Events', amount: '', unit: 'per_event' },
   ]);
+  // Turnaround per remote role
+  const [turnarounds, setTurnarounds] = useState<Record<string, string>>({});
+  // Services per remote role
+  const [services, setServices] = useState<Record<string, string[]>>({});
   const [instagramLink, setInstagramLink] = useState('');
   const [facebookLink, setFacebookLink] = useState('');
   const [youtubeLink, setYoutubeLink] = useState('');
   const [selectedGalleryIds, setSelectedGalleryIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // ── Populate from existing profile ──
+  // Populate from existing profile
   useEffect(() => {
     if (existingProfile) {
       setSelectedRoles(existingProfile.roles || []);
@@ -140,6 +153,8 @@ export default function JoinNetworkPage() {
       setFacebookLink(existingProfile.facebookLink || '');
       setYoutubeLink(existingProfile.youtubeLink || '');
       setSelectedGalleryIds(existingProfile.portfolioGalleryIds || []);
+      if (existingProfile.turnarounds) setTurnarounds(existingProfile.turnarounds);
+      if (existingProfile.services) setServices(existingProfile.services);
       if (existingProfile.rates && Array.isArray(existingProfile.rates)) {
         setRates(existingProfile.rates.map((r: any) => ({
           eventType: r.eventType || 'All Events',
@@ -156,14 +171,15 @@ export default function JoinNetworkPage() {
     }
   }, [existingProfile]);
 
-  // ── Derived ──
-  const rolesRequireEquipment = useMemo(() => {
-    return selectedRoles.some(r => ROLE_DEFINITIONS[r]?.requiresEquipment);
-  }, [selectedRoles]);
-
+  // Derived
+  const rolesRequireEquipment = useMemo(() => hasOnSiteRole(selectedRoles), [selectedRoles]);
   const rolesRequirePortfolio = useMemo(() => {
     return selectedRoles.some(r => ROLE_DEFINITIONS[r]?.requiresPortfolio);
   }, [selectedRoles]);
+  const selectedRemoteRoles = useMemo(() => {
+    return selectedRoles.filter(r => REMOTE_ROLES.includes(r));
+  }, [selectedRoles]);
+  const isOnSite = useMemo(() => hasOnSiteRole(selectedRoles), [selectedRoles]);
 
   const availableAreas = useMemo(() => {
     if (!baseCity) return [];
@@ -177,7 +193,7 @@ export default function JoinNetworkPage() {
       .slice(0, 10);
   }, [equipmentQuery, selectedEquipment]);
 
-  // ── Handlers ──
+  // Handlers
   const toggleRole = useCallback((role: Role) => {
     setSelectedRoles(prev =>
       prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
@@ -240,7 +256,21 @@ export default function JoinNetworkPage() {
     setRates(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  // ── Submit ──
+  const setTurnaround = useCallback((roleId: string, value: string) => {
+    setTurnarounds(prev => ({ ...prev, [roleId]: value }));
+  }, []);
+
+  const toggleService = useCallback((roleId: string, service: string) => {
+    setServices(prev => {
+      const current = prev[roleId] || [];
+      const updated = current.includes(service)
+        ? current.filter(s => s !== service)
+        : [...current, service];
+      return { ...prev, [roleId]: updated };
+    });
+  }, []);
+
+  // Submit
   const handleSubmit = useCallback(async () => {
     if (!user || !firestore) return;
 
@@ -248,7 +278,9 @@ export default function JoinNetworkPage() {
       toast({ variant: 'destructive', title: 'Select at least one role' });
       return;
     }
-    if (!baseCity.trim()) {
+
+    // Location required only if on-site role
+    if (isOnSite && !baseCity.trim()) {
       toast({ variant: 'destructive', title: 'City required', description: 'Please enter your base city.' });
       return;
     }
@@ -257,6 +289,19 @@ export default function JoinNetworkPage() {
     if (validRates.length === 0) {
       toast({ variant: 'destructive', title: 'Rate required', description: 'Please add at least one rate.' });
       return;
+    }
+
+    // Validate turnaround for remote roles
+    if (selectedRemoteRoles.length > 0) {
+      const missing = selectedRemoteRoles.filter(r => !turnarounds[r]);
+      if (missing.length > 0) {
+        toast({
+          variant: 'destructive',
+          title: 'Delivery time required',
+          description: `Please set delivery time for: ${missing.map(r => ROLE_DEFINITIONS[r].label).join(', ')}`,
+        });
+        return;
+      }
     }
 
     if (rolesRequirePortfolio && !hasActivePlan) {
@@ -282,6 +327,20 @@ export default function JoinNetworkPage() {
 
       const primaryRate = cleanedRates[0];
 
+      // Clean turnaround - only for selected remote roles
+      const cleanTurnarounds: Record<string, string> = {};
+      selectedRemoteRoles.forEach(r => {
+        if (turnarounds[r]) cleanTurnarounds[r] = turnarounds[r];
+      });
+
+      // Clean services - only for selected remote roles
+      const cleanServices: Record<string, string[]> = {};
+      selectedRemoteRoles.forEach(r => {
+        if (services[r] && services[r].length > 0) {
+          cleanServices[r] = services[r];
+        }
+      });
+
       await setDoc(
         doc(firestore, 'networkProfiles', user.uid),
         {
@@ -305,6 +364,8 @@ export default function JoinNetworkPage() {
           serviceAreas: serviceAreas,
           travelRange,
           baseLocation: baseCity.trim(),
+          turnarounds: cleanTurnarounds,
+          services: cleanServices,
           portfolioType: hasActivePlan ? 'hafash_gallery' : 'social_links',
           portfolioGalleryIds: hasActivePlan ? selectedGalleryIds : [],
           instagramLink: instagramLink.trim(),
@@ -317,8 +378,8 @@ export default function JoinNetworkPage() {
         { merge: true }
       );
 
-      toast({ title: 'Welcome to Hafash Network!', description: 'Your professional profile is live.' });
-      router.push('/network');
+      toast({ title: 'Profile Saved!', description: 'Your professional profile is live.' });
+      router.push('/network/hub');
     } catch (error: any) {
       console.error('[JOIN_NETWORK] Error:', error);
       toast({ variant: 'destructive', title: 'Something went wrong', description: error.message });
@@ -328,7 +389,8 @@ export default function JoinNetworkPage() {
   }, [
     user, firestore, selectedRoles, baseCity, serviceAreas, travelRange,
     selectedEquipment, bio, rates, hasActivePlan, instagramLink, facebookLink,
-    youtubeLink, selectedGalleryIds, profile, existingProfile, toast, router, rolesRequirePortfolio
+    youtubeLink, selectedGalleryIds, profile, existingProfile, toast, router,
+    rolesRequirePortfolio, selectedRemoteRoles, turnarounds, services, isOnSite
   ]);
 
   return (
@@ -347,13 +409,13 @@ export default function JoinNetworkPage() {
                 {existingProfile ? 'Edit Your Profile' : 'Join Hafash Network'}
               </h1>
               <p className="text-muted-foreground text-sm mt-1">
-                Get discovered by photographers who need a second shooter, editor, or crew.
+                Get discovered by other professionals who need a cross.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Roles */}
+        {/* ═══ ROLES ═══ */}
         <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
           <CardHeader className="bg-background/30 border-b border-border/30">
             <CardTitle className="text-lg font-headline font-bold">What do you do?</CardTitle>
@@ -363,13 +425,14 @@ export default function JoinNetworkPage() {
             {ALL_ROLES.map((roleId) => {
               const role = ROLE_DEFINITIONS[roleId];
               const isSelected = selectedRoles.includes(roleId);
+              const isRemote = REMOTE_ROLES.includes(roleId);
               return (
                 <button
                   key={roleId}
                   type="button"
                   onClick={() => toggleRole(roleId)}
                   className={cn(
-                    "p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all text-center",
+                    "relative p-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all text-center",
                     isSelected
                       ? 'border-primary bg-primary/10 text-primary'
                       : 'border-border/30 bg-background/30 text-muted-foreground hover:border-primary/30'
@@ -377,6 +440,14 @@ export default function JoinNetworkPage() {
                 >
                   {ROLE_ICONS[roleId]}
                   <span className="font-bold text-xs leading-tight">{role.label}</span>
+                  {isRemote && (
+                    <span className={cn(
+                      "absolute top-2 right-2 text-[8px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded",
+                      isSelected ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+                    )}>
+                      Remote
+                    </span>
+                  )}
                   {isSelected && <Check className="w-3 h-3" />}
                 </button>
               );
@@ -384,13 +455,15 @@ export default function JoinNetworkPage() {
           </CardContent>
         </Card>
 
-        {/* Equipment */}
+        {/* ═══ EQUIPMENT (only for on-site roles) ═══ */}
         {rolesRequireEquipment && (
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="bg-background/30 border-b border-border/30">
-              <CardTitle className="text-lg font-headline font-bold">Your Equipment</CardTitle>
+              <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
+                <Camera className="w-5 h-5 text-primary" /> Your Equipment
+              </CardTitle>
               <p className="text-xs text-muted-foreground mt-1">
-                List your gear so hirers know what you work with.
+                List your gear so others know what you work with.
               </p>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
@@ -448,142 +521,236 @@ export default function JoinNetworkPage() {
           </Card>
         )}
 
-        {/* Location */}
-        <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
-          <CardHeader className="bg-background/30 border-b border-border/30">
-            <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
-              <MapPin className="w-5 h-5 text-primary" /> Location & Service Areas
-            </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Where are you based, and where do you take work?
-            </p>
-          </CardHeader>
-          <CardContent className="p-6 space-y-6">
+        {/* ═══ TURNAROUND TIME (only for remote roles) ═══ */}
+        {selectedRemoteRoles.length > 0 && (
+          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
+            <CardHeader className="bg-background/30 border-b border-border/30">
+              <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" /> Delivery Time
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Kitne din mein kaam deliver karenge? Har remote kaam ke liye alag set karein.
+              </p>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              {selectedRemoteRoles.map((roleId) => {
+                const role = ROLE_DEFINITIONS[roleId];
+                const selected = turnarounds[roleId];
+                const roleServices = REMOTE_SERVICES[roleId] || [];
+                const selectedRoleServices = services[roleId] || [];
 
-            <div className="space-y-2">
-              <label className="text-xs font-bold uppercase text-muted-foreground">
-                Base City *
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {PAKISTAN_CITIES.slice(0, 8).map((city) => (
-                  <button
-                    key={city}
-                    type="button"
-                    onClick={() => setBaseCity(city)}
-                    className={cn(
-                      "px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all",
-                      baseCity === city
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border/30 text-muted-foreground hover:border-primary/30'
-                    )}
-                  >
-                    {city}
-                  </button>
-                ))}
-              </div>
-              <Input
-                placeholder="Or type your city..."
-                className="h-11 rounded-xl mt-2"
-                value={baseCity}
-                onChange={(e) => setBaseCity(e.target.value)}
-              />
-            </div>
+                return (
+                  <div key={roleId} className="space-y-4 p-4 rounded-2xl bg-background/40 border border-border/30">
 
-            {baseCity && (
-              <div className="space-y-3">
-                <label className="text-xs font-bold uppercase text-muted-foreground">
-                  Service Areas in {baseCity}
-                </label>
+                    {/* Role Header */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                        {ROLE_ICONS[roleId]}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm">{role.label}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                          {selected ? `Delivers in ${TURNAROUND_OPTIONS.find(o => o.id === selected)?.short}` : 'Set delivery time'}
+                        </p>
+                      </div>
+                    </div>
 
-                {availableAreas.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {availableAreas.map((area) => {
-                      const isSelected = serviceAreas.includes(area);
-                      return (
-                        <button
-                          key={area}
-                          type="button"
-                          onClick={() => toggleArea(area)}
-                          className={cn(
-                            "px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all",
-                            isSelected
-                              ? 'border-primary bg-primary/10 text-primary'
-                              : 'border-border/30 text-muted-foreground hover:border-primary/30'
-                          )}
-                        >
-                          {isSelected && <Check className="w-3 h-3 inline mr-1" />}
-                          {area}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add custom area..."
-                    className="h-10 rounded-xl"
-                    value={newArea}
-                    onChange={(e) => setNewArea(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomArea())}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="rounded-xl"
-                    onClick={addCustomArea}
-                    disabled={!newArea.trim()}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {serviceAreas.filter(a => !availableAreas.includes(a)).length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {serviceAreas
-                      .filter(a => !availableAreas.includes(a))
-                      .map((area) => (
-                        <Badge
-                          key={area}
-                          className="bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-1.5 gap-2 text-xs font-bold"
-                        >
-                          {area}
-                          <button type="button" onClick={() => removeArea(area)}>
-                            <X className="w-3 h-3" />
+                    {/* Turnaround Options */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {TURNAROUND_OPTIONS.map((option) => {
+                        const isSelected = selected === option.id;
+                        return (
+                          <button
+                            key={option.id}
+                            type="button"
+                            onClick={() => setTurnaround(roleId, option.id)}
+                            className={cn(
+                              "px-3 py-2.5 rounded-xl border-2 text-[11px] font-bold transition-all",
+                              isSelected
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                            )}
+                          >
+                            {option.short}
                           </button>
-                        </Badge>
-                      ))}
-                  </div>
-                )}
-              </div>
-            )}
+                        );
+                      })}
+                    </div>
 
-            <div className="space-y-3 pt-3 border-t border-border/20">
-              <label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
-                <Compass className="w-4 h-4 text-primary" /> How far will you travel?
-              </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {(Object.keys(TRAVEL_RANGE_LABELS) as TravelRange[]).map((range) => (
-                  <button
-                    key={range}
-                    type="button"
-                    onClick={() => setTravelRange(range)}
-                    className={cn(
-                      "px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all text-left",
-                      travelRange === range
-                        ? 'border-primary bg-primary/10 text-primary'
-                        : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                    {/* Services */}
+                    {roleServices.length > 0 && (
+                      <div className="pt-3 border-t border-border/20 space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          Services you offer (optional)
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {roleServices.map((service) => {
+                            const isSelected = selectedRoleServices.includes(service);
+                            return (
+                              <button
+                                key={service}
+                                type="button"
+                                onClick={() => toggleService(roleId, service)}
+                                className={cn(
+                                  "px-3 py-1.5 rounded-lg border text-[11px] font-bold transition-all",
+                                  isSelected
+                                    ? 'border-primary bg-primary/15 text-primary'
+                                    : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                                )}
+                              >
+                                {isSelected && <Check className="w-3 h-3 inline mr-1" />}
+                                {service}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
-                  >
-                    {TRAVEL_RANGE_LABELS[range]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
-        {/* Rate Card */}
+        {/* ═══ LOCATION (only for on-site roles) ═══ */}
+        {isOnSite && (
+          <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
+            <CardHeader className="bg-background/30 border-b border-border/30">
+              <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
+                <MapPin className="w-5 h-5 text-primary" /> Location & Service Areas
+              </CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Where are you based, and where do you take work?
+              </p>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase text-muted-foreground">
+                  Base City *
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {PAKISTAN_CITIES.slice(0, 8).map((city) => (
+                    <button
+                      key={city}
+                      type="button"
+                      onClick={() => setBaseCity(city)}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all",
+                        baseCity === city
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                      )}
+                    >
+                      {city}
+                    </button>
+                  ))}
+                </div>
+                <Input
+                  placeholder="Or type your city..."
+                  className="h-11 rounded-xl mt-2"
+                  value={baseCity}
+                  onChange={(e) => setBaseCity(e.target.value)}
+                />
+              </div>
+
+              {baseCity && (
+                <div className="space-y-3">
+                  <label className="text-xs font-bold uppercase text-muted-foreground">
+                    Service Areas in {baseCity}
+                  </label>
+
+                  {availableAreas.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {availableAreas.map((area) => {
+                        const isSelected = serviceAreas.includes(area);
+                        return (
+                          <button
+                            key={area}
+                            type="button"
+                            onClick={() => toggleArea(area)}
+                            className={cn(
+                              "px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all",
+                              isSelected
+                                ? 'border-primary bg-primary/10 text-primary'
+                                : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                            )}
+                          >
+                            {isSelected && <Check className="w-3 h-3 inline mr-1" />}
+                            {area}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add custom area..."
+                      className="h-10 rounded-xl"
+                      value={newArea}
+                      onChange={(e) => setNewArea(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomArea())}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={addCustomArea}
+                      disabled={!newArea.trim()}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {serviceAreas.filter(a => !availableAreas.includes(a)).length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {serviceAreas
+                        .filter(a => !availableAreas.includes(a))
+                        .map((area) => (
+                          <Badge
+                            key={area}
+                            className="bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-1.5 gap-2 text-xs font-bold"
+                          >
+                            {area}
+                            <button type="button" onClick={() => removeArea(area)}>
+                              <X className="w-3 h-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="space-y-3 pt-3 border-t border-border/20">
+                <label className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
+                  <Compass className="w-4 h-4 text-primary" /> How far will you travel?
+                </label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {(Object.keys(TRAVEL_RANGE_LABELS) as TravelRange[]).map((range) => (
+                    <button
+                      key={range}
+                      type="button"
+                      onClick={() => setTravelRange(range)}
+                      className={cn(
+                        "px-4 py-3 rounded-xl text-sm font-bold border-2 transition-all text-left",
+                        travelRange === range
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                      )}
+                    >
+                      {TRAVEL_RANGE_LABELS[range]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ═══ RATE CARD ═══ */}
         <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
           <CardHeader className="bg-background/30 border-b border-border/30">
             <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
@@ -649,7 +816,7 @@ export default function JoinNetworkPage() {
           </CardContent>
         </Card>
 
-        {/* Bio */}
+        {/* ═══ BIO ═══ */}
         <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
           <CardHeader className="bg-background/30 border-b border-border/30">
             <CardTitle className="text-lg font-headline font-bold">Short Bio</CardTitle>
@@ -657,7 +824,7 @@ export default function JoinNetworkPage() {
           </CardHeader>
           <CardContent className="p-6">
             <Textarea
-              placeholder="Tell hirers about your style, experience, and what makes you stand out..."
+              placeholder="Tell others about your style, experience, and what makes you stand out..."
               className="rounded-xl min-h-[120px]"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
@@ -669,7 +836,7 @@ export default function JoinNetworkPage() {
           </CardContent>
         </Card>
 
-        {/* Portfolio */}
+        {/* ═══ PORTFOLIO ═══ */}
         {rolesRequirePortfolio && (
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="bg-background/30 border-b border-border/30">
@@ -779,7 +946,7 @@ export default function JoinNetworkPage() {
           </Card>
         )}
 
-        {/* Submit */}
+        {/* ═══ SUBMIT ═══ */}
         <Button
           className="w-full h-16 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold shadow-2xl shadow-primary/20"
           onClick={handleSubmit}

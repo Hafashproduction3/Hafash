@@ -22,6 +22,7 @@ import {
   CreditCard,
   HardDrive,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,7 +49,7 @@ import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
 import { deleteGalleryFiles } from '@/app/actions/storage';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
-import { getUserPlan, calculateUsageGb, isOwnerEmail } from '@/lib/plans';
+import { getUserPlan, calculateUsageGb } from '@/lib/plans';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -60,9 +61,6 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [galleryToDelete, setGalleryToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // 👑 Owner check
-  const isOwner = useMemo(() => isOwnerEmail(user?.email), [user?.email]);
 
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user) return null;
@@ -78,11 +76,7 @@ export default function DashboardPage() {
 
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
-  // ✅ Pass user email so owner bypass works
-  const currentPlan = useMemo(
-    () => getUserPlan(profile?.planId, user?.email),
-    [profile?.planId, user?.email]
-  );
+  const currentPlan = useMemo(() => getUserPlan(profile?.planId), [profile?.planId]);
 
   const planExpiryDate = useMemo(() => {
     const raw = profile?.planExpiryDate;
@@ -91,13 +85,11 @@ export default function DashboardPage() {
   }, [profile?.planExpiryDate]);
 
   const hasActivePlan = useMemo(() => {
-    if (isOwner) return true; // 👑 Owner always has active plan
     if (!profile?.planId || currentPlan.id === 'none') return false;
     if (!planExpiryDate) return false;
     return planExpiryDate.getTime() > Date.now();
-  }, [isOwner, profile?.planId, currentPlan.id, planExpiryDate]);
+  }, [profile?.planId, currentPlan.id, planExpiryDate]);
 
-  // 📦 Storage Usage
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries || []), [galleries]);
   const storageLimitGb = currentPlan.storageGb || 0;
   const usagePercent = storageLimitGb > 0 ? Math.min((currentUsageGb / storageLimitGb) * 100, 100) : 0;
@@ -179,176 +171,172 @@ export default function DashboardPage() {
   }, [firestore, user, galleryToDelete, galleries, toast, isDeleting]);
 
   return (
-    <div className="space-y-12 pb-20 animate-in fade-in duration-1000">
+    <div className="space-y-10 pb-20 animate-in fade-in duration-1000">
 
-      {/* 3D Premium Header */}
+      {/* ═══ HEADER ═══ */}
       <div className="relative group">
-        <div className="absolute -inset-4 bg-gradient-to-r from-primary/10 to-transparent blur-3xl opacity-50 group-hover:opacity-100 transition-opacity duration-1000 -z-10" />
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="h-1 w-8 bg-primary rounded-full" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">
+        <div className="absolute -inset-4 bg-gradient-to-r from-primary/8 via-transparent to-transparent blur-3xl opacity-60 group-hover:opacity-100 transition-opacity duration-1000 -z-10" />
+
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-5">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="h-0.5 w-6 bg-gradient-to-r from-primary to-primary/30 rounded-full" />
+              <span className="text-[9px] font-bold uppercase tracking-[0.35em] text-primary/90">
                 Studio Workspace
               </span>
-              {isOwner && (
-                <Badge className="bg-primary/20 text-primary border border-primary/30 text-[9px] uppercase tracking-widest">
-                  👑 Owner
-                </Badge>
-              )}
             </div>
-            <h1 className="text-5xl lg:text-6xl font-headline font-bold tracking-tight text-white drop-shadow-2xl">
+            <h1 className="text-3xl lg:text-4xl font-headline font-bold tracking-tight text-white">
               Studio <span className="text-primary italic">Dashboard</span>
             </h1>
-            <p className="text-muted-foreground text-sm font-medium tracking-wide">
+            <p className="text-muted-foreground text-[13px] font-medium">
               Manage your luxury visual deliveries with precision.
             </p>
           </div>
 
-          <Link href="/events/create">
-            <Button className="rounded-full h-16 px-10 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-[0_20px_50px_rgba(212,175,55,0.2)] hover:translate-y-[-4px] transition-all duration-300 active:scale-95 group">
-              <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform duration-500" />
-              <span>Create Luxury Event</span>
-            </Button>
-          </Link>
+          {/* Action Buttons — side by side */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link href="/events/create">
+              <Button className="rounded-2xl h-12 px-6 bg-gradient-to-br from-primary via-primary to-primary/90 text-primary-foreground hover:from-primary/90 hover:to-primary/80 font-bold gap-2.5 shadow-lg shadow-primary/25 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 active:scale-95 group">
+                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
+                <span className="text-[13px]">Create Event</span>
+              </Button>
+            </Link>
+
+            <Link href="/network/hub">
+              <Button
+                variant="outline"
+                className="rounded-2xl h-12 px-6 border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
+              >
+                <Sparkles className="w-4 h-4 text-primary group-hover:scale-110 transition-transform" />
+                <span className="text-[13px]">Hafash Network</span>
+                <ArrowRight className="w-3.5 h-3.5 text-primary opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
 
-      {/* No Active Plan Banner (hidden for owner) */}
-      {!profileLoading && !hasActivePlan && !isOwner && (
-        <div className="relative overflow-hidden rounded-[2rem] border border-primary/30 bg-primary/5 backdrop-blur-xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl">
-          <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-2xl bg-primary/15 flex items-center justify-center shrink-0">
-              <CreditCard className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-headline font-bold text-lg text-white">No Active Plan</h3>
-              <p className="text-sm text-muted-foreground mt-1 max-w-md">
-                Activate a storage plan to start creating galleries and uploading photos for your clients.
-              </p>
-            </div>
-          </div>
+      {/* ═══ COMPACT NO-PLAN CARD ═══ */}
+      {!profileLoading && !hasActivePlan && (
+        <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/8 via-card/60 to-card/40 backdrop-blur-xl p-4 md:p-5 shadow-lg">
+          <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
-          <Link href="/storage" className="w-full md:w-auto shrink-0">
-            <Button className="w-full md:w-auto h-12 px-8 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold">
-              Activate a Plan
-            </Button>
-          </Link>
+          <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="h-11 w-11 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
+                <CreditCard className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-headline font-bold text-[15px] text-white flex items-center gap-2">
+                  No Active Plan
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-md">
+                    Setup
+                  </span>
+                </h3>
+                <p className="text-[12px] text-muted-foreground mt-0.5">
+                  Activate a plan to start delivering galleries to clients.
+                </p>
+              </div>
+            </div>
+
+            <Link href="/storage" className="w-full md:w-auto shrink-0">
+              <Button className="w-full md:w-auto h-10 px-5 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-[12px] gap-1.5 group shadow-lg shadow-primary/20">
+                Activate Plan
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+          </div>
         </div>
       )}
 
-      {/* 📦 Storage Usage Progress Bar */}
+      {/* ═══ STORAGE PROGRESS BAR ═══ */}
       {!profileLoading && hasActivePlan && (
         <div className={cn(
-          "relative overflow-hidden rounded-[2rem] border backdrop-blur-xl p-6 md:p-8 shadow-xl transition-all duration-500",
-          isOwner ? "border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent" :
-          isOverLimit ? "border-destructive/40 bg-destructive/5" : 
-          isNearLimit ? "border-orange-500/30 bg-orange-500/5" : 
+          "relative overflow-hidden rounded-2xl border backdrop-blur-xl p-5 shadow-lg transition-all duration-500",
+          isOverLimit ? "border-destructive/40 bg-destructive/5" :
+          isNearLimit ? "border-orange-500/30 bg-orange-500/5" :
           "border-primary/20 bg-card/30"
         )}>
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="flex items-start gap-4 flex-1 w-full">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5 flex-1 w-full">
               <div className={cn(
-                "h-12 w-12 rounded-2xl flex items-center justify-center shrink-0",
-                isOwner ? "bg-primary/20" :
-                isOverLimit ? "bg-destructive/15" : 
-                isNearLimit ? "bg-orange-500/15" : 
+                "h-11 w-11 rounded-xl flex items-center justify-center shrink-0",
+                isOverLimit ? "bg-destructive/15" :
+                isNearLimit ? "bg-orange-500/15" :
                 "bg-primary/15"
               )}>
                 <HardDrive className={cn(
-                  "w-6 h-6",
-                  isOwner ? "text-primary" :
-                  isOverLimit ? "text-destructive" : 
-                  isNearLimit ? "text-orange-500" : 
+                  "w-5 h-5",
+                  isOverLimit ? "text-destructive" :
+                  isNearLimit ? "text-orange-500" :
                   "text-primary"
                 )} />
               </div>
 
               <div className="flex-1 w-full">
-                <div className="flex items-baseline justify-between mb-3 gap-4">
+                <div className="flex items-baseline justify-between mb-2 gap-4">
                   <div>
-                    <h3 className="font-headline font-bold text-lg text-white">
-                      {currentPlan.name}
+                    <h3 className="font-headline font-bold text-[15px] text-white">
+                      {currentPlan.name} Storage
                     </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {isOwner ? "Unlimited storage — no limits on your account" :
-                       isOverLimit ? "Storage full — upgrade to continue uploading" : 
-                       isNearLimit ? "Running low on storage space" : 
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {isOverLimit ? "Storage full — upgrade to continue" :
+                       isNearLimit ? "Running low on storage space" :
                        "Your studio's cloud storage usage"}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className={cn(
-                      "text-2xl font-headline font-bold tracking-tight",
-                      isOwner ? "text-primary" :
-                      isOverLimit ? "text-destructive" : 
-                      isNearLimit ? "text-orange-500" : 
+                      "text-xl font-headline font-bold tracking-tight",
+                      isOverLimit ? "text-destructive" :
+                      isNearLimit ? "text-orange-500" :
                       "text-primary"
                     )}>
-                      {isOwner ? "∞" : `${Math.round(usagePercent)}%`}
-                    </p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      {isOwner ? "Owner" : "Used"}
+                      {Math.round(usagePercent)}%
                     </p>
                   </div>
                 </div>
 
-                {!isOwner && (
-                  <>
-                    <div className="relative w-full h-3 bg-background/60 rounded-full overflow-hidden border border-white/5">
-                      <div 
-                        className={cn(
-                          "h-full rounded-full transition-all duration-1000 ease-out",
-                          isOverLimit ? "bg-gradient-to-r from-destructive to-red-400" : 
-                          isNearLimit ? "bg-gradient-to-r from-orange-500 to-amber-400" : 
-                          "bg-gradient-to-r from-primary/70 to-primary"
-                        )}
-                        style={{ width: `${usagePercent}%` }}
-                      />
-                    </div>
+                <div className="relative w-full h-2 bg-background/60 rounded-full overflow-hidden border border-white/5">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-1000 ease-out",
+                      isOverLimit ? "bg-gradient-to-r from-destructive to-red-400" :
+                      isNearLimit ? "bg-gradient-to-r from-orange-500 to-amber-400" :
+                      "bg-gradient-to-r from-primary/70 to-primary"
+                    )}
+                    style={{ width: `${usagePercent}%` }}
+                  />
+                </div>
 
-                    <div className="flex justify-between items-center mt-3 gap-4">
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                        <span className={cn(
-                          isOverLimit ? "text-destructive" : 
-                          isNearLimit ? "text-orange-500" : 
-                          "text-primary"
-                        )}>
-                          {currentUsageGb.toFixed(2)} GB
-                        </span>
-                        <span className="text-muted-foreground/60"> / {storageLimitGb} GB</span>
-                      </p>
-                      <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                        {Math.max(storageLimitGb - currentUsageGb, 0).toFixed(2)} GB remaining
-                      </p>
-                    </div>
-                  </>
-                )}
-
-                {isOwner && (
-                  <div className="flex justify-between items-center mt-3 gap-4">
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-primary">
-                      {currentUsageGb.toFixed(2)} GB used
-                    </p>
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-primary/70">
-                      Unlimited plan • No charges
-                    </p>
-                  </div>
-                )}
+                <div className="flex justify-between items-center mt-2 gap-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    <span className={cn(
+                      isOverLimit ? "text-destructive" :
+                      isNearLimit ? "text-orange-500" :
+                      "text-primary"
+                    )}>
+                      {currentUsageGb.toFixed(2)} GB
+                    </span>
+                    <span className="text-muted-foreground/60"> / {storageLimitGb} GB</span>
+                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    {Math.max(storageLimitGb - currentUsageGb, 0).toFixed(2)} GB left
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Upgrade Button (only for non-owners) */}
-            {!isOwner && (isNearLimit || isOverLimit) && (
+            {(isNearLimit || isOverLimit) && (
               <Link href="/storage" className="w-full md:w-auto shrink-0">
                 <Button className={cn(
-                  "w-full md:w-auto h-12 px-6 rounded-xl font-bold gap-2",
-                  isOverLimit 
-                    ? "bg-destructive text-white hover:bg-destructive/90" 
+                  "w-full md:w-auto h-10 px-5 rounded-xl font-bold text-[12px] gap-1.5",
+                  isOverLimit
+                    ? "bg-destructive text-white hover:bg-destructive/90"
                     : "bg-primary text-primary-foreground hover:bg-primary/90"
                 )}>
-                  <AlertTriangle className="w-4 h-4" />
-                  Upgrade Plan
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Upgrade
                 </Button>
               </Link>
             )}
@@ -356,8 +344,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Floating 3D Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      {/* ═══ STAT CARDS ═══ */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <StatCard
           label="Total Deliveries"
           value={stats.totalDeliveries}
@@ -379,67 +367,68 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Glassmorphic Controls */}
-      <div className="flex flex-col xl:flex-row gap-6 items-center justify-between bg-card/20 backdrop-blur-xl p-5 rounded-[2rem] border border-white/5 shadow-2xl">
+      {/* ═══ SEARCH + CONTROLS ═══ */}
+      <div className="flex flex-col xl:flex-row gap-4 items-center justify-between bg-card/20 backdrop-blur-xl p-4 rounded-2xl border border-white/5 shadow-2xl">
         <div className="relative flex-1 w-full group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input
             placeholder="Search galleries or clients..."
-            className="pl-12 h-14 bg-background/40 border-white/5 rounded-2xl focus:ring-primary/20 text-base"
+            className="pl-11 h-12 bg-background/40 border-white/5 rounded-xl focus:ring-primary/20 text-sm"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         <div className="flex items-center gap-4 w-full xl:w-auto">
-          <div className="flex bg-background/40 p-1.5 rounded-2xl border border-white/5 shadow-inner">
+          <div className="flex bg-background/40 p-1 rounded-xl border border-white/5 shadow-inner">
             <Button
               variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
               size="icon"
               className={cn(
-                "h-11 w-11 rounded-xl transition-all",
+                "h-9 w-9 rounded-lg transition-all",
                 viewMode === 'grid' && "bg-primary text-primary-foreground shadow-lg"
               )}
               onClick={() => setViewMode('grid')}
             >
-              <LayoutGrid className="w-5 h-5" />
+              <LayoutGrid className="w-4 h-4" />
             </Button>
 
             <Button
               variant={viewMode === 'list' ? 'secondary' : 'ghost'}
               size="icon"
               className={cn(
-                "h-11 w-11 rounded-xl transition-all",
+                "h-9 w-9 rounded-lg transition-all",
                 viewMode === 'list' && "bg-primary text-primary-foreground shadow-lg"
               )}
               onClick={() => setViewMode('list')}
             >
-              <List className="w-5 h-5" />
+              <List className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </div>
 
+      {/* ═══ GALLERIES ═══ */}
       {dataLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {[1, 2, 3].map(i => (
             <Skeleton key={i} className="h-96 rounded-[2.5rem] bg-card/20" />
           ))}
         </div>
       ) : filteredGalleries.length === 0 ? (
-        <div className="text-center py-40 border-2 border-dashed border-white/5 rounded-[3rem] bg-card/5 backdrop-blur-sm">
-          <div className="bg-primary/5 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner ring-1 ring-white/5">
-            <Camera className="w-10 h-10 text-muted-foreground/30" />
+        <div className="text-center py-32 border-2 border-dashed border-white/5 rounded-[3rem] bg-card/5 backdrop-blur-sm">
+          <div className="bg-primary/5 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner ring-1 ring-white/5">
+            <Camera className="w-9 h-9 text-muted-foreground/30" />
           </div>
-          <h3 className="text-2xl font-headline font-bold text-white mb-2">
+          <h3 className="text-xl font-headline font-bold text-white mb-2">
             No galleries found
           </h3>
-          <p className="text-muted-foreground italic max-w-xs mx-auto">
+          <p className="text-muted-foreground italic max-w-xs mx-auto text-sm">
             Start your studio journey by creating your first luxury event.
           </p>
         </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredGalleries.map(gallery => (
             <Card
               key={gallery.id}
@@ -558,15 +547,19 @@ export default function DashboardPage() {
           ))}
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {filteredGalleries.map(gallery => (
             <div
               key={gallery.id}
-              className="flex items-center gap-8 p-6 bg-card/30 backdrop-blur-md border border-white/5 rounded-3xl group hover:border-primary/40 transition-all duration-500 shadow-xl hover:translate-x-2"
+              className="flex items-center gap-6 p-5 bg-card/30 backdrop-blur-md border border-white/5 rounded-3xl group hover:border-primary/40 transition-all duration-500 shadow-xl hover:translate-x-2"
             >
-              <div className="h-20 w-20 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
+              <div className="h-16 w-16 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
                 {gallery.coverImage ? (
-                  <img src={gallery.coverImage} className="w-full h-full object-cover" alt="Cover" />
+                  <img
+                    src={gallery.coverImage}
+                    className="w-full h-full object-cover"
+                    alt="Cover"
+                  />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">
                     <ImageIcon className="w-6 h-6 text-white/5" />
@@ -576,7 +569,7 @@ export default function DashboardPage() {
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-4 mb-2">
-                  <h4 className="font-headline font-bold text-xl line-clamp-1 group-hover:text-primary transition-colors">
+                  <h4 className="font-headline font-bold text-lg line-clamp-1 group-hover:text-primary transition-colors">
                     {gallery.title}
                   </h4>
 
@@ -608,7 +601,7 @@ export default function DashboardPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-12 px-6 rounded-xl border-white/10 font-bold hover:bg-primary hover:text-primary-foreground shadow-lg transition-all active:scale-95"
+                    className="h-10 px-5 rounded-xl border-white/10 font-bold hover:bg-primary hover:text-primary-foreground shadow-lg transition-all active:scale-95"
                   >
                     Manage
                   </Button>
@@ -617,7 +610,7 @@ export default function DashboardPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-12 w-12 text-destructive hover:bg-destructive/10 rounded-xl transition-all"
+                  className="h-10 w-10 text-destructive hover:bg-destructive/10 rounded-xl transition-all"
                   onClick={() => setGalleryToDelete(gallery.id)}
                 >
                   <Trash2 className="w-5 h-5" />
@@ -628,7 +621,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Alert Dialog */}
+      {/* ═══ DELETE DIALOG ═══ */}
       <AlertDialog
         open={!!galleryToDelete}
         onOpenChange={(open) => !open && setGalleryToDelete(null)}
@@ -682,20 +675,20 @@ function StatCard({
   color?: string
 }) {
   return (
-    <Card className="group relative overflow-hidden bg-card/20 backdrop-blur-xl border border-white/5 rounded-[2.5rem] shadow-2xl transition-all duration-500 hover:translate-y-[-6px] hover:border-primary/30 hover:shadow-primary/5">
+    <Card className="group relative overflow-hidden bg-card/20 backdrop-blur-xl border border-white/5 rounded-[2rem] shadow-2xl transition-all duration-500 hover:translate-y-[-6px] hover:border-primary/30 hover:shadow-primary/5">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
-      <CardContent className="p-10 flex items-center justify-between relative z-10">
+      <CardContent className="p-7 flex items-center justify-between relative z-10">
         <div className="space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-muted-foreground/60 group-hover:text-primary transition-colors">
             {label}
           </p>
 
           {loading ? (
-            <Skeleton className="h-12 w-20 bg-white/5" />
+            <Skeleton className="h-10 w-16 bg-white/5" />
           ) : (
             <h3 className={cn(
-              "text-5xl font-headline font-bold tracking-tighter drop-shadow-2xl",
+              "text-4xl font-headline font-bold tracking-tighter drop-shadow-2xl",
               color
             )}>
               {value}
@@ -703,7 +696,7 @@ function StatCard({
           )}
         </div>
 
-        <div className="h-16 w-16 rounded-[1.5rem] bg-background/60 flex items-center justify-center text-primary shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] border border-white/5 group-hover:scale-110 transition-transform duration-500">
+        <div className="h-14 w-14 rounded-2xl bg-background/60 flex items-center justify-center text-primary shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] border border-white/5 group-hover:scale-110 transition-transform duration-500">
           {icon}
         </div>
       </CardContent>

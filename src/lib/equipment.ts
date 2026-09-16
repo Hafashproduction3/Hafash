@@ -1,6 +1,5 @@
 /**
  * Hafash Network — Equipment & Role Catalog
- * Comprehensive list for photographers, videographers, editors, and crew.
  */
 
 // ─────────────────────────────────────────────────────────────
@@ -18,13 +17,15 @@ export type Role =
   | 'helper'
   | 'makeup_artist';
 
+export type RoleCategory = 'on_site' | 'remote';
+
 export interface RoleDefinition {
   id: Role;
   label: string;
   description: string;
+  category: RoleCategory;
   requiresEquipment: boolean;
   requiresPortfolio: boolean;
-  requiredOnSite: boolean;
 }
 
 export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
@@ -32,74 +33,145 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
     id: 'photographer',
     label: 'Photographer',
     description: 'Captures still images at events and shoots.',
+    category: 'on_site',
     requiresEquipment: true,
     requiresPortfolio: true,
-    requiredOnSite: true,
   },
   videographer: {
     id: 'videographer',
     label: 'Videographer',
     description: 'Shoots cinematic video coverage at events.',
+    category: 'on_site',
     requiresEquipment: true,
     requiresPortfolio: true,
-    requiredOnSite: true,
   },
   drone_operator: {
     id: 'drone_operator',
     label: 'Drone Operator',
     description: 'Aerial cinematography using drones.',
+    category: 'on_site',
     requiresEquipment: true,
     requiresPortfolio: true,
-    requiredOnSite: true,
   },
   album_designer: {
     id: 'album_designer',
     label: 'Album Designer',
     description: 'Designs printed photo albums from event images.',
+    category: 'remote',
     requiresEquipment: false,
     requiresPortfolio: true,
-    requiredOnSite: false,
   },
   video_editor: {
     id: 'video_editor',
     label: 'Video Editor',
     description: 'Edits and color-grades event footage.',
+    category: 'remote',
     requiresEquipment: false,
     requiresPortfolio: true,
-    requiredOnSite: false,
   },
   photo_editor: {
     id: 'photo_editor',
     label: 'Photo Editor',
     description: 'Retouches and color-grades event photographs.',
+    category: 'remote',
     requiresEquipment: false,
     requiresPortfolio: true,
-    requiredOnSite: false,
   },
   camera_operator: {
     id: 'camera_operator',
     label: 'Camera Operator',
     description: 'Operates second camera or B-cam on shoots.',
+    category: 'on_site',
     requiresEquipment: true,
     requiresPortfolio: true,
-    requiredOnSite: true,
   },
   helper: {
     id: 'helper',
     label: 'Helper / Assistant',
     description: 'Assists photographers and videographers on-site.',
+    category: 'on_site',
     requiresEquipment: false,
     requiresPortfolio: false,
-    requiredOnSite: true,
   },
   makeup_artist: {
     id: 'makeup_artist',
     label: 'Makeup Artist',
     description: 'Provides professional makeup for shoots and events.',
+    category: 'on_site',
     requiresEquipment: false,
     requiresPortfolio: true,
-    requiredOnSite: true,
   },
+};
+
+/**
+ * Check if user's selected roles include any on-site role
+ */
+export function hasOnSiteRole(roles: Role[] | string[]): boolean {
+  return roles.some((r) => ROLE_DEFINITIONS[r as Role]?.category === 'on_site');
+}
+
+/**
+ * Check if user's selected roles include any remote role
+ */
+export function hasRemoteRole(roles: Role[] | string[]): boolean {
+  return roles.some((r) => ROLE_DEFINITIONS[r as Role]?.category === 'remote');
+}
+
+// ─────────────────────────────────────────────────────────────
+// TURNAROUND TIME (for Remote Roles)
+// ─────────────────────────────────────────────────────────────
+
+export interface TurnaroundOption {
+  id: string;
+  label: string;
+  short: string;     // for card display
+  minDays: number;
+  maxDays: number;
+}
+
+export const TURNAROUND_OPTIONS: TurnaroundOption[] = [
+  { id: 'same_day',   label: 'Same Day',              short: 'Same day',   minDays: 0,  maxDays: 0 },
+  { id: '24h',        label: 'Within 24 hours',       short: '24 hours',   minDays: 1,  maxDays: 1 },
+  { id: '2_days',     label: 'Within 2 days',         short: '1-2 days',   minDays: 1,  maxDays: 2 },
+  { id: '3_5_days',   label: '3 to 5 days',           short: '3-5 days',   minDays: 3,  maxDays: 5 },
+  { id: '1_week',     label: 'Within 1 week',         short: '~1 week',    minDays: 5,  maxDays: 7 },
+  { id: '2_weeks',    label: 'Within 2 weeks',        short: '~2 weeks',   minDays: 7,  maxDays: 14 },
+  { id: '3_4_weeks',  label: '3 to 4 weeks',          short: '3-4 weeks',  minDays: 21, maxDays: 28 },
+  { id: 'custom',     label: 'Depends on project',    short: 'Custom',     minDays: 0,  maxDays: 0 },
+];
+
+// ─────────────────────────────────────────────────────────────
+// REMOTE SERVICES (Kya kya deliver karte hain)
+// ─────────────────────────────────────────────────────────────
+
+export const REMOTE_SERVICES: Record<string, string[]> = {
+  video_editor: [
+    'Reels / Short Videos',
+    'Wedding Highlight',
+    'Full Wedding Film',
+    'YouTube Video',
+    'Commercial / Ad',
+    'Music Video',
+    'Documentary',
+    'Corporate Video',
+  ],
+  photo_editor: [
+    'Basic Retouch',
+    'Color Grading',
+    'Full Gallery Edit',
+    'Advanced Retouch',
+    'Background Removal',
+    'Product Photos',
+    'Skin Retouching',
+  ],
+  album_designer: [
+    'Basic Album Design',
+    'Premium Album Design',
+    'Photo Book',
+    'Digital Album',
+    'Magazine Style',
+    'Layflat Album',
+  ],
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -131,10 +203,6 @@ export interface EquipmentItem {
   name: string;
   brand?: string;
 }
-
-// ─────────────────────────────────────────────────────────────
-// MASTER EQUIPMENT CATALOG
-// ─────────────────────────────────────────────────────────────
 
 export const EQUIPMENT_CATALOG: EquipmentItem[] = [
   // Camera Bodies
@@ -303,90 +371,30 @@ export const TRAVEL_RANGE_LABELS: Record<TravelRange, string> = {
 };
 
 export const PAKISTAN_CITIES = [
-  'Karachi',
-  'Lahore',
-  'Islamabad',
-  'Rawalpindi',
-  'Faisalabad',
-  'Multan',
-  'Peshawar',
-  'Quetta',
-  'Hyderabad',
-  'Sialkot',
-  'Gujranwala',
-  'Bahawalpur',
-  'Sargodha',
-  'Sukkur',
-  'Larkana',
-  'Mirpur Khas',
-  'Abbottabad',
-  'Mardan',
-  'Gujrat',
-  'Kasur',
-  'Rahim Yar Khan',
-  'Sahiwal',
-  'Okara',
-  'Wah Cantt',
-  'Dera Ghazi Khan',
+  'Karachi', 'Lahore', 'Islamabad', 'Rawalpindi', 'Faisalabad',
+  'Multan', 'Peshawar', 'Quetta', 'Hyderabad', 'Sialkot',
+  'Gujranwala', 'Bahawalpur', 'Sargodha', 'Sukkur', 'Larkana',
+  'Mirpur Khas', 'Abbottabad', 'Mardan', 'Gujrat', 'Kasur',
+  'Rahim Yar Khan', 'Sahiwal', 'Okara', 'Wah Cantt', 'Dera Ghazi Khan',
 ];
 
 export const KARACHI_AREAS = [
-  'DHA',
-  'Clifton',
-  'Gulshan-e-Iqbal',
-  'Gulistan-e-Johar',
-  'Bahria Town',
-  'PECHS',
-  'North Nazimabad',
-  'Nazimabad',
-  'Federal B Area',
-  'Korangi',
-  'Landhi',
-  'Malir',
-  'Saddar',
-  'Garden',
-  'Lyari',
-  'Orangi Town',
-  'Baldia',
-  'Surjani Town',
-  'Scheme 33',
-  'Gadap',
+  'DHA', 'Clifton', 'Gulshan-e-Iqbal', 'Gulistan-e-Johar', 'Bahria Town',
+  'PECHS', 'North Nazimabad', 'Nazimabad', 'Federal B Area', 'Korangi',
+  'Landhi', 'Malir', 'Saddar', 'Garden', 'Lyari',
+  'Orangi Town', 'Baldia', 'Surjani Town', 'Scheme 33', 'Gadap',
 ];
 
 export const LAHORE_AREAS = [
-  'DHA Lahore',
-  'Bahria Town Lahore',
-  'Gulberg',
-  'Model Town',
-  'Johar Town',
-  'Wapda Town',
-  'Askari',
-  'Cantt',
-  'Iqbal Town',
-  'Township',
-  'Faisal Town',
-  'Green Town',
-  'Shadman',
-  'Garden Town',
+  'DHA Lahore', 'Bahria Town Lahore', 'Gulberg', 'Model Town', 'Johar Town',
+  'Wapda Town', 'Askari', 'Cantt', 'Iqbal Town', 'Township',
+  'Faisal Town', 'Green Town', 'Shadman', 'Garden Town',
 ];
 
 export const ISLAMABAD_AREAS = [
-  'F-6',
-  'F-7',
-  'F-8',
-  'F-10',
-  'F-11',
-  'G-6',
-  'G-9',
-  'G-10',
-  'G-11',
-  'E-11',
-  'DHA Islamabad',
-  'Bahria Town',
-  'Gulberg Greens',
-  'Rawalpindi Cantt',
-  'Satellite Town',
-  'Bahria Town Phase 8',
+  'F-6', 'F-7', 'F-8', 'F-10', 'F-11', 'G-6', 'G-9', 'G-10', 'G-11', 'E-11',
+  'DHA Islamabad', 'Bahria Town', 'Gulberg Greens', 'Rawalpindi Cantt',
+  'Satellite Town', 'Bahria Town Phase 8',
 ];
 
 export function getAreasForCity(city: string): string[] {
@@ -401,74 +409,17 @@ export function getAreasForCity(city: string): string[] {
 // EVENT TYPES
 // ─────────────────────────────────────────────────────────────
 
-export const RATE_CARD_CATEGORIES = [
-  'All Events (Same Rate)',
-  'Wedding Season',
-  'Corporate & Business',
-  'Portraits & Personal',
-  'Commercial & Product',
-  'Other',
-];
-
 export const EVENT_TYPES = [
-  'Wedding',
-  'Mehndi',
-  'Baraat',
-  'Walima',
-  'Engagement',
-  'Nikkah',
-  'Bridal Shower',
-  'Dholki',
-  'Aqiqah',
-  'Birthday',
-  'Baby Shower',
-  'Anniversary',
-  'Family Portrait',
-  'Reunion',
-  'Graduation',
-  'Convocation',
-  'Farewell Party',
-  'Annual Day',
-  'Corporate Event',
-  'Conference',
-  'Seminar',
-  'Product Launch',
-  'Award Ceremony',
-  'Exhibition',
-  'Trade Show',
-  'Networking Event',
-  'Portrait Session',
-  'Maternity Shoot',
-  'Newborn Shoot',
-  'Pre-Wedding Shoot',
-  'Post-Wedding Shoot',
-  'Fashion Shoot',
-  'Model Portfolio',
-  'Personal Branding',
-  'Product Shoot',
-  'Food Photography',
-  'Real Estate Shoot',
-  'Interior Shoot',
-  'E-commerce Shoot',
-  'Brand Campaign',
-  'Concert',
-  'Music Video',
-  'Theater / Play',
-  'DJ Event',
-  'Cultural Event',
-  'Eid Event',
-  'Ramadan Event',
-  'Religious Gathering',
-  'Charity Event',
-  'Community Event',
-  'Sports Event',
-  'Tournament',
-  'Documentary',
-  'Travel Shoot',
-  'Vlog / YouTube',
-  'Behind the Scenes',
-  'All Events',
-  'Other',
+  'Wedding', 'Mehndi', 'Baraat', 'Walima', 'Engagement', 'Nikkah', 'Bridal Shower', 'Dholki',
+  'Aqiqah', 'Birthday', 'Baby Shower', 'Anniversary', 'Family Portrait', 'Reunion',
+  'Graduation', 'Convocation', 'Farewell Party', 'Annual Day',
+  'Corporate Event', 'Conference', 'Seminar', 'Product Launch', 'Award Ceremony', 'Exhibition', 'Trade Show', 'Networking Event',
+  'Portrait Session', 'Maternity Shoot', 'Newborn Shoot', 'Pre-Wedding Shoot', 'Post-Wedding Shoot', 'Fashion Shoot', 'Model Portfolio', 'Personal Branding',
+  'Product Shoot', 'Food Photography', 'Real Estate Shoot', 'Interior Shoot', 'E-commerce Shoot', 'Brand Campaign',
+  'Concert', 'Music Video', 'Theater / Play', 'DJ Event', 'Cultural Event',
+  'Eid Event', 'Ramadan Event', 'Religious Gathering', 'Charity Event', 'Community Event',
+  'Sports Event', 'Tournament', 'Documentary', 'Travel Shoot', 'Vlog / YouTube', 'Behind the Scenes',
+  'All Events', 'Other',
 ];
 
 export const EVENT_TYPE_GROUPS: Record<string, string[]> = {
@@ -488,10 +439,11 @@ export const EVENT_TYPE_GROUPS: Record<string, string[]> = {
 // RATE UNITS
 // ─────────────────────────────────────────────────────────────
 
-export type RateUnit = 'per_event' | 'per_hour' | 'per_day';
+export type RateUnit = 'per_event' | 'per_hour' | 'per_day' | 'per_project';
 
 export const RATE_UNIT_LABELS: Record<RateUnit, string> = {
   per_event: 'Per Event',
   per_hour: 'Per Hour',
   per_day: 'Per Day',
+  per_project: 'Per Project',
 };
