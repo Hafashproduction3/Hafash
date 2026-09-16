@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useCallback, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useUser, useFirestore, useDoc } from "@/firebase";
 import {
@@ -117,6 +117,7 @@ interface ReviewData {
 
 export default function ProfessionalProfilePage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { user } = useUser();
   const firestore = useFirestore();
@@ -141,7 +142,8 @@ export default function ProfessionalProfilePage() {
   const { data: currentUserProfile } = useDoc(currentUserRef);
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [requestOpen, setRequestOpen] = useState(false);
+  // ⭐ Auto-open request modal if URL has ?request=1
+  const [requestOpen, setRequestOpen] = useState(searchParams.get('request') === '1');
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("");
   const [eventLocation, setEventLocation] = useState("");
@@ -614,7 +616,7 @@ export default function ProfessionalProfilePage() {
           </Card>
         )}
 
-        {/* DELIVERY TIME (for remote roles) */}
+        {/* DELIVERY TIME */}
         {hasRemote && (
           <Card className="rounded-[2rem] border-border/40 bg-gradient-to-br from-purple-500/5 via-card/60 to-background overflow-hidden">
             <div className="px-6 pt-5 pb-3 flex items-center gap-2 border-b border-border/20">
@@ -751,7 +753,7 @@ export default function ProfessionalProfilePage() {
               </SectionCard>
             )}
 
-            {/* ═══ PORTFOLIO ═══ */}
+            {/* PORTFOLIO */}
             <SectionCard title="Portfolio" icon={<ImageIcon className="w-4 h-4" />}>
               {profile.portfolioType === "hafash_gallery" ? (
                 <div className="space-y-4">

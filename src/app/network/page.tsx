@@ -39,10 +39,10 @@ import {
   ArrowRight,
   Clock,
   TrendingUp,
-  Filter,
   DollarSign,
   Check,
   Sliders,
+  Send,
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
@@ -84,7 +84,6 @@ export default function NetworkSearchPage() {
   const firestore = useFirestore();
   const router = useRouter();
 
-  // ─── Filters ───
   const [genderFilter, setGenderFilter] = useState<GenderFilter>('any');
   const [dateFilter, setDateFilter] = useState<Date | undefined>();
   const [locationQuery, setLocationQuery] = useState('');
@@ -95,7 +94,6 @@ export default function NetworkSearchPage() {
   const [budgetMax, setBudgetMax] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // ─── Data ───
   const myProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
@@ -116,23 +114,18 @@ export default function NetworkSearchPage() {
 
   const dateFilterKey = dateFilter ? format(dateFilter, 'yyyy-MM-dd') : '';
 
-  // ─── Filtering + Sorting ───
   const filteredProfiles = useMemo(() => {
     if (!profiles || !dateFilterKey) return [];
 
     const filtered = profiles.filter((p: any) => {
-      // Skip own profile
       if (user && p.userId === user.uid) return false;
 
-      // GENDER
       if (genderFilter !== 'any') {
         if (p.gender !== genderFilter) return false;
       }
 
-      // ROLE
       if (roleFilter && !(p.roles || []).includes(roleFilter)) return false;
 
-      // LOCATION
       if (locationQuery.trim()) {
         const q = locationQuery.trim().toLowerCase();
         const city = (p.baseCity || p.baseLocation || '').toLowerCase();
@@ -140,7 +133,6 @@ export default function NetworkSearchPage() {
         if (!city.includes(q) && !areas.some((a: string) => a.includes(q))) return false;
       }
 
-      // DATE AVAILABILITY — only for on-site roles
       if (dateFilterKey) {
         const matchingRoles = roleFilter ? [roleFilter] : (p.roles || []);
         const hasOnSiteMatch = matchingRoles.some((r: string) => !REMOTE_ROLES.includes(r));
@@ -151,16 +143,13 @@ export default function NetworkSearchPage() {
         }
       }
 
-      // VERIFIED ONLY
       if (verifiedOnly) {
-        // Compute verified based on their rating data
         const rCount = p.rating?.count || 0;
         const rAvg = p.rating?.average || 0;
         const isVer = p.isVerified || (rCount >= 5 && rAvg >= 4.0);
         if (!isVer) return false;
       }
 
-      // BUDGET
       const primaryRate = p.rates?.[0]?.amount || p.rate?.amount || 0;
       if (budgetMin && primaryRate < Number(budgetMin)) return false;
       if (budgetMax && primaryRate > Number(budgetMax)) return false;
@@ -168,7 +157,6 @@ export default function NetworkSearchPage() {
       return true;
     });
 
-    // SORTING
     return [...filtered].sort((a: any, b: any) => {
       const aRating = a.rating?.average || 0;
       const bRating = b.rating?.average || 0;
@@ -177,7 +165,6 @@ export default function NetworkSearchPage() {
       const aCreated = a.createdAt?.seconds || 0;
       const bCreated = b.createdAt?.seconds || 0;
 
-      // Trust score approximation for best_match
       const aTrust = (aRating * 60) / 5 + Math.min((a.rating?.count || 0) / 20, 1) * 20;
       const bTrust = (bRating * 60) / 5 + Math.min((b.rating?.count || 0) / 20, 1) * 20;
 
@@ -239,7 +226,7 @@ export default function NetworkSearchPage() {
     <div className="min-h-screen bg-background p-5 lg:p-10 animate-in fade-in duration-500">
       <div className="max-w-7xl mx-auto space-y-6">
 
-        {/* ═══ HEADER ═══ */}
+        {/* HEADER */}
         <div className="relative overflow-hidden rounded-[2rem] border border-border/40 bg-gradient-to-br from-primary/8 via-card/60 to-background px-6 py-6 lg:px-8 lg:py-8 shadow-sm">
           <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
@@ -274,16 +261,14 @@ export default function NetworkSearchPage() {
           </div>
         </div>
 
-        {/* ═══ FILTERS CARD ═══ */}
+        {/* FILTERS */}
         <Card className="bg-card/80 border-border/40 rounded-[2rem] overflow-hidden shadow-sm">
           <CardContent className="p-6 lg:p-7 space-y-7">
 
-            {/* ═ STEP 1: GENDER ═ */}
+            {/* STEP 1: GENDER */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">
-                  Step 1
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">Step 1</span>
                 <div className="h-px flex-1 bg-border/30" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
                   Kisko hire karna hai?
@@ -291,36 +276,16 @@ export default function NetworkSearchPage() {
               </div>
 
               <div className="grid grid-cols-3 gap-2">
-                <GenderChip
-                  active={genderFilter === 'any'}
-                  onClick={() => setGenderFilter('any')}
-                  label="Any"
-                  icon={<Users className="w-4 h-4" />}
-                  color="primary"
-                />
-                <GenderChip
-                  active={genderFilter === 'male'}
-                  onClick={() => setGenderFilter('male')}
-                  label="Male"
-                  icon={<UserCircle className="w-4 h-4" />}
-                  color="blue"
-                />
-                <GenderChip
-                  active={genderFilter === 'female'}
-                  onClick={() => setGenderFilter('female')}
-                  label="Female"
-                  icon={<UserCircle className="w-4 h-4" />}
-                  color="pink"
-                />
+                <GenderChip active={genderFilter === 'any'} onClick={() => setGenderFilter('any')} label="Any" icon={<Users className="w-4 h-4" />} color="primary" />
+                <GenderChip active={genderFilter === 'male'} onClick={() => setGenderFilter('male')} label="Male" icon={<UserCircle className="w-4 h-4" />} color="blue" />
+                <GenderChip active={genderFilter === 'female'} onClick={() => setGenderFilter('female')} label="Female" icon={<UserCircle className="w-4 h-4" />} color="pink" />
               </div>
             </div>
 
-            {/* ═ STEP 2: DATE (Required) ═ */}
+            {/* STEP 2: DATE */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">
-                  Step 2
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">Step 2</span>
                 <div className="h-px flex-1 bg-border/30" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
                   Kis date ke liye? <span className="text-destructive">*</span>
@@ -328,20 +293,15 @@ export default function NetworkSearchPage() {
               </div>
 
               {!dateFilter ? (
-                <div className="relative">
-                  <div className="flex items-center gap-3 p-4 rounded-2xl bg-background/40 border-2 border-dashed border-primary/30">
-                    <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
-                      <Clock className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm">Date select karein</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Available professionals dikhane ke liye date zaroori hai
-                      </p>
-                    </div>
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-background/40 border-2 border-dashed border-primary/30">
+                  <div className="w-11 h-11 rounded-xl bg-primary/10 border border-primary/25 flex items-center justify-center shrink-0">
+                    <Clock className="w-5 h-5 text-primary" />
                   </div>
-                  <div className="absolute inset-0 opacity-0 cursor-pointer">
-                    {/* Invisible overlay — click opens calendar */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-sm">Date select karein</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Available professionals dikhane ke liye date zaroori hai
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -350,19 +310,10 @@ export default function NetworkSearchPage() {
                     <Check className="w-5 h-5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-sm">
-                      {format(dateFilter, 'EEEE, dd MMMM yyyy')}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Aapki selected date
-                    </p>
+                    <p className="font-bold text-sm">{format(dateFilter, 'EEEE, dd MMMM yyyy')}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Aapki selected date</p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="rounded-full shrink-0"
-                    onClick={() => setDateFilter(undefined)}
-                  >
+                  <Button variant="ghost" size="icon" className="rounded-full shrink-0" onClick={() => setDateFilter(undefined)}>
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
@@ -379,12 +330,10 @@ export default function NetworkSearchPage() {
               </div>
             </div>
 
-            {/* ═ STEP 3: LOCATION ═ */}
+            {/* STEP 3: LOCATION */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">
-                  Step 3
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">Step 3</span>
                 <div className="h-px flex-1 bg-border/30" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
                   Kahan? (optional)
@@ -402,12 +351,10 @@ export default function NetworkSearchPage() {
               </div>
             </div>
 
-            {/* ═ STEP 4: ROLE ═ */}
+            {/* STEP 4: ROLE */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">
-                  Step 4
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">Step 4</span>
                 <div className="h-px flex-1 bg-border/30" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
                   Kaunse professional?
@@ -447,7 +394,7 @@ export default function NetworkSearchPage() {
               </div>
             </div>
 
-            {/* ═ ADVANCED FILTERS ═ */}
+            {/* ADVANCED */}
             <button
               type="button"
               onClick={() => setShowAdvanced(!showAdvanced)}
@@ -460,8 +407,6 @@ export default function NetworkSearchPage() {
 
             {showAdvanced && (
               <div className="space-y-5 animate-in fade-in slide-in-from-top-2 duration-300">
-
-                {/* Budget Range */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <DollarSign className="w-4 h-4 text-primary" />
@@ -470,32 +415,17 @@ export default function NetworkSearchPage() {
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      type="number"
-                      placeholder="Min (e.g. 5000)"
-                      className="h-11 rounded-xl"
-                      value={budgetMin}
-                      onChange={(e) => setBudgetMin(e.target.value)}
-                    />
-                    <Input
-                      type="number"
-                      placeholder="Max (e.g. 50000)"
-                      className="h-11 rounded-xl"
-                      value={budgetMax}
-                      onChange={(e) => setBudgetMax(e.target.value)}
-                    />
+                    <Input type="number" placeholder="Min (e.g. 5000)" className="h-11 rounded-xl" value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} />
+                    <Input type="number" placeholder="Max (e.g. 50000)" className="h-11 rounded-xl" value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} />
                   </div>
                 </div>
 
-                {/* Verified Toggle */}
                 <button
                   type="button"
                   onClick={() => setVerifiedOnly(!verifiedOnly)}
                   className={cn(
                     "w-full flex items-center justify-between px-4 py-3 rounded-xl border-2 transition-all",
-                    verifiedOnly
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border/30 hover:border-primary/30'
+                    verifiedOnly ? 'border-primary bg-primary/10' : 'border-border/30 hover:border-primary/30'
                   )}
                 >
                   <span className="flex items-center gap-2 text-xs font-bold">
@@ -512,7 +442,6 @@ export default function NetworkSearchPage() {
                   </div>
                 </button>
 
-                {/* Sort By */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <TrendingUp className="w-4 h-4 text-primary" />
@@ -555,7 +484,7 @@ export default function NetworkSearchPage() {
           </CardContent>
         </Card>
 
-        {/* ═══ RESULTS HEADER ═══ */}
+        {/* RESULTS HEADER */}
         {dateFilter && !loading && (
           <div className="flex flex-wrap items-center justify-between gap-3 px-2">
             <div className="flex items-center gap-2 flex-wrap">
@@ -594,7 +523,7 @@ export default function NetworkSearchPage() {
           </div>
         )}
 
-        {/* ═══ RESULTS ═══ */}
+        {/* RESULTS */}
         {!dateFilter ? (
           <EmptyState
             icon={<Clock className="w-10 h-10" />}
@@ -630,6 +559,9 @@ export default function NetworkSearchPage() {
                   toggleSave(profile.userId, savedIds.includes(profile.userId))
                 }
                 canSave={!!user}
+                onSendRequest={() => {
+                  router.push(`/network/professional/${profile.userId}?request=1`);
+                }}
               />
             ))}
           </div>
@@ -641,35 +573,16 @@ export default function NetworkSearchPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Gender Chip
+// Helper Components
 // ─────────────────────────────────────────────────────────────
 
-function GenderChip({
-  active,
-  onClick,
-  label,
-  icon,
-  color,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-  icon: React.ReactNode;
-  color: 'primary' | 'blue' | 'pink';
+function GenderChip({ active, onClick, label, icon, color }: {
+  active: boolean; onClick: () => void; label: string; icon: React.ReactNode; color: 'primary' | 'blue' | 'pink';
 }) {
   const colors = {
-    primary: {
-      active: 'border-primary bg-primary/10 text-primary',
-      inactive: 'border-border/30 text-muted-foreground hover:border-primary/30',
-    },
-    blue: {
-      active: 'border-blue-500 bg-blue-500/10 text-blue-400',
-      inactive: 'border-border/30 text-muted-foreground hover:border-blue-500/30',
-    },
-    pink: {
-      active: 'border-pink-500 bg-pink-500/10 text-pink-400',
-      inactive: 'border-border/30 text-muted-foreground hover:border-pink-500/30',
-    },
+    primary: { active: 'border-primary bg-primary/10 text-primary', inactive: 'border-border/30 text-muted-foreground hover:border-primary/30' },
+    blue: { active: 'border-blue-500 bg-blue-500/10 text-blue-400', inactive: 'border-border/30 text-muted-foreground hover:border-blue-500/30' },
+    pink: { active: 'border-pink-500 bg-pink-500/10 text-pink-400', inactive: 'border-border/30 text-muted-foreground hover:border-pink-500/30' },
   }[color];
 
   return (
@@ -681,10 +594,7 @@ function GenderChip({
         active ? colors.active : colors.inactive
       )}
     >
-      <div className={cn(
-        "w-8 h-8 rounded-lg flex items-center justify-center",
-        active ? "bg-current/10" : "bg-muted/40"
-      )}>
+      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", active ? "bg-current/10" : "bg-muted/40")}>
         {icon}
       </div>
       <span className="text-[11px] font-bold uppercase tracking-wider">{label}</span>
@@ -692,22 +602,8 @@ function GenderChip({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Empty State
-// ─────────────────────────────────────────────────────────────
-
-function EmptyState({
-  icon,
-  title,
-  description,
-  onAction,
-  actionLabel,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onAction?: () => void;
-  actionLabel?: string;
+function EmptyState({ icon, title, description, onAction, actionLabel }: {
+  icon: React.ReactNode; title: string; description: string; onAction?: () => void; actionLabel?: string;
 }) {
   return (
     <div className="text-center py-20 border-2 border-dashed border-border/40 rounded-[2rem] bg-card/30">
@@ -717,11 +613,7 @@ function EmptyState({
       <h3 className="text-xl font-headline font-bold mb-2">{title}</h3>
       <p className="text-muted-foreground text-sm max-w-md mx-auto leading-relaxed">{description}</p>
       {onAction && actionLabel && (
-        <Button
-          variant="outline"
-          className="mt-5 rounded-xl gap-2"
-          onClick={onAction}
-        >
+        <Button variant="outline" className="mt-5 rounded-xl gap-2" onClick={onAction}>
           <X className="w-4 h-4" />
           {actionLabel}
         </Button>
@@ -730,25 +622,20 @@ function EmptyState({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Professional Card
-// ─────────────────────────────────────────────────────────────
-
 function ProfessionalCard({
   profile,
   isSaved,
   onToggleSave,
   canSave,
+  onSendRequest,
 }: {
   profile: any;
   isSaved: boolean;
   onToggleSave: () => void;
   canSave: boolean;
+  onSendRequest: () => void;
 }) {
-  const displayName =
-    profile?.studioName ||
-    profile?.photographerName ||
-    'Hafash Professional';
+  const displayName = profile?.studioName || profile?.photographerName || 'Hafash Professional';
 
   const roleIcons: Record<string, React.ReactNode> = {
     photographer: <Camera className="w-3 h-3" />,
@@ -780,10 +667,8 @@ function ProfessionalCard({
   const completedJobs = profile?.completedJobs || 0;
   const city = profile?.baseCity || profile?.baseLocation || '';
 
-  // Verified check
   const isVerified = profile?.isVerified || (ratingCount >= 5 && ratingAvg >= 4.0);
 
-  // Gender
   const gender = profile?.gender;
   const isFemale = gender === 'female';
   const isMale = gender === 'male';
@@ -797,7 +682,6 @@ function ProfessionalCard({
         !isFemale && !isMale && "hover:border-primary/40"
       )}
     >
-      {/* Top accent line */}
       <div className={cn(
         "absolute inset-x-0 top-0 h-1",
         isFemale && "bg-gradient-to-r from-pink-500/60 via-pink-500/20 to-transparent",
@@ -822,7 +706,6 @@ function ProfessionalCard({
               )}
             </div>
 
-            {/* Gender + Roles */}
             <div className="flex flex-wrap gap-1.5 mt-2">
               {isFemale && (
                 <Badge className="rounded-md bg-pink-500/15 text-pink-400 border-pink-500/30 text-[9px] font-bold uppercase tracking-widest gap-1 px-2">
@@ -861,17 +744,12 @@ function ProfessionalCard({
               onClick={onToggleSave}
               className="shrink-0 w-10 h-10 rounded-xl border border-border/40 bg-background/50 flex items-center justify-center hover:bg-primary/5 hover:border-primary/20 transition-all"
             >
-              <Heart
-                className={cn(
-                  "w-5 h-5",
-                  isSaved ? 'fill-red-400 text-red-400' : 'text-muted-foreground'
-                )}
-              />
+              <Heart className={cn("w-5 h-5", isSaved ? 'fill-red-400 text-red-400' : 'text-muted-foreground')} />
             </button>
           )}
         </div>
 
-        {/* Rating + Jobs */}
+        {/* Rating */}
         {(ratingCount > 0 || completedJobs > 0) && (
           <div className="flex items-center gap-4 text-xs">
             {ratingCount > 0 && (
@@ -906,19 +784,14 @@ function ProfessionalCard({
 
         {/* Bio */}
         {profile.bio && (
-          <p className="text-sm leading-6 text-muted-foreground line-clamp-2">
-            {profile.bio}
-          </p>
+          <p className="text-sm leading-6 text-muted-foreground line-clamp-2">{profile.bio}</p>
         )}
 
         {/* Equipment */}
         {(profile.equipment || []).length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {profile.equipment.slice(0, 3).map((eq: any) => (
-              <Badge
-                key={eq.id}
-                className="bg-background/60 text-muted-foreground border-border/30 rounded-lg text-[10px] px-2 py-0.5 font-normal"
-              >
+              <Badge key={eq.id} className="bg-background/60 text-muted-foreground border-border/30 rounded-lg text-[10px] px-2 py-0.5 font-normal">
                 {eq.name}
               </Badge>
             ))}
@@ -930,16 +803,14 @@ function ProfessionalCard({
           </div>
         )}
 
-        {/* Rate + Social */}
-        <div className="flex items-end justify-between pt-4 border-t border-border/20">
+        {/* Rate + Social + Send Request */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-border/20">
           <div>
-            <p className="text-[9px] uppercase font-bold tracking-widest text-muted-foreground">
-              Rate
-            </p>
+            <p className="text-[9px] uppercase font-bold tracking-widest text-muted-foreground">Rate</p>
             <p className="font-headline font-bold text-primary">
               Rs. {primaryRate?.amount?.toLocaleString() || '—'}
               <span className="text-xs text-muted-foreground">
-                /{primaryRate?.unit === 'per_hour' ? 'hr' : primaryRate?.unit === 'per_day' ? 'day' : 'event'}
+                /{primaryRate?.unit === 'per_hour' ? 'hr' : primaryRate?.unit === 'per_day' ? 'day' : primaryRate?.unit === 'per_project' ? 'project' : 'event'}
               </span>
             </p>
           </div>
@@ -960,11 +831,19 @@ function ProfessionalCard({
                 <Youtube className="w-4 h-4 text-muted-foreground hover:text-red-500 transition-colors" />
               </a>
             )}
-            {profile.portfolioType === 'hafash_gallery' && (
-              <ImageIcon className="w-4 h-4 text-primary" />
-            )}
           </div>
         </div>
+
+        {/* ═══ SEND REQUEST BUTTON ═══ */}
+        {canSave && (
+          <Button
+            className="w-full rounded-xl h-11 font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 group/btn"
+            onClick={onSendRequest}
+          >
+            <Send className="w-4 h-4 group-hover/btn:translate-x-0.5 transition-transform" />
+            Send Request
+          </Button>
+        )}
 
       </CardContent>
     </Card>
