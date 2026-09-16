@@ -11,12 +11,12 @@ import {
   getDocs,
   addDoc,
   updateDoc,
+  setDoc,
   serverTimestamp,
   limit,
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
@@ -96,7 +96,6 @@ export default function ReviewPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alreadyReviewed, setAlreadyReviewed] = useState(false);
 
-  // Load request
   const requestRef = useMemo(() => {
     if (!firestore || !requestId) return null;
     return doc(firestore, "networkRequests", requestId);
@@ -119,7 +118,6 @@ export default function ReviewPage() {
     return isHirer ? request.professionalName : request.hirerName;
   }, [request, isHirer]);
 
-  // Check if already reviewed
   useEffect(() => {
     async function checkExistingReview() {
       if (!firestore || !requestId || !user) return;
@@ -135,7 +133,7 @@ export default function ReviewPage() {
           setAlreadyReviewed(true);
         }
       } catch (e) {
-        // Silent fail
+        // Silent
       }
     }
     checkExistingReview();
@@ -165,7 +163,7 @@ export default function ReviewPage() {
 
     setIsSubmitting(true);
     try {
-      // Add review to Firestore
+      // 1. Add review document
       await addDoc(collection(firestore, "networkReviews"), {
         requestId,
         reviewerId: user.uid,
@@ -185,14 +183,14 @@ export default function ReviewPage() {
         isRevealed: false,
       });
 
-      // Mark review status on request
+      // 2. Mark review status on request
       await updateDoc(doc(firestore, "networkRequests", requestId), {
         [isHirer ? "hirerReviewed" : "professionalReviewed"]: true,
         updatedAt: serverTimestamp(),
       });
 
-      // Update reviewee's aggregate rating
-      await updateAggregate(otherUserId!, ratings, averageRating);
+      // 3. Update reviewee's aggregate rating on their network profile
+      await updateAggregateRating(firestore, otherUserId!);
 
       toast({
         title: "Review Submitted",
@@ -283,7 +281,6 @@ export default function ReviewPage() {
     <div className="min-h-screen bg-background p-6 lg:p-12 animate-in fade-in duration-500">
       <div className="max-w-2xl mx-auto space-y-6">
 
-        {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" className="rounded-full" onClick={() => router.back()}>
             <ArrowLeft className="w-5 h-5" />
@@ -304,7 +301,6 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        {/* Reviewee Card */}
         <Card className="rounded-2xl border-border/40 bg-gradient-to-br from-primary/5 to-background">
           <CardContent className="p-5 flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
@@ -322,7 +318,6 @@ export default function ReviewPage() {
           </CardContent>
         </Card>
 
-        {/* Overall Rating Display */}
         {averageRating > 0 && (
           <Card className="rounded-2xl border-primary/20 bg-primary/5">
             <CardContent className="p-6 text-center">
@@ -349,7 +344,6 @@ export default function ReviewPage() {
           </Card>
         )}
 
-        {/* Rating Categories */}
         <Card className="rounded-2xl border-border/40 bg-card/60">
           <CardContent className="p-6 space-y-6">
             {CATEGORIES.map((cat) => {
@@ -369,7 +363,6 @@ export default function ReviewPage() {
                     </div>
                   </div>
 
-                  {/* Stars */}
                   <div className="flex items-center gap-2 ml-13">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button
@@ -408,7 +401,6 @@ export default function ReviewPage() {
           </CardContent>
         </Card>
 
-        {/* Written Review */}
         <Card className="rounded-2xl border-border/40 bg-card/60">
           <CardContent className="p-6 space-y-3">
             <div>
@@ -436,7 +428,6 @@ export default function ReviewPage() {
           </CardContent>
         </Card>
 
-        {/* Info */}
         <div className="flex items-start gap-2 p-4 rounded-xl bg-primary/5 border border-primary/20">
           <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground">
@@ -444,7 +435,6 @@ export default function ReviewPage() {
           </p>
         </div>
 
-        {/* Submit */}
         <Button
           className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base shadow-2xl shadow-primary/20 gap-2"
           onClick={handleSubmit}
@@ -468,12 +458,76 @@ export default function ReviewPage() {
   );
 }
 
-// Update aggregate rating on the reviewee's profile
-async function updateAggregate(
-  revieweeId: string,
-  ratings: RatingValues,
-  overallRating: number
-) {
-  // We'll do a separate function later — for now, skip
-  // This will be added in Phase 3
+// ─────────────────────────────────────────────────────────────
+// Aggregate rating updater
+// Fetches all reviews for a user and recalculates their average
+// ─────────────────────────────────────────────────────────────
+async function updateAggregateRating(firestore: any, revieweeId: string) {
+  if (!firestore || !revieweeId) return;
+
+  try {
+    // Fetch all reviews for this user
+    const q = query(
+      collection(firestore, "networkReviews"),
+      where("revieweeId", "==", revieweeId)
+    );
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      // No reviews — reset aggregate
+      await setDoc(
+        doc(firestore, "networkProfiles", revieweeId),
+        {
+          rating: {
+            average: 0,
+            count: 0,
+            punctuality: 0,
+            behavior: 0,
+            workQuality: 0,
+            communication: 0,
+          },
+        },
+        { merge: true }
+      );
+      return;
+    }
+
+    let totalOverall = 0;
+    let totalPunctuality = 0;
+    let totalBehavior = 0;
+    let totalWorkQuality = 0;
+    let totalCommunication = 0;
+    let count = 0;
+
+    snap.forEach((d: any) => {
+      const data = d.data();
+      const r = data.ratings || {};
+      totalOverall += Number(data.overallRating || 0);
+      totalPunctuality += Number(r.punctuality || 0);
+      totalBehavior += Number(r.behavior || 0);
+      totalWorkQuality += Number(r.workQuality || 0);
+      totalCommunication += Number(r.communication || 0);
+      count++;
+    });
+
+    if (count === 0) return;
+
+    await setDoc(
+      doc(firestore, "networkProfiles", revieweeId),
+      {
+        rating: {
+          average: Number((totalOverall / count).toFixed(2)),
+          count,
+          punctuality: Number((totalPunctuality / count).toFixed(2)),
+          behavior: Number((totalBehavior / count).toFixed(2)),
+          workQuality: Number((totalWorkQuality / count).toFixed(2)),
+          communication: Number((totalCommunication / count).toFixed(2)),
+        },
+        completedJobs: count,
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.error("[AGGREGATE] Error:", err);
+  }
 }

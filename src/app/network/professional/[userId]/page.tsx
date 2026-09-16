@@ -1,9 +1,21 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useUser, useFirestore, useDoc } from "@/firebase";
-import { addDoc, arrayRemove, arrayUnion, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
+import {
+  addDoc,
+  arrayRemove,
+  arrayUnion,
+  collection,
+  doc,
+  query,
+  where,
+  getDocs,
+  serverTimestamp,
+  updateDoc,
+  limit,
+} from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,15 +52,14 @@ import {
   ChevronRight,
   Loader2,
   Info,
+  MessageSquare,
+  ThumbsUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { RATE_UNIT_LABELS, TRAVEL_RANGE_LABELS } from "@/lib/equipment";
 import { EventTypePicker } from "@/components/event-type-picker";
 
-// ─────────────────────────────────────────────────────────────
-// Role icons & labels
-// ─────────────────────────────────────────────────────────────
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   photographer: <Camera className="w-4 h-4" />,
   videographer: <Video className="w-4 h-4" />,
@@ -72,6 +83,22 @@ const ROLE_LABELS: Record<string, string> = {
   helper: "Helper / Assistant",
   makeup_artist: "Makeup Artist",
 };
+
+interface ReviewData {
+  id: string;
+  reviewerId: string;
+  reviewerName: string;
+  ratings: {
+    punctuality: number;
+    behavior: number;
+    workQuality: number;
+    communication: number;
+  };
+  overallRating: number;
+  text?: string;
+  createdAt: any;
+  role: string;
+}
 
 export default function ProfessionalProfilePage() {
   const params = useParams();
@@ -107,9 +134,45 @@ export default function ProfessionalProfilePage() {
   const [requestMessage, setRequestMessage] = useState("");
   const [isSendingRequest, setIsSendingRequest] = useState(false);
 
+  // Reviews state
+  const [reviews, setReviews] = useState<ReviewData[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+
   const savedProfiles = currentUserProfile?.savedNetworkProfiles || [];
   const isSaved = !!userId && savedProfiles.includes(userId);
   const isOwnProfile = !!user && user.uid === userId;
+
+  // Fetch reviews
+  useEffect(() => {
+    async function fetchReviews() {
+      if (!firestore || !userId) return;
+      setReviewsLoading(true);
+      try {
+        const q = query(
+          collection(firestore, "networkReviews"),
+          where("revieweeId", "==", userId),
+          limit(20)
+        );
+        const snap = await getDocs(q);
+        const revs: ReviewData[] = [];
+        snap.forEach((d) => {
+          revs.push({ id: d.id, ...d.data() } as ReviewData);
+        });
+        // Sort newest first
+        revs.sort((a, b) => {
+          const aT = a.createdAt?.seconds || 0;
+          const bT = b.createdAt?.seconds || 0;
+          return bT - aT;
+        });
+        setReviews(revs);
+      } catch (e) {
+        console.error("[REVIEWS] Fetch error:", e);
+      } finally {
+        setReviewsLoading(false);
+      }
+    }
+    fetchReviews();
+  }, [firestore, userId]);
 
   const toggleSaveProfile = useCallback(async () => {
     if (!user || !firestore || !userId || isSavingProfile) return;
@@ -154,7 +217,7 @@ export default function ProfessionalProfilePage() {
       setEventLocation("");
       setBudget("");
       setRequestMessage("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("[NETWORK_REQUEST] Send error:", error);
       toast({ variant: "destructive", title: "Failed to send request" });
     } finally {
@@ -173,10 +236,6 @@ export default function ProfessionalProfilePage() {
         <div className="max-w-5xl mx-auto space-y-6 animate-pulse">
           <div className="h-8 w-32 rounded-xl bg-muted/30" />
           <div className="h-72 rounded-[2rem] bg-muted/20" />
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 h-72 rounded-[2rem] bg-muted/20" />
-            <div className="h-72 rounded-[2rem] bg-muted/20" />
-          </div>
         </div>
       </div>
     );
@@ -223,7 +282,6 @@ export default function ProfessionalProfilePage() {
     const status = profile?.availability?.[key] || "available";
     return { date: d, status, key };
   });
-
   return (
     <div className="min-h-screen bg-background pb-20">
       <div className="max-w-5xl mx-auto p-5 lg:p-10 space-y-6">
@@ -272,11 +330,32 @@ export default function ProfessionalProfilePage() {
                     </h1>
 
                     {photographerName && (
-                      <p className="text-sm text-muted-foreground mt-1">
-                        {photographerName}
-                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">{photographerName}</p>
                     )}
                   </div>
+
+                  {/* Rating summary in hero */}
+                  {ratingCount > 0 && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((s) => (
+                          <Star
+                            key={s}
+                            className={cn(
+                              "w-4 h-4",
+                              s <= Math.round(ratingAvg)
+                                ? "fill-yellow-400 text-yellow-400"
+                                : "text-muted-foreground/30"
+                            )}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-sm font-bold">{ratingAvg.toFixed(1)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        ({ratingCount} {ratingCount === 1 ? "review" : "reviews"})
+                      </span>
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap gap-2">
                     {(profile.roles || []).map((role: string) => (
@@ -392,7 +471,6 @@ export default function ProfessionalProfilePage() {
 
         {/* MAIN GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
-
           <div className="space-y-6">
 
             {profile.bio && (
@@ -543,16 +621,83 @@ export default function ProfessionalProfilePage() {
               )}
             </SectionCard>
 
-            <SectionCard title="Reviews" icon={<Star className="w-4 h-4" />}>
-              <div className="text-center py-8 rounded-2xl bg-background/30 border border-dashed border-border/40">
-                <Star className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-sm text-muted-foreground font-medium">
-                  {ratingCount === 0 ? "No reviews yet" : `${ratingCount} reviews`}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Reviews appear after completed bookings
-                </p>
-              </div>
+            {/* ⭐ REVIEWS SECTION */}
+            <SectionCard title={`Reviews (${reviews.length})`} icon={<Star className="w-4 h-4" />}>
+              {reviewsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="p-4 rounded-2xl bg-background/40 border border-border/30 animate-pulse">
+                      <div className="h-4 w-32 bg-muted/30 rounded mb-2" />
+                      <div className="h-3 w-full bg-muted/20 rounded" />
+                    </div>
+                  ))}
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8 rounded-2xl bg-background/30 border border-dashed border-border/40">
+                  <Star className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground font-medium">
+                    No reviews yet
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Reviews appear after completed bookings
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Rating breakdown */}
+                  {ratingCount > 0 && (
+                    <div className="p-5 rounded-2xl bg-gradient-to-br from-primary/5 to-background border border-primary/15 space-y-3">
+                      <div className="flex items-center gap-4">
+                        <div className="text-center">
+                          <p className="text-4xl font-headline font-bold text-primary">
+                            {ratingAvg.toFixed(1)}
+                          </p>
+                          <div className="flex items-center gap-0.5 mt-1">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <Star
+                                key={s}
+                                className={cn(
+                                  "w-3 h-3",
+                                  s <= Math.round(ratingAvg)
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-muted-foreground/30"
+                                )}
+                              />
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            {ratingCount} reviews
+                          </p>
+                        </div>
+
+                        <div className="flex-1 space-y-2">
+                          <CategoryBar
+                            label="Punctuality"
+                            value={profile?.rating?.punctuality || 0}
+                          />
+                          <CategoryBar
+                            label="Behavior"
+                            value={profile?.rating?.behavior || 0}
+                          />
+                          <CategoryBar
+                            label="Work Quality"
+                            value={profile?.rating?.workQuality || 0}
+                          />
+                          <CategoryBar
+                            label="Communication"
+                            value={profile?.rating?.communication || 0}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Individual reviews */}
+                  {reviews.map((review) => (
+                    <ReviewItem key={review.id} review={review} />
+                  ))}
+                </div>
+              )}
             </SectionCard>
 
           </div>
@@ -641,7 +786,6 @@ export default function ProfessionalProfilePage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-7 lg:p-8 space-y-6">
-
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-2xl font-headline font-bold">Send Work Request</h2>
@@ -713,7 +857,7 @@ export default function ProfessionalProfilePage() {
                     Message
                   </label>
                   <Textarea
-                    placeholder="Tell them what you need — number of hours, what to capture, any special requests..."
+                    placeholder="Tell them what you need..."
                     value={requestMessage}
                     onChange={(e) => setRequestMessage(e.target.value)}
                     className="min-h-[110px] rounded-xl resize-none"
@@ -743,15 +887,9 @@ export default function ProfessionalProfilePage() {
                   disabled={!eventDate || !eventType || isSendingRequest}
                 >
                   {isSendingRequest ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Sending...
-                    </>
+                    <><Loader2 className="w-4 h-4 animate-spin" />Sending...</>
                   ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      Send Request
-                    </>
+                    <><Send className="w-4 h-4" />Send Request</>
                   )}
                 </Button>
               </div>
@@ -762,7 +900,6 @@ export default function ProfessionalProfilePage() {
     </div>
   );
 }
-
 // ─────────────────────────────────────────────────────────────
 // Helper Components
 // ─────────────────────────────────────────────────────────────
@@ -786,9 +923,7 @@ function SectionCard({
           {title}
         </h3>
       </div>
-      <div className="p-6">
-        {children}
-      </div>
+      <div className="p-6">{children}</div>
     </Card>
   );
 }
@@ -819,9 +954,7 @@ function StatBox({
         <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center mb-3 border", colorClasses)}>
           {icon}
         </div>
-        <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
-          {label}
-        </p>
+        <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">{label}</p>
         <p className="text-xl lg:text-2xl font-headline font-bold mt-1">{value}</p>
         <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>
       </CardContent>
@@ -876,5 +1009,77 @@ function SocialCard({
       <span className="text-xs font-bold">{label}</span>
       <ChevronRight className="w-3 h-3 text-muted-foreground" />
     </a>
+  );
+}
+
+function CategoryBar({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-muted-foreground w-24 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 bg-background/60 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full transition-all"
+          style={{ width: `${(value / 5) * 100}%` }}
+        />
+      </div>
+      <span className="text-[10px] font-bold w-6 text-right">{value.toFixed(1)}</span>
+    </div>
+  );
+}
+
+function ReviewItem({ review }: { review: ReviewData }) {
+  let dateStr = "";
+  try {
+    const d = review.createdAt?.toDate?.() || new Date(review.createdAt);
+    dateStr = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } catch {}
+
+  const roleLabel = review.role === "hirer" ? "Hirer" : "Professional";
+
+  return (
+    <div className="p-5 rounded-2xl bg-background/40 border border-border/30 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
+            <Star className="w-4 h-4 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-sm truncate">{review.reviewerName || "Anonymous"}</p>
+            <p className="text-[10px] text-muted-foreground">
+              {roleLabel} • {dateStr}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+          <span className="text-sm font-bold">{review.overallRating.toFixed(1)}</span>
+        </div>
+      </div>
+
+      {review.text && (
+        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+          &ldquo;{review.text}&rdquo;
+        </p>
+      )}
+
+      <div className="flex flex-wrap gap-2 pt-2 border-t border-border/20">
+        <MiniRating label="Punctuality" value={review.ratings?.punctuality || 0} />
+        <MiniRating label="Behavior" value={review.ratings?.behavior || 0} />
+        <MiniRating label="Work" value={review.ratings?.workQuality || 0} />
+        <MiniRating label="Comm." value={review.ratings?.communication || 0} />
+      </div>
+    </div>
+  );
+}
+
+function MiniRating({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-background/60 border border-border/30">
+      <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{label}</span>
+      <div className="flex items-center gap-0.5">
+        <Star className="w-2.5 h-2.5 fill-primary text-primary" />
+        <span className="text-[10px] font-bold">{value}</span>
+      </div>
+    </div>
   );
 }
