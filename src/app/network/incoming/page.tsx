@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useFirestore, useCollection } from "@/firebase";
-import { collection, query, where, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,8 @@ import {
   MessageSquare,
   Sparkles,
   Bell,
+  CheckCircle2,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +52,10 @@ interface NetworkRequest {
   eventLocation?: string;
   budget?: number | null;
   message?: string;
+  completedByHirer?: boolean;
+  completedByProfessional?: boolean;
+  hirerReviewed?: boolean;
+  professionalReviewed?: boolean;
   createdAt: any;
   updatedAt: any;
 }
@@ -78,7 +84,7 @@ const STATUS_CONFIG: Record<RequestStatus, { label: string; color: string; icon:
   completed: {
     label: "Completed",
     color: "bg-primary/15 text-primary border-primary/30",
-    icon: <Check className="w-3.5 h-3.5" />,
+    icon: <CheckCircle2 className="w-3.5 h-3.5" />,
   },
 };
 
@@ -91,6 +97,8 @@ export default function IncomingRequestsPage() {
   const [filter, setFilter] = useState<"all" | RequestStatus>("all");
   const [actionTarget, setActionTarget] = useState<{ id: string; action: "accept" | "decline" } | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [completeTarget, setCompleteTarget] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const requestsQuery = useMemo(() => {
     if (!firestore || !user) return null;
@@ -149,6 +157,39 @@ export default function IncomingRequestsPage() {
     }
   }, [firestore, actionTarget, isProcessing, toast]);
 
+  // Mark as complete — professional side
+  const handleMarkComplete = useCallback(async () => {
+    if (!firestore || !completeTarget || isCompleting) return;
+    setIsCompleting(true);
+    try {
+      const ref = doc(firestore, "networkRequests", completeTarget);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) throw new Error("Request not found");
+
+      const data = snap.data();
+      const bothComplete = !!data.completedByHirer;
+
+      await updateDoc(ref, {
+        completedByProfessional: true,
+        completedAt: serverTimestamp(),
+        status: bothComplete ? "completed" : "accepted",
+        updatedAt: serverTimestamp(),
+      });
+
+      toast({
+        title: "Marked as Complete",
+        description: bothComplete
+          ? "Both parties confirmed — event is complete!"
+          : "Waiting for the hirer to confirm.",
+      });
+      setCompleteTarget(null);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Failed", description: err.message });
+    } finally {
+      setIsCompleting(false);
+    }
+  }, [firestore, completeTarget, isCompleting, toast]);
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -203,6 +244,7 @@ export default function IncomingRequestsPage() {
           <FilterChip active={filter === "all"} onClick={() => setFilter("all")} label={`All (${counts.all})`} />
           <FilterChip active={filter === "pending"} onClick={() => setFilter("pending")} label={`New (${counts.pending})`} />
           <FilterChip active={filter === "accepted"} onClick={() => setFilter("accepted")} label={`Accepted (${counts.accepted})`} />
+          <FilterChip active={filter === "completed"} onClick={() => setFilter("completed")} label={`Completed (${counts.completed})`} />
           <FilterChip active={filter === "declined"} onClick={() => setFilter("declined")} label={`Declined (${counts.declined})`} />
         </div>
 
@@ -227,22 +269,22 @@ export default function IncomingRequestsPage() {
                 request={request as NetworkRequest}
                 onAccept={() => setActionTarget({ id: request.id, action: "accept" })}
                 onDecline={() => setActionTarget({ id: request.id, action: "decline" })}
-                onViewProfile={() =>
-                  router.push(`/network/professional/${request.hirerId}`)
-                }
+                onMarkComplete={() => setCompleteTarget(request.id)}
+                onOpenChat={() => router.push(`/network/chat/${request.id}`)}
+                onLeaveReview={() => router.push(`/network/review/${request.id}`)}
+                onViewProfile={() => router.push(`/network/professional/${request.hirerId}`)}
               />
             ))}
           </div>
         )}
       </div>
 
+      {/* Accept/Decline Dialog */}
       <AlertDialog open={!!actionTarget} onOpenChange={(o) => !o && setActionTarget(null)}>
         <AlertDialogContent className="rounded-[2rem] border-border/40">
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {actionTarget?.action === "accept"
-                ? "Accept this request?"
-                : "Decline this request?"}
+              {actionTarget?.action === "accept" ? "Accept this request?" : "Decline this request?"}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {actionTarget?.action === "accept"
@@ -262,14 +304,34 @@ export default function IncomingRequestsPage() {
               disabled={isProcessing}
             >
               {isProcessing ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Processing...
-                </>
-              ) : actionTarget?.action === "accept" ? (
-                "Yes, Accept"
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Processing...</>
+              ) : actionTarget?.action === "accept" ? "Yes, Accept" : "Yes, Decline"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mark Complete Dialog */}
+      <AlertDialog open={!!completeTarget} onOpenChange={(o) => !o && setCompleteTarget(null)}>
+        <AlertDialogContent className="rounded-[2rem] border-border/40">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark this event as complete?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirm that you delivered the event successfully. Once both parties confirm,
+              you&apos;ll be able to leave a review.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCompleting}>Not yet</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-green-500 hover:bg-green-600 text-white"
+              onClick={handleMarkComplete}
+              disabled={isCompleting}
+            >
+              {isCompleting ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Marking...</>
               ) : (
-                "Yes, Decline"
+                <><Check className="w-4 h-4 mr-2" />Yes, Complete</>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -305,7 +367,6 @@ function LoadingState() {
             <div className="animate-pulse space-y-3">
               <div className="h-4 w-40 bg-muted/30 rounded" />
               <div className="h-3 w-64 bg-muted/20 rounded" />
-              <div className="h-3 w-48 bg-muted/20 rounded" />
             </div>
           </CardContent>
         </Card>
@@ -314,16 +375,8 @@ function LoadingState() {
   );
 }
 
-function EmptyState({
-  title,
-  description,
-  onAction,
-  actionLabel,
-}: {
-  title: string;
-  description: string;
-  onAction: () => void;
-  actionLabel: string;
+function EmptyState({ title, description, onAction, actionLabel }: {
+  title: string; description: string; onAction: () => void; actionLabel: string;
 }) {
   return (
     <Card className="rounded-[2rem] border-dashed border-border/40 bg-card/40">
@@ -333,9 +386,7 @@ function EmptyState({
         </div>
         <div>
           <h3 className="font-headline font-bold text-xl">{title}</h3>
-          <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-            {description}
-          </p>
+          <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">{description}</p>
         </div>
         <Button
           className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 mt-2"
@@ -353,11 +404,17 @@ function IncomingRequestCard({
   request,
   onAccept,
   onDecline,
+  onMarkComplete,
+  onOpenChat,
+  onLeaveReview,
   onViewProfile,
 }: {
   request: NetworkRequest;
   onAccept: () => void;
   onDecline: () => void;
+  onMarkComplete: () => void;
+  onOpenChat: () => void;
+  onLeaveReview: () => void;
   onViewProfile: () => void;
 }) {
   const statusConfig = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
@@ -366,6 +423,11 @@ function IncomingRequestCard({
   try {
     formattedDate = format(new Date(request.eventDate), "EEE, dd MMM yyyy");
   } catch {}
+
+  const isAccepted = request.status === "accepted";
+  const isCompleted = request.status === "completed";
+  const iMarkedComplete = !!request.completedByProfessional;
+  const iReviewed = !!request.professionalReviewed;
 
   return (
     <Card className="rounded-3xl border-border/40 bg-card/70 overflow-hidden hover:border-primary/30 transition-all">
@@ -398,29 +460,13 @@ function IncomingRequestCard({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <DetailRow
-            icon={<Briefcase className="w-3.5 h-3.5" />}
-            label="Event Type"
-            value={request.eventType || "—"}
-          />
-          <DetailRow
-            icon={<Calendar className="w-3.5 h-3.5" />}
-            label="Event Date"
-            value={formattedDate || "—"}
-          />
+          <DetailRow icon={<Briefcase className="w-3.5 h-3.5" />} label="Event Type" value={request.eventType || "—"} />
+          <DetailRow icon={<Calendar className="w-3.5 h-3.5" />} label="Event Date" value={formattedDate || "—"} />
           {request.eventLocation && (
-            <DetailRow
-              icon={<MapPin className="w-3.5 h-3.5" />}
-              label="Location"
-              value={request.eventLocation}
-            />
+            <DetailRow icon={<MapPin className="w-3.5 h-3.5" />} label="Location" value={request.eventLocation} />
           )}
           {request.budget != null && request.budget > 0 && (
-            <DetailRow
-              icon={<Sparkles className="w-3.5 h-3.5" />}
-              label="Budget"
-              value={`Rs. ${request.budget.toLocaleString()}`}
-            />
+            <DetailRow icon={<Sparkles className="w-3.5 h-3.5" />} label="Budget" value={`Rs. ${request.budget.toLocaleString()}`} />
           )}
         </div>
 
@@ -435,8 +481,65 @@ function IncomingRequestCard({
           </div>
         )}
 
+        {/* Complete indicator */}
+        {isAccepted && iMarkedComplete && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+            <p className="text-xs text-green-400 font-medium">
+              You marked this complete — waiting for the hirer to confirm.
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border/20">
-          {request.status === "pending" ? (
+
+          {/* Chat */}
+          {(isAccepted || isCompleted) && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="rounded-xl gap-1.5 font-bold"
+              onClick={onOpenChat}
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Open Chat
+            </Button>
+          )}
+
+          {/* Mark as Complete */}
+          {isAccepted && !iMarkedComplete && (
+            <Button
+              size="sm"
+              className="rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold gap-1.5"
+              onClick={onMarkComplete}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Mark as Complete
+            </Button>
+          )}
+
+          {/* Leave Review */}
+          {isCompleted && !iReviewed && (
+            <Button
+              size="sm"
+              className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5"
+              onClick={onLeaveReview}
+            >
+              <Star className="w-3.5 h-3.5" />
+              Leave Review
+            </Button>
+          )}
+
+          {/* Reviewed indicator */}
+          {isCompleted && iReviewed && (
+            <Badge className="rounded-xl bg-primary/10 text-primary border border-primary/20 gap-1.5 px-3 py-1.5">
+              <CheckCircle2 className="w-3 h-3" />
+              Review Submitted
+            </Badge>
+          )}
+
+          {/* Accept / Decline */}
+          {request.status === "pending" && (
             <>
               <Button
                 size="sm"
@@ -456,16 +559,7 @@ function IncomingRequestCard({
                 Decline
               </Button>
             </>
-          ) : request.status === "accepted" ? (
-            <Button
-              size="sm"
-              className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5"
-              onClick={() => (window.location.href = `/network/chat/${request.id}`)}
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Open Chat
-            </Button>
-          ) : null}
+          )}
 
           <Button
             variant="ghost"
@@ -483,22 +577,12 @@ function IncomingRequestCard({
   );
 }
 
-function DetailRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2.5 p-3 rounded-xl bg-background/40 border border-border/30">
       <span className="text-primary">{icon}</span>
       <div className="min-w-0">
-        <p className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground">
-          {label}
-        </p>
+        <p className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground">{label}</p>
         <p className="text-sm font-medium truncate">{value}</p>
       </div>
     </div>

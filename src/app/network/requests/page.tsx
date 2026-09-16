@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useFirestore, useCollection } from "@/firebase";
-import { collection, query, where, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,8 @@ import {
   Inbox,
   MessageSquare,
   Sparkles,
+  CheckCircle2,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +52,10 @@ interface NetworkRequest {
   eventLocation?: string;
   budget?: number | null;
   message?: string;
+  completedByHirer?: boolean;
+  completedByProfessional?: boolean;
+  hirerReviewed?: boolean;
+  professionalReviewed?: boolean;
   createdAt: any;
   updatedAt: any;
 }
@@ -78,7 +84,7 @@ const STATUS_CONFIG: Record<RequestStatus, { label: string; color: string; icon:
   completed: {
     label: "Completed",
     color: "bg-primary/15 text-primary border-primary/30",
-    icon: <Check className="w-3.5 h-3.5" />,
+    icon: <CheckCircle2 className="w-3.5 h-3.5" />,
   },
 };
 
@@ -91,6 +97,8 @@ export default function MyRequestsPage() {
   const [filter, setFilter] = useState<"all" | RequestStatus>("all");
   const [cancelTarget, setCancelTarget] = useState<string | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [completeTarget, setCompleteTarget] = useState<string | null>(null);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const requestsQuery = useMemo(() => {
     if (!firestore || !user) return null;
@@ -142,6 +150,39 @@ export default function MyRequestsPage() {
     }
   }, [firestore, cancelTarget, isCancelling, toast]);
 
+  // Mark as complete — hirer side
+  const handleMarkComplete = useCallback(async () => {
+    if (!firestore || !completeTarget || isCompleting) return;
+    setIsCompleting(true);
+    try {
+      const ref = doc(firestore, "networkRequests", completeTarget);
+      const snap = await getDoc(ref);
+      if (!snap.exists()) throw new Error("Request not found");
+
+      const data = snap.data();
+      const bothComplete = !!data.completedByProfessional;
+
+      await updateDoc(ref, {
+        completedByHirer: true,
+        completedAt: serverTimestamp(),
+        status: bothComplete ? "completed" : "accepted",
+        updatedAt: serverTimestamp(),
+      });
+
+      toast({
+        title: "Marked as Complete",
+        description: bothComplete
+          ? "Both parties confirmed — event is complete!"
+          : "Waiting for the other party to confirm.",
+      });
+      setCompleteTarget(null);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Failed", description: err.message });
+    } finally {
+      setIsCompleting(false);
+    }
+  }, [firestore, completeTarget, isCompleting, toast]);
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -178,6 +219,7 @@ export default function MyRequestsPage() {
           <FilterChip active={filter === "all"} onClick={() => setFilter("all")} label={`All (${counts.all})`} />
           <FilterChip active={filter === "pending"} onClick={() => setFilter("pending")} label={`Pending (${counts.pending})`} />
           <FilterChip active={filter === "accepted"} onClick={() => setFilter("accepted")} label={`Accepted (${counts.accepted})`} />
+          <FilterChip active={filter === "completed"} onClick={() => setFilter("completed")} label={`Completed (${counts.completed})`} />
           <FilterChip active={filter === "declined"} onClick={() => setFilter("declined")} label={`Declined (${counts.declined})`} />
           <FilterChip active={filter === "cancelled"} onClick={() => setFilter("cancelled")} label={`Cancelled (${counts.cancelled})`} />
         </div>
@@ -201,8 +243,10 @@ export default function MyRequestsPage() {
               <RequestCard
                 key={request.id}
                 request={request as NetworkRequest}
-                viewMode="hirer"
                 onCancel={() => setCancelTarget(request.id)}
+                onMarkComplete={() => setCompleteTarget(request.id)}
+                onOpenChat={() => router.push(`/network/chat/${request.id}`)}
+                onLeaveReview={() => router.push(`/network/review/${request.id}`)}
                 onViewProfile={() =>
                   router.push(`/network/professional/${request.professionalId}`)
                 }
@@ -212,6 +256,7 @@ export default function MyRequestsPage() {
         )}
       </div>
 
+      {/* Cancel Dialog */}
       <AlertDialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
         <AlertDialogContent className="rounded-[2rem] border-border/40">
           <AlertDialogHeader>
@@ -228,13 +273,33 @@ export default function MyRequestsPage() {
               onClick={handleCancel}
               disabled={isCancelling}
             >
-              {isCancelling ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Cancelling...
-                </>
+              {isCancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : "Yes, Cancel"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mark Complete Dialog */}
+      <AlertDialog open={!!completeTarget} onOpenChange={(o) => !o && setCompleteTarget(null)}>
+        <AlertDialogContent className="rounded-[2rem] border-border/40">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark this event as complete?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Confirm that the event was delivered successfully. Once both parties confirm,
+              you&apos;ll be able to leave a review.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCompleting}>Not yet</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-green-500 hover:bg-green-600 text-white"
+              onClick={handleMarkComplete}
+              disabled={isCompleting}
+            >
+              {isCompleting ? (
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" />Marking...</>
               ) : (
-                "Yes, Cancel"
+                <><Check className="w-4 h-4 mr-2" />Yes, Complete</>
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -270,7 +335,6 @@ function LoadingState() {
             <div className="animate-pulse space-y-3">
               <div className="h-4 w-40 bg-muted/30 rounded" />
               <div className="h-3 w-64 bg-muted/20 rounded" />
-              <div className="h-3 w-48 bg-muted/20 rounded" />
             </div>
           </CardContent>
         </Card>
@@ -279,16 +343,8 @@ function LoadingState() {
   );
 }
 
-function EmptyState({
-  title,
-  description,
-  onAction,
-  actionLabel,
-}: {
-  title: string;
-  description: string;
-  onAction: () => void;
-  actionLabel: string;
+function EmptyState({ title, description, onAction, actionLabel }: {
+  title: string; description: string; onAction: () => void; actionLabel: string;
 }) {
   return (
     <Card className="rounded-[2rem] border-dashed border-border/40 bg-card/40">
@@ -298,9 +354,7 @@ function EmptyState({
         </div>
         <div>
           <h3 className="font-headline font-bold text-xl">{title}</h3>
-          <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-            {description}
-          </p>
+          <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">{description}</p>
         </div>
         <Button
           className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 mt-2"
@@ -316,23 +370,30 @@ function EmptyState({
 
 function RequestCard({
   request,
-  viewMode,
   onCancel,
+  onMarkComplete,
+  onOpenChat,
+  onLeaveReview,
   onViewProfile,
 }: {
   request: NetworkRequest;
-  viewMode: "hirer" | "professional";
-  onCancel?: () => void;
+  onCancel: () => void;
+  onMarkComplete: () => void;
+  onOpenChat: () => void;
+  onLeaveReview: () => void;
   onViewProfile: () => void;
 }) {
   const statusConfig = STATUS_CONFIG[request.status] || STATUS_CONFIG.pending;
-  const personName = request.professionalName;
-  const personLabel = "Professional";
 
   let formattedDate = request.eventDate;
   try {
     formattedDate = format(new Date(request.eventDate), "EEE, dd MMM yyyy");
   } catch {}
+
+  const isAccepted = request.status === "accepted";
+  const isCompleted = request.status === "completed";
+  const iMarkedComplete = !!request.completedByHirer;
+  const iReviewed = !!request.hirerReviewed;
 
   return (
     <Card className="rounded-3xl border-border/40 bg-card/70 overflow-hidden hover:border-primary/30 transition-all">
@@ -342,14 +403,14 @@ function RequestCard({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
-              {personLabel}
+              Professional
             </p>
             <button
               type="button"
               className="font-headline font-bold text-lg hover:text-primary transition-colors text-left"
               onClick={onViewProfile}
             >
-              {personName || "Unknown"}
+              {request.professionalName || "Unknown"}
             </button>
           </div>
           <Badge
@@ -365,29 +426,13 @@ function RequestCard({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <DetailRow
-            icon={<Briefcase className="w-3.5 h-3.5" />}
-            label="Event Type"
-            value={request.eventType || "—"}
-          />
-          <DetailRow
-            icon={<Calendar className="w-3.5 h-3.5" />}
-            label="Event Date"
-            value={formattedDate || "—"}
-          />
+          <DetailRow icon={<Briefcase className="w-3.5 h-3.5" />} label="Event Type" value={request.eventType || "—"} />
+          <DetailRow icon={<Calendar className="w-3.5 h-3.5" />} label="Event Date" value={formattedDate || "—"} />
           {request.eventLocation && (
-            <DetailRow
-              icon={<MapPin className="w-3.5 h-3.5" />}
-              label="Location"
-              value={request.eventLocation}
-            />
+            <DetailRow icon={<MapPin className="w-3.5 h-3.5" />} label="Location" value={request.eventLocation} />
           )}
           {request.budget != null && request.budget > 0 && (
-            <DetailRow
-              icon={<Sparkles className="w-3.5 h-3.5" />}
-              label="Budget"
-              value={`Rs. ${request.budget.toLocaleString()}`}
-            />
+            <DetailRow icon={<Sparkles className="w-3.5 h-3.5" />} label="Budget" value={`Rs. ${request.budget.toLocaleString()}`} />
           )}
         </div>
 
@@ -402,22 +447,65 @@ function RequestCard({
           </div>
         )}
 
+        {/* Complete indicator */}
+        {isAccepted && iMarkedComplete && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/5 border border-green-500/20">
+            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+            <p className="text-xs text-green-400 font-medium">
+              You marked this complete — waiting for the professional to confirm.
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border/20">
 
-          {/* Open Chat - when accepted */}
-          {request.status === "accepted" && (
+          {/* Chat */}
+          {(isAccepted || isCompleted) && (
             <Button
               size="sm"
-              className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5"
-              onClick={() => (window.location.href = `/network/chat/${request.id}`)}
+              variant="outline"
+              className="rounded-xl gap-1.5 font-bold"
+              onClick={onOpenChat}
             >
               <MessageSquare className="w-3.5 h-3.5" />
               Open Chat
             </Button>
           )}
 
-          {/* Cancel - only if pending */}
-          {viewMode === "hirer" && request.status === "pending" && onCancel && (
+          {/* Mark as Complete */}
+          {isAccepted && !iMarkedComplete && (
+            <Button
+              size="sm"
+              className="rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold gap-1.5"
+              onClick={onMarkComplete}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Mark as Complete
+            </Button>
+          )}
+
+          {/* Leave Review */}
+          {isCompleted && !iReviewed && (
+            <Button
+              size="sm"
+              className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5"
+              onClick={onLeaveReview}
+            >
+              <Star className="w-3.5 h-3.5" />
+              Leave Review
+            </Button>
+          )}
+
+          {/* Reviewed indicator */}
+          {isCompleted && iReviewed && (
+            <Badge className="rounded-xl bg-primary/10 text-primary border border-primary/20 gap-1.5 px-3 py-1.5">
+              <CheckCircle2 className="w-3 h-3" />
+              Review Submitted
+            </Badge>
+          )}
+
+          {/* Cancel */}
+          {request.status === "pending" && (
             <Button
               variant="outline"
               size="sm"
@@ -425,7 +513,7 @@ function RequestCard({
               onClick={onCancel}
             >
               <X className="w-3.5 h-3.5 mr-1.5" />
-              Cancel Request
+              Cancel
             </Button>
           )}
 
@@ -445,22 +533,12 @@ function RequestCard({
   );
 }
 
-function DetailRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function DetailRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2.5 p-3 rounded-xl bg-background/40 border border-border/30">
       <span className="text-primary">{icon}</span>
       <div className="min-w-0">
-        <p className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground">
-          {label}
-        </p>
+        <p className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground">{label}</p>
         <p className="text-sm font-medium truncate">{value}</p>
       </div>
     </div>
