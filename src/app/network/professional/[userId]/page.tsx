@@ -52,8 +52,6 @@ import {
   ChevronRight,
   Loader2,
   Info,
-  MessageSquare,
-  ThumbsUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -158,7 +156,6 @@ export default function ProfessionalProfilePage() {
         snap.forEach((d) => {
           revs.push({ id: d.id, ...d.data() } as ReviewData);
         });
-        // Sort newest first
         revs.sort((a, b) => {
           const aT = a.createdAt?.seconds || 0;
           const bT = b.createdAt?.seconds || 0;
@@ -230,6 +227,43 @@ export default function ProfessionalProfilePage() {
     toast({ title: "Link copied!" });
   }, [toast]);
 
+  // ─────────────────────────────────────────────────────────────
+  // Client-side aggregate calculation (fallback if not saved in profile)
+  // ─────────────────────────────────────────────────────────────
+  const calculatedRating = useMemo(() => {
+    if (!reviews || reviews.length === 0) {
+      return {
+        average: profile?.rating?.average || 0,
+        count: profile?.rating?.count || 0,
+        punctuality: profile?.rating?.punctuality || 0,
+        behavior: profile?.rating?.behavior || 0,
+        workQuality: profile?.rating?.workQuality || 0,
+        communication: profile?.rating?.communication || 0,
+      };
+    }
+    let totalOverall = 0;
+    let totalPunc = 0;
+    let totalBeh = 0;
+    let totalWork = 0;
+    let totalComm = 0;
+    reviews.forEach((r) => {
+      totalOverall += Number(r.overallRating || 0);
+      totalPunc += Number(r.ratings?.punctuality || 0);
+      totalBeh += Number(r.ratings?.behavior || 0);
+      totalWork += Number(r.ratings?.workQuality || 0);
+      totalComm += Number(r.ratings?.communication || 0);
+    });
+    const c = reviews.length;
+    return {
+      average: Number((totalOverall / c).toFixed(2)),
+      count: c,
+      punctuality: Number((totalPunc / c).toFixed(2)),
+      behavior: Number((totalBeh / c).toFixed(2)),
+      workQuality: Number((totalWork / c).toFixed(2)),
+      communication: Number((totalComm / c).toFixed(2)),
+    };
+  }, [reviews, profile?.rating]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6 lg:p-12">
@@ -270,10 +304,12 @@ export default function ProfessionalProfilePage() {
   const areas = profile?.serviceAreas || [];
   const travelRange = profile?.travelRange || "anywhere_in_city";
   const rates = profile?.rates || (profile?.rate ? [{ eventType: "Standard", amount: profile.rate.amount, unit: profile.rate.unit }] : []);
-  const ratingAvg = profile?.rating?.average || 0;
-  const ratingCount = profile?.rating?.count || 0;
-  const completedJobs = profile?.completedJobs || 0;
-  const isVerified = profile?.isVerified || false;
+
+  // ✅ Use calculated rating
+  const ratingAvg = calculatedRating.average;
+  const ratingCount = calculatedRating.count;
+  const completedJobs = reviews.length || profile?.completedJobs || 0;
+  const isVerified = profile?.isVerified || (ratingCount >= 5 && ratingAvg >= 4.0);
 
   const next7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -282,6 +318,7 @@ export default function ProfessionalProfilePage() {
     const status = profile?.availability?.[key] || "available";
     return { date: d, status, key };
   });
+
   return (
     <div className="min-h-screen bg-background pb-20">
       <div className="max-w-5xl mx-auto p-5 lg:p-10 space-y-6">
@@ -303,7 +340,6 @@ export default function ProfessionalProfilePage() {
 
           <div className="relative p-7 lg:p-10">
             <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-7">
-
               <div className="flex flex-col sm:flex-row items-start gap-6 flex-1">
                 <div className="relative shrink-0">
                   <div className="w-24 h-24 lg:w-28 lg:h-28 rounded-[2rem] bg-gradient-to-br from-primary/30 to-primary/10 border-2 border-primary/30 flex items-center justify-center shadow-2xl">
@@ -334,7 +370,6 @@ export default function ProfessionalProfilePage() {
                     )}
                   </div>
 
-                  {/* Rating summary in hero */}
                   {ratingCount > 0 && (
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1">
@@ -644,7 +679,6 @@ export default function ProfessionalProfilePage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Rating breakdown */}
                   {ratingCount > 0 && (
                     <div className="p-5 rounded-2xl bg-gradient-to-br from-primary/5 to-background border border-primary/15 space-y-3">
                       <div className="flex items-center gap-4">
@@ -671,28 +705,15 @@ export default function ProfessionalProfilePage() {
                         </div>
 
                         <div className="flex-1 space-y-2">
-                          <CategoryBar
-                            label="Punctuality"
-                            value={profile?.rating?.punctuality || 0}
-                          />
-                          <CategoryBar
-                            label="Behavior"
-                            value={profile?.rating?.behavior || 0}
-                          />
-                          <CategoryBar
-                            label="Work Quality"
-                            value={profile?.rating?.workQuality || 0}
-                          />
-                          <CategoryBar
-                            label="Communication"
-                            value={profile?.rating?.communication || 0}
-                          />
+                          <CategoryBar label="Punctuality" value={calculatedRating.punctuality} />
+                          <CategoryBar label="Behavior" value={calculatedRating.behavior} />
+                          <CategoryBar label="Work Quality" value={calculatedRating.workQuality} />
+                          <CategoryBar label="Communication" value={calculatedRating.communication} />
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Individual reviews */}
                   {reviews.map((review) => (
                     <ReviewItem key={review.id} review={review} />
                   ))}
@@ -900,6 +921,7 @@ export default function ProfessionalProfilePage() {
     </div>
   );
 }
+
 // ─────────────────────────────────────────────────────────────
 // Helper Components
 // ─────────────────────────────────────────────────────────────
