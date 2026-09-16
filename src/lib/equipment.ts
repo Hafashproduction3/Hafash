@@ -103,45 +103,50 @@ export const ROLE_DEFINITIONS: Record<Role, RoleDefinition> = {
   },
 };
 
-/**
- * Check if user's selected roles include any on-site role
- */
 export function hasOnSiteRole(roles: Role[] | string[]): boolean {
   return roles.some((r) => ROLE_DEFINITIONS[r as Role]?.category === 'on_site');
 }
 
-/**
- * Check if user's selected roles include any remote role
- */
 export function hasRemoteRole(roles: Role[] | string[]): boolean {
   return roles.some((r) => ROLE_DEFINITIONS[r as Role]?.category === 'remote');
 }
 
 // ─────────────────────────────────────────────────────────────
-// TURNAROUND TIME (for Remote Roles)
+// GENDER
+// ─────────────────────────────────────────────────────────────
+
+export type Gender = 'male' | 'female';
+
+export const GENDER_LABELS: Record<Gender, string> = {
+  male: 'Male',
+  female: 'Female',
+};
+
+// ─────────────────────────────────────────────────────────────
+// TURNAROUND TIME
 // ─────────────────────────────────────────────────────────────
 
 export interface TurnaroundOption {
   id: string;
   label: string;
-  short: string;     // for card display
+  short: string;
   minDays: number;
   maxDays: number;
 }
 
 export const TURNAROUND_OPTIONS: TurnaroundOption[] = [
-  { id: 'same_day',   label: 'Same Day',              short: 'Same day',   minDays: 0,  maxDays: 0 },
-  { id: '24h',        label: 'Within 24 hours',       short: '24 hours',   minDays: 1,  maxDays: 1 },
-  { id: '2_days',     label: 'Within 2 days',         short: '1-2 days',   minDays: 1,  maxDays: 2 },
-  { id: '3_5_days',   label: '3 to 5 days',           short: '3-5 days',   minDays: 3,  maxDays: 5 },
-  { id: '1_week',     label: 'Within 1 week',         short: '~1 week',    minDays: 5,  maxDays: 7 },
-  { id: '2_weeks',    label: 'Within 2 weeks',        short: '~2 weeks',   minDays: 7,  maxDays: 14 },
-  { id: '3_4_weeks',  label: '3 to 4 weeks',          short: '3-4 weeks',  minDays: 21, maxDays: 28 },
-  { id: 'custom',     label: 'Depends on project',    short: 'Custom',     minDays: 0,  maxDays: 0 },
+  { id: 'same_day',   label: 'Same Day',           short: 'Same day',   minDays: 0,  maxDays: 0 },
+  { id: '24h',        label: 'Within 24 hours',    short: '24 hours',   minDays: 1,  maxDays: 1 },
+  { id: '2_days',     label: 'Within 2 days',      short: '1-2 days',   minDays: 1,  maxDays: 2 },
+  { id: '3_5_days',   label: '3 to 5 days',        short: '3-5 days',   minDays: 3,  maxDays: 5 },
+  { id: '1_week',     label: 'Within 1 week',      short: '~1 week',    minDays: 5,  maxDays: 7 },
+  { id: '2_weeks',    label: 'Within 2 weeks',     short: '~2 weeks',   minDays: 7,  maxDays: 14 },
+  { id: '3_4_weeks',  label: '3 to 4 weeks',       short: '3-4 weeks',  minDays: 21, maxDays: 28 },
+  { id: 'custom',     label: 'Depends on project', short: 'Custom',     minDays: 0,  maxDays: 0 },
 ];
 
 // ─────────────────────────────────────────────────────────────
-// REMOTE SERVICES (Kya kya deliver karte hain)
+// REMOTE SERVICES
 // ─────────────────────────────────────────────────────────────
 
 export const REMOTE_SERVICES: Record<string, string[]> = {

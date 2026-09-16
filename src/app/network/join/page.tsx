@@ -16,6 +16,7 @@ import {
   RATE_UNIT_LABELS,
   TURNAROUND_OPTIONS,
   REMOTE_SERVICES,
+  GENDER_LABELS,
   hasOnSiteRole,
   hasRemoteRole,
   type EquipmentItem,
@@ -23,6 +24,7 @@ import {
   type Role,
   type TravelRange,
   type RateUnit,
+  type Gender,
 } from '@/lib/equipment';
 import { EventTypePicker } from '@/components/event-type-picker';
 import {
@@ -49,8 +51,9 @@ import {
   Info,
   DollarSign,
   Clock,
-  Zap,
   Sparkles,
+  User,
+  UserCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -60,9 +63,6 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-// ─────────────────────────────────────────────────────────────
-// Role icons
-// ─────────────────────────────────────────────────────────────
 const ROLE_ICONS: Record<Role, React.ReactNode> = {
   photographer: <Camera className="w-5 h-5" />,
   videographer: <Video className="w-5 h-5" />,
@@ -95,7 +95,6 @@ export default function JoinNetworkPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Plan status
   const profileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
@@ -104,14 +103,12 @@ export default function JoinNetworkPage() {
   const currentPlan = useMemo(() => getUserPlan(profile?.planId), [profile?.planId]);
   const hasActivePlan = currentPlan.id !== 'none';
 
-  // User's galleries
   const galleriesQuery = useMemo(() => {
     if (!firestore || !user || !hasActivePlan) return null;
     return query(collection(firestore, 'galleries'), where('userId', '==', user.uid));
   }, [firestore, user?.uid, hasActivePlan]);
   const { data: galleries } = useCollection(galleriesQuery);
 
-  // Load existing profile
   const networkProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'networkProfiles', user.uid);
@@ -119,6 +116,7 @@ export default function JoinNetworkPage() {
   const { data: existingProfile } = useDoc(networkProfileRef);
 
   // Form state
+  const [gender, setGender] = useState<Gender | ''>('');
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [equipmentQuery, setEquipmentQuery] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentItem[]>([]);
@@ -130,9 +128,7 @@ export default function JoinNetworkPage() {
   const [rates, setRates] = useState<Array<{ eventType: string; amount: string; unit: RateUnit }>>([
     { eventType: 'All Events', amount: '', unit: 'per_event' },
   ]);
-  // Turnaround per remote role
   const [turnarounds, setTurnarounds] = useState<Record<string, string>>({});
-  // Services per remote role
   const [services, setServices] = useState<Record<string, string[]>>({});
   const [instagramLink, setInstagramLink] = useState('');
   const [facebookLink, setFacebookLink] = useState('');
@@ -140,9 +136,9 @@ export default function JoinNetworkPage() {
   const [selectedGalleryIds, setSelectedGalleryIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Populate from existing profile
   useEffect(() => {
     if (existingProfile) {
+      setGender(existingProfile.gender || '');
       setSelectedRoles(existingProfile.roles || []);
       setSelectedEquipment(existingProfile.equipment || []);
       setBio(existingProfile.bio || '');
@@ -171,7 +167,6 @@ export default function JoinNetworkPage() {
     }
   }, [existingProfile]);
 
-  // Derived
   const rolesRequireEquipment = useMemo(() => hasOnSiteRole(selectedRoles), [selectedRoles]);
   const rolesRequirePortfolio = useMemo(() => {
     return selectedRoles.some(r => ROLE_DEFINITIONS[r]?.requiresPortfolio);
@@ -193,7 +188,6 @@ export default function JoinNetworkPage() {
       .slice(0, 10);
   }, [equipmentQuery, selectedEquipment]);
 
-  // Handlers
   const toggleRole = useCallback((role: Role) => {
     setSelectedRoles(prev =>
       prev.includes(role) ? prev.filter(r => r !== role) : [...prev, role]
@@ -270,16 +264,19 @@ export default function JoinNetworkPage() {
     });
   }, []);
 
-  // Submit
   const handleSubmit = useCallback(async () => {
     if (!user || !firestore) return;
+
+    if (!gender) {
+      toast({ variant: 'destructive', title: 'Gender required', description: 'Please select Male or Female.' });
+      return;
+    }
 
     if (selectedRoles.length === 0) {
       toast({ variant: 'destructive', title: 'Select at least one role' });
       return;
     }
 
-    // Location required only if on-site role
     if (isOnSite && !baseCity.trim()) {
       toast({ variant: 'destructive', title: 'City required', description: 'Please enter your base city.' });
       return;
@@ -291,7 +288,6 @@ export default function JoinNetworkPage() {
       return;
     }
 
-    // Validate turnaround for remote roles
     if (selectedRemoteRoles.length > 0) {
       const missing = selectedRemoteRoles.filter(r => !turnarounds[r]);
       if (missing.length > 0) {
@@ -327,13 +323,11 @@ export default function JoinNetworkPage() {
 
       const primaryRate = cleanedRates[0];
 
-      // Clean turnaround - only for selected remote roles
       const cleanTurnarounds: Record<string, string> = {};
       selectedRemoteRoles.forEach(r => {
         if (turnarounds[r]) cleanTurnarounds[r] = turnarounds[r];
       });
 
-      // Clean services - only for selected remote roles
       const cleanServices: Record<string, string[]> = {};
       selectedRemoteRoles.forEach(r => {
         if (services[r] && services[r].length > 0) {
@@ -345,6 +339,7 @@ export default function JoinNetworkPage() {
         doc(firestore, 'networkProfiles', user.uid),
         {
           userId: user.uid,
+          gender,
           studioName: profile?.studioName || '',
           photographerName: profile?.photographerName || profile?.name || '',
           roles: selectedRoles,
@@ -387,7 +382,7 @@ export default function JoinNetworkPage() {
       setIsSaving(false);
     }
   }, [
-    user, firestore, selectedRoles, baseCity, serviceAreas, travelRange,
+    user, firestore, gender, selectedRoles, baseCity, serviceAreas, travelRange,
     selectedEquipment, bio, rates, hasActivePlan, instagramLink, facebookLink,
     youtubeLink, selectedGalleryIds, profile, existingProfile, toast, router,
     rolesRequirePortfolio, selectedRemoteRoles, turnarounds, services, isOnSite
@@ -414,6 +409,77 @@ export default function JoinNetworkPage() {
             </div>
           </div>
         </div>
+
+        {/* ═══ GENDER ═══ */}
+        <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
+          <CardHeader className="bg-background/30 border-b border-border/30">
+            <CardTitle className="text-lg font-headline font-bold">
+              Aap ka gender? <span className="text-destructive">*</span>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Clients isi hisaab se aapko search mein dhoondein ge.
+            </p>
+          </CardHeader>
+          <CardContent className="p-6 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setGender('male')}
+              className={cn(
+                "relative p-5 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all",
+                gender === 'male'
+                  ? 'border-blue-500 bg-blue-500/10'
+                  : 'border-border/30 bg-background/30 hover:border-blue-500/30'
+              )}
+            >
+              <div className={cn(
+                "w-14 h-14 rounded-2xl flex items-center justify-center",
+                gender === 'male' ? 'bg-blue-500/20 text-blue-400' : 'bg-muted text-muted-foreground'
+              )}>
+                <User className="w-7 h-7" />
+              </div>
+              <span className={cn(
+                "font-bold text-sm",
+                gender === 'male' && "text-blue-400"
+              )}>
+                Male
+              </span>
+              {gender === 'male' && (
+                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-white" />
+                </div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setGender('female')}
+              className={cn(
+                "relative p-5 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all",
+                gender === 'female'
+                  ? 'border-pink-500 bg-pink-500/10'
+                  : 'border-border/30 bg-background/30 hover:border-pink-500/30'
+              )}
+            >
+              <div className={cn(
+                "w-14 h-14 rounded-2xl flex items-center justify-center",
+                gender === 'female' ? 'bg-pink-500/20 text-pink-400' : 'bg-muted text-muted-foreground'
+              )}>
+                <UserCircle2 className="w-7 h-7" />
+              </div>
+              <span className={cn(
+                "font-bold text-sm",
+                gender === 'female' && "text-pink-400"
+              )}>
+                Female
+              </span>
+              {gender === 'female' && (
+                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-pink-500 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-white" />
+                </div>
+              )}
+            </button>
+          </CardContent>
+        </Card>
 
         {/* ═══ ROLES ═══ */}
         <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
@@ -455,16 +521,14 @@ export default function JoinNetworkPage() {
           </CardContent>
         </Card>
 
-        {/* ═══ EQUIPMENT (only for on-site roles) ═══ */}
+        {/* EQUIPMENT */}
         {rolesRequireEquipment && (
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="bg-background/30 border-b border-border/30">
               <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
                 <Camera className="w-5 h-5 text-primary" /> Your Equipment
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                List your gear so others know what you work with.
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">List your gear so others know what you work with.</p>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
               <div className="relative">
@@ -521,7 +585,7 @@ export default function JoinNetworkPage() {
           </Card>
         )}
 
-        {/* ═══ TURNAROUND TIME (only for remote roles) ═══ */}
+        {/* TURNAROUND */}
         {selectedRemoteRoles.length > 0 && (
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="bg-background/30 border-b border-border/30">
@@ -541,8 +605,6 @@ export default function JoinNetworkPage() {
 
                 return (
                   <div key={roleId} className="space-y-4 p-4 rounded-2xl bg-background/40 border border-border/30">
-
-                    {/* Role Header */}
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                         {ROLE_ICONS[roleId]}
@@ -555,7 +617,6 @@ export default function JoinNetworkPage() {
                       </div>
                     </div>
 
-                    {/* Turnaround Options */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {TURNAROUND_OPTIONS.map((option) => {
                         const isSelected = selected === option.id;
@@ -577,7 +638,6 @@ export default function JoinNetworkPage() {
                       })}
                     </div>
 
-                    {/* Services */}
                     {roleServices.length > 0 && (
                       <div className="pt-3 border-t border-border/20 space-y-2">
                         <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -613,23 +673,19 @@ export default function JoinNetworkPage() {
           </Card>
         )}
 
-        {/* ═══ LOCATION (only for on-site roles) ═══ */}
+        {/* LOCATION */}
         {isOnSite && (
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="bg-background/30 border-b border-border/30">
               <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-primary" /> Location & Service Areas
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Where are you based, and where do you take work?
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">Where are you based, and where do you take work?</p>
             </CardHeader>
             <CardContent className="p-6 space-y-6">
 
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase text-muted-foreground">
-                  Base City *
-                </label>
+                <label className="text-xs font-bold uppercase text-muted-foreground">Base City *</label>
                 <div className="flex flex-wrap gap-2">
                   {PAKISTAN_CITIES.slice(0, 8).map((city) => (
                     <button
@@ -750,15 +806,13 @@ export default function JoinNetworkPage() {
           </Card>
         )}
 
-        {/* ═══ RATE CARD ═══ */}
+        {/* RATE CARD */}
         <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
           <CardHeader className="bg-background/30 border-b border-border/30">
             <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-primary" /> Your Rate Card
             </CardTitle>
-            <p className="text-xs text-muted-foreground mt-1">
-              Add rates for different event types.
-            </p>
+            <p className="text-xs text-muted-foreground mt-1">Add rates for different event types.</p>
           </CardHeader>
           <CardContent className="p-6 space-y-3">
             {rates.map((rate, index) => (
@@ -816,7 +870,7 @@ export default function JoinNetworkPage() {
           </CardContent>
         </Card>
 
-        {/* ═══ BIO ═══ */}
+        {/* BIO */}
         <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
           <CardHeader className="bg-background/30 border-b border-border/30">
             <CardTitle className="text-lg font-headline font-bold">Short Bio</CardTitle>
@@ -830,13 +884,11 @@ export default function JoinNetworkPage() {
               onChange={(e) => setBio(e.target.value)}
               maxLength={500}
             />
-            <p className="text-xs text-muted-foreground mt-2 text-right">
-              {bio.length} / 500
-            </p>
+            <p className="text-xs text-muted-foreground mt-2 text-right">{bio.length} / 500</p>
           </CardContent>
         </Card>
 
-        {/* ═══ PORTFOLIO ═══ */}
+        {/* PORTFOLIO */}
         {rolesRequirePortfolio && (
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="bg-background/30 border-b border-border/30">
@@ -946,7 +998,7 @@ export default function JoinNetworkPage() {
           </Card>
         )}
 
-        {/* ═══ SUBMIT ═══ */}
+        {/* SUBMIT */}
         <Button
           className="w-full h-16 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold shadow-2xl shadow-primary/20"
           onClick={handleSubmit}

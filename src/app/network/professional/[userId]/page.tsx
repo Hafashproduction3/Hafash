@@ -24,7 +24,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
-  ArrowRight,
   Camera,
   Video,
   Plane,
@@ -56,7 +55,7 @@ import {
   Info,
   TrendingUp,
   Clock,
-  Globe,
+  ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -615,7 +614,7 @@ export default function ProfessionalProfilePage() {
           </Card>
         )}
 
-        {/* DELIVERY TIME */}
+        {/* DELIVERY TIME (for remote roles) */}
         {hasRemote && (
           <Card className="rounded-[2rem] border-border/40 bg-gradient-to-br from-purple-500/5 via-card/60 to-background overflow-hidden">
             <div className="px-6 pt-5 pb-3 flex items-center gap-2 border-b border-border/20">
@@ -656,9 +655,7 @@ export default function ProfessionalProfilePage() {
 
                     {roleServices.length > 0 && (
                       <div className="pt-3 border-t border-border/20">
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
-                          Services Offered
-                        </p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Services Offered</p>
                         <div className="flex flex-wrap gap-1.5">
                           {roleServices.map((s: string) => (
                             <Badge key={s} variant="outline" className="rounded-lg bg-purple-500/5 border-purple-500/20 text-purple-400 text-[11px] font-medium">
@@ -756,7 +753,6 @@ export default function ProfessionalProfilePage() {
 
             {/* ═══ PORTFOLIO ═══ */}
             <SectionCard title="Portfolio" icon={<ImageIcon className="w-4 h-4" />}>
-              {/* PAID USER — Hafash Gallery Portfolio */}
               {profile.portfolioType === "hafash_gallery" ? (
                 <div className="space-y-4">
                   {profile.portfolioGalleryIds && profile.portfolioGalleryIds.length > 0 ? (
@@ -802,7 +798,6 @@ export default function ProfessionalProfilePage() {
                   )}
                 </div>
               ) : (
-                /* FREE USER — Social Links Only */
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {profile.instagramLink && (
@@ -824,7 +819,6 @@ export default function ProfessionalProfilePage() {
                   {isOwnProfile && (
                     <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card/60 to-background p-5">
                       <div className="absolute -top-16 -right-16 h-32 w-32 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
-
                       <div className="relative flex items-start gap-3">
                         <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
                           <Sparkles className="w-5 h-5 text-primary" />
@@ -834,7 +828,7 @@ export default function ProfessionalProfilePage() {
                             Showcase Your Work on Hafash
                           </h4>
                           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                            Activate a storage plan to display your photo galleries directly on your profile.
+                            Activate a storage plan to display your photo galleries directly on your profile — no need for external links.
                           </p>
                           <Link href="/storage">
                             <Button size="sm" className="mt-3 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5">
@@ -950,22 +944,14 @@ export default function ProfessionalProfilePage() {
             </SectionCard>
 
             {isOwnProfile && hasOnSite && (
-              <Button
-                variant="outline"
-                className="w-full rounded-2xl h-12 gap-2"
-                onClick={() => router.push("/network/availability")}
-              >
+              <Button variant="outline" className="w-full rounded-2xl h-12 gap-2" onClick={() => router.push("/network/availability")}>
                 <CalendarDays className="w-4 h-4" />
                 Manage Availability
               </Button>
             )}
 
             {isOwnProfile && (
-              <Button
-                variant="outline"
-                className="w-full rounded-2xl h-12 gap-2"
-                onClick={() => router.push("/network/join")}
-              >
+              <Button variant="outline" className="w-full rounded-2xl h-12 gap-2" onClick={() => router.push("/network/join")}>
                 <Sparkles className="w-4 h-4" />
                 Edit Profile
               </Button>
@@ -1049,6 +1035,10 @@ export default function ProfessionalProfilePage() {
     </div>
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// Helper Components
+// ─────────────────────────────────────────────────────────────
 
 function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
