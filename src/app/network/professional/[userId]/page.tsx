@@ -52,11 +52,19 @@ import {
   ChevronRight,
   Loader2,
   Info,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { RATE_UNIT_LABELS, TRAVEL_RANGE_LABELS } from "@/lib/equipment";
 import { EventTypePicker } from "@/components/event-type-picker";
+import {
+  calculateTrustScore,
+  getAchievements,
+  isVerifiedPro,
+  getMemberDuration,
+  type Achievement,
+} from "@/lib/trust-score";
 
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   photographer: <Camera className="w-4 h-4" />,
@@ -132,7 +140,6 @@ export default function ProfessionalProfilePage() {
   const [requestMessage, setRequestMessage] = useState("");
   const [isSendingRequest, setIsSendingRequest] = useState(false);
 
-  // Reviews state
   const [reviews, setReviews] = useState<ReviewData[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(true);
 
@@ -227,9 +234,7 @@ export default function ProfessionalProfilePage() {
     toast({ title: "Link copied!" });
   }, [toast]);
 
-  // ─────────────────────────────────────────────────────────────
-  // Client-side aggregate calculation (fallback if not saved in profile)
-  // ─────────────────────────────────────────────────────────────
+  // Aggregate rating
   const calculatedRating = useMemo(() => {
     if (!reviews || reviews.length === 0) {
       return {
@@ -263,6 +268,42 @@ export default function ProfessionalProfilePage() {
       communication: Number((totalComm / c).toFixed(2)),
     };
   }, [reviews, profile?.rating]);
+
+  const ratingAvg = calculatedRating.average;
+  const ratingCount = calculatedRating.count;
+  const completedJobs = reviews.length || profile?.completedJobs || 0;
+
+  // Trust score calculation
+  const trustScore = useMemo(() => {
+    return calculateTrustScore({
+      ratingAverage: ratingAvg,
+      ratingCount,
+      completedJobs,
+      isVerified: !!profile?.isVerified,
+      punctualityAvg: calculatedRating.punctuality,
+      behaviorAvg: calculatedRating.behavior,
+      workQualityAvg: calculatedRating.workQuality,
+      communicationAvg: calculatedRating.communication,
+    });
+  }, [ratingAvg, ratingCount, completedJobs, profile?.isVerified, calculatedRating]);
+
+  const isVerified = isVerifiedPro(ratingAvg, ratingCount, trustScore.score);
+
+  // Achievements
+  const achievements = useMemo(() => {
+    return getAchievements({
+      ratingAverage: ratingAvg,
+      ratingCount,
+      completedJobs,
+      isVerified,
+      trustScore: trustScore.score,
+    });
+  }, [ratingAvg, ratingCount, completedJobs, isVerified, trustScore.score]);
+
+  // Member since
+  const memberDuration = useMemo(() => {
+    return getMemberDuration(profile?.createdAt);
+  }, [profile?.createdAt]);
 
   if (loading) {
     return (
@@ -304,12 +345,6 @@ export default function ProfessionalProfilePage() {
   const areas = profile?.serviceAreas || [];
   const travelRange = profile?.travelRange || "anywhere_in_city";
   const rates = profile?.rates || (profile?.rate ? [{ eventType: "Standard", amount: profile.rate.amount, unit: profile.rate.unit }] : []);
-
-  // ✅ Use calculated rating
-  const ratingAvg = calculatedRating.average;
-  const ratingCount = calculatedRating.count;
-  const completedJobs = reviews.length || profile?.completedJobs || 0;
-  const isVerified = profile?.isVerified || (ratingCount >= 5 && ratingAvg >= 4.0);
 
   const next7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -472,6 +507,105 @@ export default function ProfessionalProfilePage() {
           </div>
         </Card>
 
+        {/* 🏆 TRUST SCORE CARD */}
+        {ratingCount > 0 && (
+          <Card className="relative overflow-hidden rounded-[2rem] border-border/40 bg-gradient-to-br from-card/80 to-background shadow-xl">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
+            <CardContent className="p-6 lg:p-8">
+              <div className="flex flex-col md:flex-row items-center gap-6">
+
+                {/* Score circle */}
+                <div className="relative shrink-0">
+                  <svg className="w-32 h-32 -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="6"
+                      className="text-muted-foreground/10"
+                    />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      fill="none"
+                      stroke="url(#trustGradient)"
+                      strokeWidth="6"
+                      strokeLinecap="round"
+                      strokeDasharray={`${(trustScore.score / 100) * 264} 264`}
+                      className="transition-all duration-1000"
+                    />
+                    <defs>
+                      <linearGradient id="trustGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#d4af37" />
+                        <stop offset="100%" stopColor="#f4d97a" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <p className="text-3xl font-headline font-bold text-primary">
+                      {trustScore.score}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold">
+                      / 100
+                    </p>
+                  </div>
+                </div>
+
+                {/* Score info */}
+                <div className="flex-1 text-center md:text-left space-y-3">
+                  <div className="flex items-center justify-center md:justify-start gap-2">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    <h3 className="font-headline font-bold text-lg">
+                      Trust Score
+                    </h3>
+                    <Badge className={cn(
+                      "rounded-lg border",
+                      trustScore.level === 'elite' && "bg-purple-500/15 text-purple-400 border-purple-500/30",
+                      trustScore.level === 'excellent' && "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+                      trustScore.level === 'trusted' && "bg-blue-500/15 text-blue-400 border-blue-500/30",
+                      trustScore.level === 'rising' && "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+                      trustScore.level === 'new' && "bg-muted text-muted-foreground border-border/40"
+                    )}>
+                      {trustScore.label}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground max-w-md">
+                    Calculated from ratings, reviews, completed events, and verification.
+                    Higher scores rank better in search results.
+                  </p>
+                  <div className="flex flex-wrap gap-4 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                      <span className="font-bold">{ratingAvg.toFixed(1)}</span>
+                      <span className="text-muted-foreground">rating</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-primary" />
+                      <span className="font-bold">{completedJobs}</span>
+                      <span className="text-muted-foreground">events</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck className={cn(
+                        "w-3.5 h-3.5",
+                        isVerified ? "text-primary" : "text-muted-foreground"
+                      )} />
+                      <span className={cn(
+                        "font-bold",
+                        isVerified ? "text-primary" : "text-muted-foreground"
+                      )}>
+                        {isVerified ? "Verified" : "Not Verified"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* STATS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatBox
@@ -498,11 +632,44 @@ export default function ProfessionalProfilePage() {
           <StatBox
             icon={<Award className="w-4 h-4" />}
             label="Member"
-            value="2 yr"
+            value={memberDuration}
             sub="on Hafash"
             color="blue"
           />
         </div>
+
+        {/* 🏆 ACHIEVEMENTS */}
+        {achievements.length > 0 && (
+          <Card className="rounded-[2rem] border-border/40 bg-card/70 overflow-hidden">
+            <div className="px-6 pt-5 pb-3 flex items-center gap-2 border-b border-border/20">
+              <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                <Award className="w-4 h-4" />
+              </div>
+              <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">
+                Achievements ({achievements.length})
+              </h3>
+            </div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {achievements.map((ach) => (
+                  <div
+                    key={ach.id}
+                    className={cn(
+                      "p-4 rounded-2xl border bg-gradient-to-br transition-all hover:scale-[1.02]",
+                      ach.color
+                    )}
+                  >
+                    <div className="text-3xl mb-2">{ach.icon}</div>
+                    <p className="font-headline font-bold text-sm">{ach.label}</p>
+                    <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
+                      {ach.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* MAIN GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
@@ -656,7 +823,7 @@ export default function ProfessionalProfilePage() {
               )}
             </SectionCard>
 
-            {/* ⭐ REVIEWS SECTION */}
+            {/* REVIEWS SECTION */}
             <SectionCard title={`Reviews (${reviews.length})`} icon={<Star className="w-4 h-4" />}>
               {reviewsLoading ? (
                 <div className="space-y-3">
@@ -670,9 +837,7 @@ export default function ProfessionalProfilePage() {
               ) : reviews.length === 0 ? (
                 <div className="text-center py-8 rounded-2xl bg-background/30 border border-dashed border-border/40">
                   <Star className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground font-medium">
-                    No reviews yet
-                  </p>
+                  <p className="text-sm text-muted-foreground font-medium">No reviews yet</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Reviews appear after completed bookings
                   </p>
@@ -769,6 +934,11 @@ export default function ProfessionalProfilePage() {
                   value={ratingCount > 0 ? `${ratingAvg.toFixed(1)} / 5.0` : "New"}
                 />
                 <QuickInfoRow
+                  icon={<TrendingUp className="w-4 h-4" />}
+                  label="Trust Score"
+                  value={`${trustScore.score} / 100`}
+                />
+                <QuickInfoRow
                   icon={<ShieldCheck className="w-4 h-4" />}
                   label="Verified"
                   value={isVerified ? "Yes" : "No"}
@@ -777,6 +947,11 @@ export default function ProfessionalProfilePage() {
                   icon={<MapPin className="w-4 h-4" />}
                   label="Based in"
                   value={city || "—"}
+                />
+                <QuickInfoRow
+                  icon={<Award className="w-4 h-4" />}
+                  label="Member Since"
+                  value={memberDuration}
                 />
               </div>
             </SectionCard>
