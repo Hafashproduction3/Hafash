@@ -7,6 +7,7 @@ import { useUser, useFirestore, useCollection, useDoc } from "@/firebase";
 import { collection, query, where, doc } from "firebase/firestore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Search,
   UserCircle,
@@ -37,6 +38,7 @@ import {
   Crown,
   Flame,
   Award,
+  ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateTrustScore } from "@/lib/trust-score";
@@ -144,7 +146,6 @@ export default function NetworkHubPage() {
   const { user } = useUser();
   const firestore = useFirestore();
 
-  // Network profile
   const networkProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, "networkProfiles", user.uid);
@@ -153,7 +154,6 @@ export default function NetworkHubPage() {
   const { data: myProfile } = useDoc(networkProfileRef);
   const hasProfile = !!myProfile;
 
-  // User profile (saved count)
   const userProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, "users", user.uid);
@@ -162,7 +162,6 @@ export default function NetworkHubPage() {
   const { data: userProfile } = useDoc(userProfileRef);
   const savedCount = userProfile?.savedNetworkProfiles?.length || 0;
 
-  // Incoming requests
   const incomingQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(
@@ -175,7 +174,6 @@ export default function NetworkHubPage() {
   const { data: incoming } = useCollection(incomingQuery);
   const pendingCount = incoming?.length || 0;
 
-  // Completed
   const completedQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(
@@ -188,7 +186,6 @@ export default function NetworkHubPage() {
   const { data: completed } = useCollection(completedQuery);
   const completedCount = completed?.length || 0;
 
-  // All profiles (for stats + top)
   const allProfilesQuery = useMemo(() => {
     if (!firestore) return null;
     return query(
@@ -200,15 +197,12 @@ export default function NetworkHubPage() {
   const { data: allProfiles } = useCollection(allProfilesQuery);
   const totalProfessionals = allProfiles?.length || 0;
 
-  // ⭐ TOP PROFESSIONALS — Sort by trust score
   const topProfessionals = useMemo(() => {
     if (!allProfiles || allProfiles.length === 0) return [];
 
     const scored = allProfiles
       .filter((p: any) => {
-        // Exclude self
         if (user && p.userId === user.uid) return false;
-        // Must have at least 1 review to be "top"
         const rCount = p.rating?.count || 0;
         return rCount > 0;
       })
@@ -295,7 +289,7 @@ export default function NetworkHubPage() {
           </div>
         </div>
 
-        {/* ⭐ TOP PROFESSIONALS */}
+        {/* TOP PROFESSIONALS */}
         {topProfessionals.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-5">
@@ -498,7 +492,6 @@ function TopProCard({ profile, rank }: { profile: any; rank: number }) {
           rankStyles.bg
         )}
       >
-        {/* Rank Badge */}
         <div className={cn(
           "absolute top-4 right-4 z-10 flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-lg",
           rankStyles.badge
@@ -508,8 +501,6 @@ function TopProCard({ profile, rank }: { profile: any; rank: number }) {
         </div>
 
         <CardContent className="p-6 space-y-4">
-
-          {/* Name */}
           <div className="min-w-0 pr-16">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-headline font-bold text-base truncate group-hover:text-primary transition-colors">
@@ -543,7 +534,6 @@ function TopProCard({ profile, rank }: { profile: any; rank: number }) {
             </div>
           </div>
 
-          {/* Rating */}
           {ratingCount > 0 && (
             <div className="flex items-center gap-1.5">
               <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
@@ -552,7 +542,6 @@ function TopProCard({ profile, rank }: { profile: any; rank: number }) {
             </div>
           )}
 
-          {/* City */}
           {city && (
             <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-background/50 border border-border/30 rounded-lg px-2.5 py-1.5">
               <MapPin className="w-3 h-3" />
@@ -560,7 +549,6 @@ function TopProCard({ profile, rank }: { profile: any; rank: number }) {
             </p>
           )}
 
-          {/* Rate + Trust */}
           <div className="flex items-end justify-between pt-3 border-t border-border/20">
             <div>
               <p className="text-[9px] uppercase font-bold tracking-widest text-muted-foreground">Rate</p>
@@ -573,7 +561,6 @@ function TopProCard({ profile, rank }: { profile: any; rank: number }) {
               <p className="font-headline font-bold text-sm">{profile._trustScore}/100</p>
             </div>
           </div>
-
         </CardContent>
       </Card>
     </Link>
