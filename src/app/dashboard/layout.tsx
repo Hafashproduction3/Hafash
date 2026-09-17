@@ -7,6 +7,7 @@ import { DashboardSidebar } from '@/components/layout/DashboardSidebar';
 import { MobileNav } from '@/components/layout/MobileNav';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { NotificationBell } from '@/components/network/NotificationBell';
+import { NotificationPermission } from '@/components/network/NotificationPermission';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();
@@ -48,6 +49,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </main>
+
+      {/* ═══ NOTIFICATION PERMISSION POPUP ═══ */}
+      <NotificationPermission />
     </div>
   );
 }
