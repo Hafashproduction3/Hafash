@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useUser, useFirestore, useDoc } from "@/firebase";
+import { useUser, useFirestore, useDoc, useCollection } from "@/firebase";
 import {
   addDoc,
   arrayRemove,
@@ -72,7 +72,8 @@ import {
   isVerifiedPro,
   getMemberDuration,
 } from "@/lib/trust-score";
-
+import { calculateResponseTime, formatResponseTime } from "@/lib/response-time";
+import { calculateProfileCompletion, getCompletionColor, getCompletionBg, getCompletionLabel } from "@/lib/profile-completion";
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   photographer: <Camera className="w-4 h-4" />,
   videographer: <Video className="w-4 h-4" />,
@@ -142,7 +143,6 @@ export default function ProfessionalProfilePage() {
   const { data: currentUserProfile } = useDoc(currentUserRef);
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  // ⭐ Auto-open request modal if URL has ?request=1
   const [requestOpen, setRequestOpen] = useState(searchParams.get('request') === '1');
   const [eventDate, setEventDate] = useState("");
   const [eventType, setEventType] = useState("");
@@ -157,7 +157,27 @@ export default function ProfessionalProfilePage() {
   const savedProfiles = currentUserProfile?.savedNetworkProfiles || [];
   const isSaved = !!userId && savedProfiles.includes(userId);
   const isOwnProfile = !!user && user.uid === userId;
-
+  // Profile completion (only for own profile)
+  const completion = useMemo(() => {
+    if (!profile) return null;
+    return calculateProfileCompletion({
+      gender: profile.gender,
+      roles: profile.roles,
+      bio: profile.bio,
+      baseCity: profile.baseCity || profile.baseLocation,
+      serviceAreas: profile.serviceAreas,
+      equipment: profile.equipment,
+      rates: profile.rates,
+      rates_legacy: profile.rate,
+      portfolioType: profile.portfolioType,
+      portfolioGalleryIds: profile.portfolioGalleryIds,
+      instagramLink: profile.instagramLink,
+      facebookLink: profile.facebookLink,
+      youtubeLink: profile.youtubeLink,
+      turnarounds: profile.turnarounds,
+      availability: profile.availability,
+    });
+  }, [profile]);
   useEffect(() => {
     async function fetchReviews() {
       if (!firestore || !userId) return;
@@ -187,6 +207,26 @@ export default function ProfessionalProfilePage() {
     }
     fetchReviews();
   }, [firestore, userId]);
+
+  // Fetch requests where this user is the professional, to calculate response time
+  const allRequestsQuery = useMemo(() => {
+    if (!firestore || !userId) return null;
+    return query(
+      collection(firestore, "networkRequests"),
+      where("professionalId", "==", userId),
+      limit(50)
+    );
+  }, [firestore, userId]);
+
+  const { data: allRequests } = useCollection(allRequestsQuery);
+
+  const responseTime = useMemo(() => {
+    const result = calculateResponseTime(allRequests || []);
+    return {
+      text: formatResponseTime(result.avgMinutes, result.count),
+      count: result.count,
+    };
+  }, [allRequests]);
 
   const toggleSaveProfile = useCallback(async () => {
     if (!user || !firestore || !userId || isSavingProfile) return;
@@ -582,12 +622,88 @@ export default function ProfessionalProfilePage() {
             </CardContent>
           </Card>
         )}
+        {/* PROFILE COMPLETION (only for own profile) */}
+        {isOwnProfile && completion && completion.percent < 100 && (
+          <Card className="relative overflow-hidden rounded-[2rem] border-border/40 bg-gradient-to-br from-card/80 to-background shadow-xl">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
+            <CardContent className="p-6 lg:p-8 space-y-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-headline font-bold text-base text-white flex items-center gap-2">
+                      Profile Completion
+                      <span className={cn(
+                        "text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border",
+                        "bg-primary/10 text-primary border-primary/30"
+                      )}>
+                        {getCompletionLabel(completion.percent)}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {completion.missingHigh.length > 0
+                        ? `${completion.missingHigh.length} important cheezein baaki hain`
+                        : 'Profile almost complete hai'}
+                    </p>
+                  </div>
+                </div>
 
+                <div className="text-right">
+                  <p className={cn(
+                    "text-3xl font-headline font-bold tracking-tight",
+                    getCompletionColor(completion.percent)
+                  )}>
+                    {completion.percent}%
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="relative w-full h-2.5 bg-background/60 rounded-full overflow-hidden border border-white/5">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r",
+                    getCompletionBg(completion.percent)
+                  )}
+                  style={{ width: `${completion.percent}%` }}
+                />
+              </div>
+
+              {/* Missing items */}
+              {completion.missingHigh.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Complete these to boost your profile:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {completion.missingHigh.slice(0, 4).map((item) => (
+                      <Badge
+                        key={item.id}
+                        className="rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 gap-1.5 px-2.5 py-1.5 text-[11px] font-medium"
+                      >
+                        {item.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Link href="/network/join">
+                <Button className="w-full rounded-xl h-11 font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                  Complete Profile
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        )}
         {/* STATS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatBox icon={<Star className="w-4 h-4" />} label="Rating" value={ratingCount > 0 ? ratingAvg.toFixed(1) : "New"} sub={ratingCount > 0 ? `${ratingCount} reviews` : "No reviews yet"} color="yellow" />
           <StatBox icon={<Briefcase className="w-4 h-4" />} label="Events" value={String(completedJobs)} sub="completed" color="primary" />
-          <StatBox icon={<Zap className="w-4 h-4" />} label="Response" value="~2h" sub="typically" color="green" />
+          <StatBox icon={<Zap className="w-4 h-4" />} label="Response" value={responseTime.text} sub={responseTime.count > 0 ? `${responseTime.count} responses` : "New"} color="green" />
           <StatBox icon={<Award className="w-4 h-4" />} label="Member" value={memberDuration} sub="on Hafash" color="blue" />
         </div>
 
@@ -753,7 +869,6 @@ export default function ProfessionalProfilePage() {
               </SectionCard>
             )}
 
-            {/* PORTFOLIO */}
             <SectionCard title="Portfolio" icon={<ImageIcon className="w-4 h-4" />}>
               {profile.portfolioType === "hafash_gallery" ? (
                 <div className="space-y-4">
@@ -793,9 +908,6 @@ export default function ProfessionalProfilePage() {
                     <div className="text-center py-8 rounded-2xl bg-background/30 border border-dashed border-border/40">
                       <ImageIcon className="w-8 h-8 text-muted-foreground/30 mx-auto mb-3" />
                       <p className="text-sm text-muted-foreground font-medium">No galleries selected</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Select galleries from Edit Profile to showcase your work.
-                      </p>
                     </div>
                   )}
                 </div>
@@ -937,6 +1049,7 @@ export default function ProfessionalProfilePage() {
                 <QuickInfoRow icon={<Briefcase className="w-4 h-4" />} label="Completed Events" value={String(completedJobs)} />
                 <QuickInfoRow icon={<Star className="w-4 h-4" />} label="Rating" value={ratingCount > 0 ? `${ratingAvg.toFixed(1)} / 5.0` : "New"} />
                 <QuickInfoRow icon={<TrendingUp className="w-4 h-4" />} label="Trust Score" value={`${trustScore.score} / 100`} />
+                <QuickInfoRow icon={<Zap className="w-4 h-4" />} label="Response Time" value={responseTime.text} />
                 <QuickInfoRow icon={<ShieldCheck className="w-4 h-4" />} label="Verified" value={isVerified ? "Yes" : "No"} />
                 {city && (
                   <QuickInfoRow icon={<MapPin className="w-4 h-4" />} label="Based in" value={city} />
@@ -1038,10 +1151,7 @@ export default function ProfessionalProfilePage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
 // Helper Components
-// ─────────────────────────────────────────────────────────────
-
 function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
     <Card className="rounded-[2rem] border-border/40 bg-card/70 overflow-hidden">

@@ -126,6 +126,9 @@ export function DashboardSidebar() {
   const { data: myNetworkProfile } = useDoc(networkProfileRef);
   const hasNetworkProfile = !!myNetworkProfile;
 
+  // Saved profiles count
+  const savedCount = profile?.savedNetworkProfiles?.length || 0;
+
   const currentPlan = useMemo(() => {
     const planId = (profile?.planId as PlanId) || 'starter';
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
@@ -156,13 +159,18 @@ export function DashboardSidebar() {
       badge: newRequestsCount > 0 ? newRequestsCount : null,
     },
     { icon: MessageSquare, label: 'Messages', href: '/network/messages' },
+    {
+      icon: Heart,
+      label: 'Saved',
+      href: '/network/saved',
+      badge: savedCount > 0 ? savedCount : null,
+    },
     { icon: CalendarDays, label: 'My Availability', href: '/network/availability' },
   ];
 
   return (
     <aside className="w-64 border-r border-border/50 h-screen bg-card sticky top-0 hidden lg:flex flex-col">
 
-      {/* ═══ ORIGINAL LOGO ═══ */}
       <div className="p-8 border-b border-border/20">
         <Link
           href="/dashboard"
@@ -179,7 +187,6 @@ export function DashboardSidebar() {
         </Link>
       </div>
 
-      {/* ═══ NAVIGATION ═══ */}
       <nav className="flex-1 px-4 py-6 space-y-5 overflow-y-auto custom-scrollbar">
 
         {MENU_SECTIONS.map((section) => (
@@ -208,7 +215,6 @@ export function DashboardSidebar() {
           </div>
         ))}
 
-        {/* ═══ HAFASH NETWORK Section ═══ */}
         <div className="pt-3 border-t border-border/30">
           <button
             type="button"
@@ -222,7 +228,7 @@ export function DashboardSidebar() {
             )} />
           </button>
 
-          <Link href="/network/hub">
+          <Link href="/network">
             <Button
               variant="ghost"
               className={cn(
@@ -277,7 +283,6 @@ export function DashboardSidebar() {
         </div>
       </nav>
 
-      {/* ═══ FOOTER ═══ */}
       <div className="p-5 border-t border-border/50 space-y-3">
         <div className="bg-background/50 p-3 rounded-xl border border-border/50">
           <div className="flex items-center justify-between text-[10px] uppercase font-bold tracking-wider mb-1.5">
