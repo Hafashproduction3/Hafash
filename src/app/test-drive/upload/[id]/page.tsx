@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
@@ -28,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 type UploadStepStatus = 'queued' | 'uploading' | 'syncing' | 'completed' | 'error' | 'cancelled';
 
@@ -51,9 +53,14 @@ export default function TestDriveUploadPage() {
   const { events, addItems } = useStore();
   const { toast } = useToast();
   
+  const [isHydrated, setIsHydrated] = useState(false);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDone, setIsDone] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   const event = useMemo(() => events.find(e => e.id === id), [events, id]);
 
@@ -156,6 +163,10 @@ export default function TestDriveUploadPage() {
       uploadedSize: (uploadedBytes / (1024 * 1024)).toFixed(1) + " MB",
     };
   }, [files]);
+
+  if (!isHydrated) {
+    return <HafashLoader text="Preparing Test Pipeline..." />;
+  }
 
   if (!event) return null;
 

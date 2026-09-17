@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useStore } from '@/lib/store';
@@ -18,10 +19,11 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function TestDriveSelectionDetailPage() {
   const params = useParams();
@@ -30,9 +32,14 @@ export default function TestDriveSelectionDetailPage() {
   const { toast } = useToast();
   const router = useRouter();
 
+  const [isHydrated, setIsHydrated] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState("");
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   const event = useMemo(() => events.find(e => e.id === id), [events, id]);
 
@@ -118,6 +125,10 @@ export default function TestDriveSelectionDetailPage() {
     
     toast({ title: "CSV Exported", description: `Simulated data for ${itemsToExport.length} assets ready.` });
   };
+
+  if (!isHydrated) {
+    return <HafashLoader text="Loading Test Workspace..." />;
+  }
 
   if (!event) return null;
 

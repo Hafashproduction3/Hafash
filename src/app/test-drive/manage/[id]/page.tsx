@@ -44,6 +44,7 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 export default function TestDriveManagementPage() {
   const params = useParams();
@@ -52,7 +53,7 @@ export default function TestDriveManagementPage() {
   const { toast } = useToast();
   const router = useRouter();
   
-  const event = useMemo(() => events.find(e => e.id === id), [events, id]);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [origin, setOrigin] = useState('');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -67,10 +68,13 @@ export default function TestDriveManagementPage() {
   });
 
   useEffect(() => {
+    setIsHydrated(true);
     if (typeof window !== 'undefined') {
       setOrigin(window.location.origin);
     }
   }, []);
+
+  const event = useMemo(() => events.find(e => e.id === id), [events, id]);
 
   useEffect(() => {
     if (event) {
@@ -124,6 +128,10 @@ export default function TestDriveManagementPage() {
     toast({ title: "Link Copied" });
     setTimeout(() => setCopiedLink(false), 2000);
   };
+
+  if (!isHydrated) {
+    return <HafashLoader text="Loading Workspace..." />;
+  }
 
   if (!event) return (
     <div className="text-center py-40 bg-card/20 backdrop-blur-md border border-white/5 rounded-[3rem] animate-in fade-in duration-700">

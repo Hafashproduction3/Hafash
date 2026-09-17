@@ -25,7 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useMemo, memo, useCallback } from 'react';
+import { useState, useMemo, memo, useCallback, useEffect } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog,
@@ -35,6 +35,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { cn } from '@/lib/utils';
+import { HafashLoader } from '@/components/ui/hafash-loader';
 
 const TestGalleryItem = memo(({ 
   item, 
@@ -98,10 +99,20 @@ export default function TestDriveGalleryPage() {
   const { toast } = useToast();
   const router = useRouter();
   
-  const event = useMemo(() => events.find(e => e.id === id), [events, id]);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [helpfulClicked, setHelpfulClicked] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
-  const [helpfulClicked, setHelpfulClicked] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  const event = useMemo(() => events.find(e => e.id === id), [events, id]);
+
+  if (!isHydrated) {
+    return <HafashLoader text="Accessing Test Vault..." />;
+  }
 
   if (!event) {
     return (
@@ -216,7 +227,7 @@ export default function TestDriveGalleryPage() {
               </Button>
             )}
 
-            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 border-white/30 text-white hover:bg-white/10 gap-4 backdrop-blur-xl text-sm lg:text-base transition-all" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}>
+            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 border-white/30 text-white hover:bg-white/10 gap-4 backdrop-blur-xl text-sm lg:text-base transition-all" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
               <Share2 className="w-5 h-5 lg:w-6 lg:h-6" /> Share
             </Button>
           </div>
