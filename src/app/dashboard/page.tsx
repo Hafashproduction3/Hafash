@@ -28,6 +28,7 @@ import {
   Send,
   TrendingUp,
   Users,
+  MapPin,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -117,7 +118,7 @@ export default function DashboardPage() {
 
   const totalAccepted = (outgoingAccepted?.length || 0) + (incomingAccepted?.length || 0);
 
-  // ─── Network profile check ───
+  // ─── Network profile ───
   const networkProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'networkProfiles', user.uid);
@@ -159,7 +160,7 @@ export default function DashboardPage() {
             if (!lastMessageBy || lastMessageBy === user!.uid) return;
 
             const isHirer = req.hirerId === user!.uid;
-            const readAt = isHirer ? data.readByHirerAt?.seconds : data.readByProfessionalAt?.seconds;
+            const readAt = isHirer ? data.readByHirarAt?.seconds : data.readByProfessionalAt?.seconds;
 
             if (!readAt) {
               count++;
@@ -277,7 +278,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-10 pb-20 animate-in fade-in duration-1000">
 
-      {/* HEADER */}
+      {/* ═══ HEADER ═══ */}
       <div className="relative group">
         <div className="absolute -inset-4 bg-gradient-to-r from-primary/8 via-transparent to-transparent blur-3xl opacity-60 group-hover:opacity-100 transition-opacity duration-1000 -z-10" />
 
@@ -315,6 +316,17 @@ export default function DashboardPage() {
                 <ArrowRight className="w-3.5 h-3.5 text-primary opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
               </Button>
             </Link>
+
+            <Link href="/locations">
+              <Button
+                variant="outline"
+                className="rounded-2xl h-12 px-6 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
+              >
+                <MapPin className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                <span className="text-[13px]">Shoot Locations</span>
+                <ArrowRight className="w-3.5 h-3.5 text-emerald-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -324,7 +336,6 @@ export default function DashboardPage() {
         <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
         <div className="relative space-y-4">
-          {/* Header */}
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
@@ -359,7 +370,6 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <NetworkStatCard
               icon={<Inbox className="w-4 h-4" />}
@@ -395,7 +405,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* NO PLAN */}
+      {/* ═══ NO PLAN ═══ */}
       {!profileLoading && !hasActivePlan && (
         <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/8 via-card/60 to-card/40 backdrop-blur-xl p-4 md:p-5 shadow-lg">
           <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
@@ -428,7 +438,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* STORAGE */}
+      {/* ═══ STORAGE ═══ */}
       {!profileLoading && hasActivePlan && (
         <div className={cn(
           "relative overflow-hidden rounded-2xl border backdrop-blur-xl p-5 shadow-lg transition-all duration-500",
@@ -523,14 +533,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* STAT CARDS */}
+      {/* ═══ STAT CARDS ═══ */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <StatCard label="Total Deliveries" value={stats.totalDeliveries} icon={<Camera className="w-5 h-5" />} loading={dataLoading} />
         <StatCard label="Cloud Assets" value={stats.totalPhotos} icon={<LayoutGrid className="w-5 h-5" />} loading={dataLoading} />
         <StatCard label="Client Favorites" value={stats.totalFavorites} icon={<Heart className="w-5 h-5" />} loading={dataLoading} color="text-red-400" />
       </div>
 
-      {/* SEARCH + CONTROLS */}
+      {/* ═══ SEARCH + CONTROLS ═══ */}
       <div className="flex flex-col xl:flex-row gap-4 items-center justify-between bg-card/20 backdrop-blur-xl p-4 rounded-2xl border border-white/5 shadow-2xl">
         <div className="relative flex-1 w-full group">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -564,7 +574,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* GALLERIES */}
+      {/* ═══ GALLERIES ═══ */}
       {dataLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {[1, 2, 3].map(i => (
@@ -705,7 +715,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* DELETE DIALOG */}
+      {/* ═══ DELETE DIALOG ═══ */}
       <AlertDialog open={!!galleryToDelete} onOpenChange={(open) => !open && setGalleryToDelete(null)}>
         <AlertDialogContent className="bg-card/90 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-12 shadow-[0_50px_100px_rgba(0,0,0,0.5)] max-w-md ring-1 ring-white/10 overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-destructive to-transparent opacity-50" />
