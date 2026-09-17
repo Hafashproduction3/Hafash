@@ -74,6 +74,8 @@ import {
 } from "@/lib/trust-score";
 import { calculateResponseTime, formatResponseTime } from "@/lib/response-time";
 import { calculateProfileCompletion, getCompletionColor, getCompletionBg, getCompletionLabel } from "@/lib/profile-completion";
+import { notifyNewRequest } from "@/lib/create-notification";
+
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   photographer: <Camera className="w-4 h-4" />,
   videographer: <Video className="w-4 h-4" />,
@@ -157,27 +159,7 @@ export default function ProfessionalProfilePage() {
   const savedProfiles = currentUserProfile?.savedNetworkProfiles || [];
   const isSaved = !!userId && savedProfiles.includes(userId);
   const isOwnProfile = !!user && user.uid === userId;
-  // Profile completion (only for own profile)
-  const completion = useMemo(() => {
-    if (!profile) return null;
-    return calculateProfileCompletion({
-      gender: profile.gender,
-      roles: profile.roles,
-      bio: profile.bio,
-      baseCity: profile.baseCity || profile.baseLocation,
-      serviceAreas: profile.serviceAreas,
-      equipment: profile.equipment,
-      rates: profile.rates,
-      rates_legacy: profile.rate,
-      portfolioType: profile.portfolioType,
-      portfolioGalleryIds: profile.portfolioGalleryIds,
-      instagramLink: profile.instagramLink,
-      facebookLink: profile.facebookLink,
-      youtubeLink: profile.youtubeLink,
-      turnarounds: profile.turnarounds,
-      availability: profile.availability,
-    });
-  }, [profile]);
+
   useEffect(() => {
     async function fetchReviews() {
       if (!firestore || !userId) return;
@@ -208,7 +190,7 @@ export default function ProfessionalProfilePage() {
     fetchReviews();
   }, [firestore, userId]);
 
-  // Fetch requests where this user is the professional, to calculate response time
+  // Fetch requests for response time
   const allRequestsQuery = useMemo(() => {
     if (!firestore || !userId) return null;
     return query(
@@ -247,9 +229,12 @@ export default function ProfessionalProfilePage() {
     if (!user || !firestore || !userId || !eventDate || !eventType || isSendingRequest) return;
     setIsSendingRequest(true);
     try {
-      await addDoc(collection(firestore, "networkRequests"), {
+      const hirerName = currentUserProfile?.studioName || currentUserProfile?.photographerName || "Hafash User";
+
+      // 1. Create the request
+      const docRef = await addDoc(collection(firestore, "networkRequests"), {
         hirerId: user.uid,
-        hirerName: currentUserProfile?.studioName || currentUserProfile?.photographerName || "Hafash User",
+        hirerName,
         professionalId: userId,
         professionalName: profile?.studioName || profile?.photographerName || "",
         status: "pending",
@@ -260,6 +245,15 @@ export default function ProfessionalProfilePage() {
         message: requestMessage.trim(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+      });
+
+      // 2. Create notification for the professional
+      await notifyNewRequest(firestore, {
+        professionalId: userId,
+        hirerId: user.uid,
+        hirerName,
+        eventType,
+        requestId: docRef.id,
       });
 
       toast({ title: "Request Sent", description: "You'll be notified when they respond." });
@@ -340,6 +334,27 @@ export default function ProfessionalProfilePage() {
   const memberDuration = useMemo(() => {
     return getMemberDuration(profile?.createdAt);
   }, [profile?.createdAt]);
+
+  const completion = useMemo(() => {
+    if (!profile) return null;
+    return calculateProfileCompletion({
+      gender: profile.gender,
+      roles: profile.roles,
+      bio: profile.bio,
+      baseCity: profile.baseCity || profile.baseLocation,
+      serviceAreas: profile.serviceAreas,
+      equipment: profile.equipment,
+      rates: profile.rates,
+      rates_legacy: profile.rate,
+      portfolioType: profile.portfolioType,
+      portfolioGalleryIds: profile.portfolioGalleryIds,
+      instagramLink: profile.instagramLink,
+      facebookLink: profile.facebookLink,
+      youtubeLink: profile.youtubeLink,
+      turnarounds: profile.turnarounds,
+      availability: profile.availability,
+    });
+  }, [profile]);
 
   const remoteRoles = useMemo(() => {
     const roles = profile?.roles || [];
@@ -558,6 +573,79 @@ export default function ProfessionalProfilePage() {
           </div>
         </Card>
 
+        {/* PROFILE COMPLETION (only for own profile) */}
+        {isOwnProfile && completion && completion.percent < 100 && (
+          <Card className="relative overflow-hidden rounded-[2rem] border-border/40 bg-gradient-to-br from-card/80 to-background shadow-xl">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
+            <CardContent className="p-6 lg:p-8 space-y-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
+                    <Sparkles className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-headline font-bold text-base text-white flex items-center gap-2">
+                      Profile Completion
+                      <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border bg-primary/10 text-primary border-primary/30">
+                        {getCompletionLabel(completion.percent)}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {completion.missingHigh.length > 0
+                        ? `${completion.missingHigh.length} important cheezein baaki hain`
+                        : 'Profile almost complete hai'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <p className={cn(
+                    "text-3xl font-headline font-bold tracking-tight",
+                    getCompletionColor(completion.percent)
+                  )}>
+                    {completion.percent}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="relative w-full h-2.5 bg-background/60 rounded-full overflow-hidden border border-white/5">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r",
+                    getCompletionBg(completion.percent)
+                  )}
+                  style={{ width: `${completion.percent}%` }}
+                />
+              </div>
+
+              {completion.missingHigh.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Complete these to boost your profile:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {completion.missingHigh.slice(0, 4).map((item) => (
+                      <Badge
+                        key={item.id}
+                        className="rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 gap-1.5 px-2.5 py-1.5 text-[11px] font-medium"
+                      >
+                        {item.label}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <Link href="/network/join">
+                <Button className="w-full rounded-xl h-11 font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                  Complete Profile
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        )}
+
         {/* TRUST SCORE */}
         {ratingCount > 0 && (
           <Card className="relative overflow-hidden rounded-[2rem] border-border/40 bg-gradient-to-br from-card/80 to-background shadow-xl">
@@ -622,83 +710,7 @@ export default function ProfessionalProfilePage() {
             </CardContent>
           </Card>
         )}
-        {/* PROFILE COMPLETION (only for own profile) */}
-        {isOwnProfile && completion && completion.percent < 100 && (
-          <Card className="relative overflow-hidden rounded-[2rem] border-border/40 bg-gradient-to-br from-card/80 to-background shadow-xl">
-            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
-            <CardContent className="p-6 lg:p-8 space-y-5">
-              <div className="flex items-start justify-between gap-4 flex-wrap">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="font-headline font-bold text-base text-white flex items-center gap-2">
-                      Profile Completion
-                      <span className={cn(
-                        "text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-md border",
-                        "bg-primary/10 text-primary border-primary/30"
-                      )}>
-                        {getCompletionLabel(completion.percent)}
-                      </span>
-                    </h3>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {completion.missingHigh.length > 0
-                        ? `${completion.missingHigh.length} important cheezein baaki hain`
-                        : 'Profile almost complete hai'}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="text-right">
-                  <p className={cn(
-                    "text-3xl font-headline font-bold tracking-tight",
-                    getCompletionColor(completion.percent)
-                  )}>
-                    {completion.percent}%
-                  </p>
-                </div>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="relative w-full h-2.5 bg-background/60 rounded-full overflow-hidden border border-white/5">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r",
-                    getCompletionBg(completion.percent)
-                  )}
-                  style={{ width: `${completion.percent}%` }}
-                />
-              </div>
-
-              {/* Missing items */}
-              {completion.missingHigh.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Complete these to boost your profile:
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {completion.missingHigh.slice(0, 4).map((item) => (
-                      <Badge
-                        key={item.id}
-                        className="rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/30 gap-1.5 px-2.5 py-1.5 text-[11px] font-medium"
-                      >
-                        {item.label}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <Link href="/network/join">
-                <Button className="w-full rounded-xl h-11 font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-                  Complete Profile
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        )}
         {/* STATS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatBox icon={<Star className="w-4 h-4" />} label="Rating" value={ratingCount > 0 ? ratingAvg.toFixed(1) : "New"} sub={ratingCount > 0 ? `${ratingCount} reviews` : "No reviews yet"} color="yellow" />

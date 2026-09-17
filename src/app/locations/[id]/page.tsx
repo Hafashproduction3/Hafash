@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUser, useFirestore, useDoc } from "@/firebase";
@@ -39,6 +39,7 @@ import {
   Building2,
   Navigation,
   Loader2,
+  Eye,
 } from "lucide-react";
 import {
   getCategoryInfo,
@@ -117,6 +118,32 @@ export default function LocationDetailPage() {
     navigator.clipboard.writeText(window.location.href);
     toast({ title: "Link copied!" });
   }, [toast]);
+    // Increment views counter (once per session per location)
+    useEffect(() => {
+      if (!firestore || !locationId || !location) return;
+  
+      const viewKey = `viewed_location_${locationId}`;
+      const alreadyViewed = sessionStorage.getItem(viewKey);
+  
+      if (alreadyViewed === "true") return;
+  
+      // Don't count owner's own views
+      if (user && location.ownerId === user.uid) return;
+  
+      const incrementView = async () => {
+        try {
+          const { updateDoc, increment, doc: firestoreDoc } = await import("firebase/firestore");
+          await updateDoc(firestoreDoc(firestore, "shootLocations", locationId), {
+            viewCount: increment(1),
+          });
+          sessionStorage.setItem(viewKey, "true");
+        } catch (err) {
+          // Silent fail
+        }
+      };
+  
+      incrementView();
+    }, [firestore, locationId, location, user]);
 
   const handleOpenChat = () => {
     if (!user) {
@@ -243,6 +270,14 @@ export default function LocationDetailPage() {
                       {formatTime12h(location.openTime)} - {formatTime12h(location.closeTime)}
                     </span>
                   </div>
+                  {location.viewCount > 0 && (
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-background/50 border border-border/30">
+                      <Eye className="w-4 h-4 text-primary" />
+                      <span className="font-medium text-xs">
+                        {location.viewCount.toLocaleString()} {location.viewCount === 1 ? "view" : "views"}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

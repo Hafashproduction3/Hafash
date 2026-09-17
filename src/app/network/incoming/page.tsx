@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { notifyRequestAccepted, notifyRequestDeclined } from "@/lib/create-notification";
 
 type RequestStatus = "pending" | "accepted" | "declined" | "cancelled" | "completed";
 
@@ -134,14 +135,40 @@ export default function IncomingRequestsPage() {
   }, [sortedRequests]);
 
   const handleAction = useCallback(async () => {
-    if (!firestore || !actionTarget || isProcessing) return;
+    if (!firestore || !actionTarget || isProcessing || !user) return;
     setIsProcessing(true);
     try {
+      const targetRequest = sortedRequests.find((r: any) => r.id === actionTarget.id);
+      if (!targetRequest) throw new Error("Request not found");
+
+      const newStatus = actionTarget.action === "accept" ? "accepted" : "declined";
+
+      // 1. Update request status
       await updateDoc(doc(firestore, "networkRequests", actionTarget.id), {
-        status: actionTarget.action === "accept" ? "accepted" : "declined",
+        status: newStatus,
         respondedAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      // 2. Notify the hirer
+      const professionalName = targetRequest.professionalName || user.displayName || "Professional";
+      if (actionTarget.action === "accept") {
+        await notifyRequestAccepted(firestore, {
+          hirerId: targetRequest.hirerId,
+          professionalId: user.uid,
+          professionalName,
+          eventType: targetRequest.eventType || "Event",
+          requestId: actionTarget.id,
+        });
+      } else {
+        await notifyRequestDeclined(firestore, {
+          hirerId: targetRequest.hirerId,
+          professionalId: user.uid,
+          professionalName,
+          eventType: targetRequest.eventType || "Event",
+        });
+      }
+
       toast({
         title: actionTarget.action === "accept" ? "Request Accepted" : "Request Declined",
         description:
@@ -151,13 +178,13 @@ export default function IncomingRequestsPage() {
       });
       setActionTarget(null);
     } catch (err: any) {
+      console.error("[INCOMING_ACTION] Error:", err);
       toast({ variant: "destructive", title: "Action failed" });
     } finally {
       setIsProcessing(false);
     }
-  }, [firestore, actionTarget, isProcessing, toast]);
+  }, [firestore, actionTarget, isProcessing, toast, user, sortedRequests]);
 
-  // Mark as complete — professional side
   const handleMarkComplete = useCallback(async () => {
     if (!firestore || !completeTarget || isCompleting) return;
     setIsCompleting(true);
@@ -481,7 +508,6 @@ function IncomingRequestCard({
           </div>
         )}
 
-        {/* Complete indicator */}
         {isAccepted && iMarkedComplete && (
           <div className="flex items-center gap-2 p-3 rounded-xl bg-green-500/5 border border-green-500/20">
             <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
@@ -492,21 +518,13 @@ function IncomingRequestCard({
         )}
 
         <div className="flex flex-wrap gap-2 pt-2 border-t border-border/20">
-
-          {/* Chat */}
           {(isAccepted || isCompleted) && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="rounded-xl gap-1.5 font-bold"
-              onClick={onOpenChat}
-            >
+            <Button size="sm" variant="outline" className="rounded-xl gap-1.5 font-bold" onClick={onOpenChat}>
               <MessageSquare className="w-3.5 h-3.5" />
               Open Chat
             </Button>
           )}
 
-          {/* Mark as Complete */}
           {isAccepted && !iMarkedComplete && (
             <Button
               size="sm"
@@ -518,7 +536,6 @@ function IncomingRequestCard({
             </Button>
           )}
 
-          {/* Leave Review */}
           {isCompleted && !iReviewed && (
             <Button
               size="sm"
@@ -530,7 +547,6 @@ function IncomingRequestCard({
             </Button>
           )}
 
-          {/* Reviewed indicator */}
           {isCompleted && iReviewed && (
             <Badge className="rounded-xl bg-primary/10 text-primary border border-primary/20 gap-1.5 px-3 py-1.5">
               <CheckCircle2 className="w-3 h-3" />
@@ -538,7 +554,6 @@ function IncomingRequestCard({
             </Badge>
           )}
 
-          {/* Accept / Decline */}
           {request.status === "pending" && (
             <>
               <Button
@@ -571,7 +586,6 @@ function IncomingRequestCard({
             <UserIcon className="w-3.5 h-3.5" />
           </Button>
         </div>
-
       </CardContent>
     </Card>
   );

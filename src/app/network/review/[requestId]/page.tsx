@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { notifyNewReview } from "@/lib/create-notification";
 
 const CATEGORIES = [
   {
@@ -189,7 +190,15 @@ export default function ReviewPage() {
         updatedAt: serverTimestamp(),
       });
 
-      // 3. Update reviewee's aggregate rating on their network profile
+      // 3. Notify the reviewee
+      await notifyNewReview(firestore, {
+        revieweeId: otherUserId!,
+        reviewerId: user.uid,
+        reviewerName: isHirer ? request.hirerName : request.professionalName,
+        stars: Number(averageRating.toFixed(1)),
+      });
+
+      // 4. Update aggregate rating on network profile
       await updateAggregateRating(firestore, otherUserId!);
 
       toast({
@@ -458,15 +467,10 @@ export default function ReviewPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
-// Aggregate rating updater
-// Fetches all reviews for a user and recalculates their average
-// ─────────────────────────────────────────────────────────────
 async function updateAggregateRating(firestore: any, revieweeId: string) {
   if (!firestore || !revieweeId) return;
 
   try {
-    // Fetch all reviews for this user
     const q = query(
       collection(firestore, "networkReviews"),
       where("revieweeId", "==", revieweeId)
@@ -474,7 +478,6 @@ async function updateAggregateRating(firestore: any, revieweeId: string) {
     const snap = await getDocs(q);
 
     if (snap.empty) {
-      // No reviews — reset aggregate
       await setDoc(
         doc(firestore, "networkProfiles", revieweeId),
         {
@@ -492,21 +495,16 @@ async function updateAggregateRating(firestore: any, revieweeId: string) {
       return;
     }
 
-    let totalOverall = 0;
-    let totalPunctuality = 0;
-    let totalBehavior = 0;
-    let totalWorkQuality = 0;
-    let totalCommunication = 0;
-    let count = 0;
+    let totalOverall = 0, totalPunc = 0, totalBeh = 0, totalWork = 0, totalComm = 0, count = 0;
 
     snap.forEach((d: any) => {
       const data = d.data();
       const r = data.ratings || {};
       totalOverall += Number(data.overallRating || 0);
-      totalPunctuality += Number(r.punctuality || 0);
-      totalBehavior += Number(r.behavior || 0);
-      totalWorkQuality += Number(r.workQuality || 0);
-      totalCommunication += Number(r.communication || 0);
+      totalPunc += Number(r.punctuality || 0);
+      totalBeh += Number(r.behavior || 0);
+      totalWork += Number(r.workQuality || 0);
+      totalComm += Number(r.communication || 0);
       count++;
     });
 
@@ -518,10 +516,10 @@ async function updateAggregateRating(firestore: any, revieweeId: string) {
         rating: {
           average: Number((totalOverall / count).toFixed(2)),
           count,
-          punctuality: Number((totalPunctuality / count).toFixed(2)),
-          behavior: Number((totalBehavior / count).toFixed(2)),
-          workQuality: Number((totalWorkQuality / count).toFixed(2)),
-          communication: Number((totalCommunication / count).toFixed(2)),
+          punctuality: Number((totalPunc / count).toFixed(2)),
+          behavior: Number((totalBeh / count).toFixed(2)),
+          workQuality: Number((totalWork / count).toFixed(2)),
+          communication: Number((totalComm / count).toFixed(2)),
         },
         completedJobs: count,
       },

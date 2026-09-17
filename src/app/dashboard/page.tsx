@@ -29,6 +29,8 @@ import {
   TrendingUp,
   Users,
   MapPin,
+  Eye,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,6 +127,34 @@ export default function DashboardPage() {
   }, [firestore, user?.uid]);
   const { data: myNetworkProfile } = useDoc(networkProfileRef);
   const hasNetworkProfile = !!myNetworkProfile;
+
+  // ─── Location Widget Data ───
+  const myLocationsQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'shootLocations'),
+      where('ownerId', '==', user.uid),
+      where('isActive', '==', true)
+    );
+  }, [firestore, user?.uid]);
+  const { data: myLocations } = useCollection(myLocationsQuery);
+
+  const locationStats = useMemo(() => {
+    const locs = myLocations || [];
+    const totalViews = locs.reduce((sum: number, l: any) => sum + (l.viewCount || 0), 0);
+    const totalBookings = locs.reduce((sum: number, l: any) => {
+      const bookedSlots = l.bookedSlots || {};
+      return sum + Object.values(bookedSlots).reduce(
+        (s: number, slots: any) => s + (Array.isArray(slots) ? slots.length : 0),
+        0
+      );
+    }, 0);
+    return {
+      count: locs.length,
+      totalViews,
+      totalBookings,
+    };
+  }, [myLocations]);
 
   // ─── Unread messages ───
   const allAcceptedRequests = useMemo(() => {
@@ -404,6 +434,65 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* ═══ LOCATION WIDGET ═══ */}
+      {locationStats.count > 0 && (
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/25 bg-gradient-to-br from-emerald-500/8 via-card/60 to-background p-5 lg:p-6 shadow-lg">
+          <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl pointer-events-none" />
+
+          <div className="relative space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center shrink-0">
+                  <MapPin className="w-5 h-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="font-headline font-bold text-base text-white">
+                    Shoot Locations
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {locationStats.count === 1
+                      ? "Aapki 1 location live hai"
+                      : `Aapki ${locationStats.count} locations live hain`}
+                  </p>
+                </div>
+              </div>
+
+              <Link href="/locations">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl gap-1.5 border-emerald-500/30 hover:bg-emerald-500/5 hover:border-emerald-500/50"
+                >
+                  Manage
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <LocationStatCard
+                icon={<Building2 className="w-4 h-4" />}
+                label="Locations"
+                value={locationStats.count}
+                color="emerald"
+              />
+              <LocationStatCard
+                icon={<Eye className="w-4 h-4" />}
+                label="Views"
+                value={locationStats.totalViews}
+                color="primary"
+              />
+              <LocationStatCard
+                icon={<TrendingUp className="w-4 h-4" />}
+                label="Bookings"
+                value={locationStats.totalBookings}
+                color="green"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ═══ NO PLAN ═══ */}
       {!profileLoading && !hasActivePlan && (
@@ -830,6 +919,71 @@ function NetworkStatCard({
         </div>
       </div>
     </Link>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Location Stat Card
+// ─────────────────────────────────────────────────────────────
+
+function LocationStatCard({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  color: 'emerald' | 'primary' | 'green';
+}) {
+  const colorClasses = {
+    emerald: {
+      border: 'border-emerald-500/20',
+      bg: 'bg-emerald-500/5',
+      icon: 'text-emerald-400',
+      iconBg: 'bg-emerald-500/15',
+    },
+    primary: {
+      border: 'border-primary/20',
+      bg: 'bg-primary/5',
+      icon: 'text-primary',
+      iconBg: 'bg-primary/15',
+    },
+    green: {
+      border: 'border-green-500/20',
+      bg: 'bg-green-500/5',
+      icon: 'text-green-400',
+      iconBg: 'bg-green-500/15',
+    },
+  }[color];
+
+  return (
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-2xl border p-4 transition-all duration-300",
+        colorClasses.border,
+        colorClasses.bg
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className={cn(
+          "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
+          colorClasses.iconBg
+        )}>
+          <div className={colorClasses.icon}>{icon}</div>
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+            {label}
+          </p>
+          <p className="text-xl font-headline font-bold leading-tight mt-0.5 text-white">
+            {value.toLocaleString()}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 

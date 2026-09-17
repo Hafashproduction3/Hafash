@@ -14,6 +14,7 @@ import {
   serverTimestamp,
   onSnapshot,
   limit,
+  getDoc,
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { format, isToday, isYesterday } from "date-fns";
+import { notifyNewMessage } from "@/lib/create-notification";
 
 interface Message {
   id: string;
@@ -63,7 +65,6 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Get the request
   const requestRef = useMemo(() => {
     if (!firestore || !requestId) return null;
     return doc(firestore, "networkRequests", requestId);
@@ -71,7 +72,6 @@ export default function ChatPage() {
 
   const { data: request, loading: requestLoading } = useDoc(requestRef);
 
-  // Get the other person's profile
   const otherUserId = useMemo(() => {
     if (!request || !user) return null;
     return request.hirerId === user.uid ? request.professionalId : request.hirerId;
@@ -94,7 +94,6 @@ export default function ChatPage() {
     return requestId;
   }, [requestId]);
 
-  // Listen to messages in real-time
   useEffect(() => {
     if (!firestore || !chatId) return;
 
@@ -121,12 +120,12 @@ export default function ChatPage() {
     return () => unsubscribe();
   }, [firestore, chatId]);
 
-  // Auto scroll to bottom
+  // Auto scroll
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length]);
 
-  // Mark chat as read when opened
+  // Mark chat as read
   useEffect(() => {
     if (!firestore || !chatId || !user || !request) return;
 
@@ -149,7 +148,6 @@ export default function ChatPage() {
     markAsRead();
   }, [firestore, chatId, user, request]);
 
-  // Send message
   const handleSend = useCallback(async () => {
     if (!user || !firestore || !chatId || !messageText.trim() || isSending || !request) return;
 
@@ -158,6 +156,7 @@ export default function ChatPage() {
     setMessageText("");
 
     try {
+      // 1. Add message
       await addDoc(collection(firestore, "networkChats", chatId, "messages"), {
         senderId: user.uid,
         senderName: user.displayName || "Hafash User",
@@ -166,6 +165,7 @@ export default function ChatPage() {
         read: false,
       });
 
+      // 2. Update chat meta
       const chatRef = doc(firestore, "networkChats", chatId);
       await setDoc(
         chatRef,
@@ -178,6 +178,21 @@ export default function ChatPage() {
         },
         { merge: true }
       );
+
+      // 3. Notify the other user
+      const recipientId = request.hirerId === user.uid ? request.professionalId : request.hirerId;
+      const senderName =
+        request.hirerId === user.uid
+          ? request.hirerName
+          : request.professionalName;
+
+      await notifyNewMessage(firestore, {
+        recipientId,
+        senderId: user.uid,
+        senderName: senderName || user.displayName || "Hafash User",
+        message: text,
+        requestId: chatId,
+      });
 
       inputRef.current?.focus();
     } catch (error: any) {
@@ -200,7 +215,6 @@ export default function ChatPage() {
     }
   };
 
-  // Group messages by date
   const groupedMessages = useMemo(() => {
     const groups: { date: string; label: string; messages: Message[] }[] = [];
     let currentDate = "";
