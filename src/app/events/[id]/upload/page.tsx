@@ -48,6 +48,9 @@ interface FileItem {
   previewUrl?: string;
 }
 
+// 🚀 Parallel upload limit — kitni files ek saath upload hongi
+const PARALLEL_LIMIT = 5;
+
 export default function GalleryUploadPage() {
   const router = useRouter();
   const { id } = useParams() as { id: string };
@@ -154,82 +157,137 @@ export default function GalleryUploadPage() {
     });
   };
 
+  // ─────────────────────────────────────────────────────
+  // 🚀 PARALLEL UPLOAD ENGINE — 5x faster
+  // ─────────────────────────────────────────────────────
   const startUpload = async () => {
     if (files.length === 0 || isUploading) return;
 
     setIsUploading(true);
-    
-    for (const item of files) {
-      if (item.status === 'completed' || item.status === 'cancelled') continue;
 
+    const filesToUpload = files.filter(
+      (f) => f.status !== "completed" && f.status !== "cancelled"
+    );
+
+    let currentIndex = 0;
+
+    // Single file uploader
+    const uploadSingleFile = async (item: FileItem) => {
       try {
         console.log(`[UPLOAD_PIPELINE] Starting: ${item.name}`);
-        updateFileStatus(item.id, { status: 'uploading', currentStep: 'Requesting Access...' });
+        updateFileStatus(item.id, {
+          status: "uploading",
+          currentStep: "Requesting Access...",
+        });
 
         const { success, uploadUrl, key, error } = await requestUploadUrl({
           userId: user!.uid,
           galleryId: id,
           fileName: item.name,
-          contentType: item.file.type || 'application/octet-stream',
-          fileSize: item.size
+          contentType: item.file.type || "application/octet-stream",
+          fileSize: item.size,
         });
 
-        if (!success || !uploadUrl) throw new Error(error || "Failed to authorize upload.");
+        if (!success || !uploadUrl) {
+          throw new Error(error || "Failed to authorize upload.");
+        }
 
-        updateFileStatus(item.id, { currentStep: 'Transferring...' });
-        
+        updateFileStatus(item.id, { currentStep: "Transferring..." });
+
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           const startTime = Date.now();
 
-          xhr.upload.addEventListener('progress', (e) => {
+          xhr.upload.addEventListener("progress", (e) => {
             if (e.lengthComputable) {
               const progress = Math.round((e.loaded / e.total) * 100);
               const duration = (Date.now() - startTime) / 1000;
               const speed = duration > 0 ? e.loaded / duration : 0;
               const eta = speed > 0 ? (e.total - e.loaded) / speed : 0;
-              
+
               updateFileStatus(item.id, { progress, speed, eta });
             }
           });
 
-          xhr.addEventListener('load', () => {
+          xhr.addEventListener("load", () => {
             if (xhr.status >= 200 && xhr.status < 300) resolve();
             else reject(new Error(`R2 Rejected: ${xhr.status}`));
           });
 
-          xhr.addEventListener('error', () => reject(new Error("Network connection lost during transfer.")));
-          xhr.open('PUT', uploadUrl);
-          xhr.setRequestHeader('Content-Type', item.file.type || 'application/octet-stream');
+          xhr.addEventListener("error", () =>
+            reject(new Error("Network connection lost during transfer."))
+          );
+
+          xhr.open("PUT", uploadUrl);
+          xhr.setRequestHeader(
+            "Content-Type",
+            item.file.type || "application/octet-stream"
+          );
           xhr.send(item.file);
         });
 
-        updateFileStatus(item.id, { status: 'syncing', currentStep: 'Finalizing...' });
-        
+        updateFileStatus(item.id, {
+          status: "syncing",
+          currentStep: "Finalizing...",
+        });
+
         const syncResult = await completeUpload({
           userId: user!.uid,
           galleryId: id,
           task: {
             id: item.id,
             key: key!,
-            file: { name: item.name, size: item.size, type: item.file.type }
-          }
+            file: {
+              name: item.name,
+              size: item.size,
+              type: item.file.type,
+            },
+          },
         });
 
-        if (!syncResult.success) throw new Error(syncResult.error || "Metadata sync failed.");
+        if (!syncResult.success) {
+          throw new Error(syncResult.error || "Metadata sync failed.");
+        }
 
-        updateFileStatus(item.id, { status: 'completed', progress: 100, currentStep: 'Asset Verified' });
+        updateFileStatus(item.id, {
+          status: "completed",
+          progress: 100,
+          currentStep: "Asset Verified",
+        });
         console.log(`[UPLOAD_PIPELINE] Success: ${item.name}`);
-
       } catch (err: any) {
         console.error(`[UPLOAD_PIPELINE] Error uploading ${item.name}:`, err);
-        updateFileStatus(item.id, { status: 'error', error: err.message, currentStep: 'Failed' });
+        updateFileStatus(item.id, {
+          status: "error",
+          error: err.message,
+          currentStep: "Failed",
+        });
       }
-    }
+    };
+
+    // Worker — ek file uthata hai, upload karta hai, agla uthata hai
+    const worker = async () => {
+      while (true) {
+        const idx = currentIndex++;
+        if (idx >= filesToUpload.length) return;
+        await uploadSingleFile(filesToUpload[idx]);
+      }
+    };
+
+    // 🚀 N parallel workers start karo
+    const workers = Array.from(
+      { length: Math.min(PARALLEL_LIMIT, filesToUpload.length) },
+      () => worker()
+    );
+
+    await Promise.all(workers);
 
     setIsUploading(false);
     setIsDone(true);
-    toast({ title: "Sequence Completed", description: "Storage pipeline processing finished." });
+    toast({
+      title: "Sequence Completed",
+      description: "Storage pipeline processing finished.",
+    });
   };
 
   const stats = useMemo(() => {
@@ -343,7 +401,7 @@ export default function GalleryUploadPage() {
             
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border border-border/50">
                <Zap className="w-3 h-3 text-primary animate-pulse" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Direct Delivery Channel Active</span>
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Parallel Delivery Channel Active</span>
             </div>
           </div>
 
@@ -497,7 +555,7 @@ export default function GalleryUploadPage() {
       <footer className="pt-12 border-t border-border/50 flex flex-col md:flex-row gap-8 justify-between items-center opacity-60">
         <div className="flex items-center gap-4 text-xs text-muted-foreground italic font-medium">
           <ShieldCheck className="w-5 h-5 text-primary" />
-          <span>Direct-to-Vault Sequential Pipeline Enabled</span>
+          <span>Direct-to-Vault Parallel Pipeline Enabled</span>
         </div>
         <div className="flex items-center gap-6">
            <img src="/hafash-logo.png" className="h-8 w-auto grayscale brightness-200" alt="Hafash" />
