@@ -21,7 +21,6 @@ import {
 } from "@/lib/fcm";
 
 const DISMISS_KEY = "hafash_notification_dismissed";
-const FORCE_SHOW = true;
 
 export function NotificationPermission() {
   const { user } = useUser();
@@ -33,36 +32,32 @@ export function NotificationPermission() {
   const [alreadyEnabled, setAlreadyEnabled] = useState(false);
 
   useEffect(() => {
-    // 🐛 DEBUG MODE
-    if (FORCE_SHOW) {
-      setTimeout(() => setShow(true), 1000);
-      return;
-    }
-
     if (!user || !firestore) return;
 
-    // ✅ AUTO-RECOVERY: Agar permission "granted" hai
-    // toh token background mein refresh karo (silently)
     const status = getPermissionStatus();
 
+    // Agar permission already "granted" hai — popup KABHI nahi dikhao
     if (status === "granted") {
       setAlreadyEnabled(true);
-      // Background mein token refresh karo — user ko kuch nahi dikhega
-      setupFCM(firestore, user.uid).catch(() => {
-        // Silent fail — agla visit pe phir try karega
-      });
+      setupFCM(firestore, user.uid).catch(() => {});
       return;
     }
 
-    if (status === "denied") return;
+    // Agar permission "denied" hai — popup mat dikhao
+    if (status === "denied") {
+      setAlreadyEnabled(true);
+      return;
+    }
 
+    // Agar user ne "Later" dabaya tha (1 din) — popup mat dikhao
     const dismissed = localStorage.getItem(DISMISS_KEY);
     if (dismissed) {
       const dismissedAt = parseInt(dismissed, 10);
       const daysSince = (Date.now() - dismissedAt) / (1000 * 60 * 60 * 24);
-      if (daysSince < 30) return;
+      if (daysSince < 1) return;   // ← 1 din
     }
 
+    // Sirf "default" status pe popup dikhao
     isFCMSupported().then((supported) => {
       if (supported) {
         setTimeout(() => setShow(true), 3000);
@@ -85,19 +80,11 @@ export function NotificationPermission() {
         setAlreadyEnabled(true);
         setShow(false);
       } else {
-        toast({
-          variant: "destructive",
-          title: "Notifications not enabled",
-          description: "Aapne permission deny kar di ya browser support nahi karta.",
-        });
         handleDismiss();
       }
     } catch (err) {
       console.error("[PERMISSION] Error:", err);
-      toast({
-        variant: "destructive",
-        title: "Something went wrong",
-      });
+      handleDismiss();
     } finally {
       setIsEnabling(false);
     }
@@ -179,7 +166,7 @@ export function NotificationPermission() {
           </div>
 
           <p className="text-[10px] text-muted-foreground/70 text-center leading-relaxed">
-            Aap kabhi bhi settings se off kar sakte hain
+            Enable karein taake aapko Hafash ki notifications milti rahein
           </p>
         </CardContent>
 
