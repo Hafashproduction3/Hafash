@@ -33,13 +33,28 @@ export function NotificationPermission() {
   const [alreadyEnabled, setAlreadyEnabled] = useState(false);
 
   useEffect(() => {
-    // 🐛 DEBUG MODE — popup force dikhao
+    // 🐛 DEBUG MODE
     if (FORCE_SHOW) {
       setTimeout(() => setShow(true), 1000);
       return;
     }
 
-    if (!user) return;
+    if (!user || !firestore) return;
+
+    // ✅ AUTO-RECOVERY: Agar permission "granted" hai
+    // toh token background mein refresh karo (silently)
+    const status = getPermissionStatus();
+
+    if (status === "granted") {
+      setAlreadyEnabled(true);
+      // Background mein token refresh karo — user ko kuch nahi dikhega
+      setupFCM(firestore, user.uid).catch(() => {
+        // Silent fail — agla visit pe phir try karega
+      });
+      return;
+    }
+
+    if (status === "denied") return;
 
     const dismissed = localStorage.getItem(DISMISS_KEY);
     if (dismissed) {
@@ -48,27 +63,12 @@ export function NotificationPermission() {
       if (daysSince < 30) return;
     }
 
-    // 2. Check permission status
-    const status = getPermissionStatus();
-
-    if (status === "granted") {
-      // Already granted — popup mat dikhao
-      setAlreadyEnabled(true);
-      return;
-    }
-
-    if (status === "denied") {
-      // Denied — popup mat dikhao
-      return;
-    }
-
-    // 3. Check FCM support + show popup
     isFCMSupported().then((supported) => {
       if (supported) {
         setTimeout(() => setShow(true), 3000);
       }
     });
-  }, [user]);
+  }, [user, firestore]);
 
   const handleEnable = async () => {
     if (!user || !firestore) return;

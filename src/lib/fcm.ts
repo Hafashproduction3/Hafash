@@ -9,6 +9,7 @@ import {
   getToken,
   onMessage,
   isSupported,
+  deleteToken,
 } from "firebase/messaging";
 import { initializeApp, getApps } from "firebase/app";
 import { firebaseConfig } from "@/firebase/config";
@@ -30,13 +31,8 @@ export async function isFCMSupported(): Promise<boolean> {
   }
 }
 
-/**
- * Register the Firebase messaging service worker
- * with the correct FCM scope.
- */
 async function ensureServiceWorker(): Promise<ServiceWorkerRegistration> {
   const FCM_SCOPE = "/firebase-cloud-messaging-push-scope";
-
   let registration = await navigator.serviceWorker.getRegistration(FCM_SCOPE);
 
   if (!registration) {
@@ -46,9 +42,7 @@ async function ensureServiceWorker(): Promise<ServiceWorkerRegistration> {
     );
   }
 
-  if (registration.active) {
-    return registration;
-  }
+  if (registration.active) return registration;
 
   await new Promise<void>((resolve) => {
     const sw = registration!.installing || registration!.waiting;
@@ -94,6 +88,14 @@ export async function requestNotificationPermission(): Promise<string | null> {
     console.log("[FCM] SW ready:", registration);
 
     const messaging = getMessaging(app);
+
+    // ✅ Purana/stale token clear karein (agar hai)
+    try {
+      await deleteToken(messaging);
+      console.log("[FCM] Cleared old token");
+    } catch {
+      // Koi token nahi tha — theek hai
+    }
 
     const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
     if (!vapidKey) {
