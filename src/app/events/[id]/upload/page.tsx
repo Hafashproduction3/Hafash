@@ -26,12 +26,12 @@ type UploadStepStatus = 'queued' | 'compressing' | 'uploading' | 'syncing' | 'co
 interface FileItem {
   id: string;
   file: File;
-  compressedFile?: File;
+  previewFile?: File;
   thumbFile?: File;
   progress: number;
   name: string;
   size: number;
-  compressedSize?: number;
+  previewSize?: number;
   thumbSize?: number;
   status: UploadStepStatus;
   error?: string;
@@ -40,26 +40,28 @@ interface FileItem {
   eta: number;
   previewUrl?: string;
   retryCount: number;
+  originalUploading?: boolean;  // Background original status
+  originalReady?: boolean;
 }
 
 const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
 
-// 🎨 Main Photo Compression — HIGH QUALITY (Option B)
-const COMPRESSION_OPTIONS = {
-  maxSizeMB: 6,              // 5 → 6
-  maxWidthOrHeight: 4500,    // 4000 → 4500
+// 🖼️ Preview — Client dekhne ke liye (watermarked concept)
+const PREVIEW_OPTIONS = {
+  maxSizeMB: 0.6,          // 600 KB
+  maxWidthOrHeight: 1800,  // 1800px
   useWebWorker: true,
-  initialQuality: 0.95,      // 0.92 → 0.95
+  initialQuality: 0.87,
   fileType: 'image/jpeg',
 };
 
-// 🖼️ Thumbnail Settings — HIGH QUALITY
+// 🖼️ Thumbnail — Grid ke liye
 const THUMBNAIL_OPTIONS = {
-  maxSizeMB: 0.15,           // 50 KB → 150 KB
-  maxWidthOrHeight: 800,     // 400px → 800px
+  maxSizeMB: 0.05,
+  maxWidthOrHeight: 400,
   useWebWorker: true,
-  initialQuality: 0.85,      // 0.7 → 0.85
+  initialQuality: 0.8,
   fileType: 'image/jpeg',
 };
 
@@ -78,9 +80,12 @@ export default function GalleryUploadPage() {
   const [isDone, setIsDone] = useState(false);
   const [resumedCount, setResumedCount] = useState(0);
   const [uploadedNames, setUploadedNames] = useState<Set<string>>(new Set());
+  const [backgroundQueue, setBackgroundQueue] = useState<FileItem[]>([]);
   
   const pauseRef = useRef(false);
   const cancelRef = useRef(false);
+  const bgQueueRef = useRef<FileItem[]>([]);
+  const bgProcessingRef = useRef(false);
 
   const isOwner = useMemo(() => isOwnerEmail(user?.email), [user?.email]);
 
@@ -192,7 +197,8 @@ export default function GalleryUploadPage() {
           speed: 0,
           eta: 0,
           retryCount: 0,
-          previewUrl: isImage ? URL.createObjectURL(f) : undefined
+          previewUrl: isImage ? URL.createObjectURL(f) : undefined,
+          originalReady: uploadedNames.has(f.name), // Already uploaded = original ready
         };
       });
 
@@ -221,30 +227,26 @@ export default function GalleryUploadPage() {
     startUpload();
   };
 
-  // 🎨 Full quality compression
-  const compressFile = async (file: File): Promise<File> => {
-    if (!file.type.startsWith('image/')) return file;
-    if (file.size < 6 * 1024 * 1024) return file;
-
+  // 🖼️ Generate preview
+  const generatePreview = async (file: File): Promise<File | null> => {
+    if (!file.type.startsWith('image/')) return null;
     try {
-      const compressed = await imageCompression(file, COMPRESSION_OPTIONS);
-      console.log(`[COMPRESS] ${file.name}: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.size / 1024 / 1024).toFixed(1)}MB`);
-      return compressed;
+      const preview = await imageCompression(file, PREVIEW_OPTIONS);
+      return preview;
     } catch (err) {
-      console.warn(`[COMPRESS] Failed for ${file.name}`);
-      return file;
+      console.warn('[PREVIEW] Failed', file.name);
+      return null;
     }
   };
 
-  // 🖼️ Thumbnail generator
+  // 🖼️ Generate thumbnail
   const generateThumbnail = async (file: File): Promise<File | null> => {
     if (!file.type.startsWith('image/')) return null;
     try {
       const thumb = await imageCompression(file, THUMBNAIL_OPTIONS);
-      console.log(`[THUMB] ${file.name}: ${(thumb.size / 1024).toFixed(0)}KB`);
       return thumb;
     } catch (err) {
-      console.warn('[THUMB] Failed for', file.name);
+      console.warn('[THUMB] Failed', file.name);
       return null;
     }
   };
@@ -276,13 +278,86 @@ export default function GalleryUploadPage() {
       });
 
       xhr.addEventListener('error', () => reject(new Error("Network error")));
-      xhr.timeout = 600000;
+      xhr.timeout = 900000;
       xhr.addEventListener('timeout', () => reject(new Error("Timeout")));
 
       xhr.open("PUT", url);
       xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
       xhr.send(file);
     });
+  };
+
+  // 🎯 Background original uploader (silent, sequential)
+  const processBackgroundQueue = async () => {
+    if (bgProcessingRef.current) return;
+    bgProcessingRef.current = true;
+
+    while (bgQueueRef.current.length > 0) {
+      if (pauseRef.current || cancelRef.current) {
+        bgProcessingRef.current = false;
+        return;
+      }
+
+      const item = bgQueueRef.current.shift();
+      if (!item) continue;
+
+      try {
+        console.log(`[BG_ORIGINAL] Starting: ${item.name}`);
+        
+        // Get presign URL for original
+        const result = await requestUploadUrl({
+          userId: user!.uid,
+          galleryId: id,
+          fileName: `original_${item.name}`,
+          contentType: item.file.type || 'application/octet-stream',
+          fileSize: item.size,
+        });
+
+        if (!result.success || !result.uploadUrl) {
+          console.warn(`[BG_ORIGINAL] Failed for ${item.name}: ${result.error}`);
+          // Requeue for retry
+          bgQueueRef.current.push(item);
+          await new Promise(r => setTimeout(r, 5000));
+          continue;
+        }
+
+        // Upload original (no progress tracking — silent)
+        await uploadToR2(result.uploadUrl, item.file);
+
+        console.log(`[BG_ORIGINAL] ✅ Uploaded: ${item.name}`);
+
+        // Update Firestore with original key
+        await completeUpload({
+          userId: user!.uid,
+          galleryId: id,
+          task: {
+            id: `original_${item.id}`,
+            key: result.key!,
+            originalKey: result.key!,
+            originalReady: true,
+            file: {
+              name: item.name,
+              size: item.size,
+              type: item.file.type,
+            },
+          },
+        });
+
+        // Update UI state
+        setFiles(prev => prev.map(f => 
+          f.id === item.id ? { ...f, originalReady: true, originalUploading: false } : f
+        ));
+
+      } catch (err) {
+        console.error(`[BG_ORIGINAL] Error ${item.name}:`, err);
+        // Retry once
+        setTimeout(() => {
+          bgQueueRef.current.push(item);
+        }, 10000);
+      }
+    }
+
+    bgProcessingRef.current = false;
   };
 
   const startUpload = async () => {
@@ -328,36 +403,37 @@ export default function GalleryUploadPage() {
       }
 
       try {
-        // 1. Compress main file
-        let fileToUpload = item.compressedFile || item.file;
-        
-        if (!item.compressedFile && item.file.type.startsWith('image/')) {
+        // 1. Generate preview + thumbnail
+        let previewFile = item.previewFile;
+        let thumbFile = item.thumbFile;
+
+        if (!previewFile && item.file.type.startsWith('image/')) {
           updateFileStatus(item.id, {
             status: 'compressing',
-            currentStep: 'Optimizing quality...',
+            currentStep: 'Creating preview...',
           });
-          fileToUpload = await compressFile(item.file);
+          const p = await generatePreview(item.file);
+          if (p) previewFile = p;
         }
 
-        // 2. Generate thumbnail
-        let thumbFile = item.thumbFile;
         if (!thumbFile && item.file.type.startsWith('image/')) {
           updateFileStatus(item.id, {
             status: 'compressing',
             currentStep: 'Creating thumbnail...',
           });
-          const thumb = await generateThumbnail(fileToUpload);
-          if (thumb) thumbFile = thumb;
+          const t = await generateThumbnail(item.file);
+          if (t) thumbFile = t;
         }
 
         setFiles(prev => prev.map(f => 
           f.id === item.id 
             ? { 
                 ...f, 
-                compressedFile: fileToUpload, 
-                compressedSize: fileToUpload.size,
+                previewFile, 
+                previewSize: previewFile?.size,
                 thumbFile,
                 thumbSize: thumbFile?.size,
+                originalUploading: true,
               } 
             : f
         ));
@@ -367,47 +443,35 @@ export default function GalleryUploadPage() {
           return;
         }
 
-        // 3. Get presign URL for main file
+        // 2. Upload PREVIEW first (fast)
         updateFileStatus(item.id, {
           status: 'uploading',
-          currentStep: 'Requesting access...',
+          currentStep: 'Uploading preview...',
         });
 
-        const mainResult = await requestUploadUrl({
+        const previewTarget = previewFile || item.file;
+        const previewResult = await requestUploadUrl({
           userId: user!.uid,
           galleryId: id,
-          fileName: item.name,
-          contentType: fileToUpload.type || 'application/octet-stream',
-          fileSize: fileToUpload.size,
+          fileName: `preview_${item.name}`,
+          contentType: previewTarget.type || 'image/jpeg',
+          fileSize: previewTarget.size,
         });
 
-        if (!mainResult.success || !mainResult.uploadUrl) {
-          throw new Error(mainResult.error || "Failed to authorize.");
+        if (!previewResult.success || !previewResult.uploadUrl) {
+          throw new Error(previewResult.error || "Failed to authorize preview.");
         }
 
-        if (pauseRef.current) {
-          updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
-          return;
-        }
-
-        updateFileStatus(item.id, { currentStep: "Uploading..." });
-
-        // 4. Upload main file
-        const startTime = Date.now();
-        await uploadToR2(mainResult.uploadUrl, fileToUpload, (loaded, total) => {
-          const duration = (Date.now() - startTime) / 1000;
-          const speed = duration > 0 ? loaded / duration : 0;
-          const eta = speed > 0 ? (total - loaded) / speed : 0;
+        await uploadToR2(previewResult.uploadUrl, previewTarget, (loaded, total) => {
           const progress = Math.round((loaded / total) * 100);
-          updateFileStatus(item.id, { progress, speed, eta });
+          updateFileStatus(item.id, { progress });
         });
 
-        // 5. Upload thumbnail
+        // 3. Upload THUMBNAIL (fast)
         let thumbKey: string | undefined;
         if (thumbFile) {
+          updateFileStatus(item.id, { currentStep: "Uploading thumbnail..." });
           try {
-            updateFileStatus(item.id, { currentStep: "Uploading thumbnail..." });
-            
             const thumbResult = await requestUploadUrl({
               userId: user!.uid,
               galleryId: id,
@@ -419,42 +483,48 @@ export default function GalleryUploadPage() {
             if (thumbResult.success && thumbResult.uploadUrl) {
               await uploadToR2(thumbResult.uploadUrl, thumbFile);
               thumbKey = thumbResult.key;
-              console.log(`[THUMB] Uploaded: ${thumbKey}`);
             }
           } catch (thumbErr) {
-            console.warn(`[THUMB] Upload failed for ${item.name}`);
+            console.warn(`[THUMB] Failed for ${item.name}`);
           }
         }
 
-        // 6. Save metadata
+        // 4. Save metadata for preview (original pending)
         updateFileStatus(item.id, { currentStep: "Finalizing..." });
-        
-        completeUpload({
+
+        await completeUpload({
           userId: user!.uid,
           galleryId: id,
           task: {
             id: item.id,
-            key: mainResult.key!,
+            key: previewResult.key!,
             thumbKey,
+            originalKey: null,       // Original abhi nahi
+            originalReady: false,
             file: {
               name: item.name,
-              size: fileToUpload.size,
-              type: fileToUpload.type,
+              size: previewTarget.size,
+              type: previewTarget.type,
             },
           },
-        }).catch((err) => console.error(`[SYNC_BG]`, err));
+        });
 
-        // 7. Mark complete
+        // 5. Mark preview complete
         updateFileStatus(item.id, {
           status: "completed",
           progress: 100,
-          currentStep: "✅ Uploaded",
+          currentStep: "✅ Preview Live",
         });
-        console.log(`[UPLOAD] Success: ${item.name}`);
+        console.log(`[UPLOAD] Preview done: ${item.name}`);
 
         tracker.add(item.name);
         setUploadedNames(new Set(tracker));
         saveProgress(tracker);
+
+        // 6. 🎯 Add to background queue for ORIGINAL upload
+        const itemWithFiles = { ...item, previewFile, thumbFile };
+        bgQueueRef.current.push(itemWithFiles);
+        processBackgroundQueue();  // Start background (if not running)
 
       } catch (err: any) {
         console.error(`[UPLOAD] Error ${item.name}:`, err);
@@ -511,8 +581,8 @@ export default function GalleryUploadPage() {
 
     setIsDone(true);
     toast({
-      title: "🎉 Upload Complete!",
-      description: `${filesToUpload.length} photos uploaded.`,
+      title: "🎉 Previews Uploaded!",
+      description: "Gallery live. Originals background mein upload ho rahe hain.",
     });
     clearResumeState();
   };
@@ -529,24 +599,27 @@ export default function GalleryUploadPage() {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
     const failedFiles = files.filter(f => f.status === 'error').length;
+    const originalReadyFiles = files.filter(f => f.originalReady).length;
     const remainingFiles = totalFiles - completedFiles - failedFiles;
-    const totalSize = files.reduce((acc, f) => acc + (f.compressedSize || f.size), 0);
-    const uploadedBytes = files.reduce((acc, f) => acc + ((f.compressedSize || f.size) * (f.progress / 100)), 0);
+    const totalSize = files.reduce((acc, f) => acc + (f.previewSize || f.size), 0);
+    const uploadedBytes = files.reduce((acc, f) => acc + ((f.previewSize || f.size) * (f.progress / 100)), 0);
     const avgProgress = totalSize > 0 ? (uploadedBytes / totalSize) * 100 : 0;
     const isComplete = completedFiles === totalFiles && totalFiles > 0;
-    const originalSize = files.reduce((acc, f) => acc + f.size, 0);
+    const allOriginalsReady = originalReadyFiles === totalFiles && totalFiles > 0;
+    const originalProgress = totalFiles > 0 ? Math.round((originalReadyFiles / totalFiles) * 100) : 0;
     
     return {
       totalFiles,
       completedFiles,
       failedFiles,
+      originalReadyFiles,
       remainingFiles,
       avgProgress,
       isComplete,
+      allOriginalsReady,
+      originalProgress,
       totalSize: (totalSize / (1024 * 1024)).toFixed(1) + " MB",
       uploadedSize: (uploadedBytes / (1024 * 1024)).toFixed(1) + " MB",
-      originalSize: (originalSize / (1024 * 1024 * 1024)).toFixed(2) + " GB",
-      savedSize: ((originalSize - totalSize) / (1024 * 1024 * 1024)).toFixed(2) + " GB",
     };
   }, [files]);
 
@@ -556,7 +629,7 @@ export default function GalleryUploadPage() {
 
   if (!user || !event) return null;
 
-  const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? (f.compressedSize || f.size) : 0), 0) / (1024 * 1024 * 1024);
+  const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? (f.previewSize || f.size) : 0), 0) / (1024 * 1024 * 1024);
   const isOverLimit = !isSubscriptionActive || (!isOwner && (currentUsageGb + pendingSizeGb) > currentPlan.storageGb);
 
   return (
@@ -580,12 +653,26 @@ export default function GalleryUploadPage() {
         </div>
       </div>
 
-      {resumedCount > 0 && !isUploading && !isDone && (
-        <Alert className="rounded-2xl border-primary/30 bg-primary/5">
-          <RefreshCw className="h-5 w-5 text-primary" />
-          <AlertTitle className="font-bold text-primary">Resume Available</AlertTitle>
+      {/* Background Original Status */}
+      {stats.isComplete && !stats.allOriginalsReady && (
+        <Alert className="rounded-2xl border-blue-500/30 bg-blue-500/5">
+          <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
+          <AlertTitle className="font-bold text-blue-500">
+            Originals Uploading in Background
+          </AlertTitle>
           <AlertDescription className="text-sm">
-            {resumedCount} photos pehle upload ho chuki hain. 🎯
+            {stats.originalReadyFiles} / {stats.totalFiles} original photos ready ({stats.originalProgress}%). 
+            Client gallery live hai. Download button auto-enable hoga jab sab ready ho.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {stats.isComplete && stats.allOriginalsReady && (
+        <Alert className="rounded-2xl border-green-500/30 bg-green-500/5">
+          <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <AlertTitle className="font-bold text-green-500">All Originals Ready — Ready to Share</AlertTitle>
+          <AlertDescription className="text-sm">
+            Sab {stats.totalFiles} photos upload ho gayi (preview + original). Ab client ko share kar sakte hain. ✅
           </AlertDescription>
         </Alert>
       )}
@@ -595,17 +682,7 @@ export default function GalleryUploadPage() {
           <Pause className="h-5 w-5 text-orange-500" />
           <AlertTitle className="font-bold text-orange-500">Upload Paused</AlertTitle>
           <AlertDescription className="text-sm">
-            {stats.completedFiles} photos done. Resume karne ke liye "Resume" click karein.
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {isDone && stats.isComplete && (
-        <Alert className="rounded-2xl border-green-500/30 bg-green-500/5">
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
-          <AlertTitle className="font-bold text-green-500">Upload Complete — Ready to Share</AlertTitle>
-          <AlertDescription className="text-sm">
-            Sab {stats.totalFiles} photos upload ho gayi. ✅
+            {stats.completedFiles} previews done. Resume karne ke liye "Resume" click karein.
           </AlertDescription>
         </Alert>
       )}
@@ -637,12 +714,12 @@ export default function GalleryUploadPage() {
             </div>
             <div className="text-center space-y-2">
               <p className="text-2xl font-headline font-bold">Deliver Masterpieces</p>
-              <p className="text-sm text-muted-foreground italic">4500px • 95% Quality • Print-ready</p>
+              <p className="text-sm text-muted-foreground italic">Fast preview • Original in background</p>
             </div>
             
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border">
                <ShieldCheck className="w-3 h-3 text-primary" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">High Quality • Thumbnails Auto</span>
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Preview First • Original Locked</span>
             </div>
           </div>
 
@@ -650,7 +727,7 @@ export default function GalleryUploadPage() {
             <div className="p-6 bg-card/40 border rounded-2xl space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Upload Progress</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Preview Progress</p>
                   <p className="text-3xl font-headline font-bold text-primary">{Math.round(stats.avgProgress)}%</p>
                 </div>
                 <div className="text-right">
@@ -660,15 +737,15 @@ export default function GalleryUploadPage() {
               </div>
               <Progress value={stats.avgProgress} className="h-2" />
               
-              <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground">
-                <span>Transfer: {stats.uploadedSize} / {stats.totalSize}</span>
-                <span>Remaining: {stats.remainingFiles} files</span>
-              </div>
-              
-              {stats.savedSize !== "0.00 GB" && (
-                <p className="text-[10px] text-green-500 font-bold uppercase tracking-wider">
-                  ✓ Saved {stats.savedSize} via smart compression
-                </p>
+              {/* Original Progress Bar */}
+              {stats.completedFiles > 0 && (
+                <div className="pt-2 border-t border-border/30 space-y-2">
+                  <div className="flex items-center justify-between text-[10px] font-bold uppercase">
+                    <span className="text-blue-500">Original Upload (Background)</span>
+                    <span className="text-blue-500">{stats.originalReadyFiles} / {stats.totalFiles}</span>
+                  </div>
+                  <Progress value={stats.originalProgress} className="h-1.5" />
+                </div>
               )}
             </div>
           )}
@@ -726,9 +803,9 @@ export default function GalleryUploadPage() {
                   disabled={files.length === 0 || isUploading || isOverLimit || stats.isComplete}
                 >
                   {isUploading ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" />Uploading...</>
+                    <><Loader2 className="w-5 h-5 animate-spin" />Uploading previews...</>
                   ) : stats.isComplete ? (
-                    <><CheckCircle2 className="w-5 h-5" />All Uploaded</>
+                    <><CheckCircle2 className="w-5 h-5" />Uploaded</>
                   ) : resumedCount > 0 ? (
                     <><RefreshCw className="w-5 h-5" />Resume ({resumedCount} done)</>
                   ) : (
@@ -737,7 +814,7 @@ export default function GalleryUploadPage() {
                 </Button>
               )}
 
-              {stats.isComplete && (
+              {stats.isComplete && stats.allOriginalsReady && (
                 <Link href={`/events/${id}/manage`}>
                   <Button className="rounded-2xl h-14 px-8 bg-green-500 hover:bg-green-600 text-white font-bold gap-2">
                     <Share2 className="w-5 h-5" />
@@ -746,10 +823,10 @@ export default function GalleryUploadPage() {
                 </Link>
               )}
 
-              {!stats.isComplete && files.length > 0 && !isUploading && (
+              {stats.isComplete && !stats.allOriginalsReady && (
                 <Button disabled className="rounded-2xl h-14 px-8 gap-2">
                   <Lock className="w-4 h-4" />
-                  Upload first
+                  Originals uploading...
                 </Button>
               )}
             </div>
@@ -814,10 +891,15 @@ export default function GalleryUploadPage() {
                       )}>
                         {file.currentStep}
                       </span>
-                      {file.compressedSize && file.compressedSize < file.size && (
-                        <p className="text-[8px] text-green-500 font-bold mt-0.5">
-                          ✓ {Math.round((1 - file.compressedSize / file.size) * 100)}% smaller
-                          {file.thumbSize && ` • thumb ${(file.thumbSize / 1024).toFixed(0)}KB`}
+                      {file.originalReady && (
+                        <p className="text-[8px] text-blue-500 font-bold mt-0.5">
+                          🎯 Original Ready
+                        </p>
+                      )}
+                      {file.previewSize && (
+                        <p className="text-[8px] text-muted-foreground mt-0.5">
+                          Preview: {(file.previewSize / 1024).toFixed(0)}KB
+                          {file.thumbSize && ` • Thumb: ${(file.thumbSize / 1024).toFixed(0)}KB`}
                         </p>
                       )}
                     </div>

@@ -81,7 +81,7 @@ const GalleryItem = memo(({
       {!loaded && (
         <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />
       )}
-      <img 
+            <img 
         src={item.thumbUrl || item.url} 
         alt="Gallery Asset"
         className={cn(
@@ -414,105 +414,47 @@ export default function ClientGalleryPage() {
     updateDoc(gRef, { items: updatedItems }).catch(() => {});
   }, [firestore, gallery, galleryId]);
 
-  // ✅ UPDATED: Original download (signed URL)
   const handleDownloadSingle = useCallback(async (item: any) => {
-    if (!canDownload) return;
-
-    // Original ready check
-    if (!item.originalReady || !item.originalKey) {
-      toast({
-        variant: "destructive",
-        title: "⏳ Original Processing",
-        description: "Full quality photo abhi upload ho rahi hai. Thora wait karein.",
-      });
-      return;
-    }
-
+    if (!canDownload || !item?.url) return;
+    const url = item.masterUrl || item.url;
     const filename = item.fileName || `photo-${item.id}.jpg`;
-
+    const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+    
     try {
-      // Fresh signed URL for original
-      const res = await fetch('/api/download-original', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: item.originalKey }),
-      });
-
-      if (!res.ok) throw new Error('Failed to get download URL');
-      const data = await res.json();
-      if (!data.url) throw new Error('No download URL');
-
       const link = document.createElement('a');
-      link.href = data.url;
+      link.href = proxyUrl;
       link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      toast({ title: "✅ Download Started", description: filename });
-    } catch (error: any) {
-      console.error('[DOWNLOAD] Error:', error);
-      toast({
-        variant: "destructive",
-        title: "Download Failed",
-        description: error.message || "Please try again",
-      });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Download Failed" });
     }
   }, [canDownload, toast]);
 
-  // ✅ UPDATED: Original ZIP download
   const handleDownloadAll = useCallback(async () => {
     if (isPreparing || !gallery || !canDownload) return;
-
-    const items = gallery.items || [];
-
-    // Sab originals ready hain check
-    const notReady = items.filter((it: any) => !it.originalReady || !it.originalKey);
-    if (notReady.length > 0) {
-      toast({
-        variant: "destructive",
-        title: "⏳ Originals Processing",
-        description: `${notReady.length} photos abhi upload ho rahi hain. Wait karein.`,
-      });
-      return;
-    }
-
     setIsPreparing(true);
     const zip = new JSZip();
-
+    const items = gallery.items || [];
+    
     try {
       for (let i = 0; i < items.length; i++) {
-        setPreparationStep(`Fetching original: ${i + 1} / ${items.length}`);
-        const item = items[i];
-        if (!item.originalKey) continue;
-
-        const urlRes = await fetch('/api/download-original', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: item.originalKey }),
-        });
-
-        if (!urlRes.ok) {
-          console.warn(`[ZIP] Failed to get URL for ${item.fileName}`);
-          continue;
-        }
-
-        const { url } = await urlRes.json();
+        setPreparationStep(`Fetching: ${i + 1} / ${items.length}`);
+        const url = items[i].masterUrl || items[i].url;
         if (!url) continue;
-
-        const fileRes = await fetch(url);
-        const blob = await fileRes.blob();
-        zip.file(item.fileName || `photo-${i + 1}.jpg`, blob);
+        
+        const fileName = items[i].fileName || `photo-${i + 1}.jpg`;
+        const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(fileName)}`;
+        const res = await fetch(proxyUrl);
+        const blob = await res.blob();
+        zip.file(fileName, blob);
       }
-
-      setPreparationStep('Compiling ZIP package...');
+      setPreparationStep('Compiling Package...');
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${gallery.title || 'gallery'}.zip`);
-
-      toast({ title: "✅ ZIP Ready", description: "Download started" });
-    } catch (error: any) {
-      console.error('[ZIP] Error:', error);
-      toast({ variant: "destructive", title: "Package Error", description: error.message });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Package Error" });
     } finally {
       setIsPreparing(false);
       setPreparationStep('');
@@ -679,6 +621,7 @@ export default function ClientGalleryPage() {
           introLeaving ? "animate-out fade-out zoom-out-105 duration-800" : "animate-in fade-in duration-1000"
         )}
       >
+        {/* 🎵 Hidden Audio */}
         {hasMusic && (
           <audio ref={audioRef} src={musicUrl} loop preload="auto" />
         )}
@@ -759,8 +702,10 @@ export default function ClientGalleryPage() {
 
   return (
     <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-1000">
+      {/* 🎵 Hidden Audio */}
       {hasMusic && <audio ref={audioRef} src={musicUrl} loop preload="auto" />}
 
+      {/* 🎵 Music Toggle */}
       {hasMusic && (
         <Button 
           variant="ghost" 

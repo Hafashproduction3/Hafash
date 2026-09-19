@@ -78,7 +78,7 @@ export async function requestUploadUrl({
 
 /**
  * SERVER ACTION: Finalize an upload by verifying storage and updating metadata.
- * Now supports thumbKey for fast gallery loading.
+ * Supports: thumbnail + preview + original (locked, paid download only)
  */
 export async function completeUpload({
   userId,
@@ -91,10 +91,12 @@ export async function completeUpload({
     id: string; 
     key: string; 
     thumbKey?: string;
+    originalKey?: string | null;
+    originalReady?: boolean;
     file: { name: string; size: number; type: string } 
   };
 }) {
-  console.log(`[DEBUG] completeUpload start for ${task.file.name}`);
+  console.log(`[DEBUG] completeUpload: ${task.file.name} (original: ${task.originalReady})`);
 
   if (!adminDb || !admin) {
     return { success: false, error: "Database offline. Metadata synchronization failed." };
@@ -106,52 +108,95 @@ export async function completeUpload({
       return { success: false, error: "Asset missing from storage. Handshake failed." };
     }
 
+    // Preview URL (7 days)
     const assetUrl = await storage.getSignedUrl(task.key, 604800);
 
-    // 🖼️ Thumbnail signed URL generate karo (agar thumbKey hai)
+    // Thumbnail URL (7 days)
     let thumbUrl = assetUrl;
     if (task.thumbKey) {
       try {
         const thumbExists = await storage.fileExists(task.thumbKey);
         if (thumbExists) {
           thumbUrl = await storage.getSignedUrl(task.thumbKey, 604800);
-          console.log(`[DEBUG] Thumbnail URL generated for ${task.thumbKey}`);
-        } else {
-          console.warn(`[DEBUG] Thumbnail missing in storage: ${task.thumbKey}`);
+          console.log(`[DEBUG] Thumbnail URL generated: ${task.thumbKey}`);
         }
       } catch (e: any) {
-        console.warn(`[DEBUG] Thumbnail URL failed, using full:`, e.message);
+        console.warn(`[DEBUG] Thumbnail URL failed:`, e.message);
+      }
+    }
+
+    // Original URL (short-lived 15 min — sirf payment ke baad fresh milta hai)
+    let originalUrl = null;
+    if (task.originalKey && task.originalReady) {
+      try {
+        const originalExists = await storage.fileExists(task.originalKey);
+        if (originalExists) {
+          originalUrl = await storage.getSignedUrl(task.originalKey, 900); // 15 min
+          console.log(`[DEBUG] Original URL generated: ${task.originalKey}`);
+        }
+      } catch (e: any) {
+        console.warn(`[DEBUG] Original URL failed:`, e.message);
       }
     }
 
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
-    const newAsset = {
-      id: task.id,
-      url: assetUrl,
-      masterUrl: assetUrl,
-      thumbUrl: thumbUrl,
-      thumbKey: task.thumbKey || null,
-      storageKey: task.key,
-      fileName: task.file.name,
-      fileSize: task.file.size,
-      contentType: task.file.type,
-      isFavorite: false,
-      uploadedAt: new Date().toISOString(),
-    };
+    const gallerySnap = await galleryRef.get();
+    const existingItems = gallerySnap.data()?.items || [];
+    const existingIndex = existingItems.findIndex((it: any) => it.id === task.id);
 
-    await galleryRef.update({
-      items: admin.firestore.FieldValue.arrayUnion(newAsset),
-      updatedAt: new Date().toISOString()
-    });
+    if (existingIndex >= 0 && task.originalReady) {
+      // ✅ UPDATE: Original ready — existing preview item mein original add karo
+      const updatedItems = [...existingItems];
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        originalKey: task.originalKey,
+        originalUrl: originalUrl,
+        originalReady: true,
+        originalSize: task.file.size,
+        originalUpdatedAt: new Date().toISOString(),
+      };
 
-    console.log(`[DEBUG] Firestore update response: Metadata synced for ${task.file.name}`);
-    
+      await galleryRef.update({
+        items: updatedItems,
+        updatedAt: new Date().toISOString()
+      });
+
+      console.log(`[DEBUG] ✅ Original linked for ${task.file.name}`);
+    } else if (existingIndex < 0) {
+      // ✅ NEW: Preview upload — naya item add karo
+      const newAsset = {
+        id: task.id,
+        url: assetUrl,                     // Preview URL (fullscreen ke liye)
+        masterUrl: assetUrl,
+        thumbUrl: thumbUrl,                // Thumbnail (grid ke liye)
+        thumbKey: task.thumbKey || null,
+        storageKey: task.key,              // Preview storage key
+        previewKey: task.key,
+        originalKey: task.originalKey || null,
+        originalUrl: originalUrl,
+        originalReady: task.originalReady || false,
+        fileName: task.file.name,
+        fileSize: task.file.size,
+        contentType: task.file.type,
+        isFavorite: false,
+        uploadedAt: new Date().toISOString(),
+      };
+
+      await galleryRef.update({
+        items: admin.firestore.FieldValue.arrayUnion(newAsset),
+        updatedAt: new Date().toISOString()
+      });
+
+      console.log(`[DEBUG] ✅ Preview added for ${task.file.name}`);
+    } else {
+      console.log(`[DEBUG] Skipped (no changes) for ${task.file.name}`);
+    }
+
     return { success: true };
 
   } catch (error: any) {
     console.error("[DEBUG] Sync failure:", error);
-    await storage.deleteFile(task.key).catch(() => {});
-    return { success: false, error: "Metadata synchronization failed." };
+    return { success: false, error: error.message || "Metadata synchronization failed." };
   }
 }
 
@@ -182,7 +227,7 @@ export async function deleteGalleryFiles(storageKeys: string[]) {
 
     const failures = results.filter(r => r.status === 'rejected');
     if (failures.length > 0) {
-      console.warn(`[SERVER_DELETE] PARTIAL_FAILURE: ${failures.length} assets failed to purge.`);
+      console.warn(`[SERVER_DELETE] PARTIAL_FAILURE: ${failures.length} assets failed.`);
     } else {
       console.log(`[SERVER_DELETE] SUCCESS: All assets purged.`);
     }
@@ -228,6 +273,30 @@ export async function getFreshMusicUrl(storageKey: string) {
     return { success: true, url };
   } catch (error: any) {
     console.error("[FRESH_MUSIC_URL] Error:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * SERVER ACTION: Get fresh download URL for ORIGINAL photo.
+ * Short-lived (15 min) — sirf download ke waqt generate hota hai.
+ */
+export async function getOriginalDownloadUrl(originalKey: string) {
+  try {
+    if (!originalKey) {
+      return { success: false, error: "Missing original key" };
+    }
+
+    const exists = await storage.fileExists(originalKey);
+    if (!exists) {
+      return { success: false, error: "Original file not found" };
+    }
+
+    // Short-lived: 15 minutes
+    const url = await storage.getSignedUrl(originalKey, 900);
+    return { success: true, url };
+  } catch (error: any) {
+    console.error("[ORIGINAL_DOWNLOAD] Error:", error);
     return { success: false, error: error.message };
   }
 }
