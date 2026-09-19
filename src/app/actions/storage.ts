@@ -78,6 +78,7 @@ export async function requestUploadUrl({
 
 /**
  * SERVER ACTION: Finalize an upload by verifying storage and updating metadata.
+ * Now supports thumbKey for fast gallery loading.
  */
 export async function completeUpload({
   userId,
@@ -86,7 +87,12 @@ export async function completeUpload({
 }: {
   userId: string;
   galleryId: string;
-  task: { id: string; key: string; file: { name: string; size: number; type: string } };
+  task: { 
+    id: string; 
+    key: string; 
+    thumbKey?: string;
+    file: { name: string; size: number; type: string } 
+  };
 }) {
   console.log(`[DEBUG] completeUpload start for ${task.file.name}`);
 
@@ -102,11 +108,29 @@ export async function completeUpload({
 
     const assetUrl = await storage.getSignedUrl(task.key, 604800);
 
+    // 🖼️ Thumbnail signed URL generate karo (agar thumbKey hai)
+    let thumbUrl = assetUrl;
+    if (task.thumbKey) {
+      try {
+        const thumbExists = await storage.fileExists(task.thumbKey);
+        if (thumbExists) {
+          thumbUrl = await storage.getSignedUrl(task.thumbKey, 604800);
+          console.log(`[DEBUG] Thumbnail URL generated for ${task.thumbKey}`);
+        } else {
+          console.warn(`[DEBUG] Thumbnail missing in storage: ${task.thumbKey}`);
+        }
+      } catch (e: any) {
+        console.warn(`[DEBUG] Thumbnail URL failed, using full:`, e.message);
+      }
+    }
+
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
     const newAsset = {
       id: task.id,
       url: assetUrl,
-      masterUrl: assetUrl, 
+      masterUrl: assetUrl,
+      thumbUrl: thumbUrl,
+      thumbKey: task.thumbKey || null,
       storageKey: task.key,
       fileName: task.file.name,
       fileSize: task.file.size,
@@ -184,7 +208,6 @@ export async function getMusicSignedUrl(key: string) {
     if (!key) {
       return { success: false, error: "Missing storage key" };
     }
-    // Max 7 days (S3/R2 hard limit)
     const url = await storage.getSignedUrl(key, 604800);
     return { success: true, url };
   } catch (error: any) {
@@ -195,7 +218,6 @@ export async function getMusicSignedUrl(key: string) {
 
 /**
  * SERVER ACTION: Get a fresh signed URL for a music file by storage key.
- * Called by client gallery page on load to ensure music always plays.
  */
 export async function getFreshMusicUrl(storageKey: string) {
   try {

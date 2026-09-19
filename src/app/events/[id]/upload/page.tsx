@@ -27,10 +27,12 @@ interface FileItem {
   id: string;
   file: File;
   compressedFile?: File;
+  thumbFile?: File;
   progress: number;
   name: string;
   size: number;
   compressedSize?: number;
+  thumbSize?: number;
   status: UploadStepStatus;
   error?: string;
   currentStep: string;
@@ -43,16 +45,24 @@ interface FileItem {
 const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
 
-// 🎨 Compression Settings — Wedding Quality Preserved
+// 🎨 Compression Settings — Wedding Quality
 const COMPRESSION_OPTIONS = {
-  maxSizeMB: 5,              // Max 5 MB
-  maxWidthOrHeight: 4000,    // 4000px (print-ready)
+  maxSizeMB: 5,
+  maxWidthOrHeight: 4000,
   useWebWorker: true,
-  initialQuality: 0.92,      // 92% (visually same as 100%)
+  initialQuality: 0.92,
   fileType: 'image/jpeg',
 };
 
-// 💾 localStorage key
+// 🖼️ Thumbnail Settings — Grid ke liye
+const THUMBNAIL_OPTIONS = {
+  maxSizeMB: 0.05,        // 50 KB
+  maxWidthOrHeight: 400,  // 400px
+  useWebWorker: true,
+  initialQuality: 0.7,
+  fileType: 'image/jpeg',
+};
+
 const getResumeKey = (galleryId: string) => `hafash_upload_${galleryId}`;
 
 export default function GalleryUploadPage() {
@@ -211,22 +221,69 @@ export default function GalleryUploadPage() {
     startUpload();
   };
 
-  // 🎨 Compression helper
-  const compressFile = async (item: FileItem): Promise<File> => {
-    if (!item.file.type.startsWith('image/')) return item.file;
-    // Agar already 5 MB se chhota hai toh skip
-    if (item.file.size < 5 * 1024 * 1024) return item.file;
+  // 🎨 Full quality compression
+  const compressFile = async (file: File): Promise<File> => {
+    if (!file.type.startsWith('image/')) return file;
+    if (file.size < 5 * 1024 * 1024) return file;
 
     try {
-      const compressed = await imageCompression(item.file, COMPRESSION_OPTIONS);
-      console.log(
-        `[COMPRESS] ${item.name}: ${(item.file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.size / 1024 / 1024).toFixed(1)}MB`
-      );
+      const compressed = await imageCompression(file, COMPRESSION_OPTIONS);
+      console.log(`[COMPRESS] ${file.name}: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.size / 1024 / 1024).toFixed(1)}MB`);
       return compressed;
     } catch (err) {
-      console.warn(`[COMPRESS] Failed for ${item.name} — using original`);
-      return item.file;
+      console.warn(`[COMPRESS] Failed for ${file.name}`);
+      return file;
     }
+  };
+
+  // 🖼️ Thumbnail generator
+  const generateThumbnail = async (file: File): Promise<File | null> => {
+    if (!file.type.startsWith('image/')) return null;
+    try {
+      const thumb = await imageCompression(file, THUMBNAIL_OPTIONS);
+      console.log(`[THUMB] ${file.name}: ${(thumb.size / 1024).toFixed(0)}KB`);
+      return thumb;
+    } catch (err) {
+      console.warn('[THUMB] Failed for', file.name);
+      return null;
+    }
+  };
+
+  // 📤 Simple upload helper
+  const uploadToR2 = (url: string, file: File, onProgress?: (loaded: number, total: number) => void): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const startTime = Date.now();
+      let lastLoaded = 0;
+      let lastTime = startTime;
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const now = Date.now();
+            const timeDiff = (now - lastTime) / 1000;
+            if (timeDiff > 0.5) {
+              onProgress(e.loaded, e.total);
+              lastLoaded = e.loaded;
+              lastTime = now;
+            }
+          }
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`R2: ${xhr.status}`));
+      });
+
+      xhr.addEventListener('error', () => reject(new Error("Network error")));
+      xhr.timeout = 600000;
+      xhr.addEventListener('timeout', () => reject(new Error("Timeout")));
+
+      xhr.open("PUT", url);
+      xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      xhr.send(file);
+    });
   };
 
   const startUpload = async () => {
@@ -272,33 +329,53 @@ export default function GalleryUploadPage() {
       }
 
       try {
-        // 1. Compress
+        // 1. Compress main file
         let fileToUpload = item.compressedFile || item.file;
         
         if (!item.compressedFile && item.file.type.startsWith('image/')) {
           updateFileStatus(item.id, {
             status: 'compressing',
-            currentStep: 'Optimizing quality...',
+            currentStep: 'Optimizing...',
           });
-          fileToUpload = await compressFile(item);
-          
-          setFiles(prev => prev.map(f => 
-            f.id === item.id ? { ...f, compressedFile: fileToUpload, compressedSize: fileToUpload.size } : f
-          ));
+          fileToUpload = await compressFile(item.file);
         }
+
+        // 2. Generate thumbnail
+        let thumbFile = item.thumbFile;
+        if (!thumbFile && item.file.type.startsWith('image/')) {
+          updateFileStatus(item.id, {
+            status: 'compressing',
+            currentStep: 'Creating thumbnail...',
+          });
+          const thumb = await generateThumbnail(fileToUpload);
+          if (thumb) thumbFile = thumb;
+        }
+
+        // Save compressed/thumb in state
+        setFiles(prev => prev.map(f => 
+          f.id === item.id 
+            ? { 
+                ...f, 
+                compressedFile: fileToUpload, 
+                compressedSize: fileToUpload.size,
+                thumbFile,
+                thumbSize: thumbFile?.size,
+              } 
+            : f
+        ));
 
         if (pauseRef.current) {
           updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
           return;
         }
 
-        // 2. Get presign URL
+        // 3. Get presign URL for main file
         updateFileStatus(item.id, {
           status: 'uploading',
-          currentStep: 'Requesting Access...',
+          currentStep: 'Requesting access...',
         });
 
-        const result = await requestUploadUrl({
+        const mainResult = await requestUploadUrl({
           userId: user!.uid,
           galleryId: id,
           fileName: item.name,
@@ -306,8 +383,8 @@ export default function GalleryUploadPage() {
           fileSize: fileToUpload.size,
         });
 
-        if (!result.success || !result.uploadUrl) {
-          throw new Error(result.error || "Failed to authorize.");
+        if (!mainResult.success || !mainResult.uploadUrl) {
+          throw new Error(mainResult.error || "Failed to authorize.");
         }
 
         if (pauseRef.current) {
@@ -317,49 +394,50 @@ export default function GalleryUploadPage() {
 
         updateFileStatus(item.id, { currentStep: "Uploading..." });
 
-        // 3. Upload
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          const startTime = Date.now();
-          let lastLoaded = 0;
-          let lastTime = startTime;
-
-          xhr.upload.addEventListener('progress', (e) => {
-            if (e.lengthComputable) {
-              const now = Date.now();
-              const timeDiff = (now - lastTime) / 1000;
-              if (timeDiff > 0.5) {
-                const speed = (e.loaded - lastLoaded) / timeDiff;
-                const eta = speed > 0 ? (e.total - e.loaded) / speed : 0;
-                lastLoaded = e.loaded;
-                lastTime = now;
-                const progress = Math.round((e.loaded / e.total) * 100);
-                updateFileStatus(item.id, { progress, speed, eta });
-              }
-            }
-          });
-
-          xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) resolve();
-            else reject(new Error(`R2: ${xhr.status}`));
-          });
-
-          xhr.addEventListener('error', () => reject(new Error("Network error")));
-          xhr.timeout = 600000;
-          xhr.addEventListener('timeout', () => reject(new Error("Timeout")));
-          
-          xhr.open("PUT", result.uploadUrl);
-          xhr.setRequestHeader("Content-Type", fileToUpload.type || "application/octet-stream");
-          xhr.send(fileToUpload);
+        // 4. Upload main file
+        const startTime = Date.now();
+        await uploadToR2(mainResult.uploadUrl, fileToUpload, (loaded, total) => {
+          const duration = (Date.now() - startTime) / 1000;
+          const speed = duration > 0 ? loaded / duration : 0;
+          const eta = speed > 0 ? (total - loaded) / speed : 0;
+          const progress = Math.round((loaded / total) * 100);
+          updateFileStatus(item.id, { progress, speed, eta });
         });
 
-        // 4. Save metadata
+        // 5. Upload thumbnail (if generated)
+        let thumbKey: string | undefined;
+        if (thumbFile) {
+          try {
+            updateFileStatus(item.id, { currentStep: "Uploading thumbnail..." });
+            
+            const thumbResult = await requestUploadUrl({
+              userId: user!.uid,
+              galleryId: id,
+              fileName: `thumb_${item.name}`,
+              contentType: 'image/jpeg',
+              fileSize: thumbFile.size,
+            });
+
+            if (thumbResult.success && thumbResult.uploadUrl) {
+              await uploadToR2(thumbResult.uploadUrl, thumbFile);
+              thumbKey = thumbResult.key;
+              console.log(`[THUMB] Uploaded: ${thumbKey}`);
+            }
+          } catch (thumbErr) {
+            console.warn(`[THUMB] Upload failed for ${item.name} — continuing without thumb`);
+          }
+        }
+
+        // 6. Save metadata
+        updateFileStatus(item.id, { currentStep: "Finalizing..." });
+        
         completeUpload({
           userId: user!.uid,
           galleryId: id,
           task: {
             id: item.id,
-            key: result.key!,
+            key: mainResult.key!,
+            thumbKey,
             file: {
               name: item.name,
               size: fileToUpload.size,
@@ -368,6 +446,7 @@ export default function GalleryUploadPage() {
           },
         }).catch((err) => console.error(`[SYNC_BG]`, err));
 
+        // 7. Mark complete
         updateFileStatus(item.id, {
           status: "completed",
           progress: 100,
@@ -565,7 +644,7 @@ export default function GalleryUploadPage() {
             
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border">
                <ShieldCheck className="w-3 h-3 text-primary" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">4000px • 92% Quality • 3x Faster</span>
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">4000px • 92% Quality • Thumbnails Auto</span>
             </div>
           </div>
 
@@ -740,6 +819,7 @@ export default function GalleryUploadPage() {
                       {file.compressedSize && file.compressedSize < file.size && (
                         <p className="text-[8px] text-green-500 font-bold mt-0.5">
                           ✓ {Math.round((1 - file.compressedSize / file.size) * 100)}% smaller
+                          {file.thumbSize && ` • thumb ${(file.thumbSize / 1024).toFixed(0)}KB`}
                         </p>
                       )}
                     </div>

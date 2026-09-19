@@ -81,8 +81,8 @@ const GalleryItem = memo(({
       {!loaded && (
         <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />
       )}
-      <img 
-        src={item.url} 
+            <img 
+        src={item.thumbUrl || item.url} 
         alt="Gallery Asset"
         className={cn(
           "w-full h-auto object-cover transition-all duration-1000 group-hover:scale-110",
