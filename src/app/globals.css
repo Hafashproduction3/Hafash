@@ -64,11 +64,11 @@
   }
 }
 
-/* Luxury Watermark Pattern */
+/* Luxury Watermark Pattern — Bara + Dark */
 .luxury-watermark {
   @apply absolute inset-0 pointer-events-none select-none z-10;
-  /* Repeated diagonal pattern with semi-transparent bands and high-opacity gold text */
-  background-image: url("data:image/svg+xml,%3Csvg width='600' height='600' viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-30 300 300)'%3E%3Crect x='-500' y='240' width='2000' height='120' fill='%23000' fill-opacity='0.03' /%3E%3Ctext x='300' y='290' font-family='serif' font-weight='bold' font-size='64' fill='%23D4AF37' fill-opacity='0.28' text-anchor='middle'%3EHAFASH%3C/text%3E%3Ctext x='300' y='330' font-family='sans-serif' font-weight='bold' font-size='14' fill='%23D4AF37' fill-opacity='0.22' letter-spacing='10' text-anchor='middle'%3EPREVIEW ONLY%3C/text%3E%3C/g%3E%3C/svg%3E");
+  /* Bold dark gold watermark — har jagah visible, AI se hatana mushkil */
+  background-image: url("data:image/svg+xml,%3Csvg width='600' height='600' viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-30 300 300)'%3E%3Crect x='-500' y='220' width='2000' height='160' fill='%23000' fill-opacity='0.06' /%3E%3Ctext x='300' y='285' font-family='serif' font-weight='900' font-size='90' fill='%238B6914' fill-opacity='0.55' text-anchor='middle'%3EHAFASH%3C/text%3E%3Ctext x='300' y='340' font-family='sans-serif' font-weight='bold' font-size='22' fill='%238B6914' fill-opacity='0.45' letter-spacing='14' text-anchor='middle'%3EPREVIEW ONLY%3C/text%3E%3C/g%3E%3C/svg%3E");
   background-repeat: repeat;
   background-position: center;
 }
