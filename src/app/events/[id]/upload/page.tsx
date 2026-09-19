@@ -45,21 +45,21 @@ interface FileItem {
 const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
 
-// 🎨 Compression Settings — Wedding Quality
+// 🎨 Main Photo Compression — HIGH QUALITY (Option B)
 const COMPRESSION_OPTIONS = {
-  maxSizeMB: 5,
-  maxWidthOrHeight: 4000,
+  maxSizeMB: 6,              // 5 → 6
+  maxWidthOrHeight: 4500,    // 4000 → 4500
   useWebWorker: true,
-  initialQuality: 0.92,
+  initialQuality: 0.95,      // 0.92 → 0.95
   fileType: 'image/jpeg',
 };
 
-// 🖼️ Thumbnail Settings — Grid ke liye
+// 🖼️ Thumbnail Settings — HIGH QUALITY
 const THUMBNAIL_OPTIONS = {
-  maxSizeMB: 0.05,        // 50 KB
-  maxWidthOrHeight: 400,  // 400px
+  maxSizeMB: 0.15,           // 50 KB → 150 KB
+  maxWidthOrHeight: 800,     // 400px → 800px
   useWebWorker: true,
-  initialQuality: 0.7,
+  initialQuality: 0.85,      // 0.7 → 0.85
   fileType: 'image/jpeg',
 };
 
@@ -224,7 +224,7 @@ export default function GalleryUploadPage() {
   // 🎨 Full quality compression
   const compressFile = async (file: File): Promise<File> => {
     if (!file.type.startsWith('image/')) return file;
-    if (file.size < 5 * 1024 * 1024) return file;
+    if (file.size < 6 * 1024 * 1024) return file;
 
     try {
       const compressed = await imageCompression(file, COMPRESSION_OPTIONS);
@@ -249,7 +249,6 @@ export default function GalleryUploadPage() {
     }
   };
 
-  // 📤 Simple upload helper
   const uploadToR2 = (url: string, file: File, onProgress?: (loaded: number, total: number) => void): Promise<void> => {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -335,7 +334,7 @@ export default function GalleryUploadPage() {
         if (!item.compressedFile && item.file.type.startsWith('image/')) {
           updateFileStatus(item.id, {
             status: 'compressing',
-            currentStep: 'Optimizing...',
+            currentStep: 'Optimizing quality...',
           });
           fileToUpload = await compressFile(item.file);
         }
@@ -351,7 +350,6 @@ export default function GalleryUploadPage() {
           if (thumb) thumbFile = thumb;
         }
 
-        // Save compressed/thumb in state
         setFiles(prev => prev.map(f => 
           f.id === item.id 
             ? { 
@@ -404,7 +402,7 @@ export default function GalleryUploadPage() {
           updateFileStatus(item.id, { progress, speed, eta });
         });
 
-        // 5. Upload thumbnail (if generated)
+        // 5. Upload thumbnail
         let thumbKey: string | undefined;
         if (thumbFile) {
           try {
@@ -424,7 +422,7 @@ export default function GalleryUploadPage() {
               console.log(`[THUMB] Uploaded: ${thumbKey}`);
             }
           } catch (thumbErr) {
-            console.warn(`[THUMB] Upload failed for ${item.name} — continuing without thumb`);
+            console.warn(`[THUMB] Upload failed for ${item.name}`);
           }
         }
 
@@ -639,12 +637,12 @@ export default function GalleryUploadPage() {
             </div>
             <div className="text-center space-y-2">
               <p className="text-2xl font-headline font-bold">Deliver Masterpieces</p>
-              <p className="text-sm text-muted-foreground italic">Smart compression • Print-ready quality</p>
+              <p className="text-sm text-muted-foreground italic">4500px • 95% Quality • Print-ready</p>
             </div>
             
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border">
                <ShieldCheck className="w-3 h-3 text-primary" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">4000px • 92% Quality • Thumbnails Auto</span>
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">High Quality • Thumbnails Auto</span>
             </div>
           </div>
 
