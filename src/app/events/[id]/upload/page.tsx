@@ -57,7 +57,6 @@ export default function GalleryUploadPage() {
   const [resumedCount, setResumedCount] = useState(0);
   const [uploadedNames, setUploadedNames] = useState<Set<string>>(new Set());
   
-  // Control flags
   const pauseRef = useRef(false);
   const cancelRef = useRef(false);
 
@@ -210,7 +209,6 @@ export default function GalleryUploadPage() {
       title: "▶️ Upload Resumed",
       description: "Wahi se continue ho raha hai.",
     });
-    // Upload ko restart karo (wo already uploaded ko skip karega)
     startUpload();
   };
 
@@ -509,7 +507,7 @@ export default function GalleryUploadPage() {
         </Alert>
       )}
 
-      {/* ✅ Complete Banner — Share Ready */}
+      {/* ✅ Complete Banner */}
       {isDone && stats.isComplete && (
         <Alert className="rounded-2xl border-green-500/30 bg-green-500/5">
           <CheckCircle2 className="h-5 w-5 text-green-500" />
@@ -598,7 +596,6 @@ export default function GalleryUploadPage() {
             </div>
             
             <div className="flex gap-3 w-full sm:w-auto">
-              {/* ⏸ Pause Button (during upload) */}
               {isUploading && !isPaused && (
                 <Button
                   variant="outline"
@@ -610,7 +607,6 @@ export default function GalleryUploadPage() {
                 </Button>
               )}
 
-              {/* ▶️ Resume Button (when paused) */}
               {isPaused && (
                 <Button
                   className="rounded-2xl h-14 px-6 bg-green-500 hover:bg-green-600 text-white font-bold gap-2"
@@ -621,7 +617,6 @@ export default function GalleryUploadPage() {
                 </Button>
               )}
               
-              {/* 🚀 Start Button */}
               {!isPaused && (
                 <Button 
                   className={cn(
@@ -645,7 +640,6 @@ export default function GalleryUploadPage() {
                 </Button>
               )}
 
-              {/* 🔒 Share Button (disabled until complete) */}
               {stats.isComplete && (
                 <Link href={`/events/${id}/manage`}>
                   <Button className="rounded-2xl h-14 px-8 bg-green-500 hover:bg-green-600 text-white font-bold gap-2">
@@ -749,6 +743,4 @@ export default function GalleryUploadPage() {
       </div>
     </div>
   );
-}git add .
-git commit -m "Simple upload with pause + resume + share lock"
-git push origin main
+}
