@@ -37,7 +37,11 @@ interface FileItem {
   retryCount: number;
 }
 
-const PARALLEL_LIMIT = 3;
+// 🚀 Upload Settings
+// PARALLEL_LIMIT = 1 → Internet normal rahega (slow upload)
+// PARALLEL_LIMIT = 2 → Thora tez (internet thora slow ho sakta hai)
+// PARALLEL_LIMIT = 3 → Tez (internet slow ho jayega)
+const PARALLEL_LIMIT = 1;
 const MAX_RETRIES = 3;
 
 // 💾 localStorage key
@@ -319,7 +323,7 @@ export default function GalleryUploadPage() {
           });
 
           xhr.addEventListener('error', () => reject(new Error("Network error")));
-          xhr.timeout = 300000;
+          xhr.timeout = 600000;
           xhr.addEventListener('timeout', () => reject(new Error("Timeout")));
           
           xhr.open("PUT", result.uploadUrl);
@@ -367,7 +371,7 @@ export default function GalleryUploadPage() {
           updateFileStatus(item.id, {
             currentStep: `Retry ${attempt + 1}/${MAX_RETRIES}...`,
           });
-          await new Promise(r => setTimeout(r, 2000));
+          await new Promise(r => setTimeout(r, 3000));
           return uploadSingleFile(item, attempt + 1);
         }
 
