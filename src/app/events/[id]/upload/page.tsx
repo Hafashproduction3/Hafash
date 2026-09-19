@@ -19,15 +19,18 @@ import { HafashLoader } from '@/components/ui/hafash-loader';
 import { requestUploadUrl, completeUpload } from '@/app/actions/storage';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import imageCompression from 'browser-image-compression';
 
-type UploadStepStatus = 'queued' | 'uploading' | 'syncing' | 'completed' | 'error' | 'paused' | 'cancelled';
+type UploadStepStatus = 'queued' | 'compressing' | 'uploading' | 'syncing' | 'completed' | 'error' | 'paused' | 'cancelled';
 
 interface FileItem {
   id: string;
   file: File;
+  compressedFile?: File;
   progress: number;
   name: string;
   size: number;
+  compressedSize?: number;
   status: UploadStepStatus;
   error?: string;
   currentStep: string;
@@ -37,12 +40,17 @@ interface FileItem {
   retryCount: number;
 }
 
-// 🚀 Upload Settings
-// PARALLEL_LIMIT = 1 → Internet normal rahega (slow upload)
-// PARALLEL_LIMIT = 2 → Thora tez (internet thora slow ho sakta hai)
-// PARALLEL_LIMIT = 3 → Tez (internet slow ho jayega)
-const PARALLEL_LIMIT = 1;
+const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
+
+// 🎨 Compression Settings — Wedding Quality Preserved
+const COMPRESSION_OPTIONS = {
+  maxSizeMB: 5,              // Max 5 MB
+  maxWidthOrHeight: 4000,    // 4000px (print-ready)
+  useWebWorker: true,
+  initialQuality: 0.92,      // 92% (visually same as 100%)
+  fileType: 'image/jpeg',
+};
 
 // 💾 localStorage key
 const getResumeKey = (galleryId: string) => `hafash_upload_${galleryId}`;
@@ -70,7 +78,6 @@ export default function GalleryUploadPage() {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
 
-  // 🔄 Load resume state
   useEffect(() => {
     if (typeof window === 'undefined' || !id) return;
     try {
@@ -80,10 +87,9 @@ export default function GalleryUploadPage() {
         const names = new Set<string>(data.uploadedNames || []);
         setUploadedNames(names);
         setResumedCount(names.size);
-        console.log(`[RESUME] Found ${names.size} previously uploaded`);
       }
     } catch (e) {
-      console.warn('[RESUME] Failed to load', e);
+      console.warn('[RESUME] Failed', e);
     }
   }, [id]);
 
@@ -139,7 +145,6 @@ export default function GalleryUploadPage() {
     setFiles(prev => prev.map(f => f.id === fileId ? { ...f, ...updates } : f));
   };
 
-  // 💾 Save progress to localStorage
   const saveProgress = (names: Set<string>) => {
     if (typeof window === 'undefined' || !id) return;
     try {
@@ -147,9 +152,7 @@ export default function GalleryUploadPage() {
         uploadedNames: Array.from(names),
         timestamp: Date.now(),
       }));
-    } catch (e) {
-      console.warn('[SAVE_PROGRESS] Failed', e);
-    }
+    } catch (e) {}
   };
 
   const clearResumeState = () => {
@@ -195,28 +198,37 @@ export default function GalleryUploadPage() {
     });
   };
 
-  // ⏸ Pause handler
   const handlePause = () => {
     pauseRef.current = true;
     setIsPaused(true);
-    toast({
-      title: "⏸ Upload Paused",
-      description: "Resume karne ke liye button dabayein.",
-    });
+    toast({ title: "⏸ Paused", description: "Resume karne ke liye button dabayein." });
   };
 
-  // ▶️ Resume handler
   const handleResume = () => {
     pauseRef.current = false;
     setIsPaused(false);
-    toast({
-      title: "▶️ Upload Resumed",
-      description: "Wahi se continue ho raha hai.",
-    });
+    toast({ title: "▶️ Resumed", description: "Wahi se continue." });
     startUpload();
   };
 
-  // 🚀 MAIN UPLOAD
+  // 🎨 Compression helper
+  const compressFile = async (item: FileItem): Promise<File> => {
+    if (!item.file.type.startsWith('image/')) return item.file;
+    // Agar already 5 MB se chhota hai toh skip
+    if (item.file.size < 5 * 1024 * 1024) return item.file;
+
+    try {
+      const compressed = await imageCompression(item.file, COMPRESSION_OPTIONS);
+      console.log(
+        `[COMPRESS] ${item.name}: ${(item.file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.size / 1024 / 1024).toFixed(1)}MB`
+      );
+      return compressed;
+    } catch (err) {
+      console.warn(`[COMPRESS] Failed for ${item.name} — using original`);
+      return item.file;
+    }
+  };
+
   const startUpload = async () => {
     if (files.length === 0 || isUploading) return;
 
@@ -225,17 +237,13 @@ export default function GalleryUploadPage() {
     pauseRef.current = false;
     cancelRef.current = false;
 
-    // 🔄 Get already uploaded
     const alreadyUploaded = new Set(uploadedNames);
     const tracker = new Set(uploadedNames);
 
     const filesToUpload = files.filter(
-      (f) => 
-        f.status !== "completed" && 
-        !alreadyUploaded.has(f.name)
+      (f) => f.status !== "completed" && !alreadyUploaded.has(f.name)
     );
 
-    // Mark already uploaded
     setFiles(prev => prev.map(f => 
       alreadyUploaded.has(f.name) && f.status !== 'completed'
         ? { ...f, status: 'completed', progress: 100, currentStep: 'Already Uploaded' }
@@ -243,33 +251,48 @@ export default function GalleryUploadPage() {
     ));
 
     if (filesToUpload.length === 0) {
-      toast({
-        title: "✅ All Done",
-        description: "All photos are already uploaded.",
-      });
+      toast({ title: "✅ All Done", description: "All photos uploaded." });
       setIsUploading(false);
       setIsDone(true);
       return;
     }
 
-    console.log(`[UPLOAD] ${filesToUpload.length} to upload, ${alreadyUploaded.size} skipped`);
+    console.log(`[UPLOAD] ${filesToUpload.length} to upload`);
 
     let currentIndex = 0;
 
     const uploadSingleFile = async (item: FileItem, attempt = 1) => {
-      // ⏸ Check pause
       if (pauseRef.current) {
         updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
         return;
       }
-      // ❌ Check cancel
       if (cancelRef.current) {
         updateFileStatus(item.id, { status: 'cancelled', currentStep: 'Cancelled' });
         return;
       }
 
       try {
-        // 1. Get presign URL
+        // 1. Compress
+        let fileToUpload = item.compressedFile || item.file;
+        
+        if (!item.compressedFile && item.file.type.startsWith('image/')) {
+          updateFileStatus(item.id, {
+            status: 'compressing',
+            currentStep: 'Optimizing quality...',
+          });
+          fileToUpload = await compressFile(item);
+          
+          setFiles(prev => prev.map(f => 
+            f.id === item.id ? { ...f, compressedFile: fileToUpload, compressedSize: fileToUpload.size } : f
+          ));
+        }
+
+        if (pauseRef.current) {
+          updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
+          return;
+        }
+
+        // 2. Get presign URL
         updateFileStatus(item.id, {
           status: 'uploading',
           currentStep: 'Requesting Access...',
@@ -279,15 +302,14 @@ export default function GalleryUploadPage() {
           userId: user!.uid,
           galleryId: id,
           fileName: item.name,
-          contentType: item.file.type || 'application/octet-stream',
-          fileSize: item.size,
+          contentType: fileToUpload.type || 'application/octet-stream',
+          fileSize: fileToUpload.size,
         });
 
         if (!result.success || !result.uploadUrl) {
           throw new Error(result.error || "Failed to authorize.");
         }
 
-        // ⏸ Check pause again
         if (pauseRef.current) {
           updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
           return;
@@ -295,7 +317,7 @@ export default function GalleryUploadPage() {
 
         updateFileStatus(item.id, { currentStep: "Uploading..." });
 
-        // 2. Upload with progress
+        // 3. Upload
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           const startTime = Date.now();
@@ -327,11 +349,11 @@ export default function GalleryUploadPage() {
           xhr.addEventListener('timeout', () => reject(new Error("Timeout")));
           
           xhr.open("PUT", result.uploadUrl);
-          xhr.setRequestHeader("Content-Type", item.file.type || "application/octet-stream");
-          xhr.send(item.file);
+          xhr.setRequestHeader("Content-Type", fileToUpload.type || "application/octet-stream");
+          xhr.send(fileToUpload);
         });
 
-        // 3. Save metadata
+        // 4. Save metadata
         completeUpload({
           userId: user!.uid,
           galleryId: id,
@@ -340,13 +362,12 @@ export default function GalleryUploadPage() {
             key: result.key!,
             file: {
               name: item.name,
-              size: item.size,
-              type: item.file.type,
+              size: fileToUpload.size,
+              type: fileToUpload.type,
             },
           },
         }).catch((err) => console.error(`[SYNC_BG]`, err));
 
-        // 4. Mark complete
         updateFileStatus(item.id, {
           status: "completed",
           progress: 100,
@@ -354,7 +375,6 @@ export default function GalleryUploadPage() {
         });
         console.log(`[UPLOAD] Success: ${item.name}`);
 
-        // 💾 Save progress
         tracker.add(item.name);
         setUploadedNames(new Set(tracker));
         saveProgress(tracker);
@@ -403,26 +423,19 @@ export default function GalleryUploadPage() {
     setIsUploading(false);
     
     if (pauseRef.current) {
-      toast({
-        title: "⏸ Upload Paused",
-        description: "Resume karne ke liye 'Resume' click karein.",
-      });
+      toast({ title: "⏸ Paused", description: "Resume karne ke liye 'Resume' click karein." });
       return;
     }
 
     if (cancelRef.current) {
-      toast({
-        title: "Upload Cancelled",
-        description: "Progress saved.",
-      });
+      toast({ title: "Cancelled", description: "Progress saved." });
       return;
     }
 
-    // ✅ Full complete
     setIsDone(true);
     toast({
       title: "🎉 Upload Complete!",
-      description: `${filesToUpload.length} photos uploaded. Ab share kar sakte hain.`,
+      description: `${filesToUpload.length} photos uploaded.`,
     });
     clearResumeState();
   };
@@ -439,23 +452,24 @@ export default function GalleryUploadPage() {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
     const failedFiles = files.filter(f => f.status === 'error').length;
-    const pausedFiles = files.filter(f => f.status === 'paused').length;
     const remainingFiles = totalFiles - completedFiles - failedFiles;
-    const totalSize = files.reduce((acc, f) => acc + f.size, 0);
-    const uploadedBytes = files.reduce((acc, f) => acc + (f.size * (f.progress / 100)), 0);
+    const totalSize = files.reduce((acc, f) => acc + (f.compressedSize || f.size), 0);
+    const uploadedBytes = files.reduce((acc, f) => acc + ((f.compressedSize || f.size) * (f.progress / 100)), 0);
     const avgProgress = totalSize > 0 ? (uploadedBytes / totalSize) * 100 : 0;
     const isComplete = completedFiles === totalFiles && totalFiles > 0;
+    const originalSize = files.reduce((acc, f) => acc + f.size, 0);
     
     return {
       totalFiles,
       completedFiles,
       failedFiles,
-      pausedFiles,
       remainingFiles,
       avgProgress,
       isComplete,
-      totalSize: (totalSize / (1024 * 1024 * 1024)).toFixed(2) + " GB",
+      totalSize: (totalSize / (1024 * 1024)).toFixed(1) + " MB",
       uploadedSize: (uploadedBytes / (1024 * 1024)).toFixed(1) + " MB",
+      originalSize: (originalSize / (1024 * 1024 * 1024)).toFixed(2) + " GB",
+      savedSize: ((originalSize - totalSize) / (1024 * 1024 * 1024)).toFixed(2) + " GB",
     };
   }, [files]);
 
@@ -465,7 +479,7 @@ export default function GalleryUploadPage() {
 
   if (!user || !event) return null;
 
-  const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? f.size : 0), 0) / (1024 * 1024 * 1024);
+  const pendingSizeGb = files.reduce((acc, f) => acc + (f.status === 'queued' ? (f.compressedSize || f.size) : 0), 0) / (1024 * 1024 * 1024);
   const isOverLimit = !isSubscriptionActive || (!isOwner && (currentUsageGb + pendingSizeGb) > currentPlan.storageGb);
 
   return (
@@ -489,18 +503,16 @@ export default function GalleryUploadPage() {
         </div>
       </div>
 
-      {/* 🔄 Resume Banner */}
       {resumedCount > 0 && !isUploading && !isDone && (
         <Alert className="rounded-2xl border-primary/30 bg-primary/5">
           <RefreshCw className="h-5 w-5 text-primary" />
           <AlertTitle className="font-bold text-primary">Resume Available</AlertTitle>
           <AlertDescription className="text-sm">
-            {resumedCount} photos pehle upload ho chuki hain. Sirf nayi photos upload hongi. 🎯
+            {resumedCount} photos pehle upload ho chuki hain. 🎯
           </AlertDescription>
         </Alert>
       )}
 
-      {/* ⏸ Paused Banner */}
       {isPaused && (
         <Alert className="rounded-2xl border-orange-500/30 bg-orange-500/5">
           <Pause className="h-5 w-5 text-orange-500" />
@@ -511,13 +523,12 @@ export default function GalleryUploadPage() {
         </Alert>
       )}
 
-      {/* ✅ Complete Banner */}
       {isDone && stats.isComplete && (
         <Alert className="rounded-2xl border-green-500/30 bg-green-500/5">
           <CheckCircle2 className="h-5 w-5 text-green-500" />
           <AlertTitle className="font-bold text-green-500">Upload Complete — Ready to Share</AlertTitle>
           <AlertDescription className="text-sm">
-            Sab {stats.totalFiles} photos upload ho gayi. Ab client ko share kar sakte hain. ✅
+            Sab {stats.totalFiles} photos upload ho gayi. ✅
           </AlertDescription>
         </Alert>
       )}
@@ -549,16 +560,15 @@ export default function GalleryUploadPage() {
             </div>
             <div className="text-center space-y-2">
               <p className="text-2xl font-headline font-bold">Deliver Masterpieces</p>
-              <p className="text-sm text-muted-foreground italic">Original quality • Full resolution</p>
+              <p className="text-sm text-muted-foreground italic">Smart compression • Print-ready quality</p>
             </div>
             
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border">
                <ShieldCheck className="w-3 h-3 text-primary" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Original Quality • Pause • Resume</span>
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">4000px • 92% Quality • 3x Faster</span>
             </div>
           </div>
 
-          {/* Status Card */}
           {files.length > 0 && (
             <div className="p-6 bg-card/40 border rounded-2xl space-y-4">
               <div className="flex items-center justify-between">
@@ -577,6 +587,12 @@ export default function GalleryUploadPage() {
                 <span>Transfer: {stats.uploadedSize} / {stats.totalSize}</span>
                 <span>Remaining: {stats.remainingFiles} files</span>
               </div>
+              
+              {stats.savedSize !== "0.00 GB" && (
+                <p className="text-[10px] text-green-500 font-bold uppercase tracking-wider">
+                  ✓ Saved {stats.savedSize} via smart compression
+                </p>
+              )}
             </div>
           )}
 
@@ -703,7 +719,7 @@ export default function GalleryUploadPage() {
                          <p className="text-xs font-bold truncate pr-2">{file.name}</p>
                          {file.status === 'completed' ? (
                            <CheckCircle2 className="w-4 h-4 text-green-500" />
-                         ) : (file.status === 'uploading' || file.status === 'syncing') ? (
+                         ) : (file.status === 'uploading' || file.status === 'compressing') ? (
                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
                          ) : file.status === 'paused' ? (
                            <Pause className="w-3.5 h-3.5 text-orange-500" />
@@ -721,9 +737,9 @@ export default function GalleryUploadPage() {
                       )}>
                         {file.currentStep}
                       </span>
-                      {file.status === 'uploading' && file.speed > 0 && (
-                        <p className="text-[8px] text-muted-foreground mt-0.5">
-                          {(file.speed / 1024 / 1024).toFixed(1)} MB/s • {Math.round(file.eta)}s left
+                      {file.compressedSize && file.compressedSize < file.size && (
+                        <p className="text-[8px] text-green-500 font-bold mt-0.5">
+                          ✓ {Math.round((1 - file.compressedSize / file.size) * 100)}% smaller
                         </p>
                       )}
                     </div>
