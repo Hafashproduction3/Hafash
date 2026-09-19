@@ -7,7 +7,7 @@ import { doc, collection, query, where } from 'firebase/firestore';
 import { 
   Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, 
   X, AlertTriangle, Activity, ShieldCheck, HardDrive, FileIcon,
-  RefreshCw, Clock, Zap, RotateCcw, Square
+  RefreshCw, Clock, Zap, Play, Pause, Lock, Share2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -19,9 +19,8 @@ import { HafashLoader } from '@/components/ui/hafash-loader';
 import { requestUploadUrl, completeUpload } from '@/app/actions/storage';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import imageCompression from 'browser-image-compression';
 
-type UploadStepStatus = 'queued' | 'compressing' | 'uploading' | 'syncing' | 'completed' | 'error' | 'cancelled';
+type UploadStepStatus = 'queued' | 'uploading' | 'syncing' | 'completed' | 'error' | 'paused' | 'cancelled';
 
 interface FileItem {
   id: string;
@@ -38,19 +37,10 @@ interface FileItem {
   retryCount: number;
 }
 
-const PARALLEL_LIMIT = 5;
+const PARALLEL_LIMIT = 3;
 const MAX_RETRIES = 3;
 
-// 🎨 Preview compression
-const COMPRESSION_OPTIONS = {
-  maxSizeMB: 3,
-  maxWidthOrHeight: 3000,
-  useWebWorker: true,
-  initialQuality: 0.9,
-  fileType: 'image/jpeg',
-};
-
-// 💾 localStorage key for resume
+// 💾 localStorage key
 const getResumeKey = (galleryId: string) => `hafash_upload_${galleryId}`;
 
 export default function GalleryUploadPage() {
@@ -62,12 +52,14 @@ export default function GalleryUploadPage() {
   
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [isDone, setIsDone] = useState(false);
   const [resumedCount, setResumedCount] = useState(0);
+  const [uploadedNames, setUploadedNames] = useState<Set<string>>(new Set());
   
-  // ❌ Cancel flag
+  // Control flags
+  const pauseRef = useRef(false);
   const cancelRef = useRef(false);
-  const [isCancelled, setIsCancelled] = useState(false);
 
   const isOwner = useMemo(() => isOwnerEmail(user?.email), [user?.email]);
 
@@ -75,15 +67,17 @@ export default function GalleryUploadPage() {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
 
-  // 🔄 Load resume state on mount
+  // 🔄 Load resume state
   useEffect(() => {
     if (typeof window === 'undefined' || !id) return;
     try {
       const saved = localStorage.getItem(getResumeKey(id));
       if (saved) {
         const data = JSON.parse(saved);
-        setResumedCount(data.uploadedNames?.length || 0);
-        console.log(`[RESUME] Found ${data.uploadedNames?.length || 0} previously uploaded`);
+        const names = new Set<string>(data.uploadedNames || []);
+        setUploadedNames(names);
+        setResumedCount(names.size);
+        console.log(`[RESUME] Found ${names.size} previously uploaded`);
       }
     } catch (e) {
       console.warn('[RESUME] Failed to load', e);
@@ -143,11 +137,11 @@ export default function GalleryUploadPage() {
   };
 
   // 💾 Save progress to localStorage
-  const saveProgress = (uploadedNames: string[]) => {
+  const saveProgress = (names: Set<string>) => {
     if (typeof window === 'undefined' || !id) return;
     try {
       localStorage.setItem(getResumeKey(id), JSON.stringify({
-        uploadedNames,
+        uploadedNames: Array.from(names),
         timestamp: Date.now(),
       }));
     } catch (e) {
@@ -155,32 +149,18 @@ export default function GalleryUploadPage() {
     }
   };
 
-  // 🔄 Get previously uploaded names
-  const getUploadedNames = (): Set<string> => {
-    if (typeof window === 'undefined' || !id) return new Set();
-    try {
-      const saved = localStorage.getItem(getResumeKey(id));
-      if (!saved) return new Set();
-      const data = JSON.parse(saved);
-      return new Set(data.uploadedNames || []);
-    } catch {
-      return new Set();
-    }
-  };
-
-  // 🧹 Clear resume state
   const clearResumeState = () => {
     if (typeof window === 'undefined' || !id) return;
     try {
       localStorage.removeItem(getResumeKey(id));
       setResumedCount(0);
+      setUploadedNames(new Set());
     } catch {}
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setIsDone(false);
-      setIsCancelled(false);
       const selectedFiles = Array.from(e.target.files);
       
       const newItems: FileItem[] = selectedFiles.map(f => {
@@ -191,8 +171,8 @@ export default function GalleryUploadPage() {
           name: f.name,
           size: f.size,
           progress: 0,
-          status: 'queued',
-          currentStep: 'In Queue',
+          status: uploadedNames.has(f.name) ? 'completed' : 'queued',
+          currentStep: uploadedNames.has(f.name) ? 'Already Uploaded' : 'In Queue',
           speed: 0,
           eta: 0,
           retryCount: 0,
@@ -212,14 +192,26 @@ export default function GalleryUploadPage() {
     });
   };
 
-  // ❌ Cancel handler
-  const handleCancel = () => {
-    cancelRef.current = true;
-    setIsCancelled(true);
+  // ⏸ Pause handler
+  const handlePause = () => {
+    pauseRef.current = true;
+    setIsPaused(true);
     toast({
-      title: "Upload Cancelled",
-      description: "Progress saved. Resume anytime.",
+      title: "⏸ Upload Paused",
+      description: "Resume karne ke liye button dabayein.",
     });
+  };
+
+  // ▶️ Resume handler
+  const handleResume = () => {
+    pauseRef.current = false;
+    setIsPaused(false);
+    toast({
+      title: "▶️ Upload Resumed",
+      description: "Wahi se continue ho raha hai.",
+    });
+    // Upload ko restart karo (wo already uploaded ko skip karega)
+    startUpload();
   };
 
   // 🚀 MAIN UPLOAD
@@ -227,22 +219,21 @@ export default function GalleryUploadPage() {
     if (files.length === 0 || isUploading) return;
 
     setIsUploading(true);
-    setIsCancelled(false);
+    setIsDone(false);
+    pauseRef.current = false;
     cancelRef.current = false;
 
-    // 🔄 Get already uploaded names
-    const alreadyUploaded = getUploadedNames();
-    const uploadedTracker = new Set(alreadyUploaded);
+    // 🔄 Get already uploaded
+    const alreadyUploaded = new Set(uploadedNames);
+    const tracker = new Set(uploadedNames);
 
-    // Skip already uploaded
     const filesToUpload = files.filter(
       (f) => 
         f.status !== "completed" && 
-        f.status !== "cancelled" &&
         !alreadyUploaded.has(f.name)
     );
 
-    // Mark already uploaded as completed
+    // Mark already uploaded
     setFiles(prev => prev.map(f => 
       alreadyUploaded.has(f.name) && f.status !== 'completed'
         ? { ...f, status: 'completed', progress: 100, currentStep: 'Already Uploaded' }
@@ -251,7 +242,7 @@ export default function GalleryUploadPage() {
 
     if (filesToUpload.length === 0) {
       toast({
-        title: "All Done",
+        title: "✅ All Done",
         description: "All photos are already uploaded.",
       });
       setIsUploading(false);
@@ -264,6 +255,11 @@ export default function GalleryUploadPage() {
     let currentIndex = 0;
 
     const uploadSingleFile = async (item: FileItem, attempt = 1) => {
+      // ⏸ Check pause
+      if (pauseRef.current) {
+        updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
+        return;
+      }
       // ❌ Check cancel
       if (cancelRef.current) {
         updateFileStatus(item.id, { status: 'cancelled', currentStep: 'Cancelled' });
@@ -271,47 +267,33 @@ export default function GalleryUploadPage() {
       }
 
       try {
-        // 1. Compress
+        // 1. Get presign URL
         updateFileStatus(item.id, {
-          status: 'compressing',
-          currentStep: 'Optimizing...',
+          status: 'uploading',
+          currentStep: 'Requesting Access...',
         });
 
-        let previewFile = item.file;
-        if (item.file.type.startsWith('image/')) {
-          try {
-            previewFile = await imageCompression(item.file, COMPRESSION_OPTIONS);
-            console.log(`[COMPRESS] ${item.name}: ${(item.file.size/1024/1024).toFixed(1)}MB → ${(previewFile.size/1024/1024).toFixed(1)}MB`);
-          } catch (e) {
-            console.warn(`[COMPRESS] Failed for ${item.name}`);
-          }
+        const result = await requestUploadUrl({
+          userId: user!.uid,
+          galleryId: id,
+          fileName: item.name,
+          contentType: item.file.type || 'application/octet-stream',
+          fileSize: item.size,
+        });
+
+        if (!result.success || !result.uploadUrl) {
+          throw new Error(result.error || "Failed to authorize.");
         }
 
-        // ❌ Check cancel again
-        if (cancelRef.current) {
-          updateFileStatus(item.id, { status: 'cancelled', currentStep: 'Cancelled' });
+        // ⏸ Check pause again
+        if (pauseRef.current) {
+          updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
           return;
         }
 
-        // 2. Get URL
-        updateFileStatus(item.id, {
-          status: 'uploading',
-          currentStep: 'Uploading preview...',
-        });
+        updateFileStatus(item.id, { currentStep: "Uploading..." });
 
-        const previewResult = await requestUploadUrl({
-          userId: user!.uid,
-          galleryId: id,
-          fileName: `preview_${item.name}`,
-          contentType: previewFile.type || 'image/jpeg',
-          fileSize: previewFile.size,
-        });
-
-        if (!previewResult.success || !previewResult.uploadUrl) {
-          throw new Error(previewResult.error || "Failed to authorize.");
-        }
-
-        // 3. Upload
+        // 2. Upload with progress
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           const startTime = Date.now();
@@ -339,54 +321,53 @@ export default function GalleryUploadPage() {
           });
 
           xhr.addEventListener('error', () => reject(new Error("Network error")));
-          xhr.timeout = 120000;
+          xhr.timeout = 300000;
           xhr.addEventListener('timeout', () => reject(new Error("Timeout")));
           
-          xhr.open("PUT", previewResult.uploadUrl);
-          xhr.setRequestHeader("Content-Type", previewFile.type || "image/jpeg");
-          xhr.send(previewFile);
+          xhr.open("PUT", result.uploadUrl);
+          xhr.setRequestHeader("Content-Type", item.file.type || "application/octet-stream");
+          xhr.send(item.file);
         });
 
-        // 4. Save metadata (fire & forget)
+        // 3. Save metadata
         completeUpload({
           userId: user!.uid,
           galleryId: id,
           task: {
             id: item.id,
-            key: previewResult.key!,
+            key: result.key!,
             file: {
               name: item.name,
-              size: previewFile.size,
-              type: previewFile.type,
+              size: item.size,
+              type: item.file.type,
             },
           },
         }).catch((err) => console.error(`[SYNC_BG]`, err));
 
-        // 5. ✅ Mark complete
+        // 4. Mark complete
         updateFileStatus(item.id, {
           status: "completed",
           progress: 100,
-          currentStep: "Preview Live",
+          currentStep: "✅ Uploaded",
         });
         console.log(`[UPLOAD] Success: ${item.name}`);
 
-        // 💾 Save to resume state
-        uploadedTracker.add(item.name);
-        saveProgress(Array.from(uploadedTracker));
+        // 💾 Save progress
+        tracker.add(item.name);
+        setUploadedNames(new Set(tracker));
+        saveProgress(tracker);
 
       } catch (err: any) {
         console.error(`[UPLOAD] Error ${item.name}:`, err);
 
-        // ❌ If cancelled, don't retry
-        if (cancelRef.current) {
-          updateFileStatus(item.id, { status: 'cancelled', currentStep: 'Cancelled' });
+        if (pauseRef.current || cancelRef.current) {
+          updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
           return;
         }
 
         if (attempt < MAX_RETRIES) {
           updateFileStatus(item.id, {
             currentStep: `Retry ${attempt + 1}/${MAX_RETRIES}...`,
-            status: 'uploading',
           });
           await new Promise(r => setTimeout(r, 2000));
           return uploadSingleFile(item, attempt + 1);
@@ -403,7 +384,7 @@ export default function GalleryUploadPage() {
 
     const worker = async () => {
       while (true) {
-        if (cancelRef.current) return;
+        if (pauseRef.current || cancelRef.current) return;
         const idx = currentIndex++;
         if (idx >= filesToUpload.length) return;
         await uploadSingleFile(filesToUpload[idx]);
@@ -419,21 +400,29 @@ export default function GalleryUploadPage() {
 
     setIsUploading(false);
     
-    if (cancelRef.current) {
+    if (pauseRef.current) {
       toast({
         title: "⏸ Upload Paused",
-        description: "Progress saved. Resume kar sakte hain.",
+        description: "Resume karne ke liye 'Resume' click karein.",
       });
-      setIsDone(false);
-    } else {
-      setIsDone(true);
-      toast({
-        title: "🎉 Upload Complete!",
-        description: `${filesToUpload.length} photos uploaded successfully.`,
-      });
-      // Clear resume state — sab ho gaya
-      clearResumeState();
+      return;
     }
+
+    if (cancelRef.current) {
+      toast({
+        title: "Upload Cancelled",
+        description: "Progress saved.",
+      });
+      return;
+    }
+
+    // ✅ Full complete
+    setIsDone(true);
+    toast({
+      title: "🎉 Upload Complete!",
+      description: `${filesToUpload.length} photos uploaded. Ab share kar sakte hain.`,
+    });
+    clearResumeState();
   };
 
   const retryFailed = () => {
@@ -448,19 +437,21 @@ export default function GalleryUploadPage() {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
     const failedFiles = files.filter(f => f.status === 'error').length;
-    const cancelledFiles = files.filter(f => f.status === 'cancelled').length;
-    const remainingFiles = totalFiles - completedFiles - failedFiles - cancelledFiles;
+    const pausedFiles = files.filter(f => f.status === 'paused').length;
+    const remainingFiles = totalFiles - completedFiles - failedFiles;
     const totalSize = files.reduce((acc, f) => acc + f.size, 0);
     const uploadedBytes = files.reduce((acc, f) => acc + (f.size * (f.progress / 100)), 0);
     const avgProgress = totalSize > 0 ? (uploadedBytes / totalSize) * 100 : 0;
+    const isComplete = completedFiles === totalFiles && totalFiles > 0;
     
     return {
       totalFiles,
       completedFiles,
       failedFiles,
-      cancelledFiles,
+      pausedFiles,
       remainingFiles,
       avgProgress,
+      isComplete,
       totalSize: (totalSize / (1024 * 1024 * 1024)).toFixed(2) + " GB",
       uploadedSize: (uploadedBytes / (1024 * 1024)).toFixed(1) + " MB",
     };
@@ -499,7 +490,7 @@ export default function GalleryUploadPage() {
       {/* 🔄 Resume Banner */}
       {resumedCount > 0 && !isUploading && !isDone && (
         <Alert className="rounded-2xl border-primary/30 bg-primary/5">
-          <RotateCcw className="h-5 w-5 text-primary" />
+          <RefreshCw className="h-5 w-5 text-primary" />
           <AlertTitle className="font-bold text-primary">Resume Available</AlertTitle>
           <AlertDescription className="text-sm">
             {resumedCount} photos pehle upload ho chuki hain. Sirf nayi photos upload hongi. 🎯
@@ -507,13 +498,24 @@ export default function GalleryUploadPage() {
         </Alert>
       )}
 
-      {/* ⏸ Cancelled Banner */}
-      {isCancelled && !isUploading && (
+      {/* ⏸ Paused Banner */}
+      {isPaused && (
         <Alert className="rounded-2xl border-orange-500/30 bg-orange-500/5">
-          <Square className="h-5 w-5 text-orange-500" />
+          <Pause className="h-5 w-5 text-orange-500" />
           <AlertTitle className="font-bold text-orange-500">Upload Paused</AlertTitle>
           <AlertDescription className="text-sm">
-            {stats.completedFiles} photos upload ho chuki hain. Baaki continue karne ke liye "Resume Upload" click karein.
+            {stats.completedFiles} photos done. Resume karne ke liye "Resume" click karein.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* ✅ Complete Banner — Share Ready */}
+      {isDone && stats.isComplete && (
+        <Alert className="rounded-2xl border-green-500/30 bg-green-500/5">
+          <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <AlertTitle className="font-bold text-green-500">Upload Complete — Ready to Share</AlertTitle>
+          <AlertDescription className="text-sm">
+            Sab {stats.totalFiles} photos upload ho gayi. Ab client ko share kar sakte hain. ✅
           </AlertDescription>
         </Alert>
       )}
@@ -545,17 +547,39 @@ export default function GalleryUploadPage() {
             </div>
             <div className="text-center space-y-2">
               <p className="text-2xl font-headline font-bold">Deliver Masterpieces</p>
-              <p className="text-sm text-muted-foreground italic">Drop photos or click to browse</p>
+              <p className="text-sm text-muted-foreground italic">Original quality • Full resolution</p>
             </div>
             
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border">
-               <Zap className="w-3 h-3 text-primary animate-pulse" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Resume • Fast • Reliable</span>
+               <ShieldCheck className="w-3 h-3 text-primary" />
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Original Quality • Pause • Resume</span>
             </div>
           </div>
 
+          {/* Status Card */}
+          {files.length > 0 && (
+            <div className="p-6 bg-card/40 border rounded-2xl space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Upload Progress</p>
+                  <p className="text-3xl font-headline font-bold text-primary">{Math.round(stats.avgProgress)}%</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Ready</p>
+                  <p className="text-lg font-bold">{stats.completedFiles} / {stats.totalFiles}</p>
+                </div>
+              </div>
+              <Progress value={stats.avgProgress} className="h-2" />
+              
+              <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground">
+                <span>Transfer: {stats.uploadedSize} / {stats.totalSize}</span>
+                <span>Remaining: {stats.remainingFiles} files</span>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
                {files.length > 0 && !isDone && !isUploading && (
                  <Button variant="ghost" className="rounded-full text-muted-foreground hover:text-destructive" onClick={() => { setFiles([]); clearResumeState(); }}>
                    Purge Queue
@@ -568,45 +592,75 @@ export default function GalleryUploadPage() {
                    onClick={retryFailed}
                  >
                    <RefreshCw className="w-4 h-4" />
-                   Retry Failed ({stats.failedFiles})
+                   Retry ({stats.failedFiles})
                  </Button>
                )}
             </div>
             
             <div className="flex gap-3 w-full sm:w-auto">
-              {/* ❌ Cancel Button */}
-              {isUploading && (
+              {/* ⏸ Pause Button (during upload) */}
+              {isUploading && !isPaused && (
                 <Button
                   variant="outline"
                   className="rounded-2xl h-14 px-6 border-orange-500/30 text-orange-500 hover:bg-orange-500/10 font-bold gap-2"
-                  onClick={handleCancel}
+                  onClick={handlePause}
                 >
-                  <Square className="w-4 h-4" />
-                  Cancel
+                  <Pause className="w-4 h-4" />
+                  Pause
+                </Button>
+              )}
+
+              {/* ▶️ Resume Button (when paused) */}
+              {isPaused && (
+                <Button
+                  className="rounded-2xl h-14 px-6 bg-green-500 hover:bg-green-600 text-white font-bold gap-2"
+                  onClick={handleResume}
+                >
+                  <Play className="w-4 h-4" />
+                  Resume
                 </Button>
               )}
               
-              {/* 🚀 Start/Resume Button */}
-              <Button 
-                className={cn(
-                  "rounded-2xl px-10 h-14 font-bold flex-1 sm:flex-none min-w-[220px] text-lg",
-                  (isOverLimit || isUploading) ? "bg-muted cursor-not-allowed" : "bg-primary hover:bg-primary/90"
-                )}
-                onClick={startUpload}
-                disabled={files.length === 0 || isUploading || isOverLimit}
-              >
-                {isUploading ? (
-                  <><Loader2 className="w-6 h-6 animate-spin mr-3" />Uploading...</>
-                ) : isCancelled ? (
-                  <><RotateCcw className="w-5 h-5 mr-3" />Resume Upload</>
-                ) : isDone ? (
-                  <><RefreshCw className="w-5 h-5 mr-3" />Deliver More</>
-                ) : resumedCount > 0 ? (
-                  <><RotateCcw className="w-5 h-5 mr-3" />Resume ({resumedCount} done)</>
-                ) : (
-                  <><Sparkles className="w-6 h-6 mr-3" />Begin Upload</>
-                )}
-              </Button>
+              {/* 🚀 Start Button */}
+              {!isPaused && (
+                <Button 
+                  className={cn(
+                    "rounded-2xl px-10 h-14 font-bold flex-1 sm:flex-none min-w-[220px] text-lg gap-2",
+                    (isOverLimit || isUploading || stats.isComplete) 
+                      ? "bg-muted cursor-not-allowed text-muted-foreground" 
+                      : "bg-primary hover:bg-primary/90"
+                  )}
+                  onClick={startUpload}
+                  disabled={files.length === 0 || isUploading || isOverLimit || stats.isComplete}
+                >
+                  {isUploading ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" />Uploading...</>
+                  ) : stats.isComplete ? (
+                    <><CheckCircle2 className="w-5 h-5" />All Uploaded</>
+                  ) : resumedCount > 0 ? (
+                    <><RefreshCw className="w-5 h-5" />Resume ({resumedCount} done)</>
+                  ) : (
+                    <><Sparkles className="w-5 h-5" />Begin Upload</>
+                  )}
+                </Button>
+              )}
+
+              {/* 🔒 Share Button (disabled until complete) */}
+              {stats.isComplete && (
+                <Link href={`/events/${id}/manage`}>
+                  <Button className="rounded-2xl h-14 px-8 bg-green-500 hover:bg-green-600 text-white font-bold gap-2">
+                    <Share2 className="w-5 h-5" />
+                    Share Gallery
+                  </Button>
+                </Link>
+              )}
+
+              {!stats.isComplete && files.length > 0 && !isUploading && (
+                <Button disabled className="rounded-2xl h-14 px-8 gap-2">
+                  <Lock className="w-4 h-4" />
+                  Upload first
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -618,22 +672,6 @@ export default function GalleryUploadPage() {
             </h3>
             <Badge className="bg-primary/20 text-primary">{files.length} ASSETS</Badge>
           </div>
-          
-          {files.length > 0 && (isUploading || stats.completedFiles > 0) && (
-            <div className="mb-6 p-5 bg-background/50 rounded-2xl space-y-4">
-               <div className="flex justify-between items-end">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Progress</p>
-                    <p className="text-2xl font-headline font-bold text-primary">{Math.round(stats.avgProgress)}%</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">Ready</p>
-                    <p className="text-xs font-bold">{stats.completedFiles} / {stats.totalFiles}</p>
-                  </div>
-               </div>
-               <Progress value={stats.avgProgress} className="h-1.5" />
-            </div>
-          )}
 
           <div className="flex-1 overflow-y-auto space-y-4 pr-2">
             {files.length === 0 ? (
@@ -646,10 +684,10 @@ export default function GalleryUploadPage() {
                 <div key={file.id} className={cn(
                   "bg-background/40 p-4 rounded-2xl border relative overflow-hidden",
                   file.status === 'error' ? 'border-destructive/30' : 
-                  file.status === 'cancelled' ? 'border-orange-500/30' :
+                  file.status === 'paused' ? 'border-orange-500/30' :
                   file.status === 'completed' ? 'border-green-500/20' : 'border-border/30'
                 )}>
-                  <div className="absolute bottom-0 left-0 h-1 bg-primary/20" style={{ width: `${file.progress}%` }} />
+                  <div className="absolute bottom-0 left-0 h-1 bg-primary/20 transition-all duration-500" style={{ width: `${file.progress}%` }} />
                   
                   <div className="flex gap-4 items-center">
                     <div className="h-14 w-14 rounded-xl bg-muted overflow-hidden shrink-0">
@@ -667,10 +705,10 @@ export default function GalleryUploadPage() {
                          <p className="text-xs font-bold truncate pr-2">{file.name}</p>
                          {file.status === 'completed' ? (
                            <CheckCircle2 className="w-4 h-4 text-green-500" />
-                         ) : (file.status === 'uploading' || file.status === 'compressing') ? (
+                         ) : (file.status === 'uploading' || file.status === 'syncing') ? (
                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
-                         ) : file.status === 'cancelled' ? (
-                           <Square className="w-3.5 h-3.5 text-orange-500" />
+                         ) : file.status === 'paused' ? (
+                           <Pause className="w-3.5 h-3.5 text-orange-500" />
                          ) : file.status === 'error' ? (
                            <AlertTriangle className="w-4 h-4 text-destructive" />
                          ) : (
@@ -680,11 +718,16 @@ export default function GalleryUploadPage() {
                       <span className={cn(
                         "text-[9px] font-bold uppercase",
                         file.status === 'error' ? 'text-destructive' : 
-                        file.status === 'cancelled' ? 'text-orange-500' :
+                        file.status === 'paused' ? 'text-orange-500' :
                         file.status === 'completed' ? 'text-green-500' : 'text-primary'
                       )}>
                         {file.currentStep}
                       </span>
+                      {file.status === 'uploading' && file.speed > 0 && (
+                        <p className="text-[8px] text-muted-foreground mt-0.5">
+                          {(file.speed / 1024 / 1024).toFixed(1)} MB/s • {Math.round(file.eta)}s left
+                        </p>
+                      )}
                     </div>
                   </div>
                   
@@ -706,4 +749,6 @@ export default function GalleryUploadPage() {
       </div>
     </div>
   );
-}
+}git add .
+git commit -m "Simple upload with pause + resume + share lock"
+git push origin main
