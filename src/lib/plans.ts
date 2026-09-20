@@ -76,9 +76,9 @@ export const OWNER_EMAILS: string[] = [
 ];
 
 export const OWNER_PLAN: HafashPlan = {
-  id: 'business', // Map to a valid PlanId so custom branding features activate
+  id: 'business',
   name: 'Owner (Unlimited)',
-  storageGb: 999999, // Practically unlimited
+  storageGb: 999999,
   zipLimitGb: 999999,
   price: 'Rs. 0',
   priceAmount: 0,
@@ -116,6 +116,7 @@ export function getUserPlan(planId?: string | null, email?: string | null): Hafa
 
 /**
  * Calculates total storage usage across all galleries.
+ * ✅ Counts: preview + thumbnail + original (if uploaded)
  */
 export function calculateUsageGb(galleries: any[] | null): number {
   if (!galleries || !Array.isArray(galleries)) return 0;
@@ -125,14 +126,52 @@ export function calculateUsageGb(galleries: any[] | null): number {
   galleries.forEach(g => {
     const items = Array.isArray(g.items) ? g.items : [];
     items.forEach((item: any) => {
-      const size = Number(item.fileSize);
-      if (!isNaN(size) && size > 0) {
-        totalBytes += size;
+      // ✅ Preview size (main file)
+      const previewSize = Number(item.fileSize) || 0;
+
+      // ✅ Thumbnail size (approx 50 KB if thumbKey exists)
+      const thumbSize = item.thumbKey ? (50 * 1024) : 0;
+
+      // ✅ Original size (agar upload hua hai)
+      let originalSize = 0;
+      if (item.originalReady) {
+        if (item.originalSize && Number(item.originalSize) > 0) {
+          originalSize = Number(item.originalSize);
+        } else {
+          // Fallback: agar originalSize missing hai, preview ka 10x assume karo
+          originalSize = previewSize * 10;
+        }
+      }
+
+      // Total per item
+      const itemTotal = previewSize + thumbSize + originalSize;
+
+      if (itemTotal > 0) {
+        totalBytes += itemTotal;
       } else {
-        totalBytes += (8 * 1024 * 1024);
+        // Fallback: agar kuch bhi nahi hai toh 3 MB assume
+        totalBytes += (3 * 1024 * 1024);
       }
     });
   });
 
   return totalBytes / (1024 * 1024 * 1024);
+}
+
+/**
+ * Format bytes into human readable string.
+ */
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
+}
+
+/**
+ * Calculate storage usage in MB (for display).
+ */
+export function calculateUsageMb(galleries: any[] | null): number {
+  return calculateUsageGb(galleries) * 1024;
 }

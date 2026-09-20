@@ -1,4 +1,4 @@
-import { HAFASH_PLANS, type PlanId } from '@/lib/plans';
+import { HAFASH_PLANS, type PlanId, isOwnerEmail, OWNER_PLAN } from '@/lib/plans';
 
 export type SubscriptionState =
   | 'active'
@@ -17,6 +17,27 @@ export interface SubscriptionInfo {
 }
 
 export function getSubscriptionInfo(userData: any): SubscriptionInfo {
+  // 👑 OWNER BYPASS — Multiple fields check karo
+  const emailToCheck = 
+    userData?.email || 
+    userData?.userEmail || 
+    userData?.photographerEmail ||
+    null;
+
+  if (isOwnerEmail(emailToCheck)) {
+    console.log('[SUBSCRIPTION] Owner detected — unlimited access granted');
+    return {
+      state: 'active',
+      planId: 'business' as PlanId,
+      planName: OWNER_PLAN.name,
+      storageGb: OWNER_PLAN.storageGb,
+      renewalDate: null,
+      graceEndDate: null,
+      graceDaysRemaining: 0,
+    };
+  }
+
+  // Regular user logic
   const planId = (userData?.planId as PlanId) || 'starter';
   const plan = HAFASH_PLANS[planId] || HAFASH_PLANS.starter;
 
