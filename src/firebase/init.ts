@@ -1,17 +1,26 @@
 'use client';
 
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
-import { initializeFirestore, getFirestore, Firestore } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  getFirestore, 
+  Firestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  memoryLocalCache,
+} from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { firebaseConfig } from './config';
 
 /**
  * Initializes Firebase services and returns the instances.
- * Isolated from index.ts to prevent circular dependencies.
  * 
- * Note: Uses experimentalForceLongPolling to resolve connectivity issues
- * in specialized development environments like Firebase Studio Workstations.
+ * ⚡ Performance optimizations:
+ * - ✅ Persistent cache (IndexedDB) — 2nd visit instant
+ * - ✅ Multi-tab manager — multiple tabs share cache
+ * - ✅ NO long-polling in production — WebSocket is faster
+ * - ⚠️ Fallback to long-polling only in Firebase Studio dev env
  */
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
@@ -19,21 +28,35 @@ export function initializeFirebase(): {
   auth: Auth;
   storage: FirebaseStorage;
 } {
-  // Ensure we don't initialize multiple times
   const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   
-  // 1. Initialize Auth FIRST. 
   const auth = getAuth(firebaseApp);
 
-  // 2. Initialize Firestore SECOND.
+  // ⚡ Detect if we're in a development workstation
+  const isDevEnv = 
+    typeof window !== 'undefined' && 
+    (window.location.hostname.includes('cloudworkstations.dev') ||
+     window.location.hostname.includes('firebase-studio'));
+
   let firestore: Firestore;
   try {
+    // ⚡ Production: Fast WebSocket + Persistent Cache
+    // Dev: Long-polling (needed for Firebase Studio)
     firestore = initializeFirestore(firebaseApp, {
-      experimentalForceLongPolling: true,
+      // ✅ Cache: Data survives page reload — 2nd visit instant
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+      // ⚠️ Only force long-polling in dev workstation
+      ...(isDevEnv ? { experimentalForceLongPolling: true } : {}),
     });
-    console.info("[DEBUG] Firebase Client: Initialized Firestore with long-polling enabled.");
-  } catch (e) {
-    // If already initialized, fallback to getFirestore
+    
+    console.info(
+      `[FIREBASE] Firestore initialized: ${isDevEnv ? 'long-polling (dev)' : 'WebSocket + Cache (fast)'}`
+    );
+  } catch (e: any) {
+    // Already initialized — fallback
+    console.warn('[FIREBASE] Firestore fallback:', e.message);
     firestore = getFirestore(firebaseApp);
   }
 
