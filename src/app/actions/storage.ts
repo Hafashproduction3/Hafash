@@ -7,6 +7,7 @@ import { getStorageStats } from '@/lib/storage/stats';
 
 /**
  * SERVER ACTION: Request a signed URL for direct-to-R2 upload.
+ * ✅ Owner bypass: Firebase Auth se email fetch karke owner check karta hai
  */
 export async function requestUploadUrl({
   userId,
@@ -38,9 +39,35 @@ export async function requestUploadUrl({
       return { success: false, error: "User profile not found." };
     }
 
-    const userData = userSnap.data();
+    const rawData = userSnap.data() || {};
+
+    // ✅ Firebase Auth se email fetch karo (owner check ke liye)
+    let authEmail: string | null = null;
+    try {
+      const userRecord = await admin.auth().getUser(userId);
+      authEmail = userRecord.email || null;
+      console.log(`[AUTH_EMAIL] Fetched: ${authEmail}`);
+    } catch (e: any) {
+      console.warn("[AUTH_EMAIL] Failed:", e.message);
+    }
+
+    // ✅ userData build karo — email + subscriptionStatus fallback
+    const subscriptionStatus = rawData.subscriptionStatus || (
+      rawData.subscriptionNextRenewal && new Date(rawData.subscriptionNextRenewal) > new Date()
+        ? 'active'
+        : rawData.subscriptionStatus
+    );
+
+    const userData = {
+      ...rawData,
+      email: rawData.email || authEmail,
+      userEmail: rawData.userEmail || authEmail,
+      photographerEmail: rawData.photographerEmail || authEmail,
+      subscriptionStatus,
+    };
 
     const subscription = getSubscriptionInfo(userData);
+    console.log(`[DEBUG] Subscription state: ${subscription.state} | Plan: ${subscription.planName}`);
 
     if (subscription.state !== "active") {
       return {
@@ -131,7 +158,7 @@ export async function completeUpload({
       try {
         const originalExists = await storage.fileExists(task.originalKey);
         if (originalExists) {
-          originalUrl = await storage.getSignedUrl(task.originalKey, 900); // 15 min
+          originalUrl = await storage.getSignedUrl(task.originalKey, 900);
           console.log(`[DEBUG] Original URL generated: ${task.originalKey}`);
         }
       } catch (e: any) {
@@ -166,11 +193,11 @@ export async function completeUpload({
       // ✅ NEW: Preview upload — naya item add karo
       const newAsset = {
         id: task.id,
-        url: assetUrl,                     // Preview URL (fullscreen ke liye)
+        url: assetUrl,
         masterUrl: assetUrl,
-        thumbUrl: thumbUrl,                // Thumbnail (grid ke liye)
+        thumbUrl: thumbUrl,
         thumbKey: task.thumbKey || null,
-        storageKey: task.key,              // Preview storage key
+        storageKey: task.key,
         previewKey: task.key,
         originalKey: task.originalKey || null,
         originalUrl: originalUrl,
@@ -292,7 +319,6 @@ export async function getOriginalDownloadUrl(originalKey: string) {
       return { success: false, error: "Original file not found" };
     }
 
-    // Short-lived: 15 minutes
     const url = await storage.getSignedUrl(originalKey, 900);
     return { success: true, url };
   } catch (error: any) {
