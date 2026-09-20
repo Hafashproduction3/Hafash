@@ -49,6 +49,7 @@ import { type PlanId } from '@/lib/plans';
 import { getFreshMusicUrl } from '@/app/actions/storage';
 
 const SLIDESHOW_INTERVAL = 4000;
+const GALLERY_PAGE_SIZE = 60;
 
 /**
  * Gallery Item Component
@@ -83,13 +84,14 @@ const GalleryItem = memo(({
       )}
       <img 
         src={item.thumbUrl || item.url} 
-        alt="Gallery Asset"
+        alt={item.fileName || "Gallery Asset"}
         className={cn(
           "w-full h-auto object-cover transition-all duration-1000 group-hover:scale-110",
           loaded ? "opacity-100" : "opacity-0"
         )}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
+        fetchPriority={priority ? "high" : "low"}
         onLoad={() => setLoaded(true)}
       />
       {showWatermark && <div className="luxury-watermark" />}
@@ -130,6 +132,7 @@ export default function ClientGalleryPage() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
+  const [displayCount, setDisplayCount] = useState(GALLERY_PAGE_SIZE);
   
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
@@ -342,9 +345,13 @@ export default function ClientGalleryPage() {
     if (totalItems === 0) return;
     setSelectedIndex(prev => {
       if (prev === null) return 0;
-      return prev < totalItems - 1 ? prev + 1 : 0;
+      const next = prev < totalItems - 1 ? prev + 1 : 0;
+      if (next >= displayCount - 5 && displayCount < totalItems) {
+        setDisplayCount(c => Math.min(c + GALLERY_PAGE_SIZE, totalItems));
+      }
+      return next;
     });
-  }, [totalItems]);
+  }, [totalItems, displayCount]);
 
   const goPrev = useCallback(() => {
     if (totalItems === 0) return;
@@ -361,12 +368,16 @@ export default function ClientGalleryPage() {
     const timer = setInterval(() => {
       setSelectedIndex(prev => {
         if (prev === null) return 0;
-        return prev < totalItems - 1 ? prev + 1 : 0;
+        const next = prev < totalItems - 1 ? prev + 1 : 0;
+        if (next >= displayCount - 5 && displayCount < totalItems) {
+          setDisplayCount(c => Math.min(c + GALLERY_PAGE_SIZE, totalItems));
+        }
+        return next;
       });
     }, SLIDESHOW_INTERVAL);
 
     return () => clearInterval(timer);
-  }, [isSlideshowPlaying, selectedIndex, totalItems]);
+  }, [isSlideshowPlaying, selectedIndex, totalItems, displayCount]);
 
   // Keyboard
   useEffect(() => {
@@ -414,7 +425,7 @@ export default function ClientGalleryPage() {
     updateDoc(gRef, { items: updatedItems }).catch(() => {});
   }, [firestore, gallery, galleryId]);
 
-  // ✅ UPDATED: Original download (signed URL)
+  // ✅ Original download (signed URL)
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload) return;
 
@@ -431,7 +442,6 @@ export default function ClientGalleryPage() {
     const filename = item.fileName || `photo-${item.id}.jpg`;
 
     try {
-      // Fresh signed URL for original
       const res = await fetch('/api/download-original', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -460,13 +470,12 @@ export default function ClientGalleryPage() {
     }
   }, [canDownload, toast]);
 
-  // ✅ UPDATED: Original ZIP download
+  // ✅ Original ZIP download
   const handleDownloadAll = useCallback(async () => {
     if (isPreparing || !gallery || !canDownload) return;
 
     const items = gallery.items || [];
 
-    // Sab originals ready hain check
     const notReady = items.filter((it: any) => !it.originalReady || !it.originalKey);
     if (notReady.length > 0) {
       toast({
@@ -932,7 +941,7 @@ export default function ClientGalleryPage() {
 
       <div className="max-w-7xl mx-auto px-6 mt-24 space-y-20">
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-8 lg:gap-12 space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
-          {gallery.items?.map((item: any, idx: number) => (
+          {gallery.items?.slice(0, displayCount).map((item: any, idx: number) => (
             <GalleryItem 
               key={item.id}
               item={item}
@@ -941,10 +950,21 @@ export default function ClientGalleryPage() {
               onFavorite={handleFavorite}
               onDownload={handleDownloadSingle}
               onSelect={() => openLightbox(idx)}
-              priority={idx < 2}
+              priority={idx < 6}
             />
           ))}
         </div>
+
+        {totalItems > displayCount && (
+          <div className="flex justify-center pt-12">
+            <Button
+              onClick={() => setDisplayCount(prev => prev + GALLERY_PAGE_SIZE)}
+              className="rounded-full h-14 px-10 font-bold gap-3 bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xl hover:scale-105 transition-all"
+            >
+              Load More Photos ({totalItems - displayCount} remaining)
+            </Button>
+          </div>
+        )}
 
         {(!gallery.items || gallery.items.length === 0) && (
           <div className="text-center py-40 border-2 border-dashed border-border/20 rounded-[4rem] bg-card/10 animate-in fade-in duration-1000">
