@@ -7,7 +7,7 @@ import { doc, collection, query, where } from 'firebase/firestore';
 import { 
   Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, 
   X, AlertTriangle, Activity, ShieldCheck, HardDrive, FileIcon,
-  RefreshCw, Clock, Zap, Play, Pause, Lock, Share2
+  RefreshCw, Clock, Zap, Play, Pause, Lock, Share2, Timer, AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -47,7 +47,7 @@ interface FileItem {
 const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
 
-// 🖼️ Preview — Client dekhne ke liye
+// 🖼️ Preview Settings
 const PREVIEW_OPTIONS = {
   maxSizeMB: 0.6,
   maxWidthOrHeight: 1800,
@@ -56,7 +56,6 @@ const PREVIEW_OPTIONS = {
   fileType: 'image/jpeg',
 };
 
-// 🖼️ Thumbnail — Grid ke liye
 const THUMBNAIL_OPTIONS = {
   maxSizeMB: 0.05,
   maxWidthOrHeight: 400,
@@ -66,6 +65,25 @@ const THUMBNAIL_OPTIONS = {
 };
 
 const getResumeKey = (galleryId: string) => `hafash_upload_${galleryId}`;
+
+// ⏱️ Time formatter
+function formatTime(seconds: number): string {
+  if (!seconds || seconds === Infinity || seconds <= 0) return "Calculating...";
+  if (seconds < 60) return `${Math.round(seconds)} sec`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.round((seconds % 3600) / 60);
+  return `${hours} hr ${mins} min`;
+}
+
+// ⏰ Clock time formatter
+function formatClockTime(date: Date): string {
+  return date.toLocaleTimeString('en-US', { 
+    hour: 'numeric', 
+    minute: '2-digit', 
+    hour12: true 
+  });
+}
 
 export default function GalleryUploadPage() {
   const router = useRouter();
@@ -82,10 +100,16 @@ export default function GalleryUploadPage() {
   const [uploadedNames, setUploadedNames] = useState<Set<string>>(new Set());
   const [isBackgroundUploading, setIsBackgroundUploading] = useState(false);
   
+  // ⏱️ Time tracking
+  const [uploadStartTime, setUploadStartTime] = useState<number | null>(null);
+  const [averageSpeed, setAverageSpeed] = useState<number>(0); // bytes per second
+  const [showPreUploadWarning, setShowPreUploadWarning] = useState(false);
+  
   const pauseRef = useRef(false);
   const cancelRef = useRef(false);
   const bgQueueRef = useRef<FileItem[]>([]);
   const bgProcessingRef = useRef(false);
+  const speedSamplesRef = useRef<number[]>([]);
 
   const isOwner = useMemo(() => isOwnerEmail(user?.email), [user?.email]);
 
@@ -203,6 +227,12 @@ export default function GalleryUploadPage() {
       });
 
       setFiles(prev => [...prev, ...newItems]);
+      
+      // ✅ Show speed warning for large batches
+      const newFiles = newItems.filter(f => f.status !== 'completed');
+      if (newFiles.length > 20) {
+        setShowPreUploadWarning(true);
+      }
     }
   };
 
@@ -217,7 +247,7 @@ export default function GalleryUploadPage() {
   const handlePause = () => {
     pauseRef.current = true;
     setIsPaused(true);
-    toast({ title: "⏸ Paused", description: "Resume karne ke liye button dabayein." });
+    toast({ title: "⏸ Paused", description: "Progress safe hai. Resume kar sakte hain." });
   };
 
   const handleResume = () => {
@@ -230,10 +260,8 @@ export default function GalleryUploadPage() {
   const generatePreview = async (file: File): Promise<File | null> => {
     if (!file.type.startsWith('image/')) return null;
     try {
-      const preview = await imageCompression(file, PREVIEW_OPTIONS);
-      return preview;
+      return await imageCompression(file, PREVIEW_OPTIONS);
     } catch (err) {
-      console.warn('[PREVIEW] Failed', file.name);
       return null;
     }
   };
@@ -241,10 +269,8 @@ export default function GalleryUploadPage() {
   const generateThumbnail = async (file: File): Promise<File | null> => {
     if (!file.type.startsWith('image/')) return null;
     try {
-      const thumb = await imageCompression(file, THUMBNAIL_OPTIONS);
-      return thumb;
+      return await imageCompression(file, THUMBNAIL_OPTIONS);
     } catch (err) {
-      console.warn('[THUMB] Failed', file.name);
       return null;
     }
   };
@@ -262,6 +288,11 @@ export default function GalleryUploadPage() {
             const now = Date.now();
             const timeDiff = (now - lastTime) / 1000;
             if (timeDiff > 0.5) {
+              // Track speed samples for averaging
+              const instantSpeed = (e.loaded - lastLoaded) / timeDiff;
+              speedSamplesRef.current.push(instantSpeed);
+              if (speedSamplesRef.current.length > 10) speedSamplesRef.current.shift();
+              
               onProgress(e.loaded, e.total);
               lastLoaded = e.loaded;
               lastTime = now;
@@ -285,7 +316,6 @@ export default function GalleryUploadPage() {
     });
   };
 
-  // 🎯 Background original uploader (silent, sequential)
   const processBackgroundQueue = async () => {
     if (bgProcessingRef.current) return;
     bgProcessingRef.current = true;
@@ -302,8 +332,6 @@ export default function GalleryUploadPage() {
       if (!item) continue;
 
       try {
-        console.log(`[BG_ORIGINAL] Starting: ${item.name}`);
-        
         const result = await requestUploadUrl({
           userId: user!.uid,
           galleryId: id,
@@ -313,15 +341,12 @@ export default function GalleryUploadPage() {
         });
 
         if (!result.success || !result.uploadUrl) {
-          console.warn(`[BG_ORIGINAL] Failed for ${item.name}: ${result.error}`);
           bgQueueRef.current.push(item);
           await new Promise(r => setTimeout(r, 5000));
           continue;
         }
 
         await uploadToR2(result.uploadUrl, item.file);
-
-        console.log(`[BG_ORIGINAL] ✅ Uploaded: ${item.name}`);
 
         await completeUpload({
           userId: user!.uid,
@@ -344,16 +369,12 @@ export default function GalleryUploadPage() {
         ));
 
       } catch (err) {
-        console.error(`[BG_ORIGINAL] Error ${item.name}:`, err);
-        setTimeout(() => {
-          bgQueueRef.current.push(item);
-        }, 10000);
+        setTimeout(() => bgQueueRef.current.push(item), 10000);
       }
     }
 
     bgProcessingRef.current = false;
     setIsBackgroundUploading(false);
-    console.log('[BG_ORIGINAL] All originals complete!');
   };
 
   const startUpload = async () => {
@@ -363,6 +384,8 @@ export default function GalleryUploadPage() {
     setIsDone(false);
     pauseRef.current = false;
     cancelRef.current = false;
+    setUploadStartTime(Date.now());
+    speedSamplesRef.current = [];
 
     const alreadyUploaded = new Set(uploadedNames);
     const tracker = new Set(uploadedNames);
@@ -384,8 +407,6 @@ export default function GalleryUploadPage() {
       return;
     }
 
-    console.log(`[UPLOAD] ${filesToUpload.length} to upload`);
-
     let currentIndex = 0;
 
     const uploadSingleFile = async (item: FileItem, attempt = 1) => {
@@ -403,33 +424,20 @@ export default function GalleryUploadPage() {
         let thumbFile = item.thumbFile;
 
         if (!previewFile && item.file.type.startsWith('image/')) {
-          updateFileStatus(item.id, {
-            status: 'compressing',
-            currentStep: 'Creating preview...',
-          });
+          updateFileStatus(item.id, { status: 'compressing', currentStep: 'Creating preview...' });
           const p = await generatePreview(item.file);
           if (p) previewFile = p;
         }
 
         if (!thumbFile && item.file.type.startsWith('image/')) {
-          updateFileStatus(item.id, {
-            status: 'compressing',
-            currentStep: 'Creating thumbnail...',
-          });
+          updateFileStatus(item.id, { status: 'compressing', currentStep: 'Creating thumbnail...' });
           const t = await generateThumbnail(item.file);
           if (t) thumbFile = t;
         }
 
         setFiles(prev => prev.map(f => 
           f.id === item.id 
-            ? { 
-                ...f, 
-                previewFile, 
-                previewSize: previewFile?.size,
-                thumbFile,
-                thumbSize: thumbFile?.size,
-                originalUploading: true,
-              } 
+            ? { ...f, previewFile, previewSize: previewFile?.size, thumbFile, thumbSize: thumbFile?.size, originalUploading: true } 
             : f
         ));
 
@@ -438,10 +446,7 @@ export default function GalleryUploadPage() {
           return;
         }
 
-        updateFileStatus(item.id, {
-          status: 'uploading',
-          currentStep: 'Uploading preview...',
-        });
+        updateFileStatus(item.id, { status: 'uploading', currentStep: 'Uploading preview...' });
 
         const previewTarget = previewFile || item.file;
         const previewResult = await requestUploadUrl({
@@ -477,9 +482,7 @@ export default function GalleryUploadPage() {
               await uploadToR2(thumbResult.uploadUrl, thumbFile);
               thumbKey = thumbResult.key;
             }
-          } catch (thumbErr) {
-            console.warn(`[THUMB] Failed for ${item.name}`);
-          }
+          } catch (thumbErr) {}
         }
 
         updateFileStatus(item.id, { currentStep: "Finalizing..." });
@@ -506,28 +509,21 @@ export default function GalleryUploadPage() {
           progress: 100,
           currentStep: "✅ Preview Live",
         });
-        console.log(`[UPLOAD] Preview done: ${item.name}`);
 
         tracker.add(item.name);
         setUploadedNames(new Set(tracker));
         saveProgress(tracker);
 
-        // 🎯 Add to background queue (start hoga previews ke baad)
-        const itemWithFiles = { ...item, previewFile, thumbFile };
-        bgQueueRef.current.push(itemWithFiles);
+        bgQueueRef.current.push({ ...item, previewFile, thumbFile });
 
       } catch (err: any) {
-        console.error(`[UPLOAD] Error ${item.name}:`, err);
-
         if (pauseRef.current || cancelRef.current) {
           updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
           return;
         }
 
         if (attempt < MAX_RETRIES) {
-          updateFileStatus(item.id, {
-            currentStep: `Retry ${attempt + 1}/${MAX_RETRIES}...`,
-          });
+          updateFileStatus(item.id, { currentStep: `Retry ${attempt + 1}/${MAX_RETRIES}...` });
           await new Promise(r => setTimeout(r, 3000));
           return uploadSingleFile(item, attempt + 1);
         }
@@ -558,9 +554,10 @@ export default function GalleryUploadPage() {
     await Promise.all(workers);
 
     setIsUploading(false);
+    setUploadStartTime(null);
     
     if (pauseRef.current) {
-      toast({ title: "⏸ Paused", description: "Resume karne ke liye 'Resume' click karein." });
+      toast({ title: "⏸ Paused", description: "Progress safe hai." });
       return;
     }
 
@@ -569,7 +566,6 @@ export default function GalleryUploadPage() {
       return;
     }
 
-    // ✅ Sab previews complete — AB background originals start karo
     setIsDone(true);
     toast({
       title: "🎉 Previews Uploaded!",
@@ -577,9 +573,7 @@ export default function GalleryUploadPage() {
     });
     clearResumeState();
 
-    // 🎯 Background originals START (previews ke baad)
     if (bgQueueRef.current.length > 0) {
-      console.log(`[BG_ORIGINAL] Starting background: ${bgQueueRef.current.length} originals`);
       processBackgroundQueue();
     }
   };
@@ -592,7 +586,7 @@ export default function GalleryUploadPage() {
     ));
   };
 
-  // ✅ FIX: File-count based progress
+  // ⏱️ Calculate time estimates
   const stats = useMemo(() => {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
@@ -600,21 +594,29 @@ export default function GalleryUploadPage() {
     const originalReadyFiles = files.filter(f => f.originalReady).length;
     const remainingFiles = totalFiles - completedFiles - failedFiles;
 
-    // ✅ FILE COUNT based progress (not size!)
-    const avgProgress = totalFiles > 0 
-      ? Math.round((completedFiles / totalFiles) * 100) 
-      : 0;
-
+    const avgProgress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
     const isComplete = completedFiles === totalFiles && totalFiles > 0;
     const allOriginalsReady = originalReadyFiles === totalFiles && totalFiles > 0;
-    const originalProgress = totalFiles > 0 
-      ? Math.round((originalReadyFiles / totalFiles) * 100) 
-      : 0;
+    const originalProgress = totalFiles > 0 ? Math.round((originalReadyFiles / totalFiles) * 100) : 0;
 
-    // Size display ke liye
+    // ⏱️ ETA calculation
     const previewBytes = files.reduce((acc, f) => acc + (f.previewSize || 0), 0);
-    const originalBytes = files.reduce((acc, f) => acc + (f.originalReady ? f.size : 0), 0);
+    const totalPreviewBytes = files.reduce((acc, f) => acc + (f.previewSize || 600 * 1024), 0);
+    const uploadedBytes = files.reduce((acc, f) => {
+      if (f.status === 'completed') return acc + (f.previewSize || 600 * 1024);
+      return acc + ((f.previewSize || 600 * 1024) * (f.progress / 100));
+    }, 0);
+    const remainingBytes = totalPreviewBytes - uploadedBytes;
+
+    // Average speed
+    let avgSpeed = 0;
+    if (speedSamplesRef.current.length > 0) {
+      avgSpeed = speedSamplesRef.current.reduce((a, b) => a + b, 0) / speedSamplesRef.current.length;
+    }
     
+    const etaSeconds = avgSpeed > 0 ? remainingBytes / avgSpeed : 0;
+    const willFinishAt = etaSeconds > 0 ? new Date(Date.now() + etaSeconds * 1000) : null;
+
     return {
       totalFiles,
       completedFiles,
@@ -625,8 +627,27 @@ export default function GalleryUploadPage() {
       isComplete,
       allOriginalsReady,
       originalProgress,
-      previewSize: (previewBytes / (1024 * 1024)).toFixed(1) + " MB",
-      originalSize: (originalBytes / (1024 * 1024)).toFixed(1) + " MB",
+      totalSize: (previewBytes / (1024 * 1024)).toFixed(1) + " MB",
+      uploadedSize: (uploadedBytes / (1024 * 1024)).toFixed(1) + " MB",
+      etaSeconds,
+      willFinishAt,
+      avgSpeed,
+      remainingBytes,
+    };
+  }, [files]);
+
+  // ⏱️ Pre-upload estimate for warning
+  const preUploadEstimate = useMemo(() => {
+    const pendingFiles = files.filter(f => f.status !== 'completed');
+    const estimatedBytes = pendingFiles.length * 600 * 1024; // 600 KB per preview
+    const downloadSpeed = (navigator as any)?.connection?.downlink || 5; // Mbps fallback
+    // Assume upload is 1/5 of download on slow connections
+    const estimatedUploadSpeed = (downloadSpeed / 5) * 1024 * 1024 / 8; // bytes per second
+    const etaSeconds = estimatedBytes / Math.max(estimatedUploadSpeed, 100 * 1024);
+    return {
+      count: pendingFiles.length,
+      sizeMb: (estimatedBytes / (1024 * 1024)).toFixed(0),
+      etaMinutes: Math.round(etaSeconds / 60),
     };
   }, [files]);
 
@@ -641,6 +662,7 @@ export default function GalleryUploadPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-primary/10" onClick={() => router.push(`/events/${id}/manage`)}>
@@ -660,36 +682,77 @@ export default function GalleryUploadPage() {
         </div>
       </div>
 
-      {/* Background Original Status */}
-      {isDone && !stats.allOriginalsReady && isBackgroundUploading && (
-        <Alert className="rounded-2xl border-blue-500/30 bg-blue-500/5">
-          <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
-          <AlertTitle className="font-bold text-blue-500">
-            Originals Uploading in Background
+      {/* ⚠️ PRE-UPLOAD WARNING */}
+      {showPreUploadWarning && !isUploading && files.length > 20 && (
+        <Alert className="rounded-2xl border-amber-500/40 bg-amber-500/5">
+          <AlertCircle className="h-5 w-5 text-amber-500" />
+          <AlertTitle className="font-bold text-amber-500">
+            Slow Connection Detected — Large Upload
           </AlertTitle>
-          <AlertDescription className="text-sm">
-            {stats.originalReadyFiles} / {stats.totalFiles} originals ready ({stats.originalProgress}%). 
-            Client gallery live hai. Download auto-enable hoga jab sab ready ho.
+          <AlertDescription className="text-sm space-y-3">
+            <p>
+              <strong>{preUploadEstimate.count} photos</strong> to upload (~{preUploadEstimate.sizeMb} MB).
+              Estimated time: <strong className="text-amber-500">~{preUploadEstimate.etaMinutes} minutes</strong>.
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="rounded-lg border-amber-500/40 text-amber-500 hover:bg-amber-500/10"
+                onClick={() => setShowPreUploadWarning(false)}
+              >
+                Continue Anyway
+              </Button>
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                className="rounded-lg"
+                onClick={() => { setShowPreUploadWarning(false); setFiles([]); }}
+              >
+                Cancel
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground italic">
+              💡 Tip: Upload raat ko karein ya WiFi strong karein. Agar light gayi, phir se resume ho sakti hai.
+            </p>
           </AlertDescription>
         </Alert>
       )}
 
-      {isDone && stats.allOriginalsReady && (
-        <Alert className="rounded-2xl border-green-500/30 bg-green-500/5">
-          <CheckCircle2 className="h-5 w-5 text-green-500" />
-          <AlertTitle className="font-bold text-green-500">All Originals Ready — Ready to Share</AlertTitle>
+      {/* 🔄 RESUME AVAILABLE */}
+      {resumedCount > 0 && !isUploading && !isDone && (
+        <Alert className="rounded-2xl border-primary/30 bg-primary/5">
+          <RefreshCw className="h-5 w-5 text-primary" />
+          <AlertTitle className="font-bold text-primary">Resume Available</AlertTitle>
           <AlertDescription className="text-sm">
-            Sab {stats.totalFiles} photos upload ho gayi (preview + original). Ab client ko share kar sakte hain. ✅
+            {resumedCount} photos pehle upload ho chuki hain. 
+            <strong> Wahi files dobara select karein</strong> — sirf nayi photos upload hongi.
           </AlertDescription>
         </Alert>
       )}
 
+      {/* ⏸ PAUSED */}
       {isPaused && (
         <Alert className="rounded-2xl border-orange-500/30 bg-orange-500/5">
           <Pause className="h-5 w-5 text-orange-500" />
           <AlertTitle className="font-bold text-orange-500">Upload Paused</AlertTitle>
           <AlertDescription className="text-sm">
-            {stats.completedFiles} previews done. Resume karne ke liye "Resume" click karein.
+            {stats.completedFiles} photos done. Resume karne ke liye "Resume" click karein.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* ✅ DONE */}
+      {isDone && stats.isComplete && (
+        <Alert className="rounded-2xl border-green-500/30 bg-green-500/5">
+          <CheckCircle2 className="h-5 w-5 text-green-500" />
+          <AlertTitle className="font-bold text-green-500">
+            {stats.allOriginalsReady ? "All Originals Ready — Ready to Share" : "Previews Live — Originals Uploading"}
+          </AlertTitle>
+          <AlertDescription className="text-sm">
+            {stats.allOriginalsReady 
+              ? `Sab ${stats.totalFiles} photos ready. Ab client ko share kar sakte hain. ✅`
+              : `Previews live. ${stats.originalReadyFiles}/${stats.totalFiles} originals ready.`}
           </AlertDescription>
         </Alert>
       )}
@@ -704,6 +767,7 @@ export default function GalleryUploadPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-8">
+          {/* Upload Drop Zone */}
           <div className={cn(
             "relative h-96 border-2 border-dashed rounded-[3rem] flex flex-col items-center justify-center transition-all",
             isOverLimit ? "border-destructive/30 bg-destructive/5" : "border-border/50 bg-card/30 hover:border-primary/50 cursor-pointer"
@@ -726,12 +790,13 @@ export default function GalleryUploadPage() {
             
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border">
                <ShieldCheck className="w-3 h-3 text-primary" />
-               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Preview First • Original Locked</span>
+               <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Resume • Pause • Reliable</span>
             </div>
           </div>
 
+          {/* 📊 STATUS CARD WITH ETA */}
           {files.length > 0 && (
-            <div className="p-6 bg-card/40 border rounded-2xl space-y-4">
+            <div className="p-6 bg-card/40 border rounded-2xl space-y-5">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Preview Progress</p>
@@ -744,8 +809,43 @@ export default function GalleryUploadPage() {
               </div>
               <Progress value={stats.avgProgress} className="h-2" />
               
+              {/* ⏱️ LIVE ETA */}
+              {isUploading && stats.avgSpeed > 0 && stats.etaSeconds > 0 && (
+                <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border/30">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Timer className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Time Remaining</p>
+                      <p className="text-sm font-bold text-primary">{formatTime(stats.etaSeconds)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                      <Clock className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Will Finish At</p>
+                      <p className="text-sm font-bold text-primary">
+                        {stats.willFinishAt ? formatClockTime(stats.willFinishAt) : "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Speed Display */}
+              {isUploading && stats.avgSpeed > 0 && (
+                <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground pt-2">
+                  <span>Speed: {(stats.avgSpeed / 1024 / 1024).toFixed(2)} MB/s</span>
+                  <span>Remaining: {stats.remainingFiles} files</span>
+                </div>
+              )}
+
+              {/* Background Progress */}
               {stats.completedFiles > 0 && (
-                <div className="pt-2 border-t border-border/30 space-y-2">
+                <div className="pt-3 border-t border-border/30 space-y-2">
                   <div className="flex items-center justify-between text-[10px] font-bold uppercase">
                     <span className="text-blue-500">Original Upload (Background)</span>
                     <span className="text-blue-500">{stats.originalReadyFiles} / {stats.totalFiles}</span>
@@ -756,6 +856,7 @@ export default function GalleryUploadPage() {
             </div>
           )}
 
+          {/* Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3 flex-wrap">
                {files.length > 0 && !isDone && !isUploading && (
@@ -839,6 +940,7 @@ export default function GalleryUploadPage() {
           </div>
         </div>
 
+        {/* Pipeline Sidebar */}
         <div className="bg-card/40 border rounded-[2.5rem] p-8 h-[650px] flex flex-col">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-headline font-bold flex items-center gap-3">
@@ -854,7 +956,7 @@ export default function GalleryUploadPage() {
                 Waiting for selection...
               </div>
             ) : (
-              files.map(file => (
+              files.slice(0, 30).map(file => (
                 <div key={file.id} className={cn(
                   "bg-background/40 p-4 rounded-2xl border relative overflow-hidden",
                   file.status === 'error' ? 'border-destructive/30' : 
@@ -902,12 +1004,6 @@ export default function GalleryUploadPage() {
                           🎯 Original Ready
                         </p>
                       )}
-                      {file.previewSize && !file.originalReady && (
-                        <p className="text-[8px] text-muted-foreground mt-0.5">
-                          Preview: {(file.previewSize / 1024).toFixed(0)}KB
-                          {file.thumbSize && ` • Thumb: ${(file.thumbSize / 1024).toFixed(0)}KB`}
-                        </p>
-                      )}
                     </div>
                   </div>
                   
@@ -918,6 +1014,11 @@ export default function GalleryUploadPage() {
                   )}
                 </div>
               ))
+            )}
+            {files.length > 30 && (
+              <p className="text-center text-[10px] text-muted-foreground py-2">
+                ...and {files.length - 30} more
+              </p>
             )}
           </div>
           
