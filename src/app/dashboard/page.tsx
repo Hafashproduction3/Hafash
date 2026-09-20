@@ -57,7 +57,7 @@ import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
 import { deleteGalleryFiles } from '@/app/actions/storage';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
-import { getUserPlan, calculateUsageGb } from '@/lib/plans';
+import { getUserPlan, calculateUsageGb, isOwnerEmail } from '@/lib/plans';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -212,17 +212,23 @@ export default function DashboardPage() {
   }, [firestore, user, allAcceptedRequests]);
 
   // ─── Plan ───
-  const currentPlan = useMemo(() => getUserPlan(profile?.planId), [profile?.planId]);
+  const currentPlan = useMemo(
+    () => getUserPlan(profile?.planId, user?.email),
+    [profile?.planId, user?.email]
+  );
   const planExpiryDate = useMemo(() => {
     const raw = profile?.planExpiryDate;
     if (!raw) return null;
     return typeof raw?.toDate === 'function' ? raw.toDate() : new Date(raw);
   }, [profile?.planExpiryDate]);
   const hasActivePlan = useMemo(() => {
+    // 👑 Owner bypass
+    if (isOwnerEmail(user?.email)) return true;
+    
     if (!profile?.planId || currentPlan.id === 'none') return false;
     if (!planExpiryDate) return false;
     return planExpiryDate.getTime() > Date.now();
-  }, [profile?.planId, currentPlan.id, planExpiryDate]);
+  }, [profile?.planId, currentPlan.id, planExpiryDate, user?.email]);
 
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries || []), [galleries]);
   const storageLimitGb = currentPlan.storageGb || 0;

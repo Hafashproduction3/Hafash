@@ -47,7 +47,10 @@ export default function StoragePage() {
   // was missing, which made every unpaid user appear to have a real
   // (50GB) plan active. getUserPlan() correctly returns "No Active Plan"
   // (0GB) instead when there's no valid planId.
-  const currentPlan = useMemo(() => getUserPlan(profile?.planId), [profile?.planId]);
+  const currentPlan = useMemo(
+    () => getUserPlan(profile?.planId, user?.email),
+    [profile?.planId, user?.email]
+  );
 
   const usageGb = useMemo(() => {
     return calculateUsageGb(galleries);
