@@ -52,7 +52,7 @@ const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 60;
 
 /**
- * Gallery Item Component
+ * Gallery Item Component — Row-wise Grid Cell
  */
 const GalleryItem = memo(({ 
   item, 
@@ -76,7 +76,7 @@ const GalleryItem = memo(({
 
   return (
     <div 
-      className="relative group break-inside-avoid overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in mb-8 shadow-xl transition-all duration-700 hover:shadow-primary/5" 
+      className="relative group overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-xl transition-all duration-700 hover:shadow-primary/5 aspect-[4/5]" 
       onClick={onSelect}
     >
       {!loaded && (
@@ -86,7 +86,7 @@ const GalleryItem = memo(({
         src={item.thumbUrl || item.url} 
         alt={item.fileName || "Gallery Asset"}
         className={cn(
-          "w-full h-auto object-cover transition-all duration-1000 group-hover:scale-110",
+          "w-full h-full object-cover transition-all duration-1000 group-hover:scale-110",
           loaded ? "opacity-100" : "opacity-0"
         )}
         loading={priority ? "eager" : "lazy"}
@@ -144,19 +144,12 @@ export default function ClientGalleryPage() {
   const [replySuccess, setReplySuccess] = useState(false);
   const [helpfulClicked, setHelpfulClicked] = useState(false);
 
-  // 🎬 Cinematic Intro
   const [showIntro, setShowIntro] = useState(true);
   const [introLeaving, setIntroLeaving] = useState(false);
-
-  // 🎬 Slideshow
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
-
-  // 🎵 Music
   const [isMusicMuted, setIsMusicMuted] = useState(false);
   const [freshMusicUrl, setFreshMusicUrl] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Touch tracking
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
 
@@ -235,7 +228,7 @@ export default function ClientGalleryPage() {
         isPublic: true,
         isLocked: false,
         isPaid: true,
-        photographerNote: "Welcome to the Hafash premium delivery experience. This demo highlights our cinematic image presentation and seamless client interaction.",
+        photographerNote: "Welcome to the Hafash premium delivery experience.",
         welcomeTitle: "Explore Your Moments",
         studioName: "Hafash.pk Studios",
         whatsappNumber: "+920000000000",
@@ -255,7 +248,6 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
-  // 🎵 Fetch fresh music URL whenever gallery loads
   useEffect(() => {
     async function fetchFreshMusic() {
       if (gallery?.musicStorageKey) {
@@ -295,11 +287,9 @@ export default function ClientGalleryPage() {
   const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
   const totalItems = gallery?.items?.length || 0;
   
-  // 🎵 Prefer fresh URL, fallback to stored
   const musicUrl = freshMusicUrl || gallery?.musicUrl || gallery?.backgroundMusic || '';
   const hasMusic = !!musicUrl;
 
-  // 🎬 Enter Gallery + Start Music
   const handleEnterGallery = useCallback(() => {
     setIntroLeaving(true);
     
@@ -318,7 +308,6 @@ export default function ClientGalleryPage() {
     }, 800);
   }, [galleryId, hasMusic]);
 
-  // 🎵 Toggle Music Mute
   const toggleMusic = useCallback(() => {
     if (!audioRef.current) return;
     if (isMusicMuted) {
@@ -330,7 +319,6 @@ export default function ClientGalleryPage() {
     }
   }, [isMusicMuted]);
 
-  // 🎬 Lightbox controls
   const openLightbox = useCallback((index: number) => {
     setSelectedIndex(index);
     setIsSlideshowPlaying(false);
@@ -361,7 +349,6 @@ export default function ClientGalleryPage() {
     });
   }, [totalItems]);
 
-  // 🎬 Slideshow auto-advance
   useEffect(() => {
     if (!isSlideshowPlaying || selectedIndex === null) return;
     
@@ -379,7 +366,6 @@ export default function ClientGalleryPage() {
     return () => clearInterval(timer);
   }, [isSlideshowPlaying, selectedIndex, totalItems, displayCount]);
 
-  // Keyboard
   useEffect(() => {
     if (selectedIndex === null) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -392,7 +378,6 @@ export default function ClientGalleryPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [selectedIndex, closeLightbox, goNext, goPrev]);
 
-  // Body scroll lock
   useEffect(() => {
     if (selectedIndex !== null || (showIntro && !introLeaving)) {
       document.body.style.overflow = 'hidden';
@@ -402,7 +387,6 @@ export default function ClientGalleryPage() {
     return () => { document.body.style.overflow = ''; };
   }, [selectedIndex, showIntro, introLeaving]);
 
-  // Touch
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
   };
@@ -425,11 +409,9 @@ export default function ClientGalleryPage() {
     updateDoc(gRef, { items: updatedItems }).catch(() => {});
   }, [firestore, gallery, galleryId]);
 
-  // ✅ Original download (signed URL)
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload) return;
 
-    // Original ready check
     if (!item.originalReady || !item.originalKey) {
       toast({
         variant: "destructive",
@@ -470,7 +452,6 @@ export default function ClientGalleryPage() {
     }
   }, [canDownload, toast]);
 
-  // ✅ Original ZIP download
   const handleDownloadAll = useCallback(async () => {
     if (isPreparing || !gallery || !canDownload) return;
 
@@ -501,11 +482,7 @@ export default function ClientGalleryPage() {
           body: JSON.stringify({ key: item.originalKey }),
         });
 
-        if (!urlRes.ok) {
-          console.warn(`[ZIP] Failed to get URL for ${item.fileName}`);
-          continue;
-        }
-
+        if (!urlRes.ok) continue;
         const { url } = await urlRes.json();
         if (!url) continue;
 
@@ -679,7 +656,6 @@ export default function ClientGalleryPage() {
   const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
   const hasNoteContent = !!(gallery.photographerNote || gallery.welcomeTitle || gallery.welcomeMessage);
 
-  // 🎬 Cinematic Intro
   if (showIntro) {
     return (
       <div 
@@ -940,7 +916,7 @@ export default function ClientGalleryPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 mt-24 space-y-20">
-        <div className="columns-1 sm:columns-2 lg:columns-3 gap-8 lg:gap-12 space-y-12 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
+        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
           {gallery.items?.slice(0, displayCount).map((item: any, idx: number) => (
             <GalleryItem 
               key={item.id}
@@ -974,7 +950,6 @@ export default function ClientGalleryPage() {
         )}
       </div>
 
-      {/* 💝 Thank You End Screen */}
       {totalItems > 0 && (
         <div className="relative mt-40 py-32 lg:py-40 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
@@ -1057,7 +1032,6 @@ export default function ClientGalleryPage() {
         </div>
       </footer>
 
-      {/* ============ LIGHTBOX WITH SLIDESHOW ============ */}
       {selectedIndex !== null && gallery?.items?.[selectedIndex] && (
         <div 
           className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-3xl flex items-center justify-center p-4 lg:p-10 animate-in fade-in duration-500"

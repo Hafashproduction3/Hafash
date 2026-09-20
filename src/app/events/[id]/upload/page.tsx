@@ -50,7 +50,7 @@ interface FileItem {
   originalReady?: boolean;
 }
 
-const PARALLEL_LIMIT = 3;
+const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
 
 // 🖼️ Thumbnail — Tiny grid
@@ -521,7 +521,7 @@ export default function GalleryUploadPage() {
 
         if (attempt < MAX_RETRIES) {
           updateFileStatus(item.id, { currentStep: `Retry ${attempt + 1}/${MAX_RETRIES}...` });
-          await new Promise(r => setTimeout(r, 2000));
+          await new Promise(r => setTimeout(r, 1500));
           return uploadSingleFile(item, attempt + 1);
         }
 
