@@ -64,10 +64,10 @@ const THUMBNAIL_OPTIONS = {
 
 // ✅ Original — High quality, compressed
 const ORIGINAL_OPTIONS = {
-  maxSizeMB: 4,
+  maxSizeMB: 3,
   maxWidthOrHeight: 4000,
   useWebWorker: true,
-  initialQuality: 0.92,
+  initialQuality: 0.88,
   fileType: 'image/jpeg',
 };
 
