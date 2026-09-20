@@ -40,17 +40,17 @@ interface FileItem {
   eta: number;
   previewUrl?: string;
   retryCount: number;
-  originalUploading?: boolean;  // Background original status
+  originalUploading?: boolean;
   originalReady?: boolean;
 }
 
 const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
 
-// 🖼️ Preview — Client dekhne ke liye (watermarked concept)
+// 🖼️ Preview — Client dekhne ke liye
 const PREVIEW_OPTIONS = {
-  maxSizeMB: 0.6,          // 600 KB
-  maxWidthOrHeight: 1800,  // 1800px
+  maxSizeMB: 0.6,
+  maxWidthOrHeight: 1800,
   useWebWorker: true,
   initialQuality: 0.87,
   fileType: 'image/jpeg',
@@ -80,7 +80,7 @@ export default function GalleryUploadPage() {
   const [isDone, setIsDone] = useState(false);
   const [resumedCount, setResumedCount] = useState(0);
   const [uploadedNames, setUploadedNames] = useState<Set<string>>(new Set());
-  const [backgroundQueue, setBackgroundQueue] = useState<FileItem[]>([]);
+  const [isBackgroundUploading, setIsBackgroundUploading] = useState(false);
   
   const pauseRef = useRef(false);
   const cancelRef = useRef(false);
@@ -198,7 +198,7 @@ export default function GalleryUploadPage() {
           eta: 0,
           retryCount: 0,
           previewUrl: isImage ? URL.createObjectURL(f) : undefined,
-          originalReady: uploadedNames.has(f.name), // Already uploaded = original ready
+          originalReady: uploadedNames.has(f.name),
         };
       });
 
@@ -227,7 +227,6 @@ export default function GalleryUploadPage() {
     startUpload();
   };
 
-  // 🖼️ Generate preview
   const generatePreview = async (file: File): Promise<File | null> => {
     if (!file.type.startsWith('image/')) return null;
     try {
@@ -239,7 +238,6 @@ export default function GalleryUploadPage() {
     }
   };
 
-  // 🖼️ Generate thumbnail
   const generateThumbnail = async (file: File): Promise<File | null> => {
     if (!file.type.startsWith('image/')) return null;
     try {
@@ -291,10 +289,12 @@ export default function GalleryUploadPage() {
   const processBackgroundQueue = async () => {
     if (bgProcessingRef.current) return;
     bgProcessingRef.current = true;
+    setIsBackgroundUploading(true);
 
     while (bgQueueRef.current.length > 0) {
-      if (pauseRef.current || cancelRef.current) {
+      if (cancelRef.current) {
         bgProcessingRef.current = false;
+        setIsBackgroundUploading(false);
         return;
       }
 
@@ -304,7 +304,6 @@ export default function GalleryUploadPage() {
       try {
         console.log(`[BG_ORIGINAL] Starting: ${item.name}`);
         
-        // Get presign URL for original
         const result = await requestUploadUrl({
           userId: user!.uid,
           galleryId: id,
@@ -315,18 +314,15 @@ export default function GalleryUploadPage() {
 
         if (!result.success || !result.uploadUrl) {
           console.warn(`[BG_ORIGINAL] Failed for ${item.name}: ${result.error}`);
-          // Requeue for retry
           bgQueueRef.current.push(item);
           await new Promise(r => setTimeout(r, 5000));
           continue;
         }
 
-        // Upload original (no progress tracking — silent)
         await uploadToR2(result.uploadUrl, item.file);
 
         console.log(`[BG_ORIGINAL] ✅ Uploaded: ${item.name}`);
 
-        // Update Firestore with original key
         await completeUpload({
           userId: user!.uid,
           galleryId: id,
@@ -343,14 +339,12 @@ export default function GalleryUploadPage() {
           },
         });
 
-        // Update UI state
         setFiles(prev => prev.map(f => 
           f.id === item.id ? { ...f, originalReady: true, originalUploading: false } : f
         ));
 
       } catch (err) {
         console.error(`[BG_ORIGINAL] Error ${item.name}:`, err);
-        // Retry once
         setTimeout(() => {
           bgQueueRef.current.push(item);
         }, 10000);
@@ -358,6 +352,8 @@ export default function GalleryUploadPage() {
     }
 
     bgProcessingRef.current = false;
+    setIsBackgroundUploading(false);
+    console.log('[BG_ORIGINAL] All originals complete!');
   };
 
   const startUpload = async () => {
@@ -403,7 +399,6 @@ export default function GalleryUploadPage() {
       }
 
       try {
-        // 1. Generate preview + thumbnail
         let previewFile = item.previewFile;
         let thumbFile = item.thumbFile;
 
@@ -443,7 +438,6 @@ export default function GalleryUploadPage() {
           return;
         }
 
-        // 2. Upload PREVIEW first (fast)
         updateFileStatus(item.id, {
           status: 'uploading',
           currentStep: 'Uploading preview...',
@@ -467,7 +461,6 @@ export default function GalleryUploadPage() {
           updateFileStatus(item.id, { progress });
         });
 
-        // 3. Upload THUMBNAIL (fast)
         let thumbKey: string | undefined;
         if (thumbFile) {
           updateFileStatus(item.id, { currentStep: "Uploading thumbnail..." });
@@ -489,7 +482,6 @@ export default function GalleryUploadPage() {
           }
         }
 
-        // 4. Save metadata for preview (original pending)
         updateFileStatus(item.id, { currentStep: "Finalizing..." });
 
         await completeUpload({
@@ -499,7 +491,7 @@ export default function GalleryUploadPage() {
             id: item.id,
             key: previewResult.key!,
             thumbKey,
-            originalKey: null,       // Original abhi nahi
+            originalKey: null,
             originalReady: false,
             file: {
               name: item.name,
@@ -509,7 +501,6 @@ export default function GalleryUploadPage() {
           },
         });
 
-        // 5. Mark preview complete
         updateFileStatus(item.id, {
           status: "completed",
           progress: 100,
@@ -521,10 +512,9 @@ export default function GalleryUploadPage() {
         setUploadedNames(new Set(tracker));
         saveProgress(tracker);
 
-        // 6. 🎯 Add to background queue for ORIGINAL upload
+        // 🎯 Add to background queue (start hoga previews ke baad)
         const itemWithFiles = { ...item, previewFile, thumbFile };
         bgQueueRef.current.push(itemWithFiles);
-        processBackgroundQueue();  // Start background (if not running)
 
       } catch (err: any) {
         console.error(`[UPLOAD] Error ${item.name}:`, err);
@@ -579,12 +569,19 @@ export default function GalleryUploadPage() {
       return;
     }
 
+    // ✅ Sab previews complete — AB background originals start karo
     setIsDone(true);
     toast({
       title: "🎉 Previews Uploaded!",
       description: "Gallery live. Originals background mein upload ho rahe hain.",
     });
     clearResumeState();
+
+    // 🎯 Background originals START (previews ke baad)
+    if (bgQueueRef.current.length > 0) {
+      console.log(`[BG_ORIGINAL] Starting background: ${bgQueueRef.current.length} originals`);
+      processBackgroundQueue();
+    }
   };
 
   const retryFailed = () => {
@@ -595,18 +592,28 @@ export default function GalleryUploadPage() {
     ));
   };
 
+  // ✅ FIX: File-count based progress
   const stats = useMemo(() => {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
     const failedFiles = files.filter(f => f.status === 'error').length;
     const originalReadyFiles = files.filter(f => f.originalReady).length;
     const remainingFiles = totalFiles - completedFiles - failedFiles;
-    const totalSize = files.reduce((acc, f) => acc + (f.previewSize || f.size), 0);
-    const uploadedBytes = files.reduce((acc, f) => acc + ((f.previewSize || f.size) * (f.progress / 100)), 0);
-    const avgProgress = totalSize > 0 ? (uploadedBytes / totalSize) * 100 : 0;
+
+    // ✅ FILE COUNT based progress (not size!)
+    const avgProgress = totalFiles > 0 
+      ? Math.round((completedFiles / totalFiles) * 100) 
+      : 0;
+
     const isComplete = completedFiles === totalFiles && totalFiles > 0;
     const allOriginalsReady = originalReadyFiles === totalFiles && totalFiles > 0;
-    const originalProgress = totalFiles > 0 ? Math.round((originalReadyFiles / totalFiles) * 100) : 0;
+    const originalProgress = totalFiles > 0 
+      ? Math.round((originalReadyFiles / totalFiles) * 100) 
+      : 0;
+
+    // Size display ke liye
+    const previewBytes = files.reduce((acc, f) => acc + (f.previewSize || 0), 0);
+    const originalBytes = files.reduce((acc, f) => acc + (f.originalReady ? f.size : 0), 0);
     
     return {
       totalFiles,
@@ -618,8 +625,8 @@ export default function GalleryUploadPage() {
       isComplete,
       allOriginalsReady,
       originalProgress,
-      totalSize: (totalSize / (1024 * 1024)).toFixed(1) + " MB",
-      uploadedSize: (uploadedBytes / (1024 * 1024)).toFixed(1) + " MB",
+      previewSize: (previewBytes / (1024 * 1024)).toFixed(1) + " MB",
+      originalSize: (originalBytes / (1024 * 1024)).toFixed(1) + " MB",
     };
   }, [files]);
 
@@ -654,20 +661,20 @@ export default function GalleryUploadPage() {
       </div>
 
       {/* Background Original Status */}
-      {stats.isComplete && !stats.allOriginalsReady && (
+      {isDone && !stats.allOriginalsReady && isBackgroundUploading && (
         <Alert className="rounded-2xl border-blue-500/30 bg-blue-500/5">
           <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />
           <AlertTitle className="font-bold text-blue-500">
             Originals Uploading in Background
           </AlertTitle>
           <AlertDescription className="text-sm">
-            {stats.originalReadyFiles} / {stats.totalFiles} original photos ready ({stats.originalProgress}%). 
-            Client gallery live hai. Download button auto-enable hoga jab sab ready ho.
+            {stats.originalReadyFiles} / {stats.totalFiles} originals ready ({stats.originalProgress}%). 
+            Client gallery live hai. Download auto-enable hoga jab sab ready ho.
           </AlertDescription>
         </Alert>
       )}
 
-      {stats.isComplete && stats.allOriginalsReady && (
+      {isDone && stats.allOriginalsReady && (
         <Alert className="rounded-2xl border-green-500/30 bg-green-500/5">
           <CheckCircle2 className="h-5 w-5 text-green-500" />
           <AlertTitle className="font-bold text-green-500">All Originals Ready — Ready to Share</AlertTitle>
@@ -728,7 +735,7 @@ export default function GalleryUploadPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Preview Progress</p>
-                  <p className="text-3xl font-headline font-bold text-primary">{Math.round(stats.avgProgress)}%</p>
+                  <p className="text-3xl font-headline font-bold text-primary">{stats.avgProgress}%</p>
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Ready</p>
@@ -737,7 +744,6 @@ export default function GalleryUploadPage() {
               </div>
               <Progress value={stats.avgProgress} className="h-2" />
               
-              {/* Original Progress Bar */}
               {stats.completedFiles > 0 && (
                 <div className="pt-2 border-t border-border/30 space-y-2">
                   <div className="flex items-center justify-between text-[10px] font-bold uppercase">
@@ -803,7 +809,7 @@ export default function GalleryUploadPage() {
                   disabled={files.length === 0 || isUploading || isOverLimit || stats.isComplete}
                 >
                   {isUploading ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" />Uploading previews...</>
+                    <><Loader2 className="w-5 h-5 animate-spin" />Uploading...</>
                   ) : stats.isComplete ? (
                     <><CheckCircle2 className="w-5 h-5" />Uploaded</>
                   ) : resumedCount > 0 ? (
@@ -825,7 +831,7 @@ export default function GalleryUploadPage() {
 
               {stats.isComplete && !stats.allOriginalsReady && (
                 <Button disabled className="rounded-2xl h-14 px-8 gap-2">
-                  <Lock className="w-4 h-4" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Originals uploading...
                 </Button>
               )}
@@ -896,7 +902,7 @@ export default function GalleryUploadPage() {
                           🎯 Original Ready
                         </p>
                       )}
-                      {file.previewSize && (
+                      {file.previewSize && !file.originalReady && (
                         <p className="text-[8px] text-muted-foreground mt-0.5">
                           Preview: {(file.previewSize / 1024).toFixed(0)}KB
                           {file.thumbSize && ` • Thumb: ${(file.thumbSize / 1024).toFixed(0)}KB`}
