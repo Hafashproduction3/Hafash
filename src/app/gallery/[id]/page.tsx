@@ -1,45 +1,22 @@
 "use client";
 
-import { useFirestore, useDoc, useUser } from '@/firebase';
+import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
-  Heart, 
-  Download, 
-  Loader2, 
-  MessageCircle, 
-  Share2, 
-  ShieldAlert,
-  ArrowLeft,
-  Send,
-  CheckCircle2,
-  Sparkles,
-  Lock,
-  Unlock,
-  KeyRound,
-  X,
-  Camera,
-  ChevronLeft,
-  ChevronRight,
-  Play,
-  Pause,
-  Volume2,
-  VolumeX,
-  ArrowUp
+  Heart, Download, Loader2, MessageCircle, Share2, ShieldAlert,
+  ArrowLeft, Send, CheckCircle2, Sparkles, Lock, Unlock, KeyRound, X,
+  Camera, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, ArrowUp
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion, orderBy } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { cn } from '@/lib/utils';
@@ -51,25 +28,12 @@ import { getFreshMusicUrl } from '@/app/actions/storage';
 const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 60;
 
-/**
- * Gallery Item Component — Row-wise Grid Cell
- */
 const GalleryItem = memo(({ 
-  item, 
-  showWatermark, 
-  canDownload, 
-  onFavorite, 
-  onDownload, 
-  onSelect,
-  priority
+  item, showWatermark, canDownload, onFavorite, onDownload, onSelect, priority
 }: { 
-  item: any, 
-  showWatermark: boolean, 
-  canDownload: boolean, 
-  onFavorite: (id: string, current: boolean) => void, 
-  onDownload: (item: any) => void,
-  onSelect: () => void,
-  priority?: boolean
+  item: any, showWatermark: boolean, canDownload: boolean,
+  onFavorite: (id: string, current: boolean) => void, onDownload: (item: any) => void,
+  onSelect: () => void, priority?: boolean
 }) => {
   const [loaded, setLoaded] = useState(false);
   if (!item?.url) return null;
@@ -79,9 +43,7 @@ const GalleryItem = memo(({
       className="relative group overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-xl transition-all duration-700 hover:shadow-primary/5 aspect-[4/5]" 
       onClick={onSelect}
     >
-      {!loaded && (
-        <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />
-      )}
+      {!loaded && <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />}
       <img 
         src={item.thumbUrl || item.url} 
         alt={item.fileName || "Gallery Asset"}
@@ -138,12 +100,10 @@ export default function ClientGalleryPage() {
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [verifying, setVerifying] = useState(false);
-
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [replySuccess, setReplySuccess] = useState(false);
   const [helpfulClicked, setHelpfulClicked] = useState(false);
-
   const [showIntro, setShowIntro] = useState(true);
   const [introLeaving, setIntroLeaving] = useState(false);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
@@ -168,16 +128,13 @@ export default function ClientGalleryPage() {
         setIsResolving(false);
         return;
       }
-
       if (galleryParam === 'demo') {
         setGalleryId('demo');
         setIsResolving(false);
         return;
       }
-
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
-
       try {
         const slugQuery = query(
           collection(firestore, 'galleries'),
@@ -185,17 +142,14 @@ export default function ClientGalleryPage() {
           limit(1)
         );
         const slugSnap = await getDocs(slugQuery);
-        
         if (!slugSnap.empty) {
           setGalleryId(slugSnap.docs[0].id);
           return;
         } 
-
         if (/^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
           setGalleryId(cleanParam);
           return;
         }
-
         setGalleryId(null);
       } catch (err: any) {
         console.error("Gallery resolution error:", err);
@@ -213,6 +167,17 @@ export default function ClientGalleryPage() {
   }, [firestore, galleryId]);
 
   const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
+
+  // ✅ Subcollection photos listener
+  const photosQuery = useMemo(() => {
+    if (!firestore || !galleryId || galleryId === 'demo') return null;
+    return query(
+      collection(firestore, 'galleries', galleryId, 'photos'),
+      orderBy('order', 'asc')
+    );
+  }, [firestore, galleryId]);
+
+  const { data: subcollectionPhotos, loading: photosLoading } = useCollection(photosQuery);
 
   const gallery = useMemo(() => {
     if (galleryParam === 'demo' || galleryId === 'demo') {
@@ -235,14 +200,18 @@ export default function ClientGalleryPage() {
         musicUrl: ''
       };
     }
-    return dbGallery;
-  }, [dbGallery, galleryId, galleryParam, demoItems]);
+    if (!dbGallery) return null;
+    // ✅ Use subcollection photos if available, fallback to items array
+    const photos = (subcollectionPhotos && subcollectionPhotos.length > 0)
+      ? subcollectionPhotos
+      : (dbGallery.items || []);
+    return { ...dbGallery, items: photos };
+  }, [dbGallery, subcollectionPhotos, galleryId, galleryParam, demoItems]);
 
   useEffect(() => {
     if (galleryId) {
       const stored = sessionStorage.getItem(`unlocked_gallery_${galleryId}`);
       if (stored === 'true') setIsUnlocked(true);
-      
       const introSeen = sessionStorage.getItem(`intro_seen_${galleryId}`);
       if (introSeen === 'true') setShowIntro(false);
     }
@@ -253,9 +222,7 @@ export default function ClientGalleryPage() {
       if (gallery?.musicStorageKey) {
         try {
           const result = await getFreshMusicUrl(gallery.musicStorageKey);
-          if (result.success && result.url) {
-            setFreshMusicUrl(result.url);
-          }
+          if (result.success && result.url) setFreshMusicUrl(result.url);
         } catch (err) {
           console.error('[FRESH_MUSIC] Error:', err);
         }
@@ -292,19 +259,13 @@ export default function ClientGalleryPage() {
 
   const handleEnterGallery = useCallback(() => {
     setIntroLeaving(true);
-    
     if (hasMusic && audioRef.current) {
       audioRef.current.volume = 0.5;
-      audioRef.current.play().catch(err => {
-        console.log('Music autoplay blocked:', err);
-      });
+      audioRef.current.play().catch(err => console.log('Music autoplay blocked:', err));
     }
-    
     setTimeout(() => {
       setShowIntro(false);
-      if (galleryId) {
-        sessionStorage.setItem(`intro_seen_${galleryId}`, 'true');
-      }
+      if (galleryId) sessionStorage.setItem(`intro_seen_${galleryId}`, 'true');
     }, 800);
   }, [galleryId, hasMusic]);
 
@@ -351,7 +312,6 @@ export default function ClientGalleryPage() {
 
   useEffect(() => {
     if (!isSlideshowPlaying || selectedIndex === null) return;
-    
     const timer = setInterval(() => {
       setSelectedIndex(prev => {
         if (prev === null) return 0;
@@ -362,7 +322,6 @@ export default function ClientGalleryPage() {
         return next;
       });
     }, SLIDESHOW_INTERVAL);
-
     return () => clearInterval(timer);
   }, [isSlideshowPlaying, selectedIndex, totalItems, displayCount]);
 
@@ -400,18 +359,20 @@ export default function ClientGalleryPage() {
     }
   };
 
-  const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
+  // ✅ Favorite toggle — subcollection update
+  const handleFavorite = useCallback(async (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
-    const gRef = doc(firestore, 'galleries', galleryId);
-    const updatedItems = (gallery.items || []).map((item: any) => 
-      item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
-    );
-    updateDoc(gRef, { items: updatedItems }).catch(() => {});
+    
+    // Update in subcollection
+    const photoRef = doc(firestore, 'galleries', galleryId, 'photos', itemId);
+    updateDoc(photoRef, { isFavorite: !isCurrentlyFavorite }).catch(() => {});
+    
+    // Update local state for instant feedback
+    // (Firestore listener will update automatically)
   }, [firestore, gallery, galleryId]);
 
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload) return;
-
     if (!item.originalReady || !item.originalKey) {
       toast({
         variant: "destructive",
@@ -420,27 +381,22 @@ export default function ClientGalleryPage() {
       });
       return;
     }
-
     const filename = item.fileName || `photo-${item.id}.jpg`;
-
     try {
       const res = await fetch('/api/download-original', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ key: item.originalKey }),
       });
-
       if (!res.ok) throw new Error('Failed to get download URL');
       const data = await res.json();
       if (!data.url) throw new Error('No download URL');
-
       const link = document.createElement('a');
       link.href = data.url;
       link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
       toast({ title: "✅ Download Started", description: filename });
     } catch (error: any) {
       console.error('[DOWNLOAD] Error:', error);
@@ -454,9 +410,7 @@ export default function ClientGalleryPage() {
 
   const handleDownloadAll = useCallback(async () => {
     if (isPreparing || !gallery || !canDownload) return;
-
     const items = gallery.items || [];
-
     const notReady = items.filter((it: any) => !it.originalReady || !it.originalKey);
     if (notReady.length > 0) {
       toast({
@@ -466,35 +420,28 @@ export default function ClientGalleryPage() {
       });
       return;
     }
-
     setIsPreparing(true);
     const zip = new JSZip();
-
     try {
       for (let i = 0; i < items.length; i++) {
         setPreparationStep(`Fetching original: ${i + 1} / ${items.length}`);
         const item = items[i];
         if (!item.originalKey) continue;
-
         const urlRes = await fetch('/api/download-original', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ key: item.originalKey }),
         });
-
         if (!urlRes.ok) continue;
         const { url } = await urlRes.json();
         if (!url) continue;
-
         const fileRes = await fetch(url);
         const blob = await fileRes.blob();
         zip.file(item.fileName || `photo-${i + 1}.jpg`, blob);
       }
-
       setPreparationStep('Compiling ZIP package...');
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${gallery.title || 'gallery'}.zip`);
-
       toast({ title: "✅ ZIP Ready", description: "Download started" });
     } catch (error: any) {
       console.error('[ZIP] Error:', error);
@@ -564,8 +511,8 @@ export default function ClientGalleryPage() {
 
   const isLoading = useMemo(() => {
     if (galleryParam === 'demo') return isResolving || authLoading;
-    return isResolving || (galleryId && docLoading) || authLoading;
-  }, [galleryParam, isResolving, galleryId, docLoading, authLoading]);
+    return isResolving || (galleryId && docLoading) || authLoading || (galleryId && photosLoading);
+  }, [galleryParam, isResolving, galleryId, docLoading, photosLoading, authLoading]);
 
   if (isLoading) {
     return <HafashLoader text="Synchronizing Luxury Assets..." />;
@@ -583,8 +530,8 @@ export default function ClientGalleryPage() {
         </h1>
         <p className="text-muted-foreground mb-12 max-w-sm mx-auto italic text-lg leading-relaxed">
           {isPrivate 
-            ? "Access to this private collection has been restricted by the studio. Please contact your photographer for a verified access key."
-            : "The requested visual collection could not be synchronized or has been migrated by the studio."}
+            ? "Access to this private collection has been restricted by the studio."
+            : "The requested visual collection could not be synchronized."}
         </p>
         <Link href="/"><Button className="rounded-full px-12 h-14 bg-primary font-bold text-lg shadow-2xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">Return to Hafash</Button></Link>
       </div>
@@ -610,7 +557,7 @@ export default function ClientGalleryPage() {
           <div className="bg-card/80 backdrop-blur-2xl border border-border/50 rounded-[3rem] shadow-2xl overflow-hidden ring-1 ring-white/10">
             <div className="p-10 lg:p-12 space-y-8">
               <p className="text-center text-sm text-muted-foreground italic leading-relaxed">
-                This private session is protected by studio security. Please enter the unique access key provided by your photographer to view your masterpieces.
+                This private session is protected by studio security. Please enter the unique access key.
               </p>
               <form onSubmit={handlePasswordSubmit} className="space-y-8">
                 <div className="space-y-3">
@@ -664,10 +611,7 @@ export default function ClientGalleryPage() {
           introLeaving ? "animate-out fade-out zoom-out-105 duration-800" : "animate-in fade-in duration-1000"
         )}
       >
-        {hasMusic && (
-          <audio ref={audioRef} src={musicUrl} loop preload="auto" />
-        )}
-
+        {hasMusic && <audio ref={audioRef} src={musicUrl} loop preload="auto" />}
         <div className="absolute inset-0">
           {effectiveHeroImage ? (
             <img 
@@ -679,9 +623,7 @@ export default function ClientGalleryPage() {
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black" />
         </div>
-
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.7)_100%)]" />
-
         <div className="relative z-10 text-center px-6 max-w-4xl mx-auto space-y-12">
           <div className="animate-in fade-in slide-in-from-top-8 duration-1200 delay-200">
             {isCustomBrandingActive && studioLogo ? (
@@ -693,13 +635,11 @@ export default function ClientGalleryPage() {
               </div>
             )}
           </div>
-
           <div className="flex items-center justify-center gap-4 animate-in fade-in duration-1000 delay-700">
             <div className="h-px w-16 bg-gradient-to-r from-transparent to-primary/60" />
             <Sparkles className="w-4 h-4 text-primary" />
             <div className="h-px w-16 bg-gradient-to-l from-transparent to-primary/60" />
           </div>
-
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1200 delay-500">
             <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg">
               {studioName}
@@ -716,7 +656,6 @@ export default function ClientGalleryPage() {
               <span>{gallery.date}</span>
             </div>
           </div>
-
           <div className="pt-8 animate-in fade-in slide-in-from-bottom-10 duration-1200 delay-1000">
             <Button 
               onClick={handleEnterGallery}
@@ -724,14 +663,12 @@ export default function ClientGalleryPage() {
             >
               <span className="relative z-10">Enter Gallery</span>
               <ChevronRight className="w-5 h-5 lg:w-6 lg:h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
             </Button>
             <p className="mt-6 text-white/40 text-[10px] uppercase tracking-[0.4em] font-bold">
               {totalItems} Masterpieces {hasMusic && "• 🎵 Music On"}
             </p>
           </div>
         </div>
-
         <style jsx global>{`
           @keyframes kenburns {
             from { transform: scale(1.1) translate(0, 0); }
@@ -748,11 +685,9 @@ export default function ClientGalleryPage() {
 
       {hasMusic && (
         <Button 
-          variant="ghost" 
-          size="icon"
-          className="fixed top-6 right-6 lg:top-10 lg:right-10 z-[70] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-2xl"
+          variant="ghost" size="icon"
+          className="fixed top-6 right-6 lg:top-10 lg:right-10 z-[70] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground transition-all shadow-2xl"
           onClick={toggleMusic}
-          title={isMusicMuted ? "Unmute Music" : "Mute Music"}
         >
           {isMusicMuted ? <VolumeX className="w-5 h-5 lg:w-6 lg:h-6" /> : <Volume2 className="w-5 h-5 lg:w-6 lg:h-6" />}
         </Button>
@@ -760,7 +695,7 @@ export default function ClientGalleryPage() {
 
       <Button 
         variant="ghost" size="icon" 
-        className="fixed top-6 left-6 lg:top-10 lg:left-10 z-[60] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all shadow-2xl"
+        className="fixed top-6 left-6 lg:top-10 lg:left-10 z-[60] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground transition-all shadow-2xl"
         onClick={() => router.back()}
       >
         <ArrowLeft className="w-6 h-6 lg:w-7 lg:h-7" />
@@ -879,7 +814,7 @@ export default function ClientGalleryPage() {
                           <div className="space-y-6">
                             <Label className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground ml-1">Send a reply to the studio</Label>
                             <div className="relative">
-                              <Textarea placeholder="Type your beautiful thoughts or requests here..." className="rounded-[2rem] bg-background/30 border-border/30 focus:border-primary/50 min-h-[100px] p-6 text-base italic shadow-inner" value={replyText} onChange={(e) => setReplyText(e.target.value)} />
+                              <Textarea placeholder="Type your beautiful thoughts..." className="rounded-[2rem] bg-background/30 border-border/30 focus:border-primary/50 min-h-[100px] p-6 text-base italic shadow-inner" value={replyText} onChange={(e) => setReplyText(e.target.value)} />
                               <Button size="icon" className="absolute bottom-4 right-4 rounded-2xl bg-primary text-primary-foreground h-12 w-12 shadow-2xl hover:scale-105 transition-transform" onClick={() => handleSubmitReply()} disabled={isSubmittingReply || !replyText.trim()}>
                                 {isSubmittingReply ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                               </Button>
@@ -954,31 +889,26 @@ export default function ClientGalleryPage() {
         <div className="relative mt-40 py-32 lg:py-40 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.08)_0%,transparent_70%)]" />
-
           <div className="relative z-10 max-w-4xl mx-auto px-6 text-center space-y-10">
             <div className="animate-in fade-in zoom-in-95 duration-1000">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 border border-primary/30 shadow-2xl">
                 <Sparkles className="w-9 h-9 text-primary" />
               </div>
             </div>
-
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
               <div className="flex items-center justify-center gap-4">
                 <div className="h-px w-16 bg-gradient-to-r from-transparent to-primary/60" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.6em] text-primary">The End</span>
                 <div className="h-px w-16 bg-gradient-to-l from-transparent to-primary/60" />
               </div>
-
               <h2 className="text-4xl sm:text-6xl lg:text-7xl font-headline font-bold text-white uppercase tracking-tight leading-[1.1] drop-shadow-2xl">
                 Thank You,<br />
                 <span className="text-primary italic">{gallery.clientName}</span>
               </h2>
-
               <p className="text-lg lg:text-xl text-muted-foreground italic font-headline max-w-2xl mx-auto leading-relaxed pt-4">
                 {gallery.thankYouMessage || `It was an honor to capture your beautiful moments. Thank you for choosing ${studioName}.`}
               </p>
             </div>
-
             <div className="pt-8 animate-in fade-in duration-1000 delay-500">
               {isCustomBrandingActive && studioLogo ? (
                 <img src={studioLogo} className="h-16 w-auto mx-auto object-contain opacity-80" alt="Studio Logo" />
@@ -988,7 +918,6 @@ export default function ClientGalleryPage() {
                 </p>
               )}
             </div>
-
             <div className="flex flex-wrap justify-center items-center gap-4 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-700">
               {whatsappNumber && (
                 <Button 
@@ -998,7 +927,6 @@ export default function ClientGalleryPage() {
                   <MessageCircle className="w-5 h-5" /> Contact Studio
                 </Button>
               )}
-
               <Button 
                 variant="outline"
                 className="rounded-full px-10 h-14 border-white/20 text-white hover:bg-white/10 gap-3 backdrop-blur-xl font-bold transition-all hover:scale-105"
@@ -1006,7 +934,6 @@ export default function ClientGalleryPage() {
               >
                 <Share2 className="w-5 h-5" /> Share Gallery
               </Button>
-
               <Button 
                 variant="outline"
                 className="rounded-full px-10 h-14 border-white/20 text-white hover:bg-white/10 gap-3 backdrop-blur-xl font-bold transition-all hover:scale-105"
@@ -1044,8 +971,7 @@ export default function ClientGalleryPage() {
           </div>
 
           <Button 
-            variant="ghost" 
-            size="icon" 
+            variant="ghost" size="icon" 
             className="absolute top-6 right-6 lg:top-10 lg:right-10 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
             onClick={(e) => { e.stopPropagation(); closeLightbox(); }}
           >
@@ -1054,8 +980,7 @@ export default function ClientGalleryPage() {
 
           {totalItems > 1 && (
             <Button 
-              variant="ghost" 
-              size="icon" 
+              variant="ghost" size="icon" 
               className="absolute left-4 lg:left-10 top-1/2 -translate-y-1/2 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
               onClick={(e) => { e.stopPropagation(); setIsSlideshowPlaying(false); goPrev(); }}
             >
@@ -1065,8 +990,7 @@ export default function ClientGalleryPage() {
 
           {totalItems > 1 && (
             <Button 
-              variant="ghost" 
-              size="icon" 
+              variant="ghost" size="icon" 
               className="absolute right-4 lg:right-10 top-1/2 -translate-y-1/2 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
               onClick={(e) => { e.stopPropagation(); setIsSlideshowPlaying(false); goNext(); }}
             >
@@ -1092,22 +1016,19 @@ export default function ClientGalleryPage() {
           >
             {totalItems > 1 && (
               <Button 
-                variant="ghost" 
-                size="icon"
+                variant="ghost" size="icon"
                 className={cn(
                   "h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all",
                   isSlideshowPlaying && "bg-primary text-primary-foreground"
                 )}
                 onClick={() => setIsSlideshowPlaying(p => !p)}
-                title={isSlideshowPlaying ? "Pause Slideshow" : "Play Slideshow"}
               >
                 {isSlideshowPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
               </Button>
             )}
 
             <Button 
-              variant="ghost" 
-              size="icon"
+              variant="ghost" size="icon"
               className={cn(
                 "h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all",
                 gallery.items[selectedIndex].isFavorite && "bg-primary text-primary-foreground"
@@ -1119,8 +1040,7 @@ export default function ClientGalleryPage() {
 
             {canDownload && (
               <Button 
-                variant="ghost" 
-                size="icon"
+                variant="ghost" size="icon"
                 className="h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all"
                 onClick={() => handleDownloadSingle(gallery.items[selectedIndex])}
               >
@@ -1131,8 +1051,7 @@ export default function ClientGalleryPage() {
             <div className="w-px h-6 bg-white/20 mx-1" />
 
             <Button 
-              variant="ghost" 
-              size="icon"
+              variant="ghost" size="icon"
               className="h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all"
               onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}
             >

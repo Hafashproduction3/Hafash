@@ -1,31 +1,16 @@
 "use client";
 
-import { useFirestore, useDoc, useUser } from '@/firebase';
+import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import { 
-  Trash2 as Trash2Icon, 
-  Image as ImageIcon,
-  ArrowLeft as ArrowLeftIcon,
-  Eye as EyeIcon,
-  Loader2 as Loader2Icon,
-  FileText as FileTextIcon,
-  Sparkles as SparklesIcon,
-  Copy as CopyIcon,
-  Check as CheckIcon,
-  LayoutGrid as LayoutGridIcon,
-  AlertCircle as AlertCircleIcon,
-  User as UserIcon,
-  Calendar as CalendarIcon,
-  Archive as ArchiveIcon,
-  ExternalLink as ExternalLinkIcon,
-  Music as MusicIcon,
-  Play as PlayIcon,
-  Pause as PauseIcon,
-  Upload as UploadIcon,
-  X as XIcon,
-  Search as SearchIcon,
-  Crown as CrownIcon,
-  Zap
+  Trash2 as Trash2Icon, Image as ImageIcon, ArrowLeft as ArrowLeftIcon,
+  Eye as EyeIcon, Loader2 as Loader2Icon, FileText as FileTextIcon,
+  Sparkles as SparklesIcon, Copy as CopyIcon, Check as CheckIcon,
+  LayoutGrid as LayoutGridIcon, AlertCircle as AlertCircleIcon,
+  User as UserIcon, Calendar as CalendarIcon, Archive as ArchiveIcon,
+  ExternalLink as ExternalLinkIcon, Music as MusicIcon, Play as PlayIcon,
+  Pause as PauseIcon, Upload as UploadIcon, X as XIcon, Search as SearchIcon,
+  Crown as CrownIcon, Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,22 +20,14 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
+  Dialog, DialogContent, DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
-import { doc, deleteDoc, updateDoc, arrayRemove } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, arrayRemove, collection, query, orderBy } from 'firebase/firestore';
 import { deleteGalleryFiles, requestUploadUrl, getMusicSignedUrl } from '@/app/actions/storage';
 import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
@@ -70,15 +47,12 @@ export default function EventManagementPage() {
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  
   const [processingItems, setProcessingItems] = useState<Set<string>>(new Set());
 
-  // 🖼️ Full Gallery Modal
   const [showAllAssets, setShowAllAssets] = useState(false);
   const [assetSearch, setAssetSearch] = useState('');
   const [displayLimit, setDisplayLimit] = useState(60);
 
-  // 🎵 Music state
   const [isUploadingMusic, setIsUploadingMusic] = useState(false);
   const [musicUploadProgress, setMusicUploadProgress] = useState(0);
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
@@ -95,15 +69,11 @@ export default function EventManagementPage() {
   });
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setOrigin(window.location.origin);
-    }
+    if (typeof window !== 'undefined') setOrigin(window.location.origin);
   }, []);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
+    if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
 
   const eventRef = useMemo(() => {
@@ -111,7 +81,27 @@ export default function EventManagementPage() {
     return doc(firestore, 'galleries', id);
   }, [firestore, id]);
 
-  const { data: event, loading: dataLoading, error } = useDoc(eventRef);
+  const { data: eventRaw, loading: dataLoading, error } = useDoc(eventRef);
+
+  // ✅ Subcollection photos listener
+  const photosQuery = useMemo(() => {
+    if (!firestore || !id) return null;
+    return query(
+      collection(firestore, 'galleries', id, 'photos'),
+      orderBy('order', 'asc')
+    );
+  }, [firestore, id]);
+
+  const { data: subcollectionPhotos, loading: photosLoading } = useCollection(photosQuery);
+
+  // Merge: subcollection OR fallback to items array
+  const event = useMemo(() => {
+    if (!eventRaw) return null;
+    const photos = (subcollectionPhotos && subcollectionPhotos.length > 0)
+      ? subcollectionPhotos
+      : (eventRaw.items || []);
+    return { ...eventRaw, items: photos };
+  }, [eventRaw, subcollectionPhotos]);
 
   useEffect(() => {
     if (event) {
@@ -159,7 +149,7 @@ export default function EventManagementPage() {
   }, [eventRef, toast]);
 
   const handleDeletePhoto = useCallback(async (item: any) => {
-    if (!eventRef || !event || processingItems.has(item.id)) return;
+    if (!eventRef || !event || !id || processingItems.has(item.id)) return;
     
     setProcessingItems(prev => {
       const next = new Set(prev);
@@ -168,11 +158,17 @@ export default function EventManagementPage() {
     });
 
     try {
+      // ✅ Delete from subcollection
+      await deleteDoc(doc(firestore, 'galleries', id, 'photos', item.id));
+      
+      // Update photo count
+      const currentCount = event.photoCount || event.items?.length || 0;
       await updateDoc(eventRef, { 
-        items: arrayRemove(item),
+        photoCount: Math.max(currentCount - 1, 0),
         updatedAt: new Date().toISOString() 
       });
       
+      // Delete from R2
       const keys = [item.storageKey, item.thumbKey, item.originalKey].filter(Boolean);
       if (keys.length > 0) {
         void deleteGalleryFiles(keys).catch(e => console.error('[PHOTO_DELETE] R2:', e));
@@ -180,6 +176,7 @@ export default function EventManagementPage() {
       
       toast({ title: "Asset Removed" });
     } catch (err: any) {
+      console.error('[PHOTO_DELETE] Error:', err);
       toast({ variant: "destructive", title: "Remove Failed" });
     } finally {
       setProcessingItems(prev => {
@@ -188,20 +185,18 @@ export default function EventManagementPage() {
         return next;
       });
     }
-  }, [eventRef, event, processingItems, toast]);
+  }, [firestore, eventRef, event, id, processingItems, toast]);
 
-  // 🎵 MUSIC UPLOAD HANDLER
   const handleMusicUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !eventRef || !user || !id) return;
 
     if (!file.type.startsWith('audio/')) {
-      toast({ variant: "destructive", title: "Invalid File", description: "Please select an audio file (MP3, WAV, etc.)" });
+      toast({ variant: "destructive", title: "Invalid File" });
       return;
     }
-
     if (file.size > 20 * 1024 * 1024) {
-      toast({ variant: "destructive", title: "File Too Large", description: "Music file must be under 20MB." });
+      toast({ variant: "destructive", title: "File Too Large", description: "Music must be under 20MB." });
       return;
     }
 
@@ -221,19 +216,15 @@ export default function EventManagementPage() {
 
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
-            const progress = Math.round((e.loaded / e.total) * 100);
-            setMusicUploadProgress(progress);
+            setMusicUploadProgress(Math.round((e.loaded / e.total) * 100));
           }
         });
-
         xhr.addEventListener('load', () => {
           if (xhr.status >= 200 && xhr.status < 300) resolve();
           else reject(new Error(`Upload failed: ${xhr.status}`));
         });
-
         xhr.addEventListener('error', () => reject(new Error("Network error")));
         xhr.open('PUT', uploadUrl);
         xhr.setRequestHeader('Content-Type', file.type);
@@ -241,21 +232,17 @@ export default function EventManagementPage() {
       });
 
       const urlResult = await getMusicSignedUrl(key!);
-      if (!urlResult.success || !urlResult.url) {
-        throw new Error(urlResult.error || "Failed to generate music URL");
-      }
-      const musicUrl = urlResult.url;
+      if (!urlResult.success || !urlResult.url) throw new Error(urlResult.error || "Failed URL");
 
       await updateDoc(eventRef, {
-        musicUrl: musicUrl,
+        musicUrl: urlResult.url,
         musicStorageKey: key,
         updatedAt: new Date().toISOString()
       });
 
-      setCurrentMusicUrl(musicUrl);
-      toast({ title: "Music Added", description: "Background music will play when clients open this gallery." });
+      setCurrentMusicUrl(urlResult.url);
+      toast({ title: "Music Added" });
     } catch (err: any) {
-      console.error('[MUSIC_UPLOAD] Error:', err);
       toast({ variant: "destructive", title: "Upload Failed", description: err.message });
     } finally {
       setIsUploadingMusic(false);
@@ -266,26 +253,17 @@ export default function EventManagementPage() {
 
   const handleRemoveMusic = useCallback(async () => {
     if (!eventRef || !event) return;
-
     try {
       const oldKey = event.musicStorageKey;
-      
       await updateDoc(eventRef, {
-        musicUrl: '',
-        musicStorageKey: '',
-        updatedAt: new Date().toISOString()
+        musicUrl: '', musicStorageKey: '', updatedAt: new Date().toISOString()
       });
-
       setCurrentMusicUrl('');
       if (audioPreviewRef.current) {
         audioPreviewRef.current.pause();
         setIsPlayingMusic(false);
       }
-
-      if (oldKey) {
-        void deleteGalleryFiles([oldKey]).catch(e => console.error('[MUSIC_DELETE] R2 error:', e));
-      }
-
+      if (oldKey) void deleteGalleryFiles([oldKey]).catch(e => {});
       toast({ title: "Music Removed" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Remove Failed" });
@@ -294,11 +272,8 @@ export default function EventManagementPage() {
 
   const toggleMusicPreview = useCallback(() => {
     if (!currentMusicUrl) return;
-    
     if (isPlayingMusic) {
-      if (audioPreviewRef.current) {
-        audioPreviewRef.current.pause();
-      }
+      if (audioPreviewRef.current) audioPreviewRef.current.pause();
       setIsPlayingMusic(false);
     } else {
       if (!audioPreviewRef.current) {
@@ -307,7 +282,6 @@ export default function EventManagementPage() {
         audioPreviewRef.current.onended = () => setIsPlayingMusic(false);
       }
       audioPreviewRef.current.play().catch(err => {
-        console.error('[MUSIC_PREVIEW] Error:', err);
         toast({ variant: "destructive", title: "Playback Failed" });
       });
       setIsPlayingMusic(true);
@@ -316,47 +290,47 @@ export default function EventManagementPage() {
 
   const confirmDelete = useCallback(async () => {
     if (!eventRef || !event || deleteConfirmText !== 'DELETE' || isDeleting) return;
-
     setShowDeleteDialog(false);
     setIsDeleting(true); 
 
-    if (typeof document !== 'undefined') {
-      document.body.style.pointerEvents = '';
-    }
+    if (typeof document !== 'undefined') document.body.style.pointerEvents = '';
 
     const storageKeys: string[] = [];
     if (Array.isArray(event.items)) {
       event.items.forEach((item: any) => {
-        if (item?.storageKey && typeof item.storageKey === 'string') {
-          storageKeys.push(item.storageKey);
-        }
+        if (item?.storageKey) storageKeys.push(item.storageKey);
+        if (item?.thumbKey) storageKeys.push(item.thumbKey);
+        if (item?.originalKey) storageKeys.push(item.originalKey);
       });
     }
-    if (event.musicStorageKey && typeof event.musicStorageKey === 'string') {
-      storageKeys.push(event.musicStorageKey);
-    }
+    if (event.musicStorageKey) storageKeys.push(event.musicStorageKey);
 
     try {
+      // Delete photos subcollection first
+      if (subcollectionPhotos && subcollectionPhotos.length > 0) {
+        const photosRef = collection(firestore, 'galleries', id, 'photos');
+        const allPhotos = await import('firebase/firestore').then(m => m.getDocs(photosRef));
+        for (const photoDoc of allPhotos.docs) {
+          await deleteDoc(photoDoc.ref);
+        }
+      }
+
       await deleteDoc(eventRef);
       toast({ title: "Gallery Deleted" });
       router.replace('/dashboard');
-
       if (storageKeys.length > 0) {
-        void deleteGalleryFiles(storageKeys).catch(e => console.error('[GALLERY_DELETE] R2 cleanup error:', e));
+        void deleteGalleryFiles(storageKeys).catch(e => {});
       }
     } catch (err: any) {
-      console.error('[GALLERY_DELETE] Firestore error:', err);
-      toast({ variant: "destructive", title: "Delete Failed", description: "Metadata record could not be removed." });
+      toast({ variant: "destructive", title: "Delete Failed" });
       setIsDeleting(false);
     }
-  }, [eventRef, event, deleteConfirmText, router, toast, isDeleting]);
+  }, [eventRef, event, deleteConfirmText, router, toast, isDeleting, firestore, id, subcollectionPhotos]);
 
   const updateToggle = useCallback((field: string, value: any) => {
     if (!eventRef) return;
     const updateData: any = { [field]: value, updatedAt: new Date().toISOString() };
-    if (field === 'isPaid') {
-      updateData.isLocked = !value;
-    }
+    if (field === 'isPaid') updateData.isLocked = !value;
     updateDoc(eventRef, updateData);
   }, [eventRef]);
 
@@ -367,7 +341,6 @@ export default function EventManagementPage() {
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
-  // 🖼️ Filter assets for modal
   const filteredAssets = useMemo(() => {
     if (!event?.items) return [];
     const search = assetSearch.toLowerCase().trim();
@@ -377,12 +350,12 @@ export default function EventManagementPage() {
     );
   }, [event?.items, assetSearch]);
 
-  if (authLoading || dataLoading) return (
+  if (authLoading || dataLoading || photosLoading) return (
     <HafashLoader text="Synchronizing Workspace..." />
   );
 
   if (error || !event) return (
-    <div className="text-center py-40 bg-card/20 backdrop-blur-md border border-white/5 rounded-[3rem] animate-in fade-in duration-700">
+    <div className="text-center py-40 bg-card/20 backdrop-blur-md border border-white/5 rounded-[3rem]">
       <ImageIcon className="w-20 h-20 text-muted-foreground mx-auto mb-8 opacity-20" />
       <h2 className="text-4xl font-headline font-bold text-white uppercase tracking-tight">Event not found</h2>
       <Button className="mt-10 rounded-2xl h-14 px-12 bg-primary text-primary-foreground font-bold shadow-2xl" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
@@ -395,7 +368,6 @@ export default function EventManagementPage() {
 
   return (
     <div className="space-y-16 pb-32 animate-in fade-in duration-1000">
-      {/* Hero */}
       <div className="relative rounded-[3.5rem] overflow-hidden border border-white/5 shadow-[0_50px_100px_rgba(0,0,0,0.5)] group">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background/95 to-background z-0" />
         <div className="absolute -inset-20 bg-[radial-gradient(circle_at_center,var(--primary)_0%,transparent_70%)] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity duration-1000" />
@@ -442,7 +414,6 @@ export default function EventManagementPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
         <div className="lg:col-span-2 space-y-12">
-          {/* Visual Assets */}
           <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
             <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12 flex flex-row items-center justify-between">
               <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
@@ -469,8 +440,7 @@ export default function EventManagementPage() {
                       ) : null}
                       <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center backdrop-blur-md gap-3">
                         <Button 
-                          size="sm" 
-                          variant="ghost"
+                          size="sm" variant="ghost"
                           className={cn(
                             "w-full rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] h-12 shadow-2xl transition-all",
                             event.coverImage === item.url ? "bg-primary text-primary-foreground border-none" : "bg-white text-black hover:bg-gray-100"
@@ -481,8 +451,7 @@ export default function EventManagementPage() {
                           {event.coverImage === item.url ? "★ Active Cover" : "Set Cover"}
                         </Button>
                         <Button 
-                          size="sm" 
-                          variant="destructive"
+                          size="sm" variant="destructive"
                           className="w-full rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] h-12 shadow-2xl transition-all active:scale-95"
                           onClick={() => handleDeletePhoto(item)}
                           disabled={processingItems.has(item.id)}
@@ -511,81 +480,44 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* 🎵 Background Music */}
           <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
             <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12">
               <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
                 <MusicIcon className="w-10 h-10 text-primary" /> Background Music
               </CardTitle>
-              <p className="text-sm text-muted-foreground italic mt-4">
-                Add a romantic background track that plays when clients open this gallery.
-              </p>
             </CardHeader>
             <CardContent className="p-12 space-y-8">
-              <input
-                ref={musicInputRef}
-                type="file"
-                accept="audio/*"
-                className="hidden"
-                onChange={handleMusicUpload}
-                disabled={isUploadingMusic}
-              />
+              <input ref={musicInputRef} type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} disabled={isUploadingMusic} />
 
               {!currentMusicUrl ? (
                 <div 
                   onClick={() => !isUploadingMusic && musicInputRef.current?.click()}
                   className={cn(
                     "relative h-64 border-2 border-dashed rounded-[2.5rem] flex flex-col items-center justify-center transition-all duration-500 cursor-pointer group",
-                    isUploadingMusic 
-                      ? "border-primary/50 bg-primary/5 cursor-wait" 
-                      : "border-border/50 bg-background/30 hover:border-primary/50 hover:bg-primary/5"
+                    isUploadingMusic ? "border-primary/50 bg-primary/5 cursor-wait" : "border-border/50 bg-background/30 hover:border-primary/50 hover:bg-primary/5"
                   )}
                 >
-                  <div className={cn(
-                    "p-6 rounded-full mb-6 transition-all duration-500",
-                    isUploadingMusic 
-                      ? "bg-primary/20" 
-                      : "bg-primary/10 group-hover:scale-110"
-                  )}>
-                    {isUploadingMusic ? (
-                      <Loader2Icon className="w-10 h-10 text-primary animate-spin" />
-                    ) : (
-                      <UploadIcon className="w-10 h-10 text-primary" />
-                    )}
+                  <div className={cn("p-6 rounded-full mb-6 transition-all duration-500", isUploadingMusic ? "bg-primary/20" : "bg-primary/10 group-hover:scale-110")}>
+                    {isUploadingMusic ? <Loader2Icon className="w-10 h-10 text-primary animate-spin" /> : <UploadIcon className="w-10 h-10 text-primary" />}
                   </div>
                   <p className="text-xl font-headline font-bold text-white mb-2">
                     {isUploadingMusic ? `Uploading... ${musicUploadProgress}%` : "Upload Background Music"}
                   </p>
                   <p className="text-sm text-muted-foreground italic">
-                    {isUploadingMusic ? "Please wait..." : "Click to select an audio file (MP3, WAV, up to 20MB)"}
+                    {isUploadingMusic ? "Please wait..." : "Click to select (MP3, WAV, up to 20MB)"}
                   </p>
-                  {isUploadingMusic && (
-                    <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-primary/20 rounded-b-[2.5rem] overflow-hidden">
-                      <div 
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${musicUploadProgress}%` }}
-                      />
-                    </div>
-                  )}
                 </div>
               ) : (
                 <div className="space-y-6">
                   <div className="relative overflow-hidden rounded-[2.5rem] border border-primary/30 bg-gradient-to-br from-primary/10 via-background/50 to-background p-8 shadow-2xl">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(212,175,55,0.15)_0%,transparent_60%)]" />
-                    
                     <div className="relative z-10 flex items-center gap-6">
                       <Button
                         size="icon"
-                        className="h-20 w-20 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xl shrink-0 transition-all hover:scale-105 active:scale-95"
+                        className="h-20 w-20 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xl shrink-0 transition-all hover:scale-105"
                         onClick={toggleMusicPreview}
                       >
-                        {isPlayingMusic ? (
-                          <PauseIcon className="w-9 h-9" />
-                        ) : (
-                          <PlayIcon className="w-9 h-9 ml-1" />
-                        )}
+                        {isPlayingMusic ? <PauseIcon className="w-9 h-9" /> : <PlayIcon className="w-9 h-9 ml-1" />}
                       </Button>
-
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-2">
                           <MusicIcon className="w-5 h-5 text-primary" />
@@ -593,48 +525,14 @@ export default function EventManagementPage() {
                             {isPlayingMusic ? "Now Playing" : "Background Track Ready"}
                           </span>
                         </div>
-                        <p className="text-lg font-headline font-bold text-white truncate">
-                          Gallery Theme Music
-                        </p>
-                        <p className="text-xs text-muted-foreground italic mt-1">
-                          Plays automatically when clients enter the gallery
-                        </p>
+                        <p className="text-lg font-headline font-bold text-white truncate">Gallery Theme Music</p>
                       </div>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-14 w-14 rounded-full text-destructive hover:bg-destructive/10 shrink-0"
-                        onClick={handleRemoveMusic}
-                        title="Remove Music"
-                      >
+                      <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full text-destructive hover:bg-destructive/10 shrink-0" onClick={handleRemoveMusic}>
                         <Trash2Icon className="w-6 h-6" />
                       </Button>
                     </div>
-
-                    {isPlayingMusic && (
-                      <div className="relative z-10 flex items-end justify-center gap-1 mt-6 h-8">
-                        {[...Array(24)].map((_, i) => (
-                          <div
-                            key={i}
-                            className="w-1.5 bg-primary/60 rounded-full animate-pulse"
-                            style={{
-                              height: `${20 + Math.random() * 80}%`,
-                              animationDelay: `${i * 50}ms`,
-                              animationDuration: `${600 + Math.random() * 400}ms`
-                            }}
-                          />
-                        ))}
-                      </div>
-                    )}
                   </div>
-
-                  <Button
-                    variant="outline"
-                    className="w-full rounded-2xl h-14 border-white/10 font-bold gap-3 hover:bg-white/5 transition-all"
-                    onClick={() => musicInputRef.current?.click()}
-                    disabled={isUploadingMusic}
-                  >
+                  <Button variant="outline" className="w-full rounded-2xl h-14 border-white/10 font-bold gap-3" onClick={() => musicInputRef.current?.click()}>
                     <UploadIcon className="w-5 h-5" /> Replace Music
                   </Button>
                 </div>
@@ -642,7 +540,6 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Strategy */}
           <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
             <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12">
               <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
@@ -670,9 +567,7 @@ export default function EventManagementPage() {
           </Card>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-12">
-          {/* Telemetry */}
           <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary">
             <CardHeader className="p-10 border-b border-white/5 bg-background/20">
               <CardTitle className="text-[11px] font-bold uppercase tracking-[0.5em] text-primary flex items-center gap-3">
@@ -681,12 +576,12 @@ export default function EventManagementPage() {
             </CardHeader>
             <CardContent className="p-10 space-y-10">
               <div className="grid grid-cols-2 gap-8">
-                <div className="bg-background/60 p-8 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner group">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground group-hover:text-primary transition-colors">Total Views</p>
+                <div className="bg-background/60 p-8 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Total Views</p>
                   <p className="text-5xl font-headline font-bold text-primary drop-shadow-2xl">{event.viewCount || 0}</p>
                 </div>
-                <div className="bg-background/60 p-8 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner group">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground group-hover:text-primary transition-colors">Favorites</p>
+                <div className="bg-background/60 p-8 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Favorites</p>
                   <p className="text-5xl font-headline font-bold text-primary drop-shadow-2xl">{favoritesCount}</p>
                 </div>
               </div>
@@ -716,7 +611,6 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Workflow */}
           <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary">
             <CardHeader className="p-10 border-b border-white/5 bg-background/20">
               <CardTitle className="text-lg font-headline font-bold flex items-center gap-4 text-white">
@@ -749,7 +643,6 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Danger Zone */}
           <Card className="bg-destructive/5 border border-destructive/20 rounded-[3rem] overflow-hidden group shadow-2xl">
             <CardHeader className="p-10 pb-4">
               <CardTitle className="text-lg font-headline font-bold text-destructive flex items-center gap-4">
@@ -765,22 +658,17 @@ export default function EventManagementPage() {
         </div>
       </div>
 
-      {/* 🖼️ FULL GALLERY MODAL — View All Assets */}
+      {/* FULL GALLERY MODAL */}
       <Dialog open={showAllAssets} onOpenChange={setShowAllAssets}>
         <DialogContent className="max-w-[95vw] w-full h-[95vh] max-h-[95vh] bg-card/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-0 overflow-hidden flex flex-col gap-0 [&>button]:hidden">
-          {/* Header */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 lg:p-8 border-b border-white/10 bg-background/40 shrink-0">
             <div className="flex items-center gap-4">
               <div className="h-12 w-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center">
                 <LayoutGridIcon className="w-6 h-6 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-2xl lg:text-3xl font-headline font-bold text-white">
-                  All Assets
-                </DialogTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {filteredAssets.length} of {totalItems} photos
-                </p>
+                <DialogTitle className="text-2xl lg:text-3xl font-headline font-bold text-white">All Assets</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-1">{filteredAssets.length} of {totalItems} photos</p>
               </div>
             </div>
 
@@ -794,18 +682,12 @@ export default function EventManagementPage() {
                   onChange={(e) => setAssetSearch(e.target.value)}
                 />
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-12 w-12 rounded-xl shrink-0"
-                onClick={() => setShowAllAssets(false)}
-              >
+              <Button variant="ghost" size="icon" className="h-12 w-12 rounded-xl shrink-0" onClick={() => setShowAllAssets(false)}>
                 <XIcon className="w-5 h-5" />
               </Button>
             </div>
           </div>
 
-          {/* Scrollable Grid Area */}
           <div className="flex-1 overflow-y-auto min-h-0 p-6 lg:p-8">
             {filteredAssets.length === 0 ? (
               <div className="text-center py-20">
@@ -818,69 +700,33 @@ export default function EventManagementPage() {
                   {filteredAssets.slice(0, displayLimit).map((item: any) => {
                     const isCover = event.coverImage === item.url;
                     const isProcessing = processingItems.has(item.id);
-                    
                     return (
-                      <div 
-                        key={item.id} 
-                        className={cn(
-                          "group relative aspect-square rounded-2xl overflow-hidden border-2 bg-background shadow-lg hover:scale-[1.03] transition-all duration-300",
-                          isCover ? "border-primary ring-2 ring-primary/30" : "border-white/5"
-                        )}
-                      >
-                        <img 
-                          src={item.thumbUrl || item.url} 
-                          className="w-full h-full object-cover"
-                          alt={item.fileName || "Asset"}
-                          loading="lazy"
-                          decoding="async"
-                        />
+                      <div key={item.id} className={cn(
+                        "group relative aspect-square rounded-2xl overflow-hidden border-2 bg-background shadow-lg hover:scale-[1.03] transition-all duration-300",
+                        isCover ? "border-primary ring-2 ring-primary/30" : "border-white/5"
+                      )}>
+                        <img src={item.thumbUrl || item.url} className="w-full h-full object-cover" alt={item.fileName || "Asset"} loading="lazy" decoding="async" />
                         
                         {isCover && (
                           <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-lg">
-                            <CrownIcon className="w-3 h-3" />
-                            Cover
+                            <CrownIcon className="w-3 h-3" /> Cover
                           </div>
                         )}
 
                         <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3 backdrop-blur-sm">
                           {!isCover && (
-                            <Button
-                              size="sm"
-                              className="w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-[10px] uppercase tracking-wider h-9"
-                              onClick={() => handleSetCover(item.url)}
-                              disabled={isProcessing}
-                            >
-                              <CrownIcon className="w-3 h-3 mr-1.5" />
-                              Set Cover
+                            <Button size="sm" className="w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-[10px] uppercase tracking-wider h-9" onClick={() => handleSetCover(item.url)} disabled={isProcessing}>
+                              <CrownIcon className="w-3 h-3 mr-1.5" /> Set Cover
                             </Button>
                           )}
-                          {isCover && (
-                            <Badge className="bg-primary text-primary-foreground text-[10px] uppercase font-bold">
-                              ★ Active Cover
-                            </Badge>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider h-9"
-                            onClick={() => handleDeletePhoto(item)}
-                            disabled={isProcessing}
-                          >
-                            {isProcessing ? (
-                              <Loader2Icon className="w-3 h-3 animate-spin" />
-                            ) : (
-                              <>
-                                <Trash2Icon className="w-3 h-3 mr-1.5" />
-                                Remove
-                              </>
-                            )}
+                          {isCover && <Badge className="bg-primary text-primary-foreground text-[10px] uppercase font-bold">★ Active Cover</Badge>}
+                          <Button size="sm" variant="destructive" className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider h-9" onClick={() => handleDeletePhoto(item)} disabled={isProcessing}>
+                            {isProcessing ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <><Trash2Icon className="w-3 h-3 mr-1.5" /> Remove</>}
                           </Button>
                         </div>
 
                         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <p className="text-[9px] text-white font-bold truncate">
-                            {item.fileName || item.id}
-                          </p>
+                          <p className="text-[9px] text-white font-bold truncate">{item.fileName || item.id}</p>
                         </div>
                       </div>
                     );
@@ -889,11 +735,7 @@ export default function EventManagementPage() {
 
                 {filteredAssets.length > displayLimit && (
                   <div className="flex justify-center pt-8 pb-4">
-                    <Button
-                      variant="outline"
-                      className="rounded-xl h-12 px-8 font-bold border-primary/30 text-primary hover:bg-primary/10"
-                      onClick={() => setDisplayLimit(prev => prev + 60)}
-                    >
+                    <Button variant="outline" className="rounded-xl h-12 px-8 font-bold border-primary/30 text-primary hover:bg-primary/10" onClick={() => setDisplayLimit(prev => prev + 60)}>
                       Load More ({filteredAssets.length - displayLimit} remaining)
                     </Button>
                   </div>
@@ -904,7 +746,6 @@ export default function EventManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="bg-card/90 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] max-w-md p-12 shadow-[0_50px_100px_rgba(0,0,0,0.6)] overflow-hidden ring-1 ring-white/10">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-destructive to-transparent opacity-50" />
@@ -915,7 +756,7 @@ export default function EventManagementPage() {
             <AlertDialogTitle className="text-3xl font-headline font-bold text-center text-white">Final Confirmation</AlertDialogTitle>
             <AlertDialogDescription className="text-center space-y-8 pt-6">
               <p className="text-base font-medium italic text-muted-foreground leading-relaxed px-4">
-                This action will permanently purge this record from your studio registry. Type <span className="text-destructive font-bold not-italic">DELETE</span> below.
+                This will permanently purge this record. Type <span className="text-destructive font-bold not-italic">DELETE</span> below.
               </p>
               <Input 
                 placeholder="Type DELETE..." 

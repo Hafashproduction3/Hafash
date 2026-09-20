@@ -241,7 +241,7 @@ export default function DashboardPage() {
     const active = galleries || [];
     return {
       totalDeliveries: active.length,
-      totalPhotos: active.reduce((acc, g) => acc + (g.items?.length || 0), 0),
+      totalPhotos: active.reduce((acc, g) => acc + (g.photoCount || g.items?.length || 0), 0),
       totalFavorites: active.reduce((acc, g) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
     };
   }, [galleries]);

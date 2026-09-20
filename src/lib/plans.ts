@@ -1,6 +1,5 @@
 /**
  * Hafash Subscription Plan Definitions
- * Centralized configuration for storage, delivery limits, and processing priority.
  */
 
 export type PlanId = 'starter' | 'pro' | 'business';
@@ -53,7 +52,6 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
   },
 };
 
-// Represents a user who has NOT paid for any plan yet.
 export const NO_PLAN: HafashPlan = {
   id: 'none',
   name: 'No Active Plan',
@@ -68,9 +66,6 @@ export const NO_PLAN: HafashPlan = {
 
 export const DEFAULT_PLAN = NO_PLAN;
 
-// ─────────────────────────────────────────────────────────────
-// 👑 OWNER BYPASS — Unlimited plan for the Hafash owner account
-// ─────────────────────────────────────────────────────────────
 export const OWNER_EMAILS: string[] = [
   'hafashgroup60@gmail.com',
 ];
@@ -93,20 +88,11 @@ export const OWNER_PLAN: HafashPlan = {
   priorityLabel: 'Owner',
 };
 
-/**
- * Check if an email is the owner.
- */
 export function isOwnerEmail(email?: string | null): boolean {
   if (!email) return false;
   return OWNER_EMAILS.includes(email.toLowerCase().trim());
 }
 
-/**
- * Looks up a user's plan safely.
- * - If the user is the owner → OWNER_PLAN (unlimited)
- * - If planId is valid → that plan
- * - Otherwise → NO_PLAN
- */
 export function getUserPlan(planId?: string | null, email?: string | null): HafashPlan {
   if (isOwnerEmail(email)) return OWNER_PLAN;
   if (!planId) return NO_PLAN;
@@ -116,7 +102,7 @@ export function getUserPlan(planId?: string | null, email?: string | null): Hafa
 
 /**
  * Calculates total storage usage across all galleries.
- * ✅ Counts: preview + thumbnail + original (if uploaded)
+ * ✅ Supports subcollection photoCount + legacy items array
  */
 export function calculateUsageGb(galleries: any[] | null): number {
   if (!galleries || !Array.isArray(galleries)) return 0;
@@ -124,43 +110,34 @@ export function calculateUsageGb(galleries: any[] | null): number {
   let totalBytes = 0;
 
   galleries.forEach(g => {
+    // ✅ If subcollection migrated (items empty but photoCount exists)
+    if ((!g.items || g.items.length === 0) && g.photoCount > 0) {
+      // Estimate: 2.5 MB preview + 4 MB original = 6.5 MB per photo
+      totalBytes += g.photoCount * 6.5 * 1024 * 1024;
+      return;
+    }
+
+    // Legacy: items array
     const items = Array.isArray(g.items) ? g.items : [];
     items.forEach((item: any) => {
-      // ✅ Preview size (main file)
       const previewSize = Number(item.fileSize) || 0;
-
-      // ✅ Thumbnail size (approx 50 KB if thumbKey exists)
       const thumbSize = item.thumbKey ? (50 * 1024) : 0;
-
-      // ✅ Original size (agar upload hua hai)
       let originalSize = 0;
       if (item.originalReady) {
         if (item.originalSize && Number(item.originalSize) > 0) {
           originalSize = Number(item.originalSize);
         } else {
-          // Fallback: agar originalSize missing hai, preview ka 10x assume karo
           originalSize = previewSize * 10;
         }
       }
-
-      // Total per item
       const itemTotal = previewSize + thumbSize + originalSize;
-
-      if (itemTotal > 0) {
-        totalBytes += itemTotal;
-      } else {
-        // Fallback: agar kuch bhi nahi hai toh 3 MB assume
-        totalBytes += (3 * 1024 * 1024);
-      }
+      totalBytes += itemTotal > 0 ? itemTotal : (3 * 1024 * 1024);
     });
   });
 
   return totalBytes / (1024 * 1024 * 1024);
 }
 
-/**
- * Format bytes into human readable string.
- */
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -169,9 +146,6 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`;
 }
 
-/**
- * Calculate storage usage in MB (for display).
- */
 export function calculateUsageMb(galleries: any[] | null): number {
   return calculateUsageGb(galleries) * 1024;
 }
