@@ -47,7 +47,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
@@ -174,7 +173,6 @@ export default function EventManagementPage() {
         updatedAt: new Date().toISOString() 
       });
       
-      // R2 cleanup
       const keys = [item.storageKey, item.thumbKey, item.originalKey].filter(Boolean);
       if (keys.length > 0) {
         void deleteGalleryFiles(keys).catch(e => console.error('[PHOTO_DELETE] R2:', e));
@@ -496,7 +494,6 @@ export default function EventManagementPage() {
                     </div>
                   ))}
                   
-                  {/* View All Button */}
                   {totalItems > 11 && (
                     <button
                       onClick={() => setShowAllAssets(true)}
@@ -770,145 +767,139 @@ export default function EventManagementPage() {
 
       {/* 🖼️ FULL GALLERY MODAL — View All Assets */}
       <Dialog open={showAllAssets} onOpenChange={setShowAllAssets}>
-        <DialogContent className="max-w-[95vw] w-full h-[95vh] bg-card/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-0 overflow-hidden">
-          <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 lg:p-8 border-b border-white/10 bg-background/40">
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center">
-                  <LayoutGridIcon className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <DialogTitle className="text-2xl lg:text-3xl font-headline font-bold text-white">
-                    All Assets
-                  </DialogTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {filteredAssets.length} of {totalItems} photos
-                  </p>
-                </div>
+        <DialogContent className="max-w-[95vw] w-full h-[95vh] max-h-[95vh] bg-card/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-0 overflow-hidden flex flex-col gap-0 [&>button]:hidden">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 lg:p-8 border-b border-white/10 bg-background/40 shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center">
+                <LayoutGridIcon className="w-6 h-6 text-primary" />
               </div>
-
-              <div className="flex items-center gap-3 w-full sm:w-auto">
-                <div className="relative flex-1 sm:w-80">
-                  <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by filename..."
-                    className="pl-11 h-12 bg-background/60 border-white/10 rounded-xl"
-                    value={assetSearch}
-                    onChange={(e) => setAssetSearch(e.target.value)}
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-12 w-12 rounded-xl shrink-0"
-                  onClick={() => setShowAllAssets(false)}
-                >
-                  <XIcon className="w-5 h-5" />
-                </Button>
+              <div>
+                <DialogTitle className="text-2xl lg:text-3xl font-headline font-bold text-white">
+                  All Assets
+                </DialogTitle>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {filteredAssets.length} of {totalItems} photos
+                </p>
               </div>
             </div>
 
-            {/* Grid */}
-            <div className="flex-1 overflow-y-auto p-6 lg:p-8">
-              {filteredAssets.length === 0 ? (
-                <div className="text-center py-20">
-                  <SearchIcon className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
-                  <p className="text-muted-foreground italic text-lg">No photos found</p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {filteredAssets.slice(0, displayLimit).map((item: any) => {
-                      const isCover = event.coverImage === item.url;
-                      const isProcessing = processingItems.has(item.id);
-                      
-                      return (
-                        <div 
-                          key={item.id} 
-                          className={cn(
-                            "group relative aspect-square rounded-2xl overflow-hidden border-2 bg-background shadow-lg hover:scale-[1.03] transition-all duration-300",
-                            isCover ? "border-primary ring-2 ring-primary/30" : "border-white/5"
-                          )}
-                        >
-                          <img 
-                            src={item.thumbUrl || item.url} 
-                            className="w-full h-full object-cover"
-                            alt={item.fileName || "Asset"}
-                            loading="lazy"
-                            decoding="async"
-                          />
-                          
-                          {/* Cover Badge */}
-                          {isCover && (
-                            <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-lg">
-                              <CrownIcon className="w-3 h-3" />
-                              Cover
-                            </div>
-                          )}
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-80">
+                <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by filename..."
+                  className="pl-11 h-12 bg-background/60 border-white/10 rounded-xl"
+                  value={assetSearch}
+                  onChange={(e) => setAssetSearch(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-12 w-12 rounded-xl shrink-0"
+                onClick={() => setShowAllAssets(false)}
+              >
+                <XIcon className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
 
-                          {/* Hover Overlay */}
-                          <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3 backdrop-blur-sm">
-                            {!isCover && (
-                              <Button
-                                size="sm"
-                                className="w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-[10px] uppercase tracking-wider h-9"
-                                onClick={() => handleSetCover(item.url)}
-                                disabled={isProcessing}
-                              >
-                                <CrownIcon className="w-3 h-3 mr-1.5" />
-                                Set Cover
-                              </Button>
-                            )}
-                            {isCover && (
-                              <Badge className="bg-primary text-primary-foreground text-[10px] uppercase font-bold">
-                                ★ Active Cover
-                              </Badge>
-                            )}
+          {/* Scrollable Grid Area */}
+          <div className="flex-1 overflow-y-auto min-h-0 p-6 lg:p-8">
+            {filteredAssets.length === 0 ? (
+              <div className="text-center py-20">
+                <SearchIcon className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
+                <p className="text-muted-foreground italic text-lg">No photos found</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {filteredAssets.slice(0, displayLimit).map((item: any) => {
+                    const isCover = event.coverImage === item.url;
+                    const isProcessing = processingItems.has(item.id);
+                    
+                    return (
+                      <div 
+                        key={item.id} 
+                        className={cn(
+                          "group relative aspect-square rounded-2xl overflow-hidden border-2 bg-background shadow-lg hover:scale-[1.03] transition-all duration-300",
+                          isCover ? "border-primary ring-2 ring-primary/30" : "border-white/5"
+                        )}
+                      >
+                        <img 
+                          src={item.thumbUrl || item.url} 
+                          className="w-full h-full object-cover"
+                          alt={item.fileName || "Asset"}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                        
+                        {isCover && (
+                          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-lg">
+                            <CrownIcon className="w-3 h-3" />
+                            Cover
+                          </div>
+                        )}
+
+                        <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3 backdrop-blur-sm">
+                          {!isCover && (
                             <Button
                               size="sm"
-                              variant="destructive"
-                              className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider h-9"
-                              onClick={() => handleDeletePhoto(item)}
+                              className="w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-[10px] uppercase tracking-wider h-9"
+                              onClick={() => handleSetCover(item.url)}
                               disabled={isProcessing}
                             >
-                              {isProcessing ? (
-                                <Loader2Icon className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <>
-                                  <Trash2Icon className="w-3 h-3 mr-1.5" />
-                                  Remove
-                                </>
-                              )}
+                              <CrownIcon className="w-3 h-3 mr-1.5" />
+                              Set Cover
                             </Button>
-                          </div>
-
-                          {/* Filename */}
-                          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <p className="text-[9px] text-white font-bold truncate">
-                              {item.fileName || item.id}
-                            </p>
-                          </div>
+                          )}
+                          {isCover && (
+                            <Badge className="bg-primary text-primary-foreground text-[10px] uppercase font-bold">
+                              ★ Active Cover
+                            </Badge>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider h-9"
+                            onClick={() => handleDeletePhoto(item)}
+                            disabled={isProcessing}
+                          >
+                            {isProcessing ? (
+                              <Loader2Icon className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <>
+                                <Trash2Icon className="w-3 h-3 mr-1.5" />
+                                Remove
+                              </>
+                            )}
+                          </Button>
                         </div>
-                      );
-                    })}
-                  </div>
 
-                  {/* Load More */}
-                  {filteredAssets.length > displayLimit && (
-                    <div className="flex justify-center pt-8">
-                      <Button
-                        variant="outline"
-                        className="rounded-xl h-12 px-8 font-bold border-primary/30 text-primary hover:bg-primary/10"
-                        onClick={() => setDisplayLimit(prev => prev + 60)}
-                      >
-                        Load More ({filteredAssets.length - displayLimit} remaining)
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <p className="text-[9px] text-white font-bold truncate">
+                            {item.fileName || item.id}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {filteredAssets.length > displayLimit && (
+                  <div className="flex justify-center pt-8 pb-4">
+                    <Button
+                      variant="outline"
+                      className="rounded-xl h-12 px-8 font-bold border-primary/30 text-primary hover:bg-primary/10"
+                      onClick={() => setDisplayLimit(prev => prev + 60)}
+                    >
+                      Load More ({filteredAssets.length - displayLimit} remaining)
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>
