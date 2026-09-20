@@ -20,6 +20,13 @@ import { requestUploadUrl, completeUpload } from '@/app/actions/storage';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import imageCompression from 'browser-image-compression';
+import { 
+  savePendingFile, 
+  loadPendingFiles, 
+  removePendingFile, 
+  clearPendingFiles,
+  blobToFile
+} from '@/lib/upload-storage';
 
 type UploadStepStatus = 'queued' | 'compressing' | 'uploading' | 'syncing' | 'completed' | 'error' | 'paused' | 'cancelled';
 
@@ -47,7 +54,6 @@ interface FileItem {
 const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
 
-// 🖼️ Preview Settings
 const PREVIEW_OPTIONS = {
   maxSizeMB: 0.6,
   maxWidthOrHeight: 1800,
@@ -66,7 +72,6 @@ const THUMBNAIL_OPTIONS = {
 
 const getResumeKey = (galleryId: string) => `hafash_upload_${galleryId}`;
 
-// ⏱️ Time formatter
 function formatTime(seconds: number): string {
   if (!seconds || seconds === Infinity || seconds <= 0) return "Calculating...";
   if (seconds < 60) return `${Math.round(seconds)} sec`;
@@ -76,7 +81,6 @@ function formatTime(seconds: number): string {
   return `${hours} hr ${mins} min`;
 }
 
-// ⏰ Clock time formatter
 function formatClockTime(date: Date): string {
   return date.toLocaleTimeString('en-US', { 
     hour: 'numeric', 
@@ -99,10 +103,9 @@ export default function GalleryUploadPage() {
   const [resumedCount, setResumedCount] = useState(0);
   const [uploadedNames, setUploadedNames] = useState<Set<string>>(new Set());
   const [isBackgroundUploading, setIsBackgroundUploading] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(true);
   
-  // ⏱️ Time tracking
   const [uploadStartTime, setUploadStartTime] = useState<number | null>(null);
-  const [averageSpeed, setAverageSpeed] = useState<number>(0); // bytes per second
   const [showPreUploadWarning, setShowPreUploadWarning] = useState(false);
   
   const pauseRef = useRef(false);
@@ -117,6 +120,7 @@ export default function GalleryUploadPage() {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
 
+  // 🔄 Load localStorage resume state
   useEffect(() => {
     if (typeof window === 'undefined' || !id) return;
     try {
@@ -131,6 +135,65 @@ export default function GalleryUploadPage() {
       console.warn('[RESUME] Failed', e);
     }
   }, [id]);
+
+  // 🔄 Load pending files from IndexedDB (survives reload)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !id) {
+      setIsRestoring(false);
+      return;
+    }
+    let cancelled = false;
+
+    async function restoreFiles() {
+      try {
+        const stored = await loadPendingFiles(id);
+        if (cancelled) return;
+
+        if (stored.length === 0) {
+          setIsRestoring(false);
+          return;
+        }
+
+        console.log(`[IDB] Restoring ${stored.length} pending files`);
+
+        const restored: FileItem[] = stored
+          .filter((s) => s.status !== 'completed')
+          .map((s) => {
+            const file = blobToFile(s.fileBlob, s.name, s.type);
+            const isImage = s.type.startsWith('image/');
+            return {
+              id: s.fileId,
+              file,
+              name: s.name,
+              size: s.size,
+              progress: 0,
+              status: 'queued' as UploadStepStatus,
+              currentStep: 'Restored — Ready',
+              speed: 0,
+              eta: 0,
+              retryCount: 0,
+              previewUrl: isImage ? URL.createObjectURL(file) : undefined,
+              originalReady: false,
+            };
+          });
+
+        if (restored.length > 0 && !cancelled) {
+          setFiles(restored);
+          toast({
+            title: `🔄 ${restored.length} files restored`,
+            description: "Upload continue karne ke liye 'Begin Upload' click karein.",
+          });
+        }
+      } catch (e) {
+        console.warn('[IDB] restoreFiles failed:', e);
+      } finally {
+        if (!cancelled) setIsRestoring(false);
+      }
+    }
+
+    restoreFiles();
+    return () => { cancelled = true; };
+  }, [id, toast]);
 
   const eventRef = useMemo(() => {
     if (!firestore || !id) return null;
@@ -227,8 +290,26 @@ export default function GalleryUploadPage() {
       });
 
       setFiles(prev => [...prev, ...newItems]);
+
+      // 💾 Save to IndexedDB (survives reload)
+      if (id) {
+        newItems.forEach(item => {
+          if (item.status !== 'completed') {
+            savePendingFile(id, {
+              fileId: item.id,
+              file: item.file,
+              name: item.name,
+              size: item.size,
+              status: 'queued',
+              progress: 0,
+              currentStep: 'In Queue',
+              originalReady: false,
+            }).catch(e => console.warn('[IDB] save failed:', e));
+          }
+        });
+      }
       
-      // ✅ Show speed warning for large batches
+      // ⚠️ Show speed warning for large batches
       const newFiles = newItems.filter(f => f.status !== 'completed');
       if (newFiles.length > 20) {
         setShowPreUploadWarning(true);
@@ -242,6 +323,9 @@ export default function GalleryUploadPage() {
       if (file?.previewUrl) URL.revokeObjectURL(file.previewUrl);
       return prev.filter(f => f.id !== fileId);
     });
+    if (id) {
+      removePendingFile(id, fileId).catch(e => console.warn('[IDB] remove failed:', e));
+    }
   };
 
   const handlePause = () => {
@@ -288,7 +372,6 @@ export default function GalleryUploadPage() {
             const now = Date.now();
             const timeDiff = (now - lastTime) / 1000;
             if (timeDiff > 0.5) {
-              // Track speed samples for averaging
               const instantSpeed = (e.loaded - lastLoaded) / timeDiff;
               speedSamplesRef.current.push(instantSpeed);
               if (speedSamplesRef.current.length > 10) speedSamplesRef.current.shift();
@@ -516,6 +599,11 @@ export default function GalleryUploadPage() {
 
         bgQueueRef.current.push({ ...item, previewFile, thumbFile });
 
+        // 💾 File complete — IndexedDB se remove karo
+        if (id) {
+          removePendingFile(id, item.id).catch(e => console.warn('[IDB] cleanup failed:', e));
+        }
+
       } catch (err: any) {
         if (pauseRef.current || cancelRef.current) {
           updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
@@ -572,6 +660,8 @@ export default function GalleryUploadPage() {
       description: "Gallery live. Originals background mein upload ho rahe hain.",
     });
     clearResumeState();
+    // 💾 Sab upload ho gaye — IndexedDB clear karo
+    if (id) clearPendingFiles(id).catch(e => console.warn('[IDB] clear failed:', e));
 
     if (bgQueueRef.current.length > 0) {
       processBackgroundQueue();
@@ -586,7 +676,6 @@ export default function GalleryUploadPage() {
     ));
   };
 
-  // ⏱️ Calculate time estimates
   const stats = useMemo(() => {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
@@ -599,7 +688,6 @@ export default function GalleryUploadPage() {
     const allOriginalsReady = originalReadyFiles === totalFiles && totalFiles > 0;
     const originalProgress = totalFiles > 0 ? Math.round((originalReadyFiles / totalFiles) * 100) : 0;
 
-    // ⏱️ ETA calculation
     const previewBytes = files.reduce((acc, f) => acc + (f.previewSize || 0), 0);
     const totalPreviewBytes = files.reduce((acc, f) => acc + (f.previewSize || 600 * 1024), 0);
     const uploadedBytes = files.reduce((acc, f) => {
@@ -608,7 +696,6 @@ export default function GalleryUploadPage() {
     }, 0);
     const remainingBytes = totalPreviewBytes - uploadedBytes;
 
-    // Average speed
     let avgSpeed = 0;
     if (speedSamplesRef.current.length > 0) {
       avgSpeed = speedSamplesRef.current.reduce((a, b) => a + b, 0) / speedSamplesRef.current.length;
@@ -636,13 +723,11 @@ export default function GalleryUploadPage() {
     };
   }, [files]);
 
-  // ⏱️ Pre-upload estimate for warning
   const preUploadEstimate = useMemo(() => {
     const pendingFiles = files.filter(f => f.status !== 'completed');
-    const estimatedBytes = pendingFiles.length * 600 * 1024; // 600 KB per preview
-    const downloadSpeed = (navigator as any)?.connection?.downlink || 5; // Mbps fallback
-    // Assume upload is 1/5 of download on slow connections
-    const estimatedUploadSpeed = (downloadSpeed / 5) * 1024 * 1024 / 8; // bytes per second
+    const estimatedBytes = pendingFiles.length * 600 * 1024;
+    const downloadSpeed = (navigator as any)?.connection?.downlink || 5;
+    const estimatedUploadSpeed = (downloadSpeed / 5) * 1024 * 1024 / 8;
     const etaSeconds = estimatedBytes / Math.max(estimatedUploadSpeed, 100 * 1024);
     return {
       count: pendingFiles.length,
@@ -651,7 +736,7 @@ export default function GalleryUploadPage() {
     };
   }, [files]);
 
-  if (authLoading || dataLoading) {
+  if (authLoading || dataLoading || isRestoring) {
     return <HafashLoader text="Preparing Your Luxury Assets..." />;
   }
 
@@ -662,7 +747,6 @@ export default function GalleryUploadPage() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-primary/10" onClick={() => router.push(`/events/${id}/manage`)}>
@@ -713,7 +797,7 @@ export default function GalleryUploadPage() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground italic">
-              💡 Tip: Upload raat ko karein ya WiFi strong karein. Agar light gayi, phir se resume ho sakti hai.
+              💡 Tip: Agar light gayi, files automatically restore hongi. Tension nahi.
             </p>
           </AlertDescription>
         </Alert>
@@ -725,8 +809,7 @@ export default function GalleryUploadPage() {
           <RefreshCw className="h-5 w-5 text-primary" />
           <AlertTitle className="font-bold text-primary">Resume Available</AlertTitle>
           <AlertDescription className="text-sm">
-            {resumedCount} photos pehle upload ho chuki hain. 
-            <strong> Wahi files dobara select karein</strong> — sirf nayi photos upload hongi.
+            {resumedCount} photos pehle upload ho chuki hain. Sirf nayi photos upload hongi. 🎯
           </AlertDescription>
         </Alert>
       )}
@@ -767,7 +850,6 @@ export default function GalleryUploadPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
         <div className="lg:col-span-2 space-y-8">
-          {/* Upload Drop Zone */}
           <div className={cn(
             "relative h-96 border-2 border-dashed rounded-[3rem] flex flex-col items-center justify-center transition-all",
             isOverLimit ? "border-destructive/30 bg-destructive/5" : "border-border/50 bg-card/30 hover:border-primary/50 cursor-pointer"
@@ -794,7 +876,6 @@ export default function GalleryUploadPage() {
             </div>
           </div>
 
-          {/* 📊 STATUS CARD WITH ETA */}
           {files.length > 0 && (
             <div className="p-6 bg-card/40 border rounded-2xl space-y-5">
               <div className="flex items-center justify-between">
@@ -809,7 +890,6 @@ export default function GalleryUploadPage() {
               </div>
               <Progress value={stats.avgProgress} className="h-2" />
               
-              {/* ⏱️ LIVE ETA */}
               {isUploading && stats.avgSpeed > 0 && stats.etaSeconds > 0 && (
                 <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border/30">
                   <div className="flex items-center gap-3">
@@ -835,7 +915,6 @@ export default function GalleryUploadPage() {
                 </div>
               )}
 
-              {/* Speed Display */}
               {isUploading && stats.avgSpeed > 0 && (
                 <div className="flex justify-between text-[10px] font-bold uppercase text-muted-foreground pt-2">
                   <span>Speed: {(stats.avgSpeed / 1024 / 1024).toFixed(2)} MB/s</span>
@@ -843,7 +922,6 @@ export default function GalleryUploadPage() {
                 </div>
               )}
 
-              {/* Background Progress */}
               {stats.completedFiles > 0 && (
                 <div className="pt-3 border-t border-border/30 space-y-2">
                   <div className="flex items-center justify-between text-[10px] font-bold uppercase">
@@ -856,11 +934,14 @@ export default function GalleryUploadPage() {
             </div>
           )}
 
-          {/* Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3 flex-wrap">
                {files.length > 0 && !isDone && !isUploading && (
-                 <Button variant="ghost" className="rounded-full text-muted-foreground hover:text-destructive" onClick={() => { setFiles([]); clearResumeState(); }}>
+                 <Button variant="ghost" className="rounded-full text-muted-foreground hover:text-destructive" onClick={() => { 
+                   setFiles([]); 
+                   clearResumeState(); 
+                   if (id) clearPendingFiles(id).catch(e => console.warn('[IDB] clear failed:', e));
+                 }}>
                    Purge Queue
                  </Button>
                )}
@@ -940,7 +1021,6 @@ export default function GalleryUploadPage() {
           </div>
         </div>
 
-        {/* Pipeline Sidebar */}
         <div className="bg-card/40 border rounded-[2.5rem] p-8 h-[650px] flex flex-col">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-headline font-bold flex items-center gap-3">
