@@ -429,6 +429,74 @@ export default function ClientGalleryPage() {
     const filename = item.fileName || `photo-${item.id}.jpg`;
 
     try {
+      const res = await fetch('/api/download-original', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          key: item.originalKey,
+          filename: filename,
+        }),
+      });
+
+      if (!res.ok) throw new Error('Failed to get download URL');
+      const data = await res.json();
+      if (!data.url) throw new Error('No download URL');
+
+      // ✅ Hidden iframe approach for mobile download
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.style.position = 'fixed';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.src = data.url;
+      document.body.appendChild(iframe);
+
+      setTimeout(() => {
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+      }, 60000);
+
+      // Desktop fallback
+      if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      toast({
+        title: "✅ Download Started",
+        description: `${filename} — check your Downloads / Files app.`,
+      });
+
+    } catch (error: any) {
+      console.error('[DOWNLOAD] Error:', error);
+      toast({
+        variant: "destructive",
+        title: "Download Failed",
+        description: error.message || "Please try again",
+      });
+    }
+  }, [canDownload, toast]);
+    if (!canDownload) return;
+
+    if (!item.originalReady || !item.originalKey) {
+      toast({
+        variant: "destructive",
+        title: "⏳ Original Processing",
+        description: "Full quality photo abhi upload ho rahi hai. Thora wait karein.",
+      });
+      return;
+    }
+
+    const filename = item.fileName || `photo-${item.id}.jpg`;
+
+    try {
       // 1. Get signed URL
       const res = await fetch('/api/download-original', {
         method: 'POST',

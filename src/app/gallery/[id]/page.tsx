@@ -1,6 +1,6 @@
 "use client";
 
-import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
+import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -26,34 +26,47 @@ import { type PlanId } from '@/lib/plans';
 import { getFreshMusicUrl } from '@/app/actions/storage';
 
 const SLIDESHOW_INTERVAL = 4000;
-const GALLERY_PAGE_SIZE = 60;
 
+/**
+ * Gallery Item Component
+ */
 const GalleryItem = memo(({ 
-  item, showWatermark, canDownload, onFavorite, onDownload, onSelect, priority
+  item, 
+  showWatermark, 
+  canDownload, 
+  onFavorite, 
+  onDownload, 
+  onSelect,
+  priority
 }: { 
-  item: any, showWatermark: boolean, canDownload: boolean,
-  onFavorite: (id: string, current: boolean) => void, onDownload: (item: any) => void,
-  onSelect: () => void, priority?: boolean
+  item: any, 
+  showWatermark: boolean, 
+  canDownload: boolean, 
+  onFavorite: (id: string, current: boolean) => void, 
+  onDownload: (item: any) => void,
+  onSelect: () => void,
+  priority?: boolean
 }) => {
   const [loaded, setLoaded] = useState(false);
   if (!item?.url) return null;
 
   return (
     <div 
-      className="relative group overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-xl transition-all duration-700 hover:shadow-primary/5 aspect-[4/5]" 
+      className="relative group break-inside-avoid overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in mb-8 shadow-xl transition-all duration-700 hover:shadow-primary/5" 
       onClick={onSelect}
     >
-      {!loaded && <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />}
+      {!loaded && (
+        <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />
+      )}
       <img 
         src={item.thumbUrl || item.url} 
-        alt={item.fileName || "Gallery Asset"}
+        alt="Gallery Asset"
         className={cn(
-          "w-full h-full object-cover transition-all duration-1000 group-hover:scale-110",
+          "w-full h-auto object-cover transition-all duration-1000 group-hover:scale-110",
           loaded ? "opacity-100" : "opacity-0"
         )}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
-        fetchPriority={priority ? "high" : "low"}
         onLoad={() => setLoaded(true)}
       />
       {showWatermark && <div className="luxury-watermark" />}
@@ -94,28 +107,26 @@ export default function ClientGalleryPage() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
-  const [displayCount, setDisplayCount] = useState(GALLERY_PAGE_SIZE);
   
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [verifying, setVerifying] = useState(false);
+
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [replySuccess, setReplySuccess] = useState(false);
   const [helpfulClicked, setHelpfulClicked] = useState(false);
+
   const [showIntro, setShowIntro] = useState(true);
   const [introLeaving, setIntroLeaving] = useState(false);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
   const [isMusicMuted, setIsMusicMuted] = useState(false);
   const [freshMusicUrl, setFreshMusicUrl] = useState<string>('');
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
-  
-  // ✅ SCROLL PERSISTENCE REFS
-  const scrollPositionRef = useRef<number>(0);
-  const hasRestoredScrollRef = useRef<boolean>(false);
 
   const demoItems = useMemo(() => [
     { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', fileName: 'demo-1.jpg', isFavorite: false },
@@ -126,67 +137,22 @@ export default function ClientGalleryPage() {
     { id: 'demo-6', url: 'https://picsum.photos/seed/hafash-demo-6/1200/1600', fileName: 'demo-6.jpg', isFavorite: false },
   ], []);
 
-  // ✅ Load displayCount + scroll position from sessionStorage
-  useEffect(() => {
-    if (typeof window === 'undefined' || !galleryParam) return;
-    try {
-      const savedCount = sessionStorage.getItem(`gallery_count_${galleryParam}`);
-      if (savedCount) {
-        const count = parseInt(savedCount, 10);
-        if (count > GALLERY_PAGE_SIZE) {
-          setDisplayCount(count);
-        }
-      }
-      const savedScroll = sessionStorage.getItem(`gallery_scroll_${galleryParam}`);
-      if (savedScroll) {
-        scrollPositionRef.current = parseInt(savedScroll, 10);
-      }
-    } catch (e) {}
-  }, [galleryParam]);
-
-  // ✅ Save displayCount on change
-  useEffect(() => {
-    if (typeof window === 'undefined' || !galleryParam) return;
-    try {
-      if (displayCount > GALLERY_PAGE_SIZE) {
-        sessionStorage.setItem(`gallery_count_${galleryParam}`, displayCount.toString());
-      }
-    } catch (e) {}
-  }, [displayCount, galleryParam]);
-
-  // ✅ Save scroll position on scroll
-  useEffect(() => {
-    if (typeof window === 'undefined' || !galleryParam) return;
-    
-    const handleScroll = () => {
-      // Don't save scroll when lightbox is open or intro is showing
-      if (selectedIndex !== null || showIntro) return;
-      const scrollY = window.scrollY;
-      if (scrollY > 0) {
-        scrollPositionRef.current = scrollY;
-        try {
-          sessionStorage.setItem(`gallery_scroll_${galleryParam}`, scrollY.toString());
-        } catch (e) {}
-      }
-    };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [galleryParam, selectedIndex, showIntro]);
-
   useEffect(() => {
     async function resolve() {
       if (!firestore || !galleryParam) {
         setIsResolving(false);
         return;
       }
+
       if (galleryParam === 'demo') {
         setGalleryId('demo');
         setIsResolving(false);
         return;
       }
+
       setIsResolving(true);
       const cleanParam = galleryParam.trim();
+
       try {
         const slugQuery = query(
           collection(firestore, 'galleries'),
@@ -194,14 +160,17 @@ export default function ClientGalleryPage() {
           limit(1)
         );
         const slugSnap = await getDocs(slugQuery);
+        
         if (!slugSnap.empty) {
           setGalleryId(slugSnap.docs[0].id);
           return;
         } 
+
         if (/^[a-zA-Z0-9]{20}$/.test(cleanParam)) {
           setGalleryId(cleanParam);
           return;
         }
+
         setGalleryId(null);
       } catch (err: any) {
         console.error("Gallery resolution error:", err);
@@ -219,16 +188,6 @@ export default function ClientGalleryPage() {
   }, [firestore, galleryId]);
 
   const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
-
-  const photosQuery = useMemo(() => {
-    if (!firestore || !galleryId || galleryId === 'demo') return null;
-    return query(
-      collection(firestore, 'galleries', galleryId, 'photos'),
-      orderBy('order', 'asc')
-    );
-  }, [firestore, galleryId]);
-
-  const { data: subcollectionPhotos, loading: photosLoading } = useCollection(photosQuery);
 
   const gallery = useMemo(() => {
     if (galleryParam === 'demo' || galleryId === 'demo') {
@@ -251,17 +210,14 @@ export default function ClientGalleryPage() {
         musicUrl: ''
       };
     }
-    if (!dbGallery) return null;
-    const photos = (subcollectionPhotos && subcollectionPhotos.length > 0)
-      ? subcollectionPhotos
-      : (dbGallery.items || []);
-    return { ...dbGallery, items: photos };
-  }, [dbGallery, subcollectionPhotos, galleryId, galleryParam, demoItems]);
+    return dbGallery;
+  }, [dbGallery, galleryId, galleryParam, demoItems]);
 
   useEffect(() => {
     if (galleryId) {
       const stored = sessionStorage.getItem(`unlocked_gallery_${galleryId}`);
       if (stored === 'true') setIsUnlocked(true);
+      
       const introSeen = sessionStorage.getItem(`intro_seen_${galleryId}`);
       if (introSeen === 'true') setShowIntro(false);
     }
@@ -272,7 +228,9 @@ export default function ClientGalleryPage() {
       if (gallery?.musicStorageKey) {
         try {
           const result = await getFreshMusicUrl(gallery.musicStorageKey);
-          if (result.success && result.url) setFreshMusicUrl(result.url);
+          if (result.success && result.url) {
+            setFreshMusicUrl(result.url);
+          }
         } catch (err) {
           console.error('[FRESH_MUSIC] Error:', err);
         }
@@ -280,29 +238,6 @@ export default function ClientGalleryPage() {
     }
     fetchFreshMusic();
   }, [gallery?.musicStorageKey]);
-
-  // ✅ RESTORE SCROLL POSITION once gallery is loaded
-  useEffect(() => {
-    if (hasRestoredScrollRef.current) return;
-    if (isResolving || docLoading || photosLoading) return;
-    if (!gallery || gallery.items?.length === 0) return;
-    if (showIntro) return;
-    if (selectedIndex !== null) return;
-
-    const savedScroll = scrollPositionRef.current;
-    if (savedScroll > 0) {
-      // Small delay to let images start rendering
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          window.scrollTo({ top: savedScroll, behavior: 'instant' as any });
-          hasRestoredScrollRef.current = true;
-          console.log(`[SCROLL] Restored to ${savedScroll}px`);
-        }, 100);
-      });
-    } else {
-      hasRestoredScrollRef.current = true;
-    }
-  }, [isResolving, docLoading, photosLoading, gallery, showIntro, selectedIndex]);
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
@@ -332,13 +267,19 @@ export default function ClientGalleryPage() {
 
   const handleEnterGallery = useCallback(() => {
     setIntroLeaving(true);
+    
     if (hasMusic && audioRef.current) {
       audioRef.current.volume = 0.5;
-      audioRef.current.play().catch(err => console.log('Music autoplay blocked:', err));
+      audioRef.current.play().catch(err => {
+        console.log('Music autoplay blocked:', err);
+      });
     }
+    
     setTimeout(() => {
       setShowIntro(false);
-      if (galleryId) sessionStorage.setItem(`intro_seen_${galleryId}`, 'true');
+      if (galleryId) {
+        sessionStorage.setItem(`intro_seen_${galleryId}`, 'true');
+      }
     }, 800);
   }, [galleryId, hasMusic]);
 
@@ -353,45 +294,23 @@ export default function ClientGalleryPage() {
     }
   }, [isMusicMuted]);
 
-  // ✅ SAVE SCROLL BEFORE OPENING LIGHTBOX
   const openLightbox = useCallback((index: number) => {
-    // Save current scroll position
-    if (typeof window !== 'undefined' && galleryParam) {
-      const scrollY = window.scrollY;
-      scrollPositionRef.current = scrollY;
-      try {
-        sessionStorage.setItem(`gallery_scroll_${galleryParam}`, scrollY.toString());
-      } catch (e) {}
-    }
     setSelectedIndex(index);
     setIsSlideshowPlaying(false);
-  }, [galleryParam]);
+  }, []);
 
-  // ✅ CLOSE LIGHTBOX — RESTORE SCROLL INSTANTLY
   const closeLightbox = useCallback(() => {
-    const savedScroll = scrollPositionRef.current;
     setSelectedIndex(null);
     setIsSlideshowPlaying(false);
-    
-    // Restore scroll immediately after lightbox closes
-    if (savedScroll > 0) {
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: savedScroll, behavior: 'instant' as any });
-      });
-    }
   }, []);
 
   const goNext = useCallback(() => {
     if (totalItems === 0) return;
     setSelectedIndex(prev => {
       if (prev === null) return 0;
-      const next = prev < totalItems - 1 ? prev + 1 : 0;
-      if (next >= displayCount - 5 && displayCount < totalItems) {
-        setDisplayCount(c => Math.min(c + GALLERY_PAGE_SIZE, totalItems));
-      }
-      return next;
+      return prev < totalItems - 1 ? prev + 1 : 0;
     });
-  }, [totalItems, displayCount]);
+  }, [totalItems]);
 
   const goPrev = useCallback(() => {
     if (totalItems === 0) return;
@@ -403,18 +322,16 @@ export default function ClientGalleryPage() {
 
   useEffect(() => {
     if (!isSlideshowPlaying || selectedIndex === null) return;
+    
     const timer = setInterval(() => {
       setSelectedIndex(prev => {
         if (prev === null) return 0;
-        const next = prev < totalItems - 1 ? prev + 1 : 0;
-        if (next >= displayCount - 5 && displayCount < totalItems) {
-          setDisplayCount(c => Math.min(c + GALLERY_PAGE_SIZE, totalItems));
-        }
-        return next;
+        return prev < totalItems - 1 ? prev + 1 : 0;
       });
     }, SLIDESHOW_INTERVAL);
+
     return () => clearInterval(timer);
-  }, [isSlideshowPlaying, selectedIndex, totalItems, displayCount]);
+  }, [isSlideshowPlaying, selectedIndex, totalItems]);
 
   useEffect(() => {
     if (selectedIndex === null) return;
@@ -428,18 +345,11 @@ export default function ClientGalleryPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [selectedIndex, closeLightbox, goNext, goPrev]);
 
-  // ✅ BODY SCROLL LOCK — Restore scroll on unlock
   useEffect(() => {
     if (selectedIndex !== null || (showIntro && !introLeaving)) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
-      // After lightbox closes, ensure scroll is at saved position
-      if (selectedIndex === null && !showIntro && scrollPositionRef.current > 0) {
-        requestAnimationFrame(() => {
-          window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' as any });
-        });
-      }
     }
     return () => { document.body.style.overflow = ''; };
   }, [selectedIndex, showIntro, introLeaving]);
@@ -457,14 +367,19 @@ export default function ClientGalleryPage() {
     }
   };
 
-  const handleFavorite = useCallback(async (itemId: string, isCurrentlyFavorite: boolean) => {
+  const handleFavorite = useCallback((itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
-    const photoRef = doc(firestore, 'galleries', galleryId, 'photos', itemId);
-    updateDoc(photoRef, { isFavorite: !isCurrentlyFavorite }).catch(() => {});
+    const gRef = doc(firestore, 'galleries', galleryId);
+    const updatedItems = (gallery.items || []).map((item: any) => 
+      item.id === itemId ? { ...item, isFavorite: !isCurrentlyFavorite } : item
+    );
+    updateDoc(gRef, { items: updatedItems }).catch(() => {});
   }, [firestore, gallery, galleryId]);
 
+  // ✅ SINGLE clean handleDownloadSingle — iframe approach
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload) return;
+
     if (!item.originalReady || !item.originalKey) {
       toast({
         variant: "destructive",
@@ -473,23 +388,53 @@ export default function ClientGalleryPage() {
       });
       return;
     }
+
     const filename = item.fileName || `photo-${item.id}.jpg`;
+
     try {
       const res = await fetch('/api/download-original', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key: item.originalKey }),
+        body: JSON.stringify({ 
+          key: item.originalKey,
+          filename: filename,
+        }),
       });
+
       if (!res.ok) throw new Error('Failed to get download URL');
       const data = await res.json();
       if (!data.url) throw new Error('No download URL');
-      const link = document.createElement('a');
-      link.href = data.url;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "✅ Download Started", description: filename });
+
+      // Hidden iframe — mobile friendly download
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.style.position = 'fixed';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.src = data.url;
+      document.body.appendChild(iframe);
+
+      setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+      }, 60000);
+
+      // Desktop fallback
+      if (!/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+        const link = document.createElement('a');
+        link.href = data.url;
+        link.download = filename;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      toast({
+        title: "✅ Download Started",
+        description: `${filename} — check your Downloads / Files app.`,
+      });
+
     } catch (error: any) {
       console.error('[DOWNLOAD] Error:', error);
       toast({
@@ -502,42 +447,37 @@ export default function ClientGalleryPage() {
 
   const handleDownloadAll = useCallback(async () => {
     if (isPreparing || !gallery || !canDownload) return;
-    const items = gallery.items || [];
-    const notReady = items.filter((it: any) => !it.originalReady || !it.originalKey);
-    if (notReady.length > 0) {
-      toast({
-        variant: "destructive",
-        title: "⏳ Originals Processing",
-        description: `${notReady.length} photos abhi upload ho rahi hain. Wait karein.`,
-      });
-      return;
-    }
     setIsPreparing(true);
     const zip = new JSZip();
+    const items = gallery.items || [];
+    
     try {
       for (let i = 0; i < items.length; i++) {
-        setPreparationStep(`Fetching original: ${i + 1} / ${items.length}`);
+        setPreparationStep(`Fetching: ${i + 1} / ${items.length}`);
         const item = items[i];
         if (!item.originalKey) continue;
+
         const urlRes = await fetch('/api/download-original', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ key: item.originalKey }),
+          body: JSON.stringify({ 
+            key: item.originalKey,
+            filename: item.fileName || `photo-${i + 1}.jpg`,
+          }),
         });
         if (!urlRes.ok) continue;
         const { url } = await urlRes.json();
         if (!url) continue;
+
         const fileRes = await fetch(url);
         const blob = await fileRes.blob();
         zip.file(item.fileName || `photo-${i + 1}.jpg`, blob);
       }
-      setPreparationStep('Compiling ZIP package...');
+      setPreparationStep('Compiling Package...');
       const content = await zip.generateAsync({ type: 'blob' });
       saveAs(content, `${gallery.title || 'gallery'}.zip`);
-      toast({ title: "✅ ZIP Ready", description: "Download started" });
-    } catch (error: any) {
-      console.error('[ZIP] Error:', error);
-      toast({ variant: "destructive", title: "Package Error", description: error.message });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Package Error" });
     } finally {
       setIsPreparing(false);
       setPreparationStep('');
@@ -599,18 +539,12 @@ export default function ClientGalleryPage() {
 
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    scrollPositionRef.current = 0;
-    if (typeof window !== 'undefined' && galleryParam) {
-      try {
-        sessionStorage.removeItem(`gallery_scroll_${galleryParam}`);
-      } catch (e) {}
-    }
-  }, [galleryParam]);
+  }, []);
 
   const isLoading = useMemo(() => {
     if (galleryParam === 'demo') return isResolving || authLoading;
-    return isResolving || (galleryId && docLoading) || authLoading || (galleryId && photosLoading);
-  }, [galleryParam, isResolving, galleryId, docLoading, photosLoading, authLoading]);
+    return isResolving || (galleryId && docLoading) || authLoading;
+  }, [galleryParam, isResolving, galleryId, docLoading, authLoading]);
 
   if (isLoading) {
     return <HafashLoader text="Synchronizing Luxury Assets..." />;
@@ -709,7 +643,10 @@ export default function ClientGalleryPage() {
           introLeaving ? "animate-out fade-out zoom-out-105 duration-800" : "animate-in fade-in duration-1000"
         )}
       >
-        {hasMusic && <audio ref={audioRef} src={musicUrl} loop preload="auto" />}
+        {hasMusic && (
+          <audio ref={audioRef} src={musicUrl} loop preload="auto" />
+        )}
+
         <div className="absolute inset-0">
           {effectiveHeroImage ? (
             <img 
@@ -721,7 +658,9 @@ export default function ClientGalleryPage() {
           ) : null}
           <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black" />
         </div>
+
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.7)_100%)]" />
+
         <div className="relative z-10 text-center px-6 max-w-4xl mx-auto space-y-12">
           <div className="animate-in fade-in slide-in-from-top-8 duration-1200 delay-200">
             {isCustomBrandingActive && studioLogo ? (
@@ -733,11 +672,13 @@ export default function ClientGalleryPage() {
               </div>
             )}
           </div>
+
           <div className="flex items-center justify-center gap-4 animate-in fade-in duration-1000 delay-700">
             <div className="h-px w-16 bg-gradient-to-r from-transparent to-primary/60" />
             <Sparkles className="w-4 h-4 text-primary" />
             <div className="h-px w-16 bg-gradient-to-l from-transparent to-primary/60" />
           </div>
+
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1200 delay-500">
             <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg">
               {studioName}
@@ -754,6 +695,7 @@ export default function ClientGalleryPage() {
               <span>{gallery.date}</span>
             </div>
           </div>
+
           <div className="pt-8 animate-in fade-in slide-in-from-bottom-10 duration-1200 delay-1000">
             <Button 
               onClick={handleEnterGallery}
@@ -767,6 +709,7 @@ export default function ClientGalleryPage() {
             </p>
           </div>
         </div>
+
         <style jsx global>{`
           @keyframes kenburns {
             from { transform: scale(1.1) translate(0, 0); }
@@ -783,7 +726,8 @@ export default function ClientGalleryPage() {
 
       {hasMusic && (
         <Button 
-          variant="ghost" size="icon"
+          variant="ghost" 
+          size="icon"
           className="fixed top-6 right-6 lg:top-10 lg:right-10 z-[70] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground transition-all shadow-2xl"
           onClick={toggleMusic}
         >
@@ -937,7 +881,7 @@ export default function ClientGalleryPage() {
               </Button>
             )}
 
-            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 border-white/30 text-white hover:bg-white/10 gap-4 backdrop-blur-xl text-sm lg:text-base transition-all" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
+            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 border-white/30 text-white hover:bg-white/10 gap-4 backdrop-blur-xl text-sm lg:text-base transition-all" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}>
               <Share2 className="w-5 h-5 lg:w-6 lg:h-6" /> Share
             </Button>
           </div>
@@ -950,7 +894,7 @@ export default function ClientGalleryPage() {
 
       <div className="max-w-7xl mx-auto px-6 mt-24 space-y-20">
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
-          {gallery.items?.slice(0, displayCount).map((item: any, idx: number) => (
+          {gallery.items?.map((item: any, idx: number) => (
             <GalleryItem 
               key={item.id}
               item={item}
@@ -959,21 +903,10 @@ export default function ClientGalleryPage() {
               onFavorite={handleFavorite}
               onDownload={handleDownloadSingle}
               onSelect={() => openLightbox(idx)}
-              priority={idx < 6}
+              priority={idx < 2}
             />
           ))}
         </div>
-
-        {totalItems > displayCount && (
-          <div className="flex justify-center pt-12">
-            <Button
-              onClick={() => setDisplayCount(prev => prev + GALLERY_PAGE_SIZE)}
-              className="rounded-full h-14 px-10 font-bold gap-3 bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xl hover:scale-105 transition-all"
-            >
-              Load More Photos ({totalItems - displayCount} remaining)
-            </Button>
-          </div>
-        )}
 
         {(!gallery.items || gallery.items.length === 0) && (
           <div className="text-center py-40 border-2 border-dashed border-border/20 rounded-[4rem] bg-card/10 animate-in fade-in duration-1000">
@@ -987,26 +920,31 @@ export default function ClientGalleryPage() {
         <div className="relative mt-40 py-32 lg:py-40 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.08)_0%,transparent_70%)]" />
+
           <div className="relative z-10 max-w-4xl mx-auto px-6 text-center space-y-10">
             <div className="animate-in fade-in zoom-in-95 duration-1000">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 border border-primary/30 shadow-2xl">
                 <Sparkles className="w-9 h-9 text-primary" />
               </div>
             </div>
+
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-200">
               <div className="flex items-center justify-center gap-4">
                 <div className="h-px w-16 bg-gradient-to-r from-transparent to-primary/60" />
                 <span className="text-[10px] font-bold uppercase tracking-[0.6em] text-primary">The End</span>
                 <div className="h-px w-16 bg-gradient-to-l from-transparent to-primary/60" />
               </div>
+
               <h2 className="text-4xl sm:text-6xl lg:text-7xl font-headline font-bold text-white uppercase tracking-tight leading-[1.1] drop-shadow-2xl">
                 Thank You,<br />
                 <span className="text-primary italic">{gallery.clientName}</span>
               </h2>
+
               <p className="text-lg lg:text-xl text-muted-foreground italic font-headline max-w-2xl mx-auto leading-relaxed pt-4">
                 {gallery.thankYouMessage || `It was an honor to capture your beautiful moments. Thank you for choosing ${studioName}.`}
               </p>
             </div>
+
             <div className="pt-8 animate-in fade-in duration-1000 delay-500">
               {isCustomBrandingActive && studioLogo ? (
                 <img src={studioLogo} className="h-16 w-auto mx-auto object-contain opacity-80" alt="Studio Logo" />
@@ -1016,6 +954,7 @@ export default function ClientGalleryPage() {
                 </p>
               )}
             </div>
+
             <div className="flex flex-wrap justify-center items-center gap-4 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-700">
               {whatsappNumber && (
                 <Button 
@@ -1025,6 +964,7 @@ export default function ClientGalleryPage() {
                   <MessageCircle className="w-5 h-5" /> Contact Studio
                 </Button>
               )}
+
               <Button 
                 variant="outline"
                 className="rounded-full px-10 h-14 border-white/20 text-white hover:bg-white/10 gap-3 backdrop-blur-xl font-bold transition-all hover:scale-105"
@@ -1032,6 +972,7 @@ export default function ClientGalleryPage() {
               >
                 <Share2 className="w-5 h-5" /> Share Gallery
               </Button>
+
               <Button 
                 variant="outline"
                 className="rounded-full px-10 h-14 border-white/20 text-white hover:bg-white/10 gap-3 backdrop-blur-xl font-bold transition-all hover:scale-105"
@@ -1069,7 +1010,8 @@ export default function ClientGalleryPage() {
           </div>
 
           <Button 
-            variant="ghost" size="icon" 
+            variant="ghost" 
+            size="icon" 
             className="absolute top-6 right-6 lg:top-10 lg:right-10 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
             onClick={(e) => { e.stopPropagation(); closeLightbox(); }}
           >
@@ -1078,7 +1020,8 @@ export default function ClientGalleryPage() {
 
           {totalItems > 1 && (
             <Button 
-              variant="ghost" size="icon" 
+              variant="ghost" 
+              size="icon" 
               className="absolute left-4 lg:left-10 top-1/2 -translate-y-1/2 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
               onClick={(e) => { e.stopPropagation(); setIsSlideshowPlaying(false); goPrev(); }}
             >
@@ -1088,7 +1031,8 @@ export default function ClientGalleryPage() {
 
           {totalItems > 1 && (
             <Button 
-              variant="ghost" size="icon" 
+              variant="ghost" 
+              size="icon" 
               className="absolute right-4 lg:right-10 top-1/2 -translate-y-1/2 z-30 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl bg-black/40 backdrop-blur-xl border border-white/20"
               onClick={(e) => { e.stopPropagation(); setIsSlideshowPlaying(false); goNext(); }}
             >
@@ -1114,7 +1058,8 @@ export default function ClientGalleryPage() {
           >
             {totalItems > 1 && (
               <Button 
-                variant="ghost" size="icon"
+                variant="ghost" 
+                size="icon"
                 className={cn(
                   "h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all",
                   isSlideshowPlaying && "bg-primary text-primary-foreground"
@@ -1126,7 +1071,8 @@ export default function ClientGalleryPage() {
             )}
 
             <Button 
-              variant="ghost" size="icon"
+              variant="ghost" 
+              size="icon"
               className={cn(
                 "h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all",
                 gallery.items[selectedIndex].isFavorite && "bg-primary text-primary-foreground"
@@ -1138,7 +1084,8 @@ export default function ClientGalleryPage() {
 
             {canDownload && (
               <Button 
-                variant="ghost" size="icon"
+                variant="ghost" 
+                size="icon"
                 className="h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all"
                 onClick={() => handleDownloadSingle(gallery.items[selectedIndex])}
               >
@@ -1149,7 +1096,8 @@ export default function ClientGalleryPage() {
             <div className="w-px h-6 bg-white/20 mx-1" />
 
             <Button 
-              variant="ghost" size="icon"
+              variant="ghost" 
+              size="icon"
               className="h-12 w-12 rounded-full text-white hover:bg-primary hover:text-primary-foreground transition-all"
               onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied" }); }}
             >
