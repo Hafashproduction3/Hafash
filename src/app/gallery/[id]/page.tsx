@@ -112,6 +112,10 @@ export default function ClientGalleryPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
+  
+  // ✅ SCROLL PERSISTENCE REFS
+  const scrollPositionRef = useRef<number>(0);
+  const hasRestoredScrollRef = useRef<boolean>(false);
 
   const demoItems = useMemo(() => [
     { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', fileName: 'demo-1.jpg', isFavorite: false },
@@ -121,6 +125,54 @@ export default function ClientGalleryPage() {
     { id: 'demo-5', url: 'https://picsum.photos/seed/hafash-demo-5/1200/1600', fileName: 'demo-5.jpg', isFavorite: false },
     { id: 'demo-6', url: 'https://picsum.photos/seed/hafash-demo-6/1200/1600', fileName: 'demo-6.jpg', isFavorite: false },
   ], []);
+
+  // ✅ Load displayCount + scroll position from sessionStorage
+  useEffect(() => {
+    if (typeof window === 'undefined' || !galleryParam) return;
+    try {
+      const savedCount = sessionStorage.getItem(`gallery_count_${galleryParam}`);
+      if (savedCount) {
+        const count = parseInt(savedCount, 10);
+        if (count > GALLERY_PAGE_SIZE) {
+          setDisplayCount(count);
+        }
+      }
+      const savedScroll = sessionStorage.getItem(`gallery_scroll_${galleryParam}`);
+      if (savedScroll) {
+        scrollPositionRef.current = parseInt(savedScroll, 10);
+      }
+    } catch (e) {}
+  }, [galleryParam]);
+
+  // ✅ Save displayCount on change
+  useEffect(() => {
+    if (typeof window === 'undefined' || !galleryParam) return;
+    try {
+      if (displayCount > GALLERY_PAGE_SIZE) {
+        sessionStorage.setItem(`gallery_count_${galleryParam}`, displayCount.toString());
+      }
+    } catch (e) {}
+  }, [displayCount, galleryParam]);
+
+  // ✅ Save scroll position on scroll
+  useEffect(() => {
+    if (typeof window === 'undefined' || !galleryParam) return;
+    
+    const handleScroll = () => {
+      // Don't save scroll when lightbox is open or intro is showing
+      if (selectedIndex !== null || showIntro) return;
+      const scrollY = window.scrollY;
+      if (scrollY > 0) {
+        scrollPositionRef.current = scrollY;
+        try {
+          sessionStorage.setItem(`gallery_scroll_${galleryParam}`, scrollY.toString());
+        } catch (e) {}
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [galleryParam, selectedIndex, showIntro]);
 
   useEffect(() => {
     async function resolve() {
@@ -168,7 +220,6 @@ export default function ClientGalleryPage() {
 
   const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
 
-  // ✅ Subcollection photos listener
   const photosQuery = useMemo(() => {
     if (!firestore || !galleryId || galleryId === 'demo') return null;
     return query(
@@ -201,7 +252,6 @@ export default function ClientGalleryPage() {
       };
     }
     if (!dbGallery) return null;
-    // ✅ Use subcollection photos if available, fallback to items array
     const photos = (subcollectionPhotos && subcollectionPhotos.length > 0)
       ? subcollectionPhotos
       : (dbGallery.items || []);
@@ -230,6 +280,29 @@ export default function ClientGalleryPage() {
     }
     fetchFreshMusic();
   }, [gallery?.musicStorageKey]);
+
+  // ✅ RESTORE SCROLL POSITION once gallery is loaded
+  useEffect(() => {
+    if (hasRestoredScrollRef.current) return;
+    if (isResolving || docLoading || photosLoading) return;
+    if (!gallery || gallery.items?.length === 0) return;
+    if (showIntro) return;
+    if (selectedIndex !== null) return;
+
+    const savedScroll = scrollPositionRef.current;
+    if (savedScroll > 0) {
+      // Small delay to let images start rendering
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          window.scrollTo({ top: savedScroll, behavior: 'instant' as any });
+          hasRestoredScrollRef.current = true;
+          console.log(`[SCROLL] Restored to ${savedScroll}px`);
+        }, 100);
+      });
+    } else {
+      hasRestoredScrollRef.current = true;
+    }
+  }, [isResolving, docLoading, photosLoading, gallery, showIntro, selectedIndex]);
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
@@ -280,14 +353,32 @@ export default function ClientGalleryPage() {
     }
   }, [isMusicMuted]);
 
+  // ✅ SAVE SCROLL BEFORE OPENING LIGHTBOX
   const openLightbox = useCallback((index: number) => {
+    // Save current scroll position
+    if (typeof window !== 'undefined' && galleryParam) {
+      const scrollY = window.scrollY;
+      scrollPositionRef.current = scrollY;
+      try {
+        sessionStorage.setItem(`gallery_scroll_${galleryParam}`, scrollY.toString());
+      } catch (e) {}
+    }
     setSelectedIndex(index);
     setIsSlideshowPlaying(false);
-  }, []);
+  }, [galleryParam]);
 
+  // ✅ CLOSE LIGHTBOX — RESTORE SCROLL INSTANTLY
   const closeLightbox = useCallback(() => {
+    const savedScroll = scrollPositionRef.current;
     setSelectedIndex(null);
     setIsSlideshowPlaying(false);
+    
+    // Restore scroll immediately after lightbox closes
+    if (savedScroll > 0) {
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: savedScroll, behavior: 'instant' as any });
+      });
+    }
   }, []);
 
   const goNext = useCallback(() => {
@@ -337,11 +428,18 @@ export default function ClientGalleryPage() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [selectedIndex, closeLightbox, goNext, goPrev]);
 
+  // ✅ BODY SCROLL LOCK — Restore scroll on unlock
   useEffect(() => {
     if (selectedIndex !== null || (showIntro && !introLeaving)) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
+      // After lightbox closes, ensure scroll is at saved position
+      if (selectedIndex === null && !showIntro && scrollPositionRef.current > 0) {
+        requestAnimationFrame(() => {
+          window.scrollTo({ top: scrollPositionRef.current, behavior: 'instant' as any });
+        });
+      }
     }
     return () => { document.body.style.overflow = ''; };
   }, [selectedIndex, showIntro, introLeaving]);
@@ -359,16 +457,10 @@ export default function ClientGalleryPage() {
     }
   };
 
-  // ✅ Favorite toggle — subcollection update
   const handleFavorite = useCallback(async (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
-    
-    // Update in subcollection
     const photoRef = doc(firestore, 'galleries', galleryId, 'photos', itemId);
     updateDoc(photoRef, { isFavorite: !isCurrentlyFavorite }).catch(() => {});
-    
-    // Update local state for instant feedback
-    // (Firestore listener will update automatically)
   }, [firestore, gallery, galleryId]);
 
   const handleDownloadSingle = useCallback(async (item: any) => {
@@ -507,7 +599,13 @@ export default function ClientGalleryPage() {
 
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, []);
+    scrollPositionRef.current = 0;
+    if (typeof window !== 'undefined' && galleryParam) {
+      try {
+        sessionStorage.removeItem(`gallery_scroll_${galleryParam}`);
+      } catch (e) {}
+    }
+  }, [galleryParam]);
 
   const isLoading = useMemo(() => {
     if (galleryParam === 'demo') return isResolving || authLoading;
