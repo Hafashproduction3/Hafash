@@ -415,6 +415,66 @@ export default function ClientGalleryPage() {
   }, [firestore, gallery, galleryId]);
 
   const handleDownloadSingle = useCallback(async (item: any) => {
+    if (!canDownload) return;
+
+    if (!item.originalReady || !item.originalKey) {
+      toast({
+        variant: "destructive",
+        title: "⏳ Original Processing",
+        description: "Full quality photo abhi upload ho rahi hai. Thora wait karein.",
+      });
+      return;
+    }
+
+    const filename = item.fileName || `photo-${item.id}.jpg`;
+
+    try {
+      // 1. Get signed URL
+      const res = await fetch('/api/download-original', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: item.originalKey }),
+      });
+
+      if (!res.ok) throw new Error('Failed to get download URL');
+      const data = await res.json();
+      if (!data.url) throw new Error('No download URL');
+
+      // 2. Fetch as blob (forces save instead of preview on mobile)
+      const fileRes = await fetch(data.url);
+      if (!fileRes.ok) throw new Error('Failed to fetch file');
+      const blob = await fileRes.blob();
+
+      // 3. Create blob URL (same-origin, so download attribute works)
+      const blobUrl = URL.createObjectURL(blob);
+
+      // 4. Trigger download
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // 5. Cleanup blob URL
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+      // 6. Simple done message
+      toast({
+        title: "✅ Download Done",
+        description: `${filename} saved to your device.`,
+      });
+
+    } catch (error: any) {
+      console.error('[DOWNLOAD] Error:', error);
+      toast({
+        variant: "destructive",
+        title: "Download Failed",
+        description: error.message || "Please try again",
+      });
+    }
+  }, [canDownload, toast]);
     if (!canDownload || !item?.url) return;
     const url = item.masterUrl || item.url;
     const filename = item.fileName || `photo-${item.id}.jpg`;
