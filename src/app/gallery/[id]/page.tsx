@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { 
   Heart, Download, Loader2, MessageCircle, Share2, ShieldAlert,
   ArrowLeft, Send, CheckCircle2, Sparkles, Lock, Unlock, KeyRound, X,
-  Camera, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, ArrowUp
+  Camera, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, ArrowUp,
+  CheckSquare, Square, CheckCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -29,52 +30,88 @@ const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 60;
 
 const GalleryItem = memo(({ 
-  item, showWatermark, canDownload, onFavorite, onDownload, onSelect, priority
+  item, showWatermark, canDownload, onFavorite, onDownload, onSelect, priority,
+  isSelectionMode, isSelected, onToggleSelect
 }: { 
   item: any, showWatermark: boolean, canDownload: boolean,
   onFavorite: (id: string, current: boolean) => void, onDownload: (item: any) => void,
-  onSelect: () => void, priority?: boolean
+  onSelect: () => void, priority?: boolean,
+  isSelectionMode?: boolean, isSelected?: boolean, onToggleSelect?: () => void
 }) => {
   const [loaded, setLoaded] = useState(false);
   if (!item?.url) return null;
 
+  const handleClick = () => {
+    if (isSelectionMode && onToggleSelect) {
+      onToggleSelect();
+    } else {
+      onSelect();
+    }
+  };
+
   return (
     <div 
-      className="relative group overflow-hidden rounded-[2rem] border border-border/10 bg-card/20 cursor-zoom-in shadow-xl transition-all duration-700 hover:shadow-primary/5 aspect-[4/5]" 
-      onClick={onSelect}
+      className={cn(
+        "relative group overflow-hidden rounded-[2rem] border-2 bg-card/20 cursor-pointer shadow-xl transition-all duration-700 aspect-[4/5]",
+        isSelected ? "border-primary ring-4 ring-primary/30" : "border-border/10"
+      )}
+      onClick={handleClick}
     >
       {!loaded && <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />}
       <img 
         src={item.thumbUrl || item.url} 
         alt={item.fileName || "Gallery Asset"}
         className={cn(
-          "w-full h-full object-cover transition-all duration-1000 group-hover:scale-110",
-          loaded ? "opacity-100" : "opacity-0"
+          "w-full h-full object-cover transition-all duration-1000",
+          loaded ? "opacity-100" : "opacity-0",
+          !isSelectionMode && "group-hover:scale-110"
         )}
         loading={priority ? "eager" : "lazy"}
         decoding="async"
         onLoad={() => setLoaded(true)}
       />
-      {showWatermark && <div className="luxury-watermark" />}
-      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
-        <div className="flex gap-4 scale-75 group-hover:scale-100 transition-transform duration-500">
-          <Button 
-            size="icon" 
-            className={cn(
-              "rounded-full h-16 w-16 border-none shadow-2xl transition-all", 
-              item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30 backdrop-blur-md"
-            )} 
-            onClick={(e) => { e.stopPropagation(); onFavorite(item.id, !!item.isFavorite); }}
-          >
-            <Heart className={cn("w-7 h-7", item.isFavorite ? "fill-current" : "")} />
-          </Button>
-          {canDownload && (
-            <Button size="icon" className="rounded-full h-16 w-16 bg-white text-black hover:bg-gray-100 shadow-2xl transition-all" onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
-              <Download className="w-7 h-7" />
-            </Button>
-          )}
+      
+      {/* Selection Checkbox */}
+      {isSelectionMode && (
+        <div className="absolute top-3 right-3 z-20">
+          <div className={cn(
+            "h-10 w-10 rounded-full flex items-center justify-center shadow-2xl border-2 transition-all",
+            isSelected 
+              ? "bg-primary border-primary" 
+              : "bg-white/90 border-white/50 backdrop-blur-md"
+          )}>
+            {isSelected ? (
+              <CheckCheck className="w-6 h-6 text-primary-foreground" />
+            ) : (
+              <Square className="w-5 h-5 text-black/40" />
+            )}
+          </div>
         </div>
-      </div>
+      )}
+      
+      {showWatermark && <div className="luxury-watermark" />}
+      
+      {!isSelectionMode && (
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
+          <div className="flex gap-4 scale-75 group-hover:scale-100 transition-transform duration-500">
+            <Button 
+              size="icon" 
+              className={cn(
+                "rounded-full h-16 w-16 border-none shadow-2xl transition-all", 
+                item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30 backdrop-blur-md"
+              )} 
+              onClick={(e) => { e.stopPropagation(); onFavorite(item.id, !!item.isFavorite); }}
+            >
+              <Heart className={cn("w-7 h-7", item.isFavorite ? "fill-current" : "")} />
+            </Button>
+            {canDownload && (
+              <Button size="icon" className="rounded-full h-16 w-16 bg-white text-black hover:bg-gray-100 shadow-2xl transition-all" onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
+                <Download className="w-7 h-7" />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 });
@@ -95,16 +132,18 @@ export default function ClientGalleryPage() {
   const [preparationStep, setPreparationStep] = useState<string>('');
   const [displayCount, setDisplayCount] = useState(GALLERY_PAGE_SIZE);
   
+  // Selection mode
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [verifying, setVerifying] = useState(false);
-
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
   const [replySuccess, setReplySuccess] = useState(false);
   const [helpfulClicked, setHelpfulClicked] = useState(false);
-
   const [showIntro, setShowIntro] = useState(true);
   const [introLeaving, setIntroLeaving] = useState(false);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
@@ -114,13 +153,17 @@ export default function ClientGalleryPage() {
   const touchStartX = useRef<number>(0);
   const touchEndX = useRef<number>(0);
   
-  // Scroll persistence
   const scrollPositionRef = useRef<number>(0);
   const hasRestoredScrollRef = useRef<boolean>(false);
-  
-  // Mobile back button support
   const lightboxOpenRef = useRef<boolean>(false);
   const isClosingViaPopstateRef = useRef<boolean>(false);
+
+  const isMobile = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  }, []);
+
+  const MAX_SELECT = isMobile ? 100 : 200;
 
   const demoItems = useMemo(() => [
     { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', fileName: 'demo-1.jpg', isFavorite: false },
@@ -131,7 +174,6 @@ export default function ClientGalleryPage() {
     { id: 'demo-6', url: 'https://picsum.photos/seed/hafash-demo-6/1200/1600', fileName: 'demo-6.jpg', isFavorite: false },
   ], []);
 
-  // Load displayCount + scroll position
   useEffect(() => {
     if (typeof window === 'undefined' || !galleryParam) return;
     try {
@@ -145,7 +187,6 @@ export default function ClientGalleryPage() {
     } catch (e) {}
   }, [galleryParam]);
 
-  // Save displayCount
   useEffect(() => {
     if (typeof window === 'undefined' || !galleryParam) return;
     try {
@@ -155,7 +196,6 @@ export default function ClientGalleryPage() {
     } catch (e) {}
   }, [displayCount, galleryParam]);
 
-  // Save scroll position on scroll
   useEffect(() => {
     if (typeof window === 'undefined' || !galleryParam) return;
     const handleScroll = () => {
@@ -172,7 +212,6 @@ export default function ClientGalleryPage() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [galleryParam, selectedIndex, showIntro]);
 
-  // Mobile back button support
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
@@ -254,7 +293,6 @@ export default function ClientGalleryPage() {
 
   const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
 
-  // ✅ SUBC0LLECTION PHOTOS QUERY — YEH ZAROORI HAI
   const photosQuery = useMemo(() => {
     if (!firestore || !galleryId || galleryId === 'demo') return null;
     return query(
@@ -265,7 +303,6 @@ export default function ClientGalleryPage() {
 
   const { data: subcollectionPhotos, loading: photosLoading } = useCollection(photosQuery);
 
-  // ✅ MERGE subcollection photos with gallery
   const gallery = useMemo(() => {
     if (galleryParam === 'demo' || galleryId === 'demo') {
       return {
@@ -288,7 +325,6 @@ export default function ClientGalleryPage() {
       };
     }
     if (!dbGallery) return null;
-    // ✅ Use subcollection if available, fallback to items array
     const photos = (subcollectionPhotos && subcollectionPhotos.length > 0)
       ? subcollectionPhotos
       : (dbGallery.items || []);
@@ -316,7 +352,6 @@ export default function ClientGalleryPage() {
     fetchFreshMusic();
   }, [gallery?.musicStorageKey]);
 
-  // Restore scroll once loaded
   useEffect(() => {
     if (hasRestoredScrollRef.current) return;
     if (isResolving || docLoading || photosLoading) return;
@@ -482,14 +517,177 @@ export default function ClientGalleryPage() {
     }
   };
 
-  // ✅ FAVORITE — Subcollection update
   const handleFavorite = useCallback(async (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
     const photoRef = doc(firestore, 'galleries', galleryId, 'photos', itemId);
     updateDoc(photoRef, { isFavorite: !isCurrentlyFavorite }).catch(() => {});
   }, [firestore, gallery, galleryId]);
 
-  // ✅ DOWNLOAD — Hidden iframe for mobile
+  // Toggle Selection
+  const togglePhotoSelection = useCallback((photoId: string) => {
+    setSelectedPhotos(prev => {
+      const next = new Set(prev);
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else {
+        if (next.size >= MAX_SELECT) {
+          toast({
+            variant: "destructive",
+            title: `⚠️ Max ${MAX_SELECT} photos`,
+            description: isMobile 
+              ? "Mobile pe 100 se zyada select nahi."
+              : "Desktop pe 200 se zyada select nahi.",
+          });
+          return prev;
+        }
+        next.add(photoId);
+      }
+      return next;
+    });
+  }, [MAX_SELECT, isMobile, toast]);
+
+  const handleSelectAll = useCallback(() => {
+    if (!gallery?.items) return;
+    const visibleIds = gallery.items.slice(0, displayCount).map((it: any) => it.id);
+    const limitedIds = visibleIds.slice(0, MAX_SELECT);
+    setSelectedPhotos(new Set(limitedIds));
+    
+    if (visibleIds.length > MAX_SELECT) {
+      toast({
+        title: `Max ${MAX_SELECT} photos selected`,
+        description: isMobile 
+          ? "Mobile pe 100 max — baaki manually select karein."
+          : "Desktop pe 200 max — baaki manually select karein.",
+      });
+    }
+  }, [gallery, displayCount, MAX_SELECT, isMobile, toast]);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedPhotos(new Set());
+    setIsSelectionMode(false);
+  }, []);
+
+  // ✅ Download SELECTED photos
+  const handleDownloadSelected = useCallback(async () => {
+    if (selectedPhotos.size === 0) {
+      toast({
+        variant: "destructive",
+        title: "No photos selected",
+        description: "Photos select karein pehle.",
+      });
+      return;
+    }
+
+    if (!gallery) return;
+
+    const selectedItems = (gallery.items || []).filter((it: any) => 
+      selectedPhotos.has(it.id) && it.originalReady && it.originalKey
+    );
+
+    if (selectedItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "⏳ Photos processing",
+        description: "Selected photos abhi upload ho rahi hain.",
+      });
+      return;
+    }
+
+    const CHUNK_SIZE = isMobile ? 100 : 200;
+
+    setIsPreparing(true);
+
+    try {
+      const totalChunks = Math.ceil(selectedItems.length / CHUNK_SIZE);
+
+      for (let chunkIdx = 0; chunkIdx < totalChunks; chunkIdx++) {
+        const start = chunkIdx * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, selectedItems.length);
+        const chunk = selectedItems.slice(start, end);
+
+        const zip = new JSZip();
+        let successCount = 0;
+
+        for (let i = 0; i < chunk.length; i++) {
+          const item = chunk[i];
+          const globalIdx = start + i + 1;
+          setPreparationStep(`Preparing ${globalIdx}/${selectedItems.length}...`);
+
+          try {
+            const urlRes = await fetch('/api/download-original', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                key: item.originalKey,
+                filename: item.fileName || `photo-${globalIdx}.jpg`,
+              }),
+            });
+
+            if (!urlRes.ok) continue;
+            const { url } = await urlRes.json();
+            if (!url) continue;
+
+            const fileRes = await fetch(url);
+            if (!fileRes.ok) continue;
+            const blob = await fileRes.blob();
+            zip.file(item.fileName || `photo-${globalIdx}.jpg`, blob);
+            successCount++;
+          } catch (err) {
+            console.error(`[ZIP] Failed: ${item.fileName}`, err);
+          }
+        }
+
+        if (successCount === 0) continue;
+
+        setPreparationStep(`Compiling ZIP ${chunkIdx + 1}/${totalChunks}...`);
+        const content = await zip.generateAsync({ 
+          type: 'blob',
+          compression: 'STORE',
+        });
+
+        const baseName = gallery.title?.replace(/[^a-z0-9]/gi, '_') || 'gallery';
+        const zipName = totalChunks > 1
+          ? `${baseName}_part${chunkIdx + 1}of${totalChunks}.zip`
+          : `${baseName}_selected.zip`;
+
+        saveAs(content, zipName);
+
+        if (chunkIdx < totalChunks - 1) {
+          await new Promise(r => setTimeout(r, 800));
+        }
+      }
+
+      toast({
+        title: "✅ Download Complete",
+        description: `${selectedItems.length} photos downloaded.`,
+      });
+
+      setSelectedPhotos(new Set());
+      setIsSelectionMode(false);
+
+    } catch (error: any) {
+      console.error('[ZIP] Error:', error);
+      
+      if (error.name === 'RangeError' || error.message?.includes('memory')) {
+        toast({
+          variant: "destructive",
+          title: "⚠️ Memory Issue",
+          description: "Photos kam karein ya desktop pe try karein.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Download Failed",
+          description: error.message || "Please try again.",
+        });
+      }
+    } finally {
+      setIsPreparing(false);
+      setPreparationStep('');
+    }
+  }, [gallery, selectedPhotos, isMobile, toast]);
+
+  // ✅ Individual photo download
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload) return;
 
@@ -508,10 +706,7 @@ export default function ClientGalleryPage() {
       const res = await fetch('/api/download-original', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          key: item.originalKey,
-          filename: filename,
-        }),
+        body: JSON.stringify({ key: item.originalKey, filename }),
       });
 
       if (!res.ok) throw new Error('Failed to get download URL');
@@ -543,7 +738,7 @@ export default function ClientGalleryPage() {
 
       toast({
         title: "✅ Download Started",
-        description: `${filename} — check your Downloads / Files app.`,
+        description: filename,
       });
 
     } catch (error: any) {
@@ -555,45 +750,6 @@ export default function ClientGalleryPage() {
       });
     }
   }, [canDownload, toast]);
-
-  const handleDownloadAll = useCallback(async () => {
-    if (isPreparing || !gallery || !canDownload) return;
-    setIsPreparing(true);
-    const zip = new JSZip();
-    const items = gallery.items || [];
-    
-    try {
-      for (let i = 0; i < items.length; i++) {
-        setPreparationStep(`Fetching: ${i + 1} / ${items.length}`);
-        const item = items[i];
-        if (!item.originalKey) continue;
-
-        const urlRes = await fetch('/api/download-original', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            key: item.originalKey,
-            filename: item.fileName || `photo-${i + 1}.jpg`,
-          }),
-        });
-        if (!urlRes.ok) continue;
-        const { url } = await urlRes.json();
-        if (!url) continue;
-
-        const fileRes = await fetch(url);
-        const blob = await fileRes.blob();
-        zip.file(item.fileName || `photo-${i + 1}.jpg`, blob);
-      }
-      setPreparationStep('Compiling Package...');
-      const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `${gallery.title || 'gallery'}.zip`);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Package Error" });
-    } finally {
-      setIsPreparing(false);
-      setPreparationStep('');
-    }
-  }, [gallery, canDownload, isPreparing, toast]);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -832,7 +988,7 @@ export default function ClientGalleryPage() {
     <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-1000">
       {hasMusic && <audio ref={audioRef} src={musicUrl} loop preload="auto" />}
 
-      {hasMusic && (
+      {hasMusic && !isSelectionMode && (
         <Button 
           variant="ghost" size="icon"
           className="fixed top-6 right-6 lg:top-10 lg:right-10 z-[70] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground transition-all shadow-2xl"
@@ -845,10 +1001,50 @@ export default function ClientGalleryPage() {
       <Button 
         variant="ghost" size="icon" 
         className="fixed top-6 left-6 lg:top-10 lg:left-10 z-[60] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground transition-all shadow-2xl"
-        onClick={() => router.back()}
+        onClick={() => {
+          if (isSelectionMode) {
+            handleClearSelection();
+          } else {
+            router.back();
+          }
+        }}
       >
         <ArrowLeft className="w-6 h-6 lg:w-7 lg:h-7" />
       </Button>
+
+      {/* SELECTION MODE TOP BAR */}
+      {isSelectionMode && (
+        <div className="fixed top-0 left-0 right-0 z-[65] bg-gradient-to-b from-primary/95 to-primary/90 backdrop-blur-xl border-b border-primary-foreground/20 shadow-2xl">
+          <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-primary-foreground font-bold text-sm lg:text-base">
+                {selectedPhotos.size} selected
+              </span>
+              <span className="text-primary-foreground/70 text-xs">
+                (Max {MAX_SELECT})
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button 
+                size="sm"
+                variant="ghost"
+                className="text-primary-foreground hover:bg-primary-foreground/20 text-xs"
+                onClick={handleSelectAll}
+              >
+                Select All
+              </Button>
+              <Button 
+                size="sm"
+                variant="ghost"
+                className="text-primary-foreground hover:bg-primary-foreground/20 text-xs"
+                onClick={handleClearSelection}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className={cn(
         "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col items-center justify-center bg-card shadow-2xl transition-all duration-1000",
@@ -921,70 +1117,16 @@ export default function ClientGalleryPage() {
               </Button>
             )}
 
-            {hasNoteContent && (
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-4 shadow-2xl backdrop-blur-xl text-sm lg:text-base transition-all hover:scale-105">
-                    <Sparkles className="w-5 h-5" /> Photographer's Note
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-card border-border/50 rounded-[3rem] p-10 lg:p-16 shadow-2xl max-w-3xl overflow-hidden ring-1 ring-white/10">
-                  <DialogHeader className="mb-10">
-                    <div className="flex flex-col items-center text-center space-y-6">
-                      {isCustomBrandingActive && studioLogo ? (
-                        <img src={studioLogo} className="h-16 w-auto mb-2 object-contain" alt="Studio Logo" decoding="async" />
-                      ) : (
-                        <span className="text-2xl font-headline font-bold text-primary italic mb-2">{studioName}</span>
-                      )}
-                      <DialogTitle className="text-3xl lg:text-4xl font-headline font-bold uppercase tracking-tight leading-tight">
-                        {gallery.welcomeTitle || "Message From Your Photographer"}
-                      </DialogTitle>
-                    </div>
-                  </DialogHeader>
-                  <div className="space-y-10">
-                    {gallery.welcomeMessage && <p className="text-center text-muted-foreground text-sm uppercase tracking-[0.3em] font-bold px-4">{gallery.welcomeMessage}</p>}
-                    {gallery.photographerNote && <p className="text-2xl lg:text-3xl font-headline italic leading-relaxed text-foreground/90 whitespace-pre-wrap text-center px-6">"{gallery.photographerNote}"</p>}
-                    <div className="flex justify-center">
-                      <Button variant="outline" className={cn("rounded-full gap-3 font-bold transition-all h-12 px-8 border-primary/30 text-base shadow-lg", helpfulClicked ? "bg-primary text-primary-foreground border-primary" : "text-primary hover:bg-primary/10")} onClick={handleHelpfulClick} disabled={helpfulClicked}>
-                        <Heart className={cn("w-5 h-5", helpfulClicked && "fill-current")} />
-                        {helpfulClicked ? "Helpful!" : "Appreciate this"}
-                      </Button>
-                    </div>
-                    {(gallery.clientRepliesEnabled !== false) && (
-                      <div className="pt-10 border-t border-border/20">
-                        {replySuccess ? (
-                          <div className="flex flex-col items-center justify-center py-6 text-center animate-in zoom-in-95 duration-500">
-                            <div className="bg-green-500/10 p-4 rounded-full mb-4 ring-4 ring-green-500/5">
-                              <CheckCircle2 className="w-8 h-8 text-green-500" />
-                            </div>
-                            <p className="text-sm font-bold text-green-500 uppercase tracking-[0.3em]">Reply Delivered to Studio</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-6">
-                            <Label className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground ml-1">Send a reply to the studio</Label>
-                            <div className="relative">
-                              <Textarea placeholder="Type your beautiful thoughts..." className="rounded-[2rem] bg-background/30 border-border/30 focus:border-primary/50 min-h-[100px] p-6 text-base italic shadow-inner" value={replyText} onChange={(e) => setReplyText(e.target.value)} />
-                              <Button size="icon" className="absolute bottom-4 right-4 rounded-2xl bg-primary text-primary-foreground h-12 w-12 shadow-2xl hover:scale-105 transition-transform" onClick={() => handleSubmitReply()} disabled={isSubmittingReply || !replyText.trim()}>
-                                {isSubmittingReply ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                              </Button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
-
-            {canDownload && gallery.items?.length > 0 && (
+            {/* ✅ SELECT PHOTOS BUTTON */}
+            {canDownload && totalItems > 0 && (
               <Button 
-                className={cn("flex-1 sm:w-auto rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-primary/20 border border-primary/40 text-white hover:bg-primary/30 font-bold gap-4 shadow-2xl backdrop-blur-xl text-sm lg:text-base transition-all", isPreparing && "opacity-70 cursor-wait")}
-                onClick={handleDownloadAll}
-                disabled={isPreparing}
+                className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 font-bold gap-4 shadow-2xl text-sm lg:text-base transition-all hover:scale-105"
+                onClick={() => {
+                  setIsSelectionMode(true);
+                  setSelectedPhotos(new Set());
+                }}
               >
-                {isPreparing ? <Loader2 className="w-6 h-6 animate-spin" /> : <Download className="w-6 h-6" />}
-                {isPreparing ? preparationStep : "Full Gallery Download"}
+                <CheckSquare className="w-5 h-5 lg:w-6 lg:h-6" /> Select Photos to Download
               </Button>
             )}
 
@@ -1011,6 +1153,9 @@ export default function ClientGalleryPage() {
               onDownload={handleDownloadSingle}
               onSelect={() => openLightbox(idx)}
               priority={idx < 6}
+              isSelectionMode={isSelectionMode}
+              isSelected={selectedPhotos.has(item.id)}
+              onToggleSelect={() => togglePhotoSelection(item.id)}
             />
           ))}
         </div>
@@ -1034,7 +1179,30 @@ export default function ClientGalleryPage() {
         )}
       </div>
 
-      {totalItems > 0 && (
+      {/* FLOATING DOWNLOAD BUTTON */}
+      {isSelectionMode && selectedPhotos.size > 0 && (
+        <div className="fixed bottom-6 left-4 right-4 lg:left-1/2 lg:-translate-x-1/2 lg:right-auto z-[70]">
+          <Button
+            onClick={handleDownloadSelected}
+            disabled={isPreparing}
+            className="w-full lg:w-auto rounded-2xl h-16 px-10 font-bold gap-3 bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_20px_60px_rgba(212,175,55,0.5)] text-base transition-all hover:scale-105 active:scale-95 disabled:opacity-70"
+          >
+            {isPreparing ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                {preparationStep || "Preparing..."}
+              </>
+            ) : (
+              <>
+                <Download className="w-5 h-5" />
+                Download {selectedPhotos.size} Photos
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+
+      {totalItems > 0 && !isSelectionMode && (
         <div className="relative mt-40 py-32 lg:py-40 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.08)_0%,transparent_70%)]" />
