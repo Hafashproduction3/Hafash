@@ -757,10 +757,64 @@ export default function ClientGalleryPage() {
 
   // ✅ DOWNLOAD ALL — main function (SAB AUTOMATIC)
   const handleDownloadAll = useCallback(async () => {
-    if (!gallery || !gallery.items || gallery.items.length === 0) return;
+    if (!gallery || !galleryId || galleryId === 'demo') return;
     if (!canDownload) return;
 
-    const allItems = gallery.items.filter((it: any) => it.originalReady && it.originalKey);
+    // ✅ STEP 1: Pehle saari photos Firestore se fetch karein (paginated)
+    setIsPreparing(true);
+    let allPhotos: any[] = [];
+
+    try {
+      const photosRef = collection(firestore, 'galleries', galleryId, 'photos');
+      let lastDocument: any = null;
+      let hasMorePhotos = true;
+      const FETCH_SIZE = 100;
+
+      while (hasMorePhotos) {
+        const q = lastDocument
+          ? query(photosRef, orderBy('order', 'asc'), startAfter(lastDocument), limit(FETCH_SIZE))
+          : query(photosRef, orderBy('order', 'asc'), limit(FETCH_SIZE));
+
+        const snap = await getDocs(q);
+        const batch = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        allPhotos = [...allPhotos, ...batch];
+
+        lastDocument = snap.docs[snap.docs.length - 1] || null;
+        hasMorePhotos = snap.docs.length === FETCH_SIZE;
+      }
+    } catch (err) {
+      console.error('[DOWNLOAD_ALL] Fetch failed:', err);
+      setIsPreparing(false);
+      toast({
+        variant: "destructive",
+        title: "Fetch Failed",
+        description: "Photos load nahi ho sakin. Dobara try karein.",
+      });
+      return;
+    }
+
+    setIsPreparing(false);
+
+    if (allPhotos.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "No photos",
+        description: "Is gallery mein photos nahi hain.",
+      });
+      return;
+    }
+
+    // ✅ STEP 2: Sirf original-ready photos filter karein
+    const allItems = allPhotos.filter((it: any) => it.originalReady && it.originalKey);
+
+    if (allItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "⏳ Photos processing",
+        description: "Photos abhi upload ho rahi hain. Thora wait karein.",
+      });
+      return;
+    }
 
     if (allItems.length === 0) {
       toast({
@@ -851,7 +905,7 @@ export default function ClientGalleryPage() {
       });
       setDownloadAllActive(false);
     }
-  }, [gallery, canDownload, BATCH_SIZE, downloadBatch, toast]);
+  }, [gallery, galleryId, firestore, canDownload, BATCH_SIZE, downloadBatch, toast]);
 
   // ✅ Cancel download
   const handleCancelDownloadAll = useCallback(() => {
@@ -1420,7 +1474,7 @@ export default function ClientGalleryPage() {
                 onClick={handleDownloadAll}
                 disabled={downloadAllActive}
               >
-                <Package className="w-5 h-5 lg:w-6 lg:h-6" /> Download All ({totalItems})
+                <Package className="w-5 h-5 lg:w-6 lg:h-6" /> Download All ({gallery.photoCount || totalItems})
               </Button>
             )}
 
