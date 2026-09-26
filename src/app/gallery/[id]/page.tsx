@@ -193,7 +193,6 @@ export default function ClientGalleryPage() {
   const [batchPopupMessage, setBatchPopupMessage] = useState('');
   const [autoContinueCountdown, setAutoContinueCountdown] = useState(0);
   const cancelDownloadAllRef = useRef<boolean>(false);
-  const resumeFromBatchRef = useRef<number>(0);
 
   const isMobile = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
@@ -756,7 +755,7 @@ export default function ClientGalleryPage() {
     return successCount;
   }, []);
 
-  // ✅ DOWNLOAD ALL — main function
+  // ✅ DOWNLOAD ALL — main function (SAB AUTOMATIC)
   const handleDownloadAll = useCallback(async () => {
     if (!gallery || !gallery.items || gallery.items.length === 0) return;
     if (!canDownload) return;
@@ -784,7 +783,8 @@ export default function ClientGalleryPage() {
     let completedSuccessfully = 0;
 
     try {
-      for (let batchIdx = resumeFromBatchRef.current; batchIdx < totalBatches; batchIdx++) {
+      // ✅ FOR LOOP: saari batches automatic chalein
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
         if (cancelDownloadAllRef.current) break;
 
         const start = batchIdx * BATCH_SIZE;
@@ -809,37 +809,24 @@ export default function ClientGalleryPage() {
         } catch (err: any) {
           if (err.message === 'CANCELLED') break;
           console.error(`[DOWNLOAD_ALL] Batch ${batchIdx + 1} failed:`, err);
-          // Continue to next batch even if one fails
         }
 
-        // Agar aur batches baaki hain
+        // ✅ Agar aur batches baaki hain — 4 second countdown phir auto next
         if (batchIdx < totalBatches - 1 && !cancelDownloadAllRef.current) {
-          // Popup dikhayein
-          setBatchPopupMessage(
-            `Batch ${batchIdx + 1} of ${totalBatches} complete! (${completedSuccessfully} photos downloaded)`
-          );
+          setBatchPopupMessage(`Batch ${batchIdx + 1} of ${totalBatches} complete!`);
           setShowBatchPopup(true);
           
-          // Auto-continue countdown (Safari ke liye manual)
-          const waitSeconds = isSafari || isMobile ? 0 : 5;
-          
-          if (waitSeconds > 0) {
-            for (let i = waitSeconds; i > 0; i--) {
-              if (cancelDownloadAllRef.current) break;
-              setAutoContinueCountdown(i);
-              await new Promise(r => setTimeout(r, 1000));
-            }
-            setShowBatchPopup(false);
-            setAutoContinueCountdown(0);
-          } else {
-            // Safari/Mobile — wait for user click
-            // User "Continue" dabaye to next batch shuru hoga
-            // Yeh handled by handleContinueBatch function
-            return;
+          for (let i = 4; i > 0; i--) {
+            if (cancelDownloadAllRef.current) break;
+            setAutoContinueCountdown(i);
+            await new Promise(r => setTimeout(r, 1000));
           }
+          setShowBatchPopup(false);
+          setAutoContinueCountdown(0);
         }
       }
 
+      // ✅ AB YEH FOR LOOP KE BAAHAR HAI — sirf ek dafa chalega
       if (!cancelDownloadAllRef.current) {
         setDownloadAllCompleted(true);
         toast({
@@ -847,12 +834,12 @@ export default function ClientGalleryPage() {
           description: `${completedSuccessfully} photos successfully downloaded.`,
         });
         
-        // Reset after 5 seconds
         setTimeout(() => {
           setDownloadAllActive(false);
           setDownloadAllCompleted(false);
-          resumeFromBatchRef.current = 0;
         }, 5000);
+      } else {
+        setDownloadAllActive(false);
       }
 
     } catch (error: any) {
@@ -864,14 +851,7 @@ export default function ClientGalleryPage() {
       });
       setDownloadAllActive(false);
     }
-  }, [gallery, canDownload, BATCH_SIZE, isSafari, isMobile, downloadBatch, toast]);
-
-  // ✅ Manual continue (Safari/Mobile ke liye)
-  const handleContinueBatch = useCallback(() => {
-    setShowBatchPopup(false);
-    resumeFromBatchRef.current = downloadAllBatch; // current batch index (already completed)
-    handleDownloadAll();
-  }, [downloadAllBatch, handleDownloadAll]);
+  }, [gallery, canDownload, BATCH_SIZE, downloadBatch, toast]);
 
   // ✅ Cancel download
   const handleCancelDownloadAll = useCallback(() => {
@@ -879,14 +859,14 @@ export default function ClientGalleryPage() {
     setShowBatchPopup(false);
     setDownloadAllActive(false);
     setDownloadAllCompleted(false);
-    resumeFromBatchRef.current = 0;
+    setAutoContinueCountdown(0);
     toast({
       title: "Download Cancelled",
       description: "Aapne download cancel kar diya.",
     });
   }, [toast]);
 
-  // ✅ Download Selected (existing function — improved)
+  // ✅ Download Selected
   const handleDownloadSelected = useCallback(async () => {
     if (selectedPhotos.size === 0) {
       toast({
@@ -1698,7 +1678,7 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
-      {/* ✅ BATCH COMPLETE POPUP (Safari/Mobile ke liye) */}
+      {/* ✅ BATCH COMPLETE POPUP (auto-continue) */}
       {showBatchPopup && (
         <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-500">
           <div className="w-full max-w-md bg-card border border-primary/30 rounded-[2.5rem] p-10 space-y-8 shadow-[0_50px_100px_rgba(0,0,0,0.6)]">
@@ -1714,33 +1694,21 @@ export default function ClientGalleryPage() {
               </p>
             </div>
 
-            {autoContinueCountdown > 0 ? (
-              <div className="text-center space-y-3">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 border-2 border-primary/30">
-                  <span className="text-3xl font-headline font-bold text-primary">{autoContinueCountdown}</span>
-                </div>
-                <p className="text-muted-foreground text-xs uppercase tracking-widest font-bold">
-                  Next batch shuru hone wala hai...
-                </p>
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 border-2 border-primary/30">
+                <span className="text-3xl font-headline font-bold text-primary">{autoContinueCountdown}</span>
               </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <Button
-                  onClick={handleContinueBatch}
-                  className="w-full rounded-2xl h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 text-base"
-                >
-                  <Package className="w-5 h-5" />
-                  Download Next Batch
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={handleCancelDownloadAll}
-                  className="w-full rounded-2xl h-12 text-muted-foreground hover:bg-white/5"
-                >
-                  Stop Here
-                </Button>
-              </div>
-            )}
+              <p className="text-muted-foreground text-xs uppercase tracking-widest font-bold">
+                Next batch automatic shuru ho raha hai...
+              </p>
+              <Button
+                variant="ghost"
+                onClick={handleCancelDownloadAll}
+                className="rounded-full px-6 h-10 text-muted-foreground hover:bg-white/5 text-xs"
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         </div>
       )}
