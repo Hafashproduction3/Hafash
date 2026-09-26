@@ -7,7 +7,7 @@ import {
   Heart, Download, Loader2, MessageCircle, Share2, ShieldAlert,
   ArrowLeft, Send, CheckCircle2, Sparkles, Lock, Unlock, KeyRound, X,
   Camera, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, ArrowUp,
-  CheckSquare, Square, CheckCheck
+  CheckSquare, Square, CheckCheck, Quote, PenTool
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -145,14 +145,12 @@ export default function ClientGalleryPage() {
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
   
-  // ✅ PAGINATION STATE
   const [photos, setPhotos] = useState<any[]>([]);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [lastDoc, setLastDoc] = useState<any>(null);
   const [hasMore, setHasMore] = useState(true);
   const [initialLoadDone, setInitialLoadDone] = useState(false);
   
-  // Selection mode
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
   
@@ -177,6 +175,10 @@ export default function ClientGalleryPage() {
   const hasRestoredScrollRef = useRef<boolean>(false);
   const lightboxOpenRef = useRef<boolean>(false);
   const isClosingViaPopstateRef = useRef<boolean>(false);
+  
+  // ✅ Photographer's Note animation
+  const noteRef = useRef<HTMLDivElement | null>(null);
+  const [noteVisible, setNoteVisible] = useState(false);
 
   const isMobile = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
@@ -194,7 +196,6 @@ export default function ClientGalleryPage() {
     { id: 'demo-6', url: 'https://picsum.photos/seed/hafash-demo-6/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-6/400/500', fileName: 'demo-6.jpg', isFavorite: false },
   ], []);
 
-  // ✅ PAGINATION: Load photos + refresh URLs on the fly
   const loadPhotos = useCallback(async (reset = false) => {
     if (!firestore || !galleryId || galleryId === 'demo') return;
     if (photosLoading) return;
@@ -213,14 +214,12 @@ export default function ClientGalleryPage() {
       const snapshot = await getDocs(q);
       const rawPhotos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       
-      // ✅ Collect all keys that need fresh URLs
       const keysToRefresh: string[] = [];
       rawPhotos.forEach((p: any) => {
         if (p.storageKey) keysToRefresh.push(p.storageKey);
         if (p.thumbKey) keysToRefresh.push(p.thumbKey);
       });
       
-      // ✅ Refresh URLs in one batch
       let urlMap: Record<string, string> = {};
       if (keysToRefresh.length > 0) {
         try {
@@ -233,7 +232,6 @@ export default function ClientGalleryPage() {
         }
       }
       
-      // ✅ Apply fresh URLs to photos
       const newPhotos = rawPhotos.map((p: any) => ({
         ...p,
         url: urlMap[p.storageKey] || p.url,
@@ -260,7 +258,6 @@ export default function ClientGalleryPage() {
     }
   }, [firestore, galleryId, lastDoc, photosLoading]);
 
-  // ✅ Initial load
   useEffect(() => {
     if (galleryId && galleryId !== 'demo') {
       setPhotos([]);
@@ -271,7 +268,6 @@ export default function ClientGalleryPage() {
     }
   }, [galleryId]);
 
-  // ✅ Infinite scroll
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!hasMore || photosLoading || selectedIndex !== null || showIntro) return;
@@ -391,7 +387,6 @@ export default function ClientGalleryPage() {
 
   const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
 
-  // ✅ Gallery object uses paginated photos state
   const gallery = useMemo(() => {
     if (galleryParam === 'demo' || galleryId === 'demo') {
       return {
@@ -406,7 +401,7 @@ export default function ClientGalleryPage() {
         isPublic: true,
         isLocked: false,
         isPaid: true,
-        photographerNote: "Welcome to the Hafash premium delivery experience.",
+        photographerNote: "Every photograph here is a moment we held on to — a laugh, a tear, a promise whispered in the middle of the celebration. It was an honour to witness your story. May these memories bring you joy for decades to come.",
         welcomeTitle: "Explore Your Moments",
         studioName: "Hafash.pk Studios",
         whatsappNumber: "+920000000000",
@@ -457,6 +452,31 @@ export default function ClientGalleryPage() {
       hasRestoredScrollRef.current = true;
     }
   }, [isResolving, docLoading, photosLoading, gallery, showIntro, selectedIndex]);
+
+  // ✅ Photographer's Note animation on scroll into view
+  useEffect(() => {
+    if (!gallery?.photographerNote) return;
+    if (showIntro) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setNoteVisible(true);
+          }
+        });
+      },
+      { threshold: 0.15 }
+    );
+
+    if (noteRef.current) {
+      observer.observe(noteRef.current);
+    }
+
+    return () => {
+      if (noteRef.current) observer.unobserve(noteRef.current);
+    };
+  }, [gallery?.photographerNote, showIntro]);
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
@@ -990,7 +1010,7 @@ export default function ClientGalleryPage() {
   const studioLogo = gallery.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery.whatsappNumber || profile?.whatsappNumber;
   const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
-  const hasNoteContent = !!(gallery.photographerNote || gallery.welcomeTitle || gallery.welcomeMessage);
+  const hasNoteContent = !!(gallery.photographerNote && gallery.photographerNote.trim().length > 0);
 
   if (showIntro) {
     return (
@@ -1222,6 +1242,127 @@ export default function ClientGalleryPage() {
            <div className="w-px h-12 bg-gradient-to-b from-primary to-transparent" />
         </div>
       </div>
+
+      {/* ✅ PHOTOGRAPHER'S NOTE — Elegant Animated Section */}
+      {hasNoteContent && (
+        <div 
+          ref={noteRef}
+          className={cn(
+            "relative max-w-5xl mx-auto px-6 pt-32 lg:pt-40 transition-all duration-1000 ease-out",
+            noteVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
+          )}
+        >
+          {/* Decorative glow */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(212,175,55,0.15)_0%,transparent_70%)] blur-3xl" />
+          </div>
+
+          <div className="relative">
+            {/* Top ornament */}
+            <div className={cn(
+              "flex items-center justify-center gap-6 mb-12 transition-all duration-1000 delay-200",
+              noteVisible ? "opacity-100 scale-100" : "opacity-0 scale-90"
+            )}>
+              <div className="h-px w-20 lg:w-32 bg-gradient-to-r from-transparent to-primary/60" />
+              <div className="relative">
+                <div className="absolute inset-0 bg-primary/30 blur-xl rounded-full" />
+                <div className="relative h-16 w-16 rounded-full bg-primary/10 border border-primary/40 flex items-center justify-center backdrop-blur-sm">
+                  <PenTool className="w-7 h-7 text-primary" />
+                </div>
+              </div>
+              <div className="h-px w-20 lg:w-32 bg-gradient-to-l from-transparent to-primary/60" />
+            </div>
+
+            {/* Card */}
+            <div className={cn(
+              "relative bg-gradient-to-br from-card/60 via-card/40 to-card/20 backdrop-blur-2xl border border-primary/20 rounded-[3rem] p-10 lg:p-16 shadow-[0_30px_80px_rgba(0,0,0,0.4)] overflow-hidden transition-all duration-1000 delay-300",
+              noteVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
+            )}>
+              {/* Inner gold border */}
+              <div className="absolute inset-4 border border-primary/10 rounded-[2.5rem] pointer-events-none" />
+
+              {/* Big quotation mark */}
+              <div className={cn(
+                "absolute -top-4 left-8 lg:left-16 transition-all duration-1000 delay-500",
+                noteVisible ? "opacity-100 -translate-y-2" : "opacity-0 translate-y-4"
+              )}>
+                <Quote className="w-16 h-16 lg:w-24 lg:h-24 text-primary/30 fill-primary/10" />
+              </div>
+
+              <div className="relative pt-8 lg:pt-12 space-y-8">
+                {/* Label */}
+                <div className={cn(
+                  "flex items-center justify-center gap-3 transition-all duration-1000 delay-400",
+                  noteVisible ? "opacity-100" : "opacity-0"
+                )}>
+                  <div className="h-px w-8 bg-primary/40" />
+                  <span className="text-[10px] lg:text-xs font-bold uppercase tracking-[0.5em] text-primary">A Note From The Studio</span>
+                  <div className="h-px w-8 bg-primary/40" />
+                </div>
+
+                {/* The note text */}
+                <p className={cn(
+                  "text-center text-lg lg:text-2xl xl:text-3xl italic font-headline leading-[1.7] text-white/90 whitespace-pre-wrap px-2 lg:px-8 transition-all duration-1200 delay-500",
+                  noteVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+                )}>
+                  "{gallery.photographerNote}"
+                </p>
+
+                {/* Signature */}
+                <div className={cn(
+                  "flex flex-col items-center gap-6 pt-8 transition-all duration-1000 delay-700",
+                  noteVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+                )}>
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="h-px w-12 bg-gradient-to-r from-transparent to-primary/60" />
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    <div className="h-px w-12 bg-gradient-to-l from-transparent to-primary/60" />
+                  </div>
+
+                  {isCustomBrandingActive && studioLogo ? (
+                    <img 
+                      src={studioLogo} 
+                      className="h-14 lg:h-16 w-auto object-contain drop-shadow-2xl" 
+                      alt={studioName} 
+                    />
+                  ) : (
+                    <div className="text-center space-y-2">
+                      <p className="text-primary italic font-headline text-2xl lg:text-3xl tracking-wide">
+                        {studioName}
+                      </p>
+                      {profile?.photographerName && (
+                        <p className="text-[10px] lg:text-xs font-bold uppercase tracking-[0.4em] text-muted-foreground">
+                          {profile.photographerName}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom sparkle */}
+              <div className={cn(
+                "absolute -bottom-2 right-8 lg:right-16 transition-all duration-1000 delay-800",
+                noteVisible ? "opacity-60" : "opacity-0"
+              )}>
+                <Sparkles className="w-8 h-8 text-primary/60" />
+              </div>
+            </div>
+
+            {/* Bottom ornament */}
+            <div className={cn(
+              "flex items-center justify-center gap-4 mt-12 transition-all duration-1000 delay-900",
+              noteVisible ? "opacity-100" : "opacity-0"
+            )}>
+              <div className="h-px w-12 bg-gradient-to-r from-transparent to-primary/40" />
+              <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
+              <div className="w-2 h-2 rounded-full bg-primary" />
+              <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
+              <div className="h-px w-12 bg-gradient-to-l from-transparent to-primary/40" />
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-6 mt-24 space-y-20">
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
