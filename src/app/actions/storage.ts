@@ -4,6 +4,24 @@ import { adminDb, admin } from '@/lib/firebase-admin';
 import { storage } from '@/lib/storage/storage';
 import { getStorageStats } from '@/lib/storage/stats';
 
+const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev';
+
+function getPublicUrl(key: string | null | undefined): string {
+  if (!key) return '';
+  if (key.startsWith('http://') || key.startsWith('https://')) return key;
+  return `${R2_PUBLIC_URL}/${key}`;
+}
+
+function extractKeyFromUrl(url: string): string | null {
+  try {
+    const urlObj = new URL(url);
+    const path = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
+    return path || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Request a signed URL for direct-to-R2 upload.
  */
@@ -86,7 +104,7 @@ export async function requestUploadUrl({
 
     const uploadUrl = await storage.getSignedUploadUrl(key, contentType, 300);
 
-    console.log(`[DEBUG] Signed URL generated: ${key}`);
+    console.log(`[DEBUG] Signed upload URL generated: ${key}`);
     return { success: true, uploadUrl, key };
 
   } catch (error: any) {
@@ -97,7 +115,7 @@ export async function requestUploadUrl({
 
 /**
  * Finalize an upload — SUBCOLLECTION VERSION
- * Photos saved to galleries/{id}/photos/{photoId}
+ * ✅ Signed URLs valid 7 days (R2 maximum)
  */
 export async function completeUpload({
   userId,
@@ -127,38 +145,22 @@ export async function completeUpload({
       return { success: false, error: "Asset missing from storage." };
     }
 
-    // Preview URL (7 days)
+    // ✅ Signed URLs — 7 days (max allowed by R2)
     const assetUrl = await storage.getSignedUrl(task.key, 604800);
-
-    // Thumbnail URL
-    let thumbUrl = assetUrl;
-    if (task.thumbKey) {
-      try {
-        if (await storage.fileExists(task.thumbKey)) {
-          thumbUrl = await storage.getSignedUrl(task.thumbKey, 604800);
-        }
-      } catch (e) {}
-    }
-
-    // Original URL
-    let originalUrl = null;
-    if (task.originalKey && task.originalReady) {
-      try {
-        if (await storage.fileExists(task.originalKey)) {
-          originalUrl = await storage.getSignedUrl(task.originalKey, 900);
-        }
-      } catch (e) {}
-    }
+    const thumbUrl = task.thumbKey 
+      ? await storage.getSignedUrl(task.thumbKey, 604800) 
+      : assetUrl;
+    const originalUrl = task.originalKey && task.originalReady 
+      ? await storage.getSignedUrl(task.originalKey, 604800) 
+      : null;
 
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
     const photosRef = galleryRef.collection('photos');
     const photoDocRef = photosRef.doc(task.id);
 
-    // Check if photo already exists in subcollection
     const photoSnap = await photoDocRef.get();
 
     if (photoSnap.exists && task.originalReady) {
-      // ✅ UPDATE: Original ready — existing preview doc mein original add karo
       await photoDocRef.update({
         originalKey: task.originalKey,
         originalUrl: originalUrl,
@@ -168,7 +170,6 @@ export async function completeUpload({
       });
       console.log(`[DEBUG] ✅ Original linked: ${task.file.name}`);
     } else if (!photoSnap.exists) {
-      // ✅ NEW: Photo add karo subcollection mein
       await photoDocRef.set({
         id: task.id,
         url: assetUrl,
@@ -192,7 +193,6 @@ export async function completeUpload({
       console.log(`[DEBUG] Skipped: ${task.file.name}`);
     }
 
-    // Update gallery metadata — increment photo count
     const gallerySnap = await galleryRef.get();
     const galleryData = gallerySnap.data() || {};
     const currentCount = galleryData.photoCount || 0;
@@ -207,6 +207,47 @@ export async function completeUpload({
   } catch (error: any) {
     console.error("[DEBUG] Sync failure:", error);
     return { success: false, error: error.message || "Sync failed." };
+  }
+}
+
+/**
+ * ✅ Refresh photo URLs in batch — called from client on gallery load
+ * Generates fresh 7-day signed URLs for a batch of storage keys
+ */
+export async function refreshPhotoUrls(keys: string[]): Promise<{ 
+  success: boolean; 
+  urls: Record<string, string>; 
+  error?: string 
+}> {
+  try {
+    if (!keys || keys.length === 0) {
+      return { success: true, urls: {} };
+    }
+    
+    if (keys.length > 300) {
+      return { success: false, urls: {}, error: 'Too many keys (max 300)' };
+    }
+    
+    const results = await Promise.all(
+      keys.map(async (key) => {
+        try {
+          const url = await storage.getSignedUrl(key, 604800);
+          return { key, url };
+        } catch (err) {
+          console.error(`[REFRESH] Failed for ${key}:`, err);
+          return { key, url: '' };
+        }
+      })
+    );
+    
+    const urlMap: Record<string, string> = {};
+    results.forEach(r => {
+      if (r.url) urlMap[r.key] = r.url;
+    });
+    
+    return { success: true, urls: urlMap };
+  } catch (error: any) {
+    return { success: false, urls: {}, error: error.message };
   }
 }
 
@@ -266,7 +307,6 @@ export async function deletePhoto({
       return { success: false, error: "DB offline" };
     }
 
-    // Delete from subcollection
     await adminDb
       .collection('galleries')
       .doc(galleryId)
@@ -274,7 +314,6 @@ export async function deletePhoto({
       .doc(photoId)
       .delete();
 
-    // Decrement count
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
     const snap = await galleryRef.get();
     const currentCount = snap.data()?.photoCount || 0;
@@ -283,7 +322,6 @@ export async function deletePhoto({
       updatedAt: new Date().toISOString(),
     });
 
-    // Delete from R2
     if (storageKeys.length > 0) {
       await deleteGalleryFiles(storageKeys.filter(Boolean));
     }
@@ -296,7 +334,7 @@ export async function deletePhoto({
 }
 
 /**
- * Music signed URL (7 days max).
+ * ✅ Music URL — signed, valid 7 days
  */
 export async function getMusicSignedUrl(key: string) {
   try {
@@ -309,7 +347,7 @@ export async function getMusicSignedUrl(key: string) {
 }
 
 /**
- * Fresh music URL.
+ * ✅ Fresh music URL — signed, valid 7 days
  */
 export async function getFreshMusicUrl(storageKey: string) {
   try {
@@ -322,7 +360,7 @@ export async function getFreshMusicUrl(storageKey: string) {
 }
 
 /**
- * Original photo download URL (15 min).
+ * ✅ Original photo download URL (15 min — short lived for security)
  */
 export async function getOriginalDownloadUrl(originalKey: string) {
   try {

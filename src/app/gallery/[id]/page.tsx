@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion, orderBy, startAfter } from 'firebase/firestore';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import { type PlanId } from '@/lib/plans';
-import { getFreshMusicUrl } from '@/app/actions/storage';
+import { getFreshMusicUrl, refreshPhotoUrls } from '@/app/actions/storage';
 
 const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 60;
@@ -39,6 +39,8 @@ const GalleryItem = memo(({
   isSelectionMode?: boolean, isSelected?: boolean, onToggleSelect?: () => void
 }) => {
   const [loaded, setLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+  
   if (!item?.url) return null;
 
   const handleClick = () => {
@@ -49,6 +51,8 @@ const GalleryItem = memo(({
     }
   };
 
+  const imageSrc = item.thumbUrl || item.url;
+
   return (
     <div 
       className={cn(
@@ -57,21 +61,31 @@ const GalleryItem = memo(({
       )}
       onClick={handleClick}
     >
-      {!loaded && <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />}
-      <img 
-        src={item.thumbUrl || item.url} 
-        alt={item.fileName || "Gallery Asset"}
-        className={cn(
-          "w-full h-full object-cover transition-all duration-1000",
-          loaded ? "opacity-100" : "opacity-0",
-          !isSelectionMode && "group-hover:scale-110"
-        )}
-        loading={priority ? "eager" : "lazy"}
-        decoding="async"
-        onLoad={() => setLoaded(true)}
-      />
+      {!loaded && !imgError && (
+        <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />
+      )}
       
-      {/* Selection Checkbox */}
+      {imgError ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/10 text-muted-foreground">
+          <Camera className="w-12 h-12 mb-3 opacity-30" />
+          <span className="text-xs font-bold uppercase tracking-widest opacity-50">Image Unavailable</span>
+        </div>
+      ) : (
+        <img 
+          src={imageSrc} 
+          alt={item.fileName || "Gallery Asset"}
+          className={cn(
+            "w-full h-full object-cover transition-all duration-1000",
+            loaded ? "opacity-100" : "opacity-0",
+            !isSelectionMode && "group-hover:scale-110"
+          )}
+          loading={priority ? "eager" : "lazy"}
+          decoding="async"
+          onLoad={() => setLoaded(true)}
+          onError={() => { setImgError(true); setLoaded(true); }}
+        />
+      )}
+      
       {isSelectionMode && (
         <div className="absolute top-3 right-3 z-20">
           <div className={cn(
@@ -130,7 +144,13 @@ export default function ClientGalleryPage() {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
-  const [displayCount, setDisplayCount] = useState(GALLERY_PAGE_SIZE);
+  
+  // ✅ PAGINATION STATE
+  const [photos, setPhotos] = useState<any[]>([]);
+  const [photosLoading, setPhotosLoading] = useState(false);
+  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   
   // Selection mode
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -166,35 +186,113 @@ export default function ClientGalleryPage() {
   const MAX_SELECT = isMobile ? 100 : 200;
 
   const demoItems = useMemo(() => [
-    { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', fileName: 'demo-1.jpg', isFavorite: false },
-    { id: 'demo-2', url: 'https://picsum.photos/seed/hafash-demo-2/1200/1600', fileName: 'demo-2.jpg', isFavorite: true },
-    { id: 'demo-3', url: 'https://picsum.photos/seed/hafash-demo-3/1200/1600', fileName: 'demo-3.jpg', isFavorite: false },
-    { id: 'demo-4', url: 'https://picsum.photos/seed/hafash-demo-4/1200/1600', fileName: 'demo-4.jpg', isFavorite: false },
-    { id: 'demo-5', url: 'https://picsum.photos/seed/hafash-demo-5/1200/1600', fileName: 'demo-5.jpg', isFavorite: false },
-    { id: 'demo-6', url: 'https://picsum.photos/seed/hafash-demo-6/1200/1600', fileName: 'demo-6.jpg', isFavorite: false },
+    { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-1/400/500', fileName: 'demo-1.jpg', isFavorite: false },
+    { id: 'demo-2', url: 'https://picsum.photos/seed/hafash-demo-2/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-2/400/500', fileName: 'demo-2.jpg', isFavorite: true },
+    { id: 'demo-3', url: 'https://picsum.photos/seed/hafash-demo-3/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-3/400/500', fileName: 'demo-3.jpg', isFavorite: false },
+    { id: 'demo-4', url: 'https://picsum.photos/seed/hafash-demo-4/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-4/400/500', fileName: 'demo-4.jpg', isFavorite: false },
+    { id: 'demo-5', url: 'https://picsum.photos/seed/hafash-demo-5/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-5/400/500', fileName: 'demo-5.jpg', isFavorite: false },
+    { id: 'demo-6', url: 'https://picsum.photos/seed/hafash-demo-6/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-6/400/500', fileName: 'demo-6.jpg', isFavorite: false },
   ], []);
+
+  // ✅ PAGINATION: Load photos + refresh URLs on the fly
+  const loadPhotos = useCallback(async (reset = false) => {
+    if (!firestore || !galleryId || galleryId === 'demo') return;
+    if (photosLoading) return;
+    
+    setPhotosLoading(true);
+    try {
+      const photosRef = collection(firestore, 'galleries', galleryId, 'photos');
+      let q;
+      
+      if (reset || !lastDoc) {
+        q = query(photosRef, orderBy('order', 'asc'), limit(GALLERY_PAGE_SIZE));
+      } else {
+        q = query(photosRef, orderBy('order', 'asc'), startAfter(lastDoc), limit(GALLERY_PAGE_SIZE));
+      }
+      
+      const snapshot = await getDocs(q);
+      const rawPhotos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // ✅ Collect all keys that need fresh URLs
+      const keysToRefresh: string[] = [];
+      rawPhotos.forEach((p: any) => {
+        if (p.storageKey) keysToRefresh.push(p.storageKey);
+        if (p.thumbKey) keysToRefresh.push(p.thumbKey);
+      });
+      
+      // ✅ Refresh URLs in one batch
+      let urlMap: Record<string, string> = {};
+      if (keysToRefresh.length > 0) {
+        try {
+          const refreshResult = await refreshPhotoUrls(keysToRefresh);
+          if (refreshResult.success) {
+            urlMap = refreshResult.urls;
+          }
+        } catch (err) {
+          console.error('[REFRESH] Failed:', err);
+        }
+      }
+      
+      // ✅ Apply fresh URLs to photos
+      const newPhotos = rawPhotos.map((p: any) => ({
+        ...p,
+        url: urlMap[p.storageKey] || p.url,
+        masterUrl: urlMap[p.storageKey] || p.masterUrl,
+        thumbUrl: p.thumbKey 
+          ? (urlMap[p.thumbKey] || p.thumbUrl) 
+          : (urlMap[p.storageKey] || p.url),
+      }));
+      
+      if (reset) {
+        setPhotos(newPhotos);
+      } else {
+        setPhotos(prev => [...prev, ...newPhotos]);
+      }
+      
+      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
+      setHasMore(snapshot.docs.length === GALLERY_PAGE_SIZE);
+      setInitialLoadDone(true);
+      
+    } catch (err: any) {
+      console.error("Photos load error:", err);
+    } finally {
+      setPhotosLoading(false);
+    }
+  }, [firestore, galleryId, lastDoc, photosLoading]);
+
+  // ✅ Initial load
+  useEffect(() => {
+    if (galleryId && galleryId !== 'demo') {
+      setPhotos([]);
+      setLastDoc(null);
+      setHasMore(true);
+      setInitialLoadDone(false);
+      loadPhotos(true);
+    }
+  }, [galleryId]);
+
+  // ✅ Infinite scroll
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!hasMore || photosLoading || selectedIndex !== null || showIntro) return;
+    
+    const handleScroll = () => {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
+        loadPhotos(false);
+      }
+    };
+    
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [hasMore, photosLoading, selectedIndex, showIntro, loadPhotos]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !galleryParam) return;
     try {
-      const savedCount = sessionStorage.getItem(`gallery_count_${galleryParam}`);
-      if (savedCount) {
-        const count = parseInt(savedCount, 10);
-        if (count > GALLERY_PAGE_SIZE) setDisplayCount(count);
-      }
       const savedScroll = sessionStorage.getItem(`gallery_scroll_${galleryParam}`);
       if (savedScroll) scrollPositionRef.current = parseInt(savedScroll, 10);
     } catch (e) {}
   }, [galleryParam]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !galleryParam) return;
-    try {
-      if (displayCount > GALLERY_PAGE_SIZE) {
-        sessionStorage.setItem(`gallery_count_${galleryParam}`, displayCount.toString());
-      }
-    } catch (e) {}
-  }, [displayCount, galleryParam]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !galleryParam) return;
@@ -293,16 +391,7 @@ export default function ClientGalleryPage() {
 
   const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
 
-  const photosQuery = useMemo(() => {
-    if (!firestore || !galleryId || galleryId === 'demo') return null;
-    return query(
-      collection(firestore, 'galleries', galleryId, 'photos'),
-      orderBy('order', 'asc')
-    );
-  }, [firestore, galleryId]);
-
-  const { data: subcollectionPhotos, loading: photosLoading } = useCollection(photosQuery);
-
+  // ✅ Gallery object uses paginated photos state
   const gallery = useMemo(() => {
     if (galleryParam === 'demo' || galleryId === 'demo') {
       return {
@@ -325,11 +414,8 @@ export default function ClientGalleryPage() {
       };
     }
     if (!dbGallery) return null;
-    const photos = (subcollectionPhotos && subcollectionPhotos.length > 0)
-      ? subcollectionPhotos
-      : (dbGallery.items || []);
     return { ...dbGallery, items: photos };
-  }, [dbGallery, subcollectionPhotos, galleryId, galleryParam, demoItems]);
+  }, [dbGallery, photos, galleryId, galleryParam, demoItems]);
 
   useEffect(() => {
     if (galleryId) {
@@ -462,12 +548,12 @@ export default function ClientGalleryPage() {
     setSelectedIndex(prev => {
       if (prev === null) return 0;
       const next = prev < totalItems - 1 ? prev + 1 : 0;
-      if (next >= displayCount - 5 && displayCount < totalItems) {
-        setDisplayCount(c => Math.min(c + GALLERY_PAGE_SIZE, totalItems));
+      if (next >= totalItems - 5 && hasMore) {
+        loadPhotos(false);
       }
       return next;
     });
-  }, [totalItems, displayCount]);
+  }, [totalItems, hasMore, loadPhotos]);
 
   const goPrev = useCallback(() => {
     if (totalItems === 0) return;
@@ -483,14 +569,14 @@ export default function ClientGalleryPage() {
       setSelectedIndex(prev => {
         if (prev === null) return 0;
         const next = prev < totalItems - 1 ? prev + 1 : 0;
-        if (next >= displayCount - 5 && displayCount < totalItems) {
-          setDisplayCount(c => Math.min(c + GALLERY_PAGE_SIZE, totalItems));
+        if (next >= totalItems - 5 && hasMore) {
+          loadPhotos(false);
         }
         return next;
       });
     }, SLIDESHOW_INTERVAL);
     return () => clearInterval(timer);
-  }, [isSlideshowPlaying, selectedIndex, totalItems, displayCount]);
+  }, [isSlideshowPlaying, selectedIndex, totalItems, hasMore, loadPhotos]);
 
   useEffect(() => {
     if (selectedIndex === null) return;
@@ -521,9 +607,9 @@ export default function ClientGalleryPage() {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
     const photoRef = doc(firestore, 'galleries', galleryId, 'photos', itemId);
     updateDoc(photoRef, { isFavorite: !isCurrentlyFavorite }).catch(() => {});
+    setPhotos(prev => prev.map(p => p.id === itemId ? { ...p, isFavorite: !isCurrentlyFavorite } : p));
   }, [firestore, gallery, galleryId]);
 
-  // Toggle Selection
   const togglePhotoSelection = useCallback((photoId: string) => {
     setSelectedPhotos(prev => {
       const next = new Set(prev);
@@ -548,7 +634,7 @@ export default function ClientGalleryPage() {
 
   const handleSelectAll = useCallback(() => {
     if (!gallery?.items) return;
-    const visibleIds = gallery.items.slice(0, displayCount).map((it: any) => it.id);
+    const visibleIds = gallery.items.map((it: any) => it.id);
     const limitedIds = visibleIds.slice(0, MAX_SELECT);
     setSelectedPhotos(new Set(limitedIds));
     
@@ -560,14 +646,13 @@ export default function ClientGalleryPage() {
           : "Desktop pe 200 max — baaki manually select karein.",
       });
     }
-  }, [gallery, displayCount, MAX_SELECT, isMobile, toast]);
+  }, [gallery, MAX_SELECT, isMobile, toast]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedPhotos(new Set());
     setIsSelectionMode(false);
   }, []);
 
-  // ✅ Download SELECTED photos
   const handleDownloadSelected = useCallback(async () => {
     if (selectedPhotos.size === 0) {
       toast({
@@ -687,7 +772,6 @@ export default function ClientGalleryPage() {
     }
   }, [gallery, selectedPhotos, isMobile, toast]);
 
-  // ✅ Individual photo download
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload) return;
 
@@ -816,8 +900,8 @@ export default function ClientGalleryPage() {
 
   const isLoading = useMemo(() => {
     if (galleryParam === 'demo') return isResolving || authLoading;
-    return isResolving || (galleryId && docLoading) || authLoading || (galleryId && photosLoading);
-  }, [galleryParam, isResolving, galleryId, docLoading, photosLoading, authLoading]);
+    return isResolving || (galleryId && docLoading) || authLoading;
+  }, [galleryParam, isResolving, galleryId, docLoading, authLoading]);
 
   if (isLoading) {
     return <HafashLoader text="Synchronizing Luxury Assets..." />;
@@ -970,7 +1054,7 @@ export default function ClientGalleryPage() {
               <ChevronRight className="w-5 h-5 lg:w-6 lg:h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
             </Button>
             <p className="mt-6 text-white/40 text-[10px] uppercase tracking-[0.4em] font-bold">
-              {totalItems} Masterpieces {hasMusic && "• 🎵 Music On"}
+              {gallery.photoCount || totalItems} Masterpieces {hasMusic && "• 🎵 Music On"}
             </p>
           </div>
         </div>
@@ -1012,7 +1096,6 @@ export default function ClientGalleryPage() {
         <ArrowLeft className="w-6 h-6 lg:w-7 lg:h-7" />
       </Button>
 
-      {/* SELECTION MODE TOP BAR */}
       {isSelectionMode && (
         <div className="fixed top-0 left-0 right-0 z-[65] bg-gradient-to-b from-primary/95 to-primary/90 backdrop-blur-xl border-b border-primary-foreground/20 shadow-2xl">
           <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
@@ -1117,7 +1200,6 @@ export default function ClientGalleryPage() {
               </Button>
             )}
 
-            {/* ✅ SELECT PHOTOS BUTTON */}
             {canDownload && totalItems > 0 && (
               <Button 
                 className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 font-bold gap-4 shadow-2xl text-sm lg:text-base transition-all hover:scale-105"
@@ -1143,7 +1225,7 @@ export default function ClientGalleryPage() {
 
       <div className="max-w-7xl mx-auto px-6 mt-24 space-y-20">
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
-          {gallery.items?.slice(0, displayCount).map((item: any, idx: number) => (
+          {gallery.items?.map((item: any, idx: number) => (
             <GalleryItem 
               key={item.id}
               item={item}
@@ -1160,18 +1242,22 @@ export default function ClientGalleryPage() {
           ))}
         </div>
 
-        {totalItems > displayCount && (
-          <div className="flex justify-center pt-12">
-            <Button
-              onClick={() => setDisplayCount(prev => prev + GALLERY_PAGE_SIZE)}
-              className="rounded-full h-14 px-10 font-bold gap-3 bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xl hover:scale-105 transition-all"
-            >
-              Load More Photos ({totalItems - displayCount} remaining)
-            </Button>
+        {photosLoading && (
+          <div className="flex justify-center py-12">
+            <div className="flex items-center gap-3 px-8 py-4 rounded-full bg-primary/10 border border-primary/20">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              <span className="text-sm font-bold text-primary uppercase tracking-widest">Loading more...</span>
+            </div>
           </div>
         )}
 
-        {(!gallery.items || gallery.items.length === 0) && (
+        {!hasMore && totalItems > GALLERY_PAGE_SIZE && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground text-sm italic font-headline">— End of Gallery —</p>
+          </div>
+        )}
+
+        {initialLoadDone && (!gallery.items || gallery.items.length === 0) && !photosLoading && (
           <div className="text-center py-40 border-2 border-dashed border-border/20 rounded-[4rem] bg-card/10 animate-in fade-in duration-1000">
              <Camera className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
              <p className="text-2xl text-muted-foreground font-headline italic">Your masterpieces are being meticulously prepared...</p>
@@ -1179,7 +1265,6 @@ export default function ClientGalleryPage() {
         )}
       </div>
 
-      {/* FLOATING DOWNLOAD BUTTON */}
       {isSelectionMode && selectedPhotos.size > 0 && (
         <div className="fixed bottom-6 left-4 right-4 lg:left-1/2 lg:-translate-x-1/2 lg:right-auto z-[70]">
           <Button

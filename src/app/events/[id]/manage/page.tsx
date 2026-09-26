@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
 import { doc, deleteDoc, updateDoc, arrayRemove, collection, query, orderBy } from 'firebase/firestore';
-import { deleteGalleryFiles, requestUploadUrl, getMusicSignedUrl } from '@/app/actions/storage';
+import { deleteGalleryFiles, requestUploadUrl, getMusicSignedUrl, refreshPhotoUrls } from '@/app/actions/storage';
 import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
@@ -52,6 +52,10 @@ export default function EventManagementPage() {
   const [showAllAssets, setShowAllAssets] = useState(false);
   const [assetSearch, setAssetSearch] = useState('');
   const [displayLimit, setDisplayLimit] = useState(60);
+
+  // ✅ NEW: Refreshed photos state
+  const [refreshedPhotos, setRefreshedPhotos] = useState<any[]>([]);
+  const [refreshedCover, setRefreshedCover] = useState<string>('');
 
   const [isUploadingMusic, setIsUploadingMusic] = useState(false);
   const [musicUploadProgress, setMusicUploadProgress] = useState(0);
@@ -94,14 +98,100 @@ export default function EventManagementPage() {
 
   const { data: subcollectionPhotos, loading: photosLoading } = useCollection(photosQuery);
 
-  // Merge: subcollection OR fallback to items array
+  // ✅ NEW: Refresh photo URLs when photos load
+  useEffect(() => {
+    async function refreshUrls() {
+      if (!subcollectionPhotos || subcollectionPhotos.length === 0) {
+        setRefreshedPhotos([]);
+        return;
+      }
+
+      // Collect all keys
+      const keysToRefresh: string[] = [];
+      subcollectionPhotos.forEach((p: any) => {
+        if (p.storageKey) keysToRefresh.push(p.storageKey);
+        if (p.thumbKey) keysToRefresh.push(p.thumbKey);
+      });
+
+      // Refresh in batches of 200 to avoid timeouts
+      const urlMap: Record<string, string> = {};
+      const BATCH_SIZE = 200;
+      
+      for (let i = 0; i < keysToRefresh.length; i += BATCH_SIZE) {
+        const batch = keysToRefresh.slice(i, i + BATCH_SIZE);
+        try {
+          const result = await refreshPhotoUrls(batch);
+          if (result.success) {
+            Object.assign(urlMap, result.urls);
+          }
+        } catch (err) {
+          console.error('[REFRESH_MANAGE] Batch failed:', err);
+        }
+      }
+
+      // Apply fresh URLs
+      const updated = subcollectionPhotos.map((p: any) => ({
+        ...p,
+        url: urlMap[p.storageKey] || p.url,
+        masterUrl: urlMap[p.storageKey] || p.masterUrl,
+        thumbUrl: p.thumbKey 
+          ? (urlMap[p.thumbKey] || p.thumbUrl) 
+          : (urlMap[p.storageKey] || p.url),
+      }));
+
+      setRefreshedPhotos(updated);
+    }
+
+    refreshUrls();
+  }, [subcollectionPhotos]);
+
+  // ✅ NEW: Refresh cover image URL
+  useEffect(() => {
+    async function refreshCover() {
+      if (!eventRaw?.coverImage) {
+        setRefreshedCover('');
+        return;
+      }
+
+      // Extract key from cover URL
+      try {
+        const urlObj = new URL(eventRaw.coverImage);
+        const key = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
+        
+        if (!key) {
+          setRefreshedCover(eventRaw.coverImage);
+          return;
+        }
+
+        const result = await refreshPhotoUrls([key]);
+        if (result.success && result.urls[key]) {
+          setRefreshedCover(result.urls[key]);
+        } else {
+          setRefreshedCover(eventRaw.coverImage);
+        }
+      } catch (err) {
+        console.error('[REFRESH_COVER] Failed:', err);
+        setRefreshedCover(eventRaw.coverImage);
+      }
+    }
+
+    refreshCover();
+  }, [eventRaw?.coverImage]);
+
+  // Merge: refreshed photos OR fallback to items array
   const event = useMemo(() => {
     if (!eventRaw) return null;
-    const photos = (subcollectionPhotos && subcollectionPhotos.length > 0)
-      ? subcollectionPhotos
-      : (eventRaw.items || []);
-    return { ...eventRaw, items: photos };
-  }, [eventRaw, subcollectionPhotos]);
+    const photos = refreshedPhotos.length > 0
+      ? refreshedPhotos
+      : (subcollectionPhotos && subcollectionPhotos.length > 0)
+        ? subcollectionPhotos
+        : (eventRaw.items || []);
+    return { 
+      ...eventRaw, 
+      items: photos,
+      coverImage: refreshedCover || eventRaw.coverImage,
+    };
+  }, [eventRaw, subcollectionPhotos, refreshedPhotos, refreshedCover]);
 
   useEffect(() => {
     if (event) {
@@ -141,7 +231,19 @@ export default function EventManagementPage() {
   const handleSetCover = useCallback(async (imageUrl: string) => {
     if (!eventRef) return;
     try {
-      await updateDoc(eventRef, { coverImage: imageUrl, updatedAt: new Date().toISOString() });
+      // Extract storage key from URL for permanent storage
+      let coverKey = '';
+      try {
+        const urlObj = new URL(imageUrl);
+        coverKey = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
+      } catch (e) {}
+      
+      await updateDoc(eventRef, { 
+        coverImage: imageUrl, 
+        coverKey: coverKey,
+        updatedAt: new Date().toISOString() 
+      });
+      setRefreshedCover(imageUrl);
       toast({ title: "✅ Cover Updated" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed" });
@@ -158,17 +260,14 @@ export default function EventManagementPage() {
     });
 
     try {
-      // ✅ Delete from subcollection
       await deleteDoc(doc(firestore, 'galleries', id, 'photos', item.id));
       
-      // Update photo count
       const currentCount = event.photoCount || event.items?.length || 0;
       await updateDoc(eventRef, { 
         photoCount: Math.max(currentCount - 1, 0),
         updatedAt: new Date().toISOString() 
       });
       
-      // Delete from R2
       const keys = [item.storageKey, item.thumbKey, item.originalKey].filter(Boolean);
       if (keys.length > 0) {
         void deleteGalleryFiles(keys).catch(e => console.error('[PHOTO_DELETE] R2:', e));
@@ -306,7 +405,6 @@ export default function EventManagementPage() {
     if (event.musicStorageKey) storageKeys.push(event.musicStorageKey);
 
     try {
-      // Delete photos subcollection first
       if (subcollectionPhotos && subcollectionPhotos.length > 0) {
         const photosRef = collection(firestore, 'galleries', id, 'photos');
         const allPhotos = await import('firebase/firestore').then(m => m.getDocs(photosRef));
@@ -658,7 +756,6 @@ export default function EventManagementPage() {
         </div>
       </div>
 
-      {/* FULL GALLERY MODAL */}
       <Dialog open={showAllAssets} onOpenChange={setShowAllAssets}>
         <DialogContent className="max-w-[95vw] w-full h-[95vh] max-h-[95vh] bg-card/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-0 overflow-hidden flex flex-col gap-0 [&>button]:hidden">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 lg:p-8 border-b border-white/10 bg-background/40 shrink-0">
