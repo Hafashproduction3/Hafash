@@ -7,7 +7,8 @@ import {
   Heart, Download, Loader2, MessageCircle, Share2, ShieldAlert,
   ArrowLeft, Send, CheckCircle2, Sparkles, Lock, Unlock, KeyRound, X,
   Camera, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, ArrowUp,
-  CheckSquare, Square, CheckCheck, Quote, PenTool
+  CheckSquare, Square, CheckCheck, Quote, PenTool, Package, PackageCheck,
+  AlertCircle, Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,8 @@ import { getFreshMusicUrl, refreshPhotoUrls } from '@/app/actions/storage';
 
 const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 60;
+const DESKTOP_BATCH_SIZE = 100;
+const MOBILE_BATCH_SIZE = 30;
 
 const GalleryItem = memo(({ 
   item, showWatermark, canDownload, onFavorite, onDownload, onSelect, priority,
@@ -180,12 +183,31 @@ export default function ClientGalleryPage() {
   const noteRef = useRef<HTMLDivElement | null>(null);
   const [noteVisible, setNoteVisible] = useState(false);
 
+  // ✅ DOWNLOAD ALL state
+  const [downloadAllActive, setDownloadAllActive] = useState(false);
+  const [downloadAllBatch, setDownloadAllBatch] = useState(0);
+  const [downloadAllTotalBatches, setDownloadAllTotalBatches] = useState(0);
+  const [downloadAllProgress, setDownloadAllProgress] = useState(0);
+  const [downloadAllCompleted, setDownloadAllCompleted] = useState(false);
+  const [showBatchPopup, setShowBatchPopup] = useState(false);
+  const [batchPopupMessage, setBatchPopupMessage] = useState('');
+  const [autoContinueCountdown, setAutoContinueCountdown] = useState(0);
+  const cancelDownloadAllRef = useRef<boolean>(false);
+  const resumeFromBatchRef = useRef<number>(0);
+
   const isMobile = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
     return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   }, []);
 
+  const isSafari = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    return /Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua);
+  }, []);
+
   const MAX_SELECT = isMobile ? 100 : 200;
+  const BATCH_SIZE = isMobile ? MOBILE_BATCH_SIZE : DESKTOP_BATCH_SIZE;
 
   const demoItems = useMemo(() => [
     { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-1/400/500', fileName: 'demo-1.jpg', isFavorite: false },
@@ -401,7 +423,7 @@ export default function ClientGalleryPage() {
         isPublic: true,
         isLocked: false,
         isPaid: true,
-        photographerNote: "Every photograph here is a moment we held on to — a laugh, a tear, a promise whispered in the middle of the celebration. It was an honour to witness your story. May these memories bring you joy for decades to come.",
+        photographerNote: "Every photograph here is a moment we held on to — a laugh, a tear, a promise whispered in the middle of the celebration. It was an honour to witness your story.",
         welcomeTitle: "Explore Your Moments",
         studioName: "Hafash.pk Studios",
         whatsappNumber: "+920000000000",
@@ -453,7 +475,6 @@ export default function ClientGalleryPage() {
     }
   }, [isResolving, docLoading, photosLoading, gallery, showIntro, selectedIndex]);
 
-  // ✅ Photographer's Note animation on scroll into view
   useEffect(() => {
     if (!gallery?.photographerNote) return;
     if (showIntro) return;
@@ -673,6 +694,199 @@ export default function ClientGalleryPage() {
     setIsSelectionMode(false);
   }, []);
 
+  // ✅ Core ZIP download function - ek batch ke liye
+  const downloadBatch = useCallback(async (
+    photos: any[],
+    batchIndex: number,
+    totalBatches: number,
+    galleryTitle: string,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<number> => {
+    const zip = new JSZip();
+    let successCount = 0;
+
+    for (let i = 0; i < photos.length; i++) {
+      const item = photos[i];
+      
+      if (cancelDownloadAllRef.current) {
+        throw new Error('CANCELLED');
+      }
+
+      try {
+        const urlRes = await fetch('/api/download-original', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            key: item.originalKey,
+            filename: item.fileName || `photo-${i + 1}.jpg`,
+          }),
+        });
+
+        if (!urlRes.ok) continue;
+        const { url } = await urlRes.json();
+        if (!url) continue;
+
+        const fileRes = await fetch(url);
+        if (!fileRes.ok) continue;
+        const blob = await fileRes.blob();
+        zip.file(item.fileName || `photo-${i + 1}.jpg`, blob);
+        successCount++;
+        
+        if (onProgress) onProgress(i + 1, photos.length);
+      } catch (err) {
+        console.error(`[ZIP] Failed: ${item.fileName}`, err);
+      }
+    }
+
+    if (successCount === 0) {
+      throw new Error('No photos downloaded');
+    }
+
+    const content = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'STORE',
+    });
+
+    const baseName = galleryTitle?.replace(/[^a-z0-9]/gi, '_') || 'gallery';
+    const zipName = totalBatches > 1
+      ? `${baseName}_part${batchIndex + 1}of${totalBatches}.zip`
+      : `${baseName}_all.zip`;
+
+    saveAs(content, zipName);
+    return successCount;
+  }, []);
+
+  // ✅ DOWNLOAD ALL — main function
+  const handleDownloadAll = useCallback(async () => {
+    if (!gallery || !gallery.items || gallery.items.length === 0) return;
+    if (!canDownload) return;
+
+    const allItems = gallery.items.filter((it: any) => it.originalReady && it.originalKey);
+
+    if (allItems.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "⏳ Photos processing",
+        description: "Photos abhi upload ho rahi hain. Thora wait karein.",
+      });
+      return;
+    }
+
+    const totalBatches = Math.ceil(allItems.length / BATCH_SIZE);
+    
+    cancelDownloadAllRef.current = false;
+    setDownloadAllActive(true);
+    setDownloadAllCompleted(false);
+    setDownloadAllTotalBatches(totalBatches);
+    setDownloadAllBatch(0);
+    setDownloadAllProgress(0);
+
+    let completedSuccessfully = 0;
+
+    try {
+      for (let batchIdx = resumeFromBatchRef.current; batchIdx < totalBatches; batchIdx++) {
+        if (cancelDownloadAllRef.current) break;
+
+        const start = batchIdx * BATCH_SIZE;
+        const end = Math.min(start + BATCH_SIZE, allItems.length);
+        const batch = allItems.slice(start, end);
+
+        setDownloadAllBatch(batchIdx + 1);
+        setDownloadAllProgress(0);
+
+        try {
+          const count = await downloadBatch(
+            batch,
+            batchIdx,
+            totalBatches,
+            gallery.title || 'Gallery',
+            (current, total) => {
+              const pct = Math.round((current / total) * 100);
+              setDownloadAllProgress(pct);
+            }
+          );
+          completedSuccessfully += count;
+        } catch (err: any) {
+          if (err.message === 'CANCELLED') break;
+          console.error(`[DOWNLOAD_ALL] Batch ${batchIdx + 1} failed:`, err);
+          // Continue to next batch even if one fails
+        }
+
+        // Agar aur batches baaki hain
+        if (batchIdx < totalBatches - 1 && !cancelDownloadAllRef.current) {
+          // Popup dikhayein
+          setBatchPopupMessage(
+            `Batch ${batchIdx + 1} of ${totalBatches} complete! (${completedSuccessfully} photos downloaded)`
+          );
+          setShowBatchPopup(true);
+          
+          // Auto-continue countdown (Safari ke liye manual)
+          const waitSeconds = isSafari || isMobile ? 0 : 5;
+          
+          if (waitSeconds > 0) {
+            for (let i = waitSeconds; i > 0; i--) {
+              if (cancelDownloadAllRef.current) break;
+              setAutoContinueCountdown(i);
+              await new Promise(r => setTimeout(r, 1000));
+            }
+            setShowBatchPopup(false);
+            setAutoContinueCountdown(0);
+          } else {
+            // Safari/Mobile — wait for user click
+            // User "Continue" dabaye to next batch shuru hoga
+            // Yeh handled by handleContinueBatch function
+            return;
+          }
+        }
+      }
+
+      if (!cancelDownloadAllRef.current) {
+        setDownloadAllCompleted(true);
+        toast({
+          title: "✅ Download Complete!",
+          description: `${completedSuccessfully} photos successfully downloaded.`,
+        });
+        
+        // Reset after 5 seconds
+        setTimeout(() => {
+          setDownloadAllActive(false);
+          setDownloadAllCompleted(false);
+          resumeFromBatchRef.current = 0;
+        }, 5000);
+      }
+
+    } catch (error: any) {
+      console.error('[DOWNLOAD_ALL] Error:', error);
+      toast({
+        variant: "destructive",
+        title: "Download Interrupted",
+        description: "Kuch masla hua. Dobara try karein.",
+      });
+      setDownloadAllActive(false);
+    }
+  }, [gallery, canDownload, BATCH_SIZE, isSafari, isMobile, downloadBatch, toast]);
+
+  // ✅ Manual continue (Safari/Mobile ke liye)
+  const handleContinueBatch = useCallback(() => {
+    setShowBatchPopup(false);
+    resumeFromBatchRef.current = downloadAllBatch; // current batch index (already completed)
+    handleDownloadAll();
+  }, [downloadAllBatch, handleDownloadAll]);
+
+  // ✅ Cancel download
+  const handleCancelDownloadAll = useCallback(() => {
+    cancelDownloadAllRef.current = true;
+    setShowBatchPopup(false);
+    setDownloadAllActive(false);
+    setDownloadAllCompleted(false);
+    resumeFromBatchRef.current = 0;
+    toast({
+      title: "Download Cancelled",
+      description: "Aapne download cancel kar diya.",
+    });
+  }, [toast]);
+
+  // ✅ Download Selected (existing function — improved)
   const handleDownloadSelected = useCallback(async () => {
     if (selectedPhotos.size === 0) {
       toast({
@@ -698,7 +912,7 @@ export default function ClientGalleryPage() {
       return;
     }
 
-    const CHUNK_SIZE = isMobile ? 100 : 200;
+    const CHUNK_SIZE = isMobile ? MOBILE_BATCH_SIZE : DESKTOP_BATCH_SIZE;
 
     setIsPreparing(true);
 
@@ -1092,7 +1306,7 @@ export default function ClientGalleryPage() {
     <div className="min-h-screen bg-background pb-32 animate-in fade-in duration-1000">
       {hasMusic && <audio ref={audioRef} src={musicUrl} loop preload="auto" />}
 
-      {hasMusic && !isSelectionMode && (
+      {hasMusic && !isSelectionMode && !downloadAllActive && (
         <Button 
           variant="ghost" size="icon"
           className="fixed top-6 right-6 lg:top-10 lg:right-10 z-[70] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground transition-all shadow-2xl"
@@ -1223,12 +1437,22 @@ export default function ClientGalleryPage() {
             {canDownload && totalItems > 0 && (
               <Button 
                 className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 font-bold gap-4 shadow-2xl text-sm lg:text-base transition-all hover:scale-105"
+                onClick={handleDownloadAll}
+                disabled={downloadAllActive}
+              >
+                <Package className="w-5 h-5 lg:w-6 lg:h-6" /> Download All ({totalItems})
+              </Button>
+            )}
+
+            {canDownload && totalItems > 0 && (
+              <Button 
+                className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-4 shadow-2xl backdrop-blur-xl text-sm lg:text-base transition-all hover:scale-105"
                 onClick={() => {
                   setIsSelectionMode(true);
                   setSelectedPhotos(new Set());
                 }}
               >
-                <CheckSquare className="w-5 h-5 lg:w-6 lg:h-6" /> Select Photos to Download
+                <CheckSquare className="w-5 h-5 lg:w-6 lg:h-6" /> Select Photos
               </Button>
             )}
 
@@ -1243,7 +1467,7 @@ export default function ClientGalleryPage() {
         </div>
       </div>
 
-      {/* ✅ PHOTOGRAPHER'S NOTE — Elegant Animated Section */}
+      {/* ✅ PHOTOGRAPHER'S NOTE */}
       {hasNoteContent && (
         <div 
           ref={noteRef}
@@ -1252,13 +1476,11 @@ export default function ClientGalleryPage() {
             noteVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
           )}
         >
-          {/* Decorative glow */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[radial-gradient(circle,rgba(212,175,55,0.15)_0%,transparent_70%)] blur-3xl" />
           </div>
 
           <div className="relative">
-            {/* Top ornament */}
             <div className={cn(
               "flex items-center justify-center gap-6 mb-12 transition-all duration-1000 delay-200",
               noteVisible ? "opacity-100 scale-100" : "opacity-0 scale-90"
@@ -1273,15 +1495,12 @@ export default function ClientGalleryPage() {
               <div className="h-px w-20 lg:w-32 bg-gradient-to-l from-transparent to-primary/60" />
             </div>
 
-            {/* Card */}
             <div className={cn(
               "relative bg-gradient-to-br from-card/60 via-card/40 to-card/20 backdrop-blur-2xl border border-primary/20 rounded-[3rem] p-10 lg:p-16 shadow-[0_30px_80px_rgba(0,0,0,0.4)] overflow-hidden transition-all duration-1000 delay-300",
               noteVisible ? "opacity-100 scale-100" : "opacity-0 scale-95"
             )}>
-              {/* Inner gold border */}
               <div className="absolute inset-4 border border-primary/10 rounded-[2.5rem] pointer-events-none" />
 
-              {/* Big quotation mark */}
               <div className={cn(
                 "absolute -top-4 left-8 lg:left-16 transition-all duration-1000 delay-500",
                 noteVisible ? "opacity-100 -translate-y-2" : "opacity-0 translate-y-4"
@@ -1290,7 +1509,6 @@ export default function ClientGalleryPage() {
               </div>
 
               <div className="relative pt-8 lg:pt-12 space-y-8">
-                {/* Label */}
                 <div className={cn(
                   "flex items-center justify-center gap-3 transition-all duration-1000 delay-400",
                   noteVisible ? "opacity-100" : "opacity-0"
@@ -1300,7 +1518,6 @@ export default function ClientGalleryPage() {
                   <div className="h-px w-8 bg-primary/40" />
                 </div>
 
-                {/* The note text */}
                 <p className={cn(
                   "text-center text-lg lg:text-2xl xl:text-3xl italic font-headline leading-[1.7] text-white/90 whitespace-pre-wrap px-2 lg:px-8 transition-all duration-1200 delay-500",
                   noteVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
@@ -1308,7 +1525,6 @@ export default function ClientGalleryPage() {
                   "{gallery.photographerNote}"
                 </p>
 
-                {/* Signature */}
                 <div className={cn(
                   "flex flex-col items-center gap-6 pt-8 transition-all duration-1000 delay-700",
                   noteVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
@@ -1339,17 +1555,8 @@ export default function ClientGalleryPage() {
                   )}
                 </div>
               </div>
-
-              {/* Bottom sparkle */}
-              <div className={cn(
-                "absolute -bottom-2 right-8 lg:right-16 transition-all duration-1000 delay-800",
-                noteVisible ? "opacity-60" : "opacity-0"
-              )}>
-                <Sparkles className="w-8 h-8 text-primary/60" />
-              </div>
             </div>
 
-            {/* Bottom ornament */}
             <div className={cn(
               "flex items-center justify-center gap-4 mt-12 transition-all duration-1000 delay-900",
               noteVisible ? "opacity-100" : "opacity-0"
@@ -1397,15 +1604,9 @@ export default function ClientGalleryPage() {
             <p className="text-muted-foreground text-sm italic font-headline">— End of Gallery —</p>
           </div>
         )}
-
-        {initialLoadDone && (!gallery.items || gallery.items.length === 0) && !photosLoading && (
-          <div className="text-center py-40 border-2 border-dashed border-border/20 rounded-[4rem] bg-card/10 animate-in fade-in duration-1000">
-             <Camera className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
-             <p className="text-2xl text-muted-foreground font-headline italic">Your masterpieces are being meticulously prepared...</p>
-          </div>
-        )}
       </div>
 
+      {/* FLOATING DOWNLOAD BUTTON (Selection Mode) */}
       {isSelectionMode && selectedPhotos.size > 0 && (
         <div className="fixed bottom-6 left-4 right-4 lg:left-1/2 lg:-translate-x-1/2 lg:right-auto z-[70]">
           <Button
@@ -1428,6 +1629,123 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
+      {/* ✅ DOWNLOAD ALL PROGRESS OVERLAY */}
+      {downloadAllActive && (
+        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in duration-500">
+          <div className="w-full max-w-lg space-y-8">
+            <div className="text-center space-y-6">
+              <div className="inline-flex items-center justify-center w-24 h-24 rounded-full bg-primary/10 border-2 border-primary/30 relative">
+                {downloadAllCompleted ? (
+                  <PackageCheck className="w-12 h-12 text-primary" />
+                ) : (
+                  <>
+                    <Package className="w-12 h-12 text-primary" />
+                    <div className="absolute inset-0 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+                  </>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                <h2 className="text-3xl lg:text-4xl font-headline font-bold text-white">
+                  {downloadAllCompleted ? "Download Complete! 🎉" : "Downloading All Photos"}
+                </h2>
+                {!downloadAllCompleted && (
+                  <p className="text-primary text-lg font-bold">
+                    Batch {downloadAllBatch} of {downloadAllTotalBatches}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {!downloadAllCompleted && (
+              <div className="space-y-4">
+                <div className="h-3 bg-white/10 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-primary to-primary/70 transition-all duration-300"
+                    style={{ width: `${downloadAllProgress}%` }}
+                  />
+                </div>
+                <div className="flex justify-between text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  <span>Preparing photos...</span>
+                  <span>{downloadAllProgress}%</span>
+                </div>
+              </div>
+            )}
+
+            {downloadAllCompleted && (
+              <div className="text-center space-y-2">
+                <p className="text-muted-foreground text-sm italic">
+                  Saari photos successfully download ho gayi hain.
+                </p>
+                <p className="text-primary text-xs font-bold uppercase tracking-widest">
+                  Files ke liye apna Downloads folder check karein
+                </p>
+              </div>
+            )}
+
+            {!downloadAllCompleted && (
+              <div className="flex justify-center pt-4">
+                <Button
+                  variant="outline"
+                  onClick={handleCancelDownloadAll}
+                  className="rounded-full px-8 h-12 border-white/20 text-white hover:bg-white/10"
+                >
+                  Cancel Download
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ✅ BATCH COMPLETE POPUP (Safari/Mobile ke liye) */}
+      {showBatchPopup && (
+        <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-500">
+          <div className="w-full max-w-md bg-card border border-primary/30 rounded-[2.5rem] p-10 space-y-8 shadow-[0_50px_100px_rgba(0,0,0,0.6)]">
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-500/10 border-2 border-green-500/30">
+                <CheckCircle2 className="w-10 h-10 text-green-500" />
+              </div>
+              <h3 className="text-2xl font-headline font-bold text-white">
+                Batch Complete!
+              </h3>
+              <p className="text-muted-foreground text-sm italic leading-relaxed">
+                {batchPopupMessage}
+              </p>
+            </div>
+
+            {autoContinueCountdown > 0 ? (
+              <div className="text-center space-y-3">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 border-2 border-primary/30">
+                  <span className="text-3xl font-headline font-bold text-primary">{autoContinueCountdown}</span>
+                </div>
+                <p className="text-muted-foreground text-xs uppercase tracking-widest font-bold">
+                  Next batch shuru hone wala hai...
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                <Button
+                  onClick={handleContinueBatch}
+                  className="w-full rounded-2xl h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 text-base"
+                >
+                  <Package className="w-5 h-5" />
+                  Download Next Batch
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={handleCancelDownloadAll}
+                  className="w-full rounded-2xl h-12 text-muted-foreground hover:bg-white/5"
+                >
+                  Stop Here
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* THE END SECTION */}
       {totalItems > 0 && !isSelectionMode && (
         <div className="relative mt-40 py-32 lg:py-40 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
@@ -1461,7 +1779,7 @@ export default function ClientGalleryPage() {
                 </p>
               )}
             </div>
-            <div className="flex flex-wrap justify-center items-center gap-4 pt-12 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-700">
+            <div className="flex flex-wrap justify-center items-center gap-4 pt-12">
               {whatsappNumber && (
                 <Button 
                   className="rounded-full px-10 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl transition-all hover:scale-105 active:scale-95"
