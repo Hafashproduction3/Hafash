@@ -21,7 +21,6 @@ import { CreateGalleryFromDriveModal } from '@/components/drive/CreateGalleryFro
 import { 
   createDriveFolder, 
   renameDriveFolder,
-  getDriveStorageStats,
   refreshDriveUrls,
   cleanupDriveR2Files,
 } from '@/app/actions/drive';
@@ -35,6 +34,67 @@ import {
   where,
   updateDoc,
 } from 'firebase/firestore';
+
+// ✅ CLIENT-SIDE storage stats (no adminDb needed)
+async function calculateDriveStats(userId: string, firestore: any) {
+  try {
+    let driveBytes = 0;
+    const driveStorageKeys = new Set<string>();
+
+    // ✅ Drive files
+    try {
+      const driveFilesRef = collection(firestore, 'users', userId, 'drive', 'root', 'files');
+      const driveSnap = await getDocs(driveFilesRef);
+      driveSnap.docs.forEach(d => {
+        const data = d.data();
+        driveBytes += Number(data.fileSize) || 0;
+        if (data.storageKey) driveStorageKeys.add(data.storageKey);
+      });
+    } catch (e) {
+      console.error('[STATS] Drive files failed:', e);
+    }
+
+    // ✅ Gallery files (from photoCount — no photo reads)
+    let galleryBytes = 0;
+    try {
+      const galleriesRef = collection(firestore, 'galleries');
+      const galleriesQuery = query(galleriesRef, where('userId', '==', userId));
+      const galleriesSnap = await getDocs(galleriesQuery);
+      galleriesSnap.docs.forEach(gDoc => {
+        const data = gDoc.data();
+        const photoCount = Number(data.photoCount) || 0;
+        galleryBytes += photoCount * 6.5 * 1024 * 1024;
+      });
+    } catch (e) {
+      console.error('[STATS] Galleries failed:', e);
+    }
+
+    // ✅ Plan info (client-side read)
+    const userRef = doc(firestore, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    const userData = userSnap.data() || {};
+    const planId = userData.planId;
+    const userEmail = userData.email;
+
+    const { getUserPlan } = await import('@/lib/plans');
+    const plan = getUserPlan(planId, userEmail);
+    const totalGb = plan.storageGb || 0;
+
+    const driveUsedGb = driveBytes / (1024 ** 3);
+    const galleryUsedGb = galleryBytes / (1024 ** 3);
+
+    return {
+      usedGb: driveUsedGb + galleryUsedGb,
+      totalGb,
+      driveUsedGb,
+      galleryUsedGb,
+      planName: plan.name || 'No Plan',
+    };
+  } catch (err) {
+    console.error('[STATS] FATAL:', err);
+    return { usedGb: 0, totalGb: 0, driveUsedGb: 0, galleryUsedGb: 0, planName: 'No Plan' };
+  }
+}
 
 export default function DrivePage() {
   const firestore = useFirestore();
@@ -67,7 +127,7 @@ export default function DrivePage() {
     if (showLoader) setLoading(true);
     
     try {
-      // ✅ STEP 1: Parallel fetch folders + files (fast)
+      // ✅ STEP 1: Parallel fetch folders + files
       const foldersRef = collection(firestore, 'users', user.uid, 'drive', 'root', 'folders');
       const filesRef = collection(firestore, 'users', user.uid, 'drive', 'root', 'files');
 
@@ -84,15 +144,15 @@ export default function DrivePage() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((f: any) => !f.folderId);
 
-      // ✅ STEP 2: Show UI immediately with raw data
+      // ✅ STEP 2: Show UI immediately
       setFolders(foldersData);
       setFiles(filesData);
       setLoading(false);
       setInitialLoadDone(true);
 
-      // ✅ STEP 3: Stats SIRF PEHLI BAAR (quota save)
+      // ✅ STEP 3: Stats — CLIENT-SIDE
       if (showLoader) {
-        getDriveStorageStats(user.uid)
+        calculateDriveStats(user.uid, firestore)
           .then(statsResult => setStats(statsResult))
           .catch(e => console.error('[DRIVE_LOAD] Stats failed:', e));
       }
@@ -166,7 +226,7 @@ export default function DrivePage() {
     }
   };
 
-  // ✅ DELETE FILE — INSTANT (optimistic)
+  // ✅ DELETE FILE — INSTANT
   const handleDeleteFile = async (fileId: string) => {
     if (!user?.uid || !firestore) return;
     if (!confirm('Delete this file permanently?')) return;
@@ -226,7 +286,7 @@ export default function DrivePage() {
     }
   };
 
-  // ✅ DELETE FOLDER — INSTANT (optimistic)
+  // ✅ DELETE FOLDER — INSTANT
   const handleDeleteFolder = async (folderId: string) => {
     if (!user?.uid || !firestore) return;
     if (!confirm('Delete this folder and ALL its files?')) return;
@@ -246,7 +306,6 @@ export default function DrivePage() {
       });
 
       await deleteDoc(doc(firestore, 'users', user.uid, 'drive', 'root', 'folders', folderId));
-
       await Promise.all(filesSnap.docs.map(d => deleteDoc(d.ref)));
 
       if (keys.length > 0) {
@@ -263,7 +322,7 @@ export default function DrivePage() {
     }
   };
 
-  // ✅ MULTI-DELETE Selected Files
+  // ✅ MULTI-DELETE
   const handleDeleteSelected = async () => {
     if (!user?.uid || !firestore || selectedFiles.size === 0) return;
     if (!confirm(`Delete ${selectedFiles.size} selected files permanently?`)) return;
