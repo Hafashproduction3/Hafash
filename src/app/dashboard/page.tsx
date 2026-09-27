@@ -363,6 +363,16 @@ export default function DashboardPage() {
                 <ArrowRight className="w-3.5 h-3.5 text-emerald-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
               </Button>
             </Link>
+            <Link href="/drive">
+              <Button
+                variant="outline"
+                className="rounded-2xl h-12 px-6 border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 hover:border-blue-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
+              >
+                <HardDrive className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                <span className="text-[13px]">Hafash Drive</span>
+                <ArrowRight className="w-3.5 h-3.5 text-blue-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
