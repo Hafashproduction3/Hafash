@@ -24,7 +24,6 @@ export async function createDriveFolder({
   console.log('[DRIVE_CREATE_FOLDER] start:', { userId, name, parentId });
   
   if (!adminDb) {
-    console.error('[DRIVE_CREATE_FOLDER] adminDb is null');
     return { success: false, error: 'DB offline' };
   }
 
@@ -33,7 +32,6 @@ export async function createDriveFolder({
     
     const rootSnap = await rootRef.get();
     if (!rootSnap.exists) {
-      console.log('[DRIVE_CREATE_FOLDER] creating root doc');
       await rootRef.set({ createdAt: new Date().toISOString() });
     }
 
@@ -58,7 +56,7 @@ export async function createDriveFolder({
 }
 
 /**
- * ✅ DELETE FOLDER + R2 files (Robust)
+ * ✅ DELETE FOLDER + R2 files
  */
 export async function deleteDriveFolder({
   userId,
@@ -69,21 +67,15 @@ export async function deleteDriveFolder({
 }) {
   console.log('[DRIVE_DELETE_FOLDER] start:', { userId, folderId });
   
-  if (!adminDb) {
-    console.error('[DRIVE_DELETE_FOLDER] adminDb is null');
-    return { success: false, error: 'DB offline' };
-  }
+  if (!adminDb) return { success: false, error: 'DB offline' };
 
   try {
     const rootRef = adminDb.collection('users').doc(userId).collection('drive').doc('root');
 
-    // ✅ STEP 1: Get all files in this folder
     const filesSnap = await rootRef
       .collection('files')
       .where('folderId', '==', folderId)
       .get();
-
-    console.log('[DRIVE_DELETE_FOLDER] Found files:', filesSnap.size);
 
     const keysToDelete: string[] = [];
     filesSnap.docs.forEach(doc => {
@@ -92,11 +84,8 @@ export async function deleteDriveFolder({
       if (data.thumbKey) keysToDelete.push(data.thumbKey);
     });
 
-    // ✅ STEP 2: Delete folder document (MAIN OPERATION)
     await rootRef.collection('folders').doc(folderId).delete();
-    console.log('[DRIVE_DELETE_FOLDER] ✅ Folder doc deleted');
 
-    // ✅ STEP 3: Delete all files from Firestore (MAIN OPERATION)
     for (const doc of filesSnap.docs) {
       try {
         await doc.ref.delete();
@@ -104,15 +93,12 @@ export async function deleteDriveFolder({
         console.error('[DRIVE_DELETE_FOLDER] File delete failed:', e.message);
       }
     }
-    console.log('[DRIVE_DELETE_FOLDER] ✅ All files deleted from Firestore');
 
-    // ✅ STEP 4: Delete from R2 (background — fail ho to bhi masla nahi)
     for (const key of keysToDelete) {
       try {
         await storage.deleteFile(key);
-        console.log('[R2_DELETE_FOLDER] ✅ Deleted:', key);
       } catch (e: any) {
-        console.error('[R2_DELETE_FOLDER] ⚠️ Failed:', key, e.message);
+        console.error('[R2_DELETE_FOLDER]', key, e.message);
       }
     }
 
@@ -136,8 +122,6 @@ export async function renameDriveFolder({
   folderId: string;
   newName: string;
 }) {
-  console.log('[DRIVE_RENAME_FOLDER] start:', { userId, folderId, newName });
-  
   if (!adminDb) return { success: false, error: 'DB offline' };
 
   try {
@@ -150,10 +134,9 @@ export async function renameDriveFolder({
         updatedAt: new Date().toISOString(),
       });
 
-    console.log('[DRIVE_RENAME_FOLDER] ✅ success');
     return { success: true };
   } catch (error: any) {
-    console.error('[DRIVE_RENAME_FOLDER] ❌', error);
+    console.error('[DRIVE_RENAME_FOLDER]', error);
     return { success: false, error: error.message };
   }
 }
@@ -216,10 +199,9 @@ export async function requestDriveUploadUrl({
 
     const uploadUrl = await storage.getSignedUploadUrl(storageKey, contentType, 300);
 
-    console.log('[DRIVE_UPLOAD_URL] ✅ URL generated:', storageKey);
     return { success: true, uploadUrl, key: storageKey, fileId };
   } catch (error: any) {
-    console.error('[DRIVE_UPLOAD_URL] ❌ ERROR:', error);
+    console.error('[DRIVE_UPLOAD_URL] ERROR:', error);
     return { success: false, error: error.message };
   }
 }
@@ -247,10 +229,7 @@ export async function completeDriveUpload({
 
   try {
     const exists = await storage.fileExists(task.key);
-    if (!exists) {
-      console.error('[DRIVE_COMPLETE_UPLOAD] File not in R2');
-      return { success: false, error: 'File not in R2' };
-    }
+    if (!exists) return { success: false, error: 'File not in R2' };
 
     const assetUrl = await storage.getSignedUrl(task.key, 604800);
     const thumbUrl = task.thumbKey
@@ -283,7 +262,6 @@ export async function completeDriveUpload({
       sourceDriveFileId: null,
     });
 
-    // Update folder count
     if (folderId) {
       try {
         const folderRef = rootRef.collection('folders').doc(folderId);
@@ -300,10 +278,9 @@ export async function completeDriveUpload({
       }
     }
 
-    console.log('[DRIVE_COMPLETE_UPLOAD] ✅ success');
     return { success: true, fileId: task.id };
   } catch (error: any) {
-    console.error('[DRIVE_COMPLETE_UPLOAD] ❌ ERROR:', error);
+    console.error('[DRIVE_COMPLETE_UPLOAD] ERROR:', error);
     return { success: false, error: error.message };
   }
 }
@@ -343,7 +320,7 @@ export async function refreshDriveUrls(keys: string[]): Promise<{
 }
 
 /**
- * ✅ DELETE FILE (Robust — Firestore first, R2 in background)
+ * ✅ DELETE FILE (Robust)
  */
 export async function deleteDriveFile({
   userId,
@@ -352,21 +329,16 @@ export async function deleteDriveFile({
   userId: string;
   fileId: string;
 }) {
-  console.log('🔥 [DRIVE_DELETE_FILE] START:', { userId, fileId });
+  console.log('[DRIVE_DELETE_FILE] start:', { userId, fileId });
   
-  if (!adminDb) {
-    console.error('🔥 [DRIVE_DELETE_FILE] adminDb is null');
-    return { success: false, error: 'DB offline' };
-  }
+  if (!adminDb) return { success: false, error: 'DB offline' };
 
   try {
     const rootRef = adminDb.collection('users').doc(userId).collection('drive').doc('root');
     const fileRef = rootRef.collection('files').doc(fileId);
-    
-    // ✅ STEP 1: Get file data
     const fileSnap = await fileRef.get();
+    
     if (!fileSnap.exists) {
-      console.log('🔥 [DRIVE_DELETE_FILE] File not found — treating as success');
       return { success: true };
     }
 
@@ -376,17 +348,8 @@ export async function deleteDriveFile({
     if (data.thumbKey) keysToDelete.push(data.thumbKey);
     const folderId = data.folderId;
 
-    console.log('🔥 [DRIVE_DELETE_FILE] File data:', { 
-      fileName: data.fileName, 
-      keysCount: keysToDelete.length,
-      folderId 
-    });
-
-    // ✅ STEP 2: Delete from Firestore (MAIN OPERATION)
     await fileRef.delete();
-    console.log('🔥 [DRIVE_DELETE_FILE] ✅ Firestore deleted');
 
-    // ✅ STEP 3: Update folder count (non-critical)
     if (folderId) {
       try {
         const folderRef = rootRef.collection('folders').doc(folderId);
@@ -396,37 +359,55 @@ export async function deleteDriveFile({
           await folderRef.update({
             fileCount: Math.max(currentCount - 1, 0),
           });
-          console.log('🔥 [DRIVE_DELETE_FILE] ✅ Folder count updated');
         }
-      } catch (folderErr: any) {
-        console.error('🔥 [DRIVE_DELETE_FILE] ⚠️ Folder update failed:', folderErr.message);
-        // Don't fail — file already deleted
+      } catch (e: any) {
+        console.error('[DRIVE_DELETE_FILE] Folder update failed:', e.message);
       }
     }
 
-    // ✅ STEP 4: Delete from R2 (background — fail ho to bhi masla nahi)
-    console.log('🔥 [DRIVE_DELETE_FILE] Deleting from R2:', keysToDelete.length, 'keys');
     for (const key of keysToDelete) {
       try {
         await storage.deleteFile(key);
-        console.log('🔥 [R2_DELETE_FILE] ✅ Deleted:', key);
-      } catch (r2Err: any) {
-        console.error('🔥 [R2_DELETE_FILE] ⚠️ Failed:', key, r2Err.message);
-        // Don't fail — file already deleted from Firestore
+      } catch (e: any) {
+        console.error('[R2_DELETE_FILE]', key, e.message);
       }
     }
 
-    console.log('🔥 [DRIVE_DELETE_FILE] ✅ COMPLETE');
     return { success: true };
   } catch (error: any) {
-    console.error('🔥 [DRIVE_DELETE_FILE] ❌ FATAL ERROR:', error.message);
-    console.error('🔥 [DRIVE_DELETE_FILE] Stack:', error.stack);
-    return { success: false, error: error.message || 'Delete failed' };
+    console.error('[DRIVE_DELETE_FILE] ERROR:', error);
+    return { success: false, error: error.message };
   }
 }
 
 /**
- * ✅ STORAGE STATS
+ * ✅ R2 CLEANUP ONLY (background — fire and forget)
+ */
+export async function cleanupDriveR2Files({
+  userId,
+  keys,
+}: {
+  userId: string;
+  keys: string[];
+}) {
+  if (!storage) return { success: false };
+  
+  let deleted = 0;
+  for (const key of keys) {
+    try {
+      await storage.deleteFile(key);
+      deleted++;
+      console.log('[R2_CLEANUP] ✅ Deleted:', key);
+    } catch (e: any) {
+      console.error('[R2_CLEANUP] ⚠️ Failed:', key, e.message);
+    }
+  }
+  return { success: true, deleted };
+}
+
+/**
+ * ✅ STORAGE STATS — OPTIMIZED (no photo subcollection reads)
+ * Uses gallery.photoCount instead of reading all photos
  */
 export async function getDriveStorageStats(userId: string): Promise<{
   usedGb: number;
@@ -452,41 +433,34 @@ export async function getDriveStorageStats(userId: string): Promise<{
     const plan = getUserPlan(rawData.planId, authEmail);
     const totalGb = plan.storageGb || 0;
 
-    // Drive files
+    // ✅ Drive files — only 1 query for all files
     const driveFilesSnap = await adminDb
       .collection('users').doc(userId)
       .collection('drive').doc('root')
       .collection('files').get();
 
     let driveBytes = 0;
-    const driveStorageKeys = new Set<string>();
-
     driveFilesSnap.docs.forEach(doc => {
       const data = doc.data();
       driveBytes += Number(data.fileSize) || 0;
-      if (data.storageKey) driveStorageKeys.add(data.storageKey);
     });
 
-    // Gallery files (only unique, not in Drive)
+    // ✅ Gallery usage — photoCount se estimate (NO photo reads!)
     const galleriesSnap = await adminDb
       .collection('galleries')
       .where('userId', '==', userId)
       .get();
 
-    let galleryOnlyBytes = 0;
-
-    for (const galleryDoc of galleriesSnap.docs) {
-      const photosSnap = await galleryDoc.ref.collection('photos').get();
-      photosSnap.docs.forEach(pDoc => {
-        const data = pDoc.data();
-        const storageKey = data.storageKey;
-        if (storageKey && driveStorageKeys.has(storageKey)) return;
-        galleryOnlyBytes += Number(data.fileSize) || 0;
-      });
-    }
+    let galleryBytes = 0;
+    galleriesSnap.docs.forEach(gDoc => {
+      const data = gDoc.data();
+      // Average 6.5 MB per photo (preview + original + thumb)
+      const photoCount = Number(data.photoCount) || 0;
+      galleryBytes += photoCount * 6.5 * 1024 * 1024;
+    });
 
     const driveUsedGb = driveBytes / (1024 ** 3);
-    const galleryUsedGb = galleryOnlyBytes / (1024 ** 3);
+    const galleryUsedGb = galleryBytes / (1024 ** 3);
     const totalUsedGb = driveUsedGb + galleryUsedGb;
 
     return {
@@ -597,28 +571,4 @@ export async function createGalleryFromDriveFiles({
     console.error('[CREATE_GALLERY_FROM_DRIVE] ERROR:', error);
     return { success: false, error: error.message };
   }
-}
-/**
- * ✅ R2 cleanup only (background — fire and forget)
- */
-export async function cleanupDriveR2Files({
-  userId,
-  keys,
-}: {
-  userId: string;
-  keys: string[];
-}) {
-  if (!storage) return { success: false };
-  
-  let deleted = 0;
-  for (const key of keys) {
-    try {
-      await storage.deleteFile(key);
-      deleted++;
-      console.log('[R2_CLEANUP] ✅ Deleted:', key);
-    } catch (e: any) {
-      console.error('[R2_CLEANUP] ⚠️ Failed:', key, e.message);
-    }
-  }
-  return { success: true, deleted };
 }

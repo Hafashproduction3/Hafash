@@ -17,6 +17,7 @@ import { FolderCard } from '@/components/drive/FolderCard';
 import { FileCard } from '@/components/drive/FileCard';
 import { CreateFolderModal } from '@/components/drive/CreateFolderModal';
 import { UploadModal } from '@/components/drive/UploadModal';
+import { CreateGalleryFromDriveModal } from '@/components/drive/CreateGalleryFromDriveModal';
 import { 
   createDriveFolder, 
   renameDriveFolder,
@@ -58,6 +59,7 @@ export default function DrivePage() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showCreateGallery, setShowCreateGallery] = useState(false);
 
   // ✅ FAST loadData — parallel loading + background refresh
   const loadData = useCallback(async (showLoader = false) => {
@@ -88,10 +90,12 @@ export default function DrivePage() {
       setLoading(false);
       setInitialLoadDone(true);
 
-      // ✅ STEP 3: Stats in background
-      getDriveStorageStats(user.uid)
-        .then(statsResult => setStats(statsResult))
-        .catch(e => console.error('[DRIVE_LOAD] Stats failed:', e));
+      // ✅ STEP 3: Stats SIRF PEHLI BAAR (quota save)
+      if (showLoader) {
+        getDriveStorageStats(user.uid)
+          .then(statsResult => setStats(statsResult))
+          .catch(e => console.error('[DRIVE_LOAD] Stats failed:', e));
+      }
 
       // ✅ STEP 4: Refresh URLs in background
       if (filesData.length > 0) {
@@ -112,7 +116,6 @@ export default function DrivePage() {
           }
         }
 
-        // Update files with fresh URLs
         setFiles(prev => prev.map((f: any) => ({
           ...f,
           url: urlMap[f.storageKey] || f.url,
@@ -152,7 +155,6 @@ export default function DrivePage() {
     const newName = prompt('New name:', currentName);
     if (!newName || newName === currentName || !user?.uid) return;
     
-    // Optimistic update
     setFolders(prev => prev.map(f => f.id === folderId ? { ...f, name: newName } : f));
     
     const result = await renameDriveFolder({ userId: user.uid, folderId, newName });
@@ -169,11 +171,9 @@ export default function DrivePage() {
     if (!user?.uid || !firestore) return;
     if (!confirm('Delete this file permanently?')) return;
 
-    // ✅ INSTANT: Remove from UI immediately
     const fileToDelete = files.find(f => f.id === fileId);
     setFiles(prev => prev.filter(f => f.id !== fileId));
 
-    // ✅ INSTANT: Update stats locally
     if (fileToDelete?.fileSize) {
       const sizeGb = fileToDelete.fileSize / (1024 ** 3);
       setStats((prev: any) => ({
@@ -183,7 +183,6 @@ export default function DrivePage() {
       }));
     }
 
-    // ✅ Background: Firestore + R2 delete
     try {
       const fileRef = doc(firestore, 'users', user.uid, 'drive', 'root', 'files', fileId);
       
@@ -192,10 +191,8 @@ export default function DrivePage() {
       if (fileToDelete?.thumbKey) keys.push(fileToDelete.thumbKey);
       const folderId = fileToDelete?.folderId;
 
-      // Delete Firestore
       await deleteDoc(fileRef);
 
-      // Update folder count
       if (folderId) {
         try {
           const folderRef = doc(firestore, 'users', user.uid, 'drive', 'root', 'folders', folderId);
@@ -211,7 +208,6 @@ export default function DrivePage() {
         }
       }
 
-      // R2 cleanup (background)
       if (keys.length > 0) {
         cleanupDriveR2Files({ userId: user.uid, keys }).catch(e => 
           console.error('[R2_CLEANUP]', e)
@@ -226,7 +222,6 @@ export default function DrivePage() {
         title: 'Delete Failed', 
         description: err.message 
       });
-      // Rollback
       loadData(false);
     }
   };
@@ -236,11 +231,9 @@ export default function DrivePage() {
     if (!user?.uid || !firestore) return;
     if (!confirm('Delete this folder and ALL its files?')) return;
 
-    // ✅ INSTANT: Remove from UI
     setFolders(prev => prev.filter(f => f.id !== folderId));
 
     try {
-      // Get all files in this folder
       const filesRef = collection(firestore, 'users', user.uid, 'drive', 'root', 'files');
       const filesQuery = query(filesRef, where('folderId', '==', folderId));
       const filesSnap = await getDocs(filesQuery);
@@ -252,13 +245,10 @@ export default function DrivePage() {
         if (data.thumbKey) keys.push(data.thumbKey);
       });
 
-      // Delete folder doc
       await deleteDoc(doc(firestore, 'users', user.uid, 'drive', 'root', 'folders', folderId));
 
-      // Delete all files
       await Promise.all(filesSnap.docs.map(d => deleteDoc(d.ref)));
 
-      // R2 cleanup
       if (keys.length > 0) {
         cleanupDriveR2Files({ userId: user.uid, keys }).catch(e => 
           console.error('[R2_CLEANUP]', e)
@@ -281,11 +271,9 @@ export default function DrivePage() {
     setIsDeleting(true);
     const fileIds = Array.from(selectedFiles);
 
-    // ✅ INSTANT: Remove from UI
     const filesToDelete = files.filter(f => fileIds.includes(f.id));
     setFiles(prev => prev.filter(f => !fileIds.includes(f.id)));
 
-    // ✅ INSTANT: Update stats
     const totalSize = filesToDelete.reduce((sum, f) => sum + (f.fileSize || 0), 0);
     const sizeGb = totalSize / (1024 ** 3);
     setStats((prev: any) => ({
@@ -294,7 +282,6 @@ export default function DrivePage() {
       driveUsedGb: Math.max(prev.driveUsedGb - sizeGb, 0),
     }));
 
-    // ✅ Clear selection immediately
     setSelectedFiles(new Set());
     setIsSelectionMode(false);
 
@@ -302,7 +289,6 @@ export default function DrivePage() {
       const allKeys: string[] = [];
       const folderCounts: Record<string, number> = {};
 
-      // Delete each file from Firestore
       for (const file of filesToDelete) {
         try {
           const fileRef = doc(firestore, 'users', user.uid, 'drive', 'root', 'files', file.id);
@@ -319,7 +305,6 @@ export default function DrivePage() {
         }
       }
 
-      // Update folder counts
       for (const [folderId, count] of Object.entries(folderCounts)) {
         try {
           const folderRef = doc(firestore, 'users', user.uid, 'drive', 'root', 'folders', folderId);
@@ -333,7 +318,6 @@ export default function DrivePage() {
         } catch (e) {}
       }
 
-      // R2 cleanup
       if (allKeys.length > 0) {
         cleanupDriveR2Files({ userId: user.uid, keys: allKeys }).catch(e => 
           console.error('[R2_CLEANUP]', e)
@@ -571,7 +555,7 @@ export default function DrivePage() {
         )}
       </div>
 
-      {/* FLOATING SELECTION BAR — MULTI DELETE + CREATE GALLERY */}
+      {/* FLOATING SELECTION BAR */}
       {isSelectionMode && selectedFiles.size > 0 && (
         <div className="fixed bottom-6 left-4 right-4 lg:left-1/2 lg:-translate-x-1/2 lg:right-auto z-[70]">
           <div className="bg-primary text-primary-foreground rounded-2xl px-6 py-4 shadow-[0_20px_60px_rgba(212,175,55,0.5)] flex items-center gap-3 flex-wrap">
@@ -590,9 +574,7 @@ export default function DrivePage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                toast({ title: '🚧 Coming soon', description: 'Create Gallery from Drive' });
-              }}
+              onClick={() => setShowCreateGallery(true)}
               className="text-primary-foreground hover:bg-primary-foreground/20 font-bold gap-2"
             >
               <Package className="w-4 h-4" />
@@ -613,6 +595,7 @@ export default function DrivePage() {
         </div>
       )}
 
+      {/* MODALS */}
       <CreateFolderModal
         open={showCreateFolder}
         onClose={() => setShowCreateFolder(false)}
@@ -625,6 +608,24 @@ export default function DrivePage() {
         userId={user.uid}
         folderId={null}
         onComplete={() => loadData(false)}
+      />
+
+      <CreateGalleryFromDriveModal
+        open={showCreateGallery}
+        onClose={() => setShowCreateGallery(false)}
+        userId={user.uid}
+        fileIds={Array.from(selectedFiles)}
+        onSuccess={(galleryId, slug) => {
+          toast({ 
+            title: '✅ Gallery created!', 
+            description: 'Opening gallery in new tab...'
+          });
+          setSelectedFiles(new Set());
+          setIsSelectionMode(false);
+          setTimeout(() => {
+            window.open(`/gallery/${slug}`, '_blank');
+          }, 1000);
+        }}
       />
     </div>
   );
