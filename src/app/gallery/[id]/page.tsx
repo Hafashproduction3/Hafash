@@ -5,10 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Heart, Download, Loader2, MessageCircle, Share2, ShieldAlert,
-  ArrowLeft, Send, CheckCircle2, Sparkles, Lock, Unlock, KeyRound, X,
+  ArrowLeft, CheckCircle2, Sparkles, Lock, Unlock, KeyRound, X,
   Camera, ChevronLeft, ChevronRight, Play, Pause, Volume2, VolumeX, ArrowUp,
-  CheckSquare, Square, CheckCheck, Quote, PenTool, Package, PackageCheck,
-  AlertCircle, Info
+  CheckSquare, Square, CheckCheck, Quote, PenTool, Package, PackageCheck
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -16,10 +15,6 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion, orderBy, startAfter } from 'firebase/firestore';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui/dialog";
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
@@ -161,10 +156,6 @@ export default function ClientGalleryPage() {
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [replyText, setReplyText] = useState('');
-  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
-  const [replySuccess, setReplySuccess] = useState(false);
-  const [helpfulClicked, setHelpfulClicked] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [introLeaving, setIntroLeaving] = useState(false);
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
@@ -179,11 +170,9 @@ export default function ClientGalleryPage() {
   const lightboxOpenRef = useRef<boolean>(false);
   const isClosingViaPopstateRef = useRef<boolean>(false);
   
-  // ✅ Photographer's Note animation
   const noteRef = useRef<HTMLDivElement | null>(null);
   const [noteVisible, setNoteVisible] = useState(false);
 
-  // ✅ DOWNLOAD ALL state
   const [downloadAllActive, setDownloadAllActive] = useState(false);
   const [downloadAllBatch, setDownloadAllBatch] = useState(0);
   const [downloadAllTotalBatches, setDownloadAllTotalBatches] = useState(0);
@@ -197,12 +186,6 @@ export default function ClientGalleryPage() {
   const isMobile = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
     return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-  }, []);
-
-  const isSafari = useMemo(() => {
-    if (typeof navigator === 'undefined') return false;
-    const ua = navigator.userAgent;
-    return /Safari/.test(ua) && !/Chrome|Chromium|Edg/.test(ua);
   }, []);
 
   const MAX_SELECT = isMobile ? 100 : 200;
@@ -693,7 +676,6 @@ export default function ClientGalleryPage() {
     setIsSelectionMode(false);
   }, []);
 
-  // ✅ Core ZIP download function - ek batch ke liye
   const downloadBatch = useCallback(async (
     photos: any[],
     batchIndex: number,
@@ -755,12 +737,10 @@ export default function ClientGalleryPage() {
     return successCount;
   }, []);
 
-  // ✅ DOWNLOAD ALL — main function (SAB AUTOMATIC)
   const handleDownloadAll = useCallback(async () => {
     if (!gallery || !galleryId || galleryId === 'demo') return;
     if (!canDownload) return;
 
-    // ✅ STEP 1: Pehle saari photos Firestore se fetch karein (paginated)
     setIsPreparing(true);
     let allPhotos: any[] = [];
 
@@ -804,17 +784,7 @@ export default function ClientGalleryPage() {
       return;
     }
 
-    // ✅ STEP 2: Sirf original-ready photos filter karein
     const allItems = allPhotos.filter((it: any) => it.originalReady && it.originalKey);
-
-    if (allItems.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "⏳ Photos processing",
-        description: "Photos abhi upload ho rahi hain. Thora wait karein.",
-      });
-      return;
-    }
 
     if (allItems.length === 0) {
       toast({
@@ -837,7 +807,6 @@ export default function ClientGalleryPage() {
     let completedSuccessfully = 0;
 
     try {
-      // ✅ FOR LOOP: saari batches automatic chalein
       for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
         if (cancelDownloadAllRef.current) break;
 
@@ -865,7 +834,6 @@ export default function ClientGalleryPage() {
           console.error(`[DOWNLOAD_ALL] Batch ${batchIdx + 1} failed:`, err);
         }
 
-        // ✅ Agar aur batches baaki hain — 4 second countdown phir auto next
         if (batchIdx < totalBatches - 1 && !cancelDownloadAllRef.current) {
           setBatchPopupMessage(`Batch ${batchIdx + 1} of ${totalBatches} complete!`);
           setShowBatchPopup(true);
@@ -880,7 +848,6 @@ export default function ClientGalleryPage() {
         }
       }
 
-      // ✅ AB YEH FOR LOOP KE BAAHAR HAI — sirf ek dafa chalega
       if (!cancelDownloadAllRef.current) {
         setDownloadAllCompleted(true);
         toast({
@@ -907,7 +874,6 @@ export default function ClientGalleryPage() {
     }
   }, [gallery, galleryId, firestore, canDownload, BATCH_SIZE, downloadBatch, toast]);
 
-  // ✅ Cancel download
   const handleCancelDownloadAll = useCallback(() => {
     cancelDownloadAllRef.current = true;
     setShowBatchPopup(false);
@@ -920,7 +886,6 @@ export default function ClientGalleryPage() {
     });
   }, [toast]);
 
-  // ✅ Download Selected
   const handleDownloadSelected = useCallback(async () => {
     if (selectedPhotos.size === 0) {
       toast({
@@ -1128,33 +1093,6 @@ export default function ClientGalleryPage() {
       setVerifying(false);
     }
   };
-
-  const handleSubmitReply = useCallback(async (manualText?: string) => {
-    const textToSubmit = manualText || replyText;
-    if (!textToSubmit.trim() || !galleryRef || galleryId === 'demo') return;
-    setIsSubmittingReply(true);
-    try {
-      await updateDoc(galleryRef, {
-        replies: arrayUnion({ text: textToSubmit, createdAt: new Date().toISOString() })
-      });
-      if (!manualText) {
-        setReplySuccess(true);
-        setReplyText('');
-        setTimeout(() => setReplySuccess(false), 5000);
-      }
-      toast({ title: "Feedback Sent" });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Submit Failed", description: err.message });
-    } finally {
-      setIsSubmittingReply(false);
-    }
-  }, [replyText, galleryRef, galleryId, toast]);
-
-  const handleHelpfulClick = useCallback(() => {
-    if (helpfulClicked) return;
-    setHelpfulClicked(true);
-    handleSubmitReply("[System]: Client found the photographer note helpful ❤️");
-  }, [helpfulClicked, handleSubmitReply]);
 
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1501,7 +1439,6 @@ export default function ClientGalleryPage() {
         </div>
       </div>
 
-      {/* ✅ PHOTOGRAPHER'S NOTE */}
       {hasNoteContent && (
         <div 
           ref={noteRef}
@@ -1640,7 +1577,6 @@ export default function ClientGalleryPage() {
         )}
       </div>
 
-      {/* FLOATING DOWNLOAD BUTTON (Selection Mode) */}
       {isSelectionMode && selectedPhotos.size > 0 && (
         <div className="fixed bottom-6 left-4 right-4 lg:left-1/2 lg:-translate-x-1/2 lg:right-auto z-[70]">
           <Button
@@ -1663,7 +1599,6 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
-      {/* ✅ DOWNLOAD ALL PROGRESS OVERLAY */}
       {downloadAllActive && (
         <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in duration-500">
           <div className="w-full max-w-lg space-y-8">
@@ -1732,7 +1667,6 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
-      {/* ✅ BATCH COMPLETE POPUP (auto-continue) */}
       {showBatchPopup && (
         <div className="fixed inset-0 z-[110] bg-black/80 backdrop-blur-2xl flex items-center justify-center p-6 animate-in fade-in duration-500">
           <div className="w-full max-w-md bg-card border border-primary/30 rounded-[2.5rem] p-10 space-y-8 shadow-[0_50px_100px_rgba(0,0,0,0.6)]">
@@ -1767,7 +1701,6 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
-      {/* THE END SECTION */}
       {totalItems > 0 && !isSelectionMode && (
         <div className="relative mt-40 py-32 lg:py-40 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
