@@ -17,11 +17,11 @@ import {
   Heart,
   ArrowRight,
   AlertCircle,
+  AlertTriangle,
   Settings,
   Image as ImageIcon,
   CreditCard,
   HardDrive,
-  AlertTriangle,
   Sparkles,
   Inbox,
   MessageSquare,
@@ -230,6 +230,12 @@ export default function DashboardPage() {
     return planExpiryDate.getTime() > Date.now();
   }, [profile?.planId, currentPlan.id, planExpiryDate, user?.email]);
 
+  // ✅ Days left calculation
+  const daysUntilExpiry = useMemo(() => {
+    if (!planExpiryDate) return null;
+    return Math.ceil((planExpiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  }, [planExpiryDate]);
+
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries || []), [galleries]);
   const storageLimitGb = currentPlan.storageGb || 0;
   const usagePercent = storageLimitGb > 0 ? Math.min((currentUsageGb / storageLimitGb) * 100, 100) : 0;
@@ -363,19 +369,90 @@ export default function DashboardPage() {
                 <ArrowRight className="w-3.5 h-3.5 text-emerald-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
               </Button>
             </Link>
-            <Link href="/drive">
-              <Button
-                variant="outline"
-                className="rounded-2xl h-12 px-6 border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 hover:border-blue-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
-              >
-                <HardDrive className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-                <span className="text-[13px]">Hafash Drive</span>
-                <ArrowRight className="w-3.5 h-3.5 text-blue-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
-              </Button>
-            </Link>
           </div>
         </div>
       </div>
+
+      {/* ═══ PLAN EXPIRY WARNING BANNER ═══ */}
+      {!profileLoading && daysUntilExpiry !== null && !isOwnerEmail(user?.email) && (
+        <>
+          {/* ❌ Plan Expired */}
+          {daysUntilExpiry < 0 && (
+            <div className="relative overflow-hidden rounded-2xl border border-red-500/40 bg-red-500/10 p-5 shadow-lg">
+              <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-red-500/10 blur-3xl pointer-events-none" />
+              <div className="relative flex flex-col md:flex-row items-start md:items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-headline font-bold text-lg text-white">
+                    ⚠️ Aapka Plan Expire Ho Gaya Hai
+                  </h3>
+                  <p className="text-sm text-white/80 mt-1">
+                    Aapki galleries clients ko dikh rahi hain, lekin naye uploads band hain. Foran renew karein.
+                  </p>
+                </div>
+                <Link href="/storage" className="w-full md:w-auto shrink-0">
+                  <Button className="w-full md:w-auto rounded-xl bg-red-500 text-white hover:bg-red-600 font-bold gap-2">
+                    Renew Now
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* 🟠 3 din ya kam */}
+          {daysUntilExpiry >= 0 && daysUntilExpiry <= 3 && (
+            <div className="relative overflow-hidden rounded-2xl border border-orange-500/40 bg-orange-500/10 p-5 shadow-lg animate-pulse">
+              <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-orange-500/10 blur-3xl pointer-events-none" />
+              <div className="relative flex flex-col md:flex-row items-start md:items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-orange-500/20 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6 text-orange-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-headline font-bold text-lg text-white">
+                    🔔 Plan sirf {daysUntilExpiry} din mein khatam hoga
+                  </h3>
+                  <p className="text-sm text-white/80 mt-1">
+                    Renew karein taake aapki galleries aur uploads chalu rahein.
+                  </p>
+                </div>
+                <Link href="/storage" className="w-full md:w-auto shrink-0">
+                  <Button className="w-full md:w-auto rounded-xl bg-orange-500 text-white hover:bg-orange-600 font-bold gap-2">
+                    Renew Now
+                    <ArrowRight className="w-4 h-4" />
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* 🟡 7 din ya kam */}
+          {daysUntilExpiry > 3 && daysUntilExpiry <= 7 && (
+            <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+                <div className="h-12 w-12 rounded-xl bg-amber-500/20 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-6 h-6 text-amber-500" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-headline font-bold text-lg text-white">
+                    Plan {daysUntilExpiry} din mein expire hoga
+                  </h3>
+                  <p className="text-sm text-white/80 mt-1">
+                    Renewal ke liye tayyar rahein.
+                  </p>
+                </div>
+                <Link href="/storage" className="w-full md:w-auto shrink-0">
+                  <Button variant="outline" className="w-full md:w-auto rounded-xl border-amber-500/40 text-amber-500 hover:bg-amber-500/10 font-bold">
+                    View Plans
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* ═══ NETWORK WIDGET ═══ */}
       <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/8 via-card/60 to-background p-5 lg:p-6 shadow-lg">

@@ -53,7 +53,6 @@ export default function EventManagementPage() {
   const [assetSearch, setAssetSearch] = useState('');
   const [displayLimit, setDisplayLimit] = useState(60);
 
-  // ✅ NEW: Refreshed photos state
   const [refreshedPhotos, setRefreshedPhotos] = useState<any[]>([]);
   const [refreshedCover, setRefreshedCover] = useState<string>('');
 
@@ -87,7 +86,6 @@ export default function EventManagementPage() {
 
   const { data: eventRaw, loading: dataLoading, error } = useDoc(eventRef);
 
-  // ✅ Subcollection photos listener
   const photosQuery = useMemo(() => {
     if (!firestore || !id) return null;
     return query(
@@ -98,7 +96,6 @@ export default function EventManagementPage() {
 
   const { data: subcollectionPhotos, loading: photosLoading } = useCollection(photosQuery);
 
-  // ✅ NEW: Refresh photo URLs when photos load
   useEffect(() => {
     async function refreshUrls() {
       if (!subcollectionPhotos || subcollectionPhotos.length === 0) {
@@ -106,14 +103,12 @@ export default function EventManagementPage() {
         return;
       }
 
-      // Collect all keys
       const keysToRefresh: string[] = [];
       subcollectionPhotos.forEach((p: any) => {
         if (p.storageKey) keysToRefresh.push(p.storageKey);
         if (p.thumbKey) keysToRefresh.push(p.thumbKey);
       });
 
-      // Refresh in batches of 200 to avoid timeouts
       const urlMap: Record<string, string> = {};
       const BATCH_SIZE = 200;
       
@@ -129,7 +124,6 @@ export default function EventManagementPage() {
         }
       }
 
-      // Apply fresh URLs
       const updated = subcollectionPhotos.map((p: any) => ({
         ...p,
         url: urlMap[p.storageKey] || p.url,
@@ -145,7 +139,6 @@ export default function EventManagementPage() {
     refreshUrls();
   }, [subcollectionPhotos]);
 
-  // ✅ NEW: Refresh cover image URL
   useEffect(() => {
     async function refreshCover() {
       if (!eventRaw?.coverImage) {
@@ -153,7 +146,6 @@ export default function EventManagementPage() {
         return;
       }
 
-      // Extract key from cover URL
       try {
         const urlObj = new URL(eventRaw.coverImage);
         const key = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
@@ -178,7 +170,6 @@ export default function EventManagementPage() {
     refreshCover();
   }, [eventRaw?.coverImage]);
 
-  // Merge: refreshed photos OR fallback to items array
   const event = useMemo(() => {
     if (!eventRaw) return null;
     const photos = refreshedPhotos.length > 0
@@ -231,7 +222,6 @@ export default function EventManagementPage() {
   const handleSetCover = useCallback(async (imageUrl: string) => {
     if (!eventRef) return;
     try {
-      // Extract storage key from URL for permanent storage
       let coverKey = '';
       try {
         const urlObj = new URL(imageUrl);
@@ -425,12 +415,43 @@ export default function EventManagementPage() {
     }
   }, [eventRef, event, deleteConfirmText, router, toast, isDeleting, firestore, id, subcollectionPhotos]);
 
-  const updateToggle = useCallback((field: string, value: any) => {
-    if (!eventRef) return;
-    const updateData: any = { [field]: value, updatedAt: new Date().toISOString() };
+  // ✅ FIXED: updateToggle with error handling
+  const updateToggle = useCallback(async (field: string, value: any) => {
+    if (!eventRef) {
+      console.error('[TOGGLE] eventRef is null');
+      toast({ 
+        variant: 'destructive', 
+        title: 'Failed', 
+        description: 'Gallery reference not found' 
+      });
+      return;
+    }
+
+    console.log(`[TOGGLE] Updating ${field} to:`, value);
+
+    const updateData: any = { 
+      [field]: value, 
+      updatedAt: new Date().toISOString() 
+    };
     if (field === 'isPaid') updateData.isLocked = !value;
-    updateDoc(eventRef, updateData);
-  }, [eventRef]);
+
+    try {
+      await updateDoc(eventRef, updateData);
+      console.log(`[TOGGLE] ✅ ${field} updated successfully`);
+      toast({ 
+        title: `✅ ${field === 'isPublic' ? 'Public Access' : field === 'isPaid' ? 'Download Access' : field} Updated`,
+        description: value ? 'Enabled' : 'Disabled'
+      });
+    } catch (err: any) {
+      console.error('[TOGGLE] ❌ Error:', err);
+      toast({ 
+        variant: 'destructive', 
+        title: 'Update Failed', 
+        description: err.message || 'Unknown error'
+      });
+      setSettings((prev: any) => ({ ...prev, [field]: !value }));
+    }
+  }, [eventRef, toast]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -687,10 +708,14 @@ export default function EventManagementPage() {
               <div className="space-y-6 pt-4">
                 <div className="flex items-center justify-between p-2">
                   <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em]">Public Access</span>
-                  <Switch checked={settings.isPublic} onCheckedChange={(val) => {
-                    setSettings({...settings, isPublic: val});
-                    updateToggle('isPublic', val);
-                  }} className="data-[state=checked]:bg-primary" />
+                  <Switch 
+                    checked={settings.isPublic} 
+                    onCheckedChange={async (val) => {
+                      setSettings((prev: any) => ({ ...prev, isPublic: val }));
+                      await updateToggle('isPublic', val);
+                    }} 
+                    className="data-[state=checked]:bg-primary" 
+                  />
                 </div>
                 <div className="flex items-center justify-between pt-10 border-t border-white/5">
                   <div className="space-y-2">
@@ -700,10 +725,14 @@ export default function EventManagementPage() {
                       {settings.isPaid ? "Payment Received" : "Awaiting Transfer"}
                     </Badge>
                   </div>
-                  <Switch checked={settings.isPaid} onCheckedChange={(val) => {
-                    setSettings({...settings, isPaid: val, isLocked: !val});
-                    updateToggle('isPaid', val);
-                  }} className="data-[state=checked]:bg-green-500" />
+                  <Switch 
+                    checked={settings.isPaid} 
+                    onCheckedChange={async (val) => {
+                      setSettings((prev: any) => ({ ...prev, isPaid: val, isLocked: !val }));
+                      await updateToggle('isPaid', val);
+                    }} 
+                    className="data-[state=checked]:bg-green-500" 
+                  />
                 </div>
               </div>
             </CardContent>
