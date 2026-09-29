@@ -5,12 +5,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { 
   Download, FileText, Check, X, Loader2, ArrowLeft, 
   ImageIcon, User, Calendar, Grid, CheckCircle2, Package,
-  Share2, Copy, Link as LinkIcon
+  Share2, Copy, Link2, Sparkles
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useMemo, useEffect } from 'react';
-import { doc, collection, getDocs, query, where } from 'firebase/firestore';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { doc, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { refreshPhotoUrls } from '@/app/actions/storage';
@@ -31,6 +31,8 @@ export default function AlbumSelectionDetailPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState("");
   const [origin, setOrigin] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') setOrigin(window.location.origin);
@@ -106,6 +108,69 @@ export default function AlbumSelectionDetailPage() {
   }, [firestore, id]);
 
   const selectedItems = favoriteItems;
+  const hasLink = !!(event?.albumLinkToken && event?.albumLinkEnabled);
+  const albumLinkUrl = hasLink ? `${origin}/album/${event.albumLinkToken}` : '';
+
+  // ✅ Generate Album Link
+  const handleGenerateLink = useCallback(async () => {
+    if (!eventRef || isGenerating) return;
+    setIsGenerating(true);
+
+    try {
+      const token = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      await updateDoc(eventRef, {
+        albumLinkToken: token,
+        albumLinkEnabled: true,
+        albumLinkCreated: new Date().toISOString(),
+      });
+
+      const linkUrl = `${origin}/album/${token}`;
+      navigator.clipboard.writeText(linkUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+
+      toast({
+        title: "✅ Link Created & Copied",
+        description: "Album designer ko bhejne ke liye ready hai.",
+      });
+    } catch (err: any) {
+      console.error('[ALBUM_LINK]', err);
+      toast({
+        variant: "destructive",
+        title: "Link Creation Failed",
+        description: err.message,
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [eventRef, isGenerating, origin, toast]);
+
+  // ✅ Copy existing link
+  const handleCopyLink = useCallback(() => {
+    if (!albumLinkUrl) return;
+    navigator.clipboard.writeText(albumLinkUrl);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 3000);
+    toast({ title: "✅ Link Copied!" });
+  }, [albumLinkUrl, toast]);
+
+  // ✅ Disable link
+  const handleDisableLink = useCallback(async () => {
+    if (!eventRef) return;
+    if (!confirm('Link disable karna chahte hain? Designer link nahi khol payega.')) return;
+
+    try {
+      await updateDoc(eventRef, {
+        albumLinkEnabled: false,
+      });
+      toast({ title: "Link Disabled" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Failed", description: err.message });
+    }
+  }, [eventRef, toast]);
 
   const toggleSelect = (itemId: string) => {
     const next = new Set(selectedIds);
@@ -122,7 +187,6 @@ export default function AlbumSelectionDetailPage() {
     }
   };
 
-  // ✅ Download ALL favorites (ek click mein)
   const handleDownloadAll = async () => {
     if (selectedItems.length === 0 || isProcessing) return;
     
@@ -149,10 +213,9 @@ export default function AlbumSelectionDetailPage() {
       
       setProgress("Generating ZIP...");
       const content = await zip.generateAsync({ type: 'blob' });
-      const zipName = `${event?.title || 'selections'}-all-favorites.zip`;
-      saveAs(content, zipName);
+      saveAs(content, `${event?.title || 'selections'}-all-favorites.zip`);
       
-      toast({ title: "✅ Download Ready", description: `${selectedItems.length} favorites packaged.` });
+      toast({ title: "✅ Download Ready" });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Download Failed", description: error.message });
     } finally {
@@ -161,7 +224,6 @@ export default function AlbumSelectionDetailPage() {
     }
   };
 
-  // ✅ Download SELECTED
   const handleDownloadSelected = async () => {
     if (selectedIds.size === 0 || isProcessing) return;
     
@@ -187,12 +249,10 @@ export default function AlbumSelectionDetailPage() {
         zip.file(item.fileName || `selection-${i + 1}.jpg`, blob);
       }
       
-      setProgress("Generating ZIP...");
       const content = await zip.generateAsync({ type: 'blob' });
-      const zipName = `${event?.title || 'selections'}-selected.zip`;
-      saveAs(content, zipName);
+      saveAs(content, `${event?.title || 'selections'}-selected.zip`);
       
-      toast({ title: "✅ Download Ready", description: `${itemsToDownload.length} selected photos packaged.` });
+      toast({ title: "✅ Download Ready" });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Download Failed", description: error.message });
     } finally {
@@ -201,61 +261,16 @@ export default function AlbumSelectionDetailPage() {
     }
   };
 
-  // ✅ Share album designer link
-  const handleShareLink = () => {
-    if (!event?.albumLinkToken) {
-      toast({ 
-        variant: "destructive", 
-        title: "Link Not Available",
-        description: "Album link enable karein pehle (Manage → Album Link)",
-      });
-      return;
-    }
-
-    const shareUrl = `${origin}/album/${event.albumLinkToken}`;
-    navigator.clipboard.writeText(shareUrl);
-    toast({ 
-      title: "✅ Link Copied!", 
-      description: "Album designer ko bhejne ke liye ready hai.",
-    });
-  };
-
-  const handleExportCSV = () => {
-    if (selectedItems.length === 0) return;
-    
-    const itemsToExport = selectedIds.size > 0 
-      ? selectedItems.filter((i: any) => selectedIds.has(i.id))
-      : selectedItems;
-
-    const headers = ["ID", "Filename", "URL", "Master URL"];
-    const rows = itemsToExport.map((i: any) => [
-      i.id,
-      i.fileName || "N/A",
-      i.url,
-      i.masterUrl || "N/A"
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(r => r.map(cell => `"${cell}"`).join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    saveAs(blob, `${event?.title || 'album'}-selections.csv`);
-    
-    toast({ title: "CSV Exported" });
-  };
-
   if (authLoading || dataLoading || loadingFavorites) {
     return <HafashLoader text="Preparing Your Selection Workspace..." />;
   }
 
   if (!event) return null;
 
-  const hasAlbumLink = !!event.albumLinkToken && event.albumLinkEnabled;
-
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-border/50 pb-8">
         <div className="space-y-4">
           <div className="flex items-center gap-4">
@@ -272,44 +287,15 @@ export default function AlbumSelectionDetailPage() {
             <div className="flex flex-wrap items-center gap-6 mt-2 text-muted-foreground text-[10px] font-bold uppercase tracking-widest">
               <span className="flex items-center gap-1.5"><User className="w-3 h-3 text-primary" /> {event.clientName}</span>
               <span className="flex items-center gap-1.5"><Calendar className="w-3 h-3 text-primary" /> {event.date}</span>
-              <span className="flex items-center gap-1.5 text-primary"><CheckCircle2 className="w-3 h-3" /> {selectedItems.length} Total Favorites</span>
+              <span className="flex items-center gap-1.5 text-primary"><CheckCircle2 className="w-3 h-3" /> {selectedItems.length} Favorites</span>
             </div>
           </div>
         </div>
 
-        {/* ✅ Action Buttons — Share Link + Download All */}
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
-          
-          {/* Share Link (Album Designer ko bhejne ke liye) */}
-          <Button 
-            variant="outline" 
-            className={cn(
-              "rounded-xl font-bold gap-2 h-12 border-border/50",
-              hasAlbumLink 
-                ? "hover:bg-primary/5 hover:text-primary" 
-                : "opacity-50 cursor-not-allowed"
-            )}
-            onClick={handleShareLink}
-            disabled={!hasAlbumLink}
-            title={hasAlbumLink ? "Copy album designer link" : "Enable Album Link first (Manage page)"}
-          >
-            <Share2 className="w-4 h-4" />
-            Share Link
-          </Button>
-
-          {/* Export CSV */}
           <Button 
             variant="outline" 
             className="rounded-xl font-bold gap-2 h-12 border-border/50 hover:bg-primary/5 hover:text-primary"
-            onClick={handleExportCSV}
-            disabled={selectedItems.length === 0}
-          >
-            <FileText className="w-4 h-4" /> CSV
-          </Button>
-
-          {/* ✅ Download ALL Favorites (ek click) */}
-          <Button 
-            className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 rounded-xl font-bold gap-2 h-12 px-6 shadow-lg shadow-primary/20"
             onClick={handleDownloadAll}
             disabled={selectedItems.length === 0 || isProcessing}
           >
@@ -319,28 +305,105 @@ export default function AlbumSelectionDetailPage() {
         </div>
       </div>
 
-      {/* ✅ Album Link Status Banner */}
-      {!hasAlbumLink && (
-        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-4">
-          <div className="bg-amber-500/20 p-2 rounded-lg shrink-0">
-            <LinkIcon className="w-4 h-4 text-amber-500" />
+      {/* ✅ ALBUM LINK CARD */}
+      <div className="relative overflow-hidden rounded-[2rem] border border-primary/30 bg-gradient-to-br from-primary/10 via-card/60 to-background p-6 lg:p-8 shadow-xl">
+        <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+        
+        <div className="relative space-y-5">
+          <div className="flex items-start gap-4">
+            <div className="h-12 w-12 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+              <Link2 className="w-6 h-6 text-primary" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-headline font-bold text-xl text-white flex items-center gap-2">
+                Album Designer Link
+                {hasLink && (
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-green-400 bg-green-500/10 border border-green-500/30 px-2 py-0.5 rounded-md">
+                    ✓ Active
+                  </span>
+                )}
+              </h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                Album designer ko yeh link bhejein — woh sirf <strong className="text-primary">{selectedItems.length} favorites</strong> dekh aur download kar sakta hai.
+              </p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h4 className="font-bold text-sm text-white">Album Designer Link Not Enabled</h4>
-            <p className="text-xs text-muted-foreground mt-1">
-              Album designer ko favorites bhejne ke liye pehle <strong className="text-amber-400">Manage → Album Link</strong> enable karein.
-            </p>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="rounded-lg border-amber-500/30 text-amber-500 hover:bg-amber-500/10 shrink-0"
-            onClick={() => router.push(`/events/${id}/manage`)}
-          >
-            Enable Now
-          </Button>
+
+          {hasLink ? (
+            /* ✅ Link exists — show + copy */
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 bg-background/60 backdrop-blur-md border border-primary/20 rounded-2xl p-3">
+                <Link2 className="w-4 h-4 text-primary shrink-0 ml-2" />
+                <code className="flex-1 text-xs font-mono text-white/80 truncate">
+                  {albumLinkUrl}
+                </code>
+                <Button
+                  size="sm"
+                  className="rounded-xl h-10 px-4 gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold shrink-0"
+                  onClick={handleCopyLink}
+                >
+                  {linkCopied ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-4 h-4" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl gap-2 border-white/10 hover:bg-primary/5 text-xs"
+                  onClick={() => window.open(albumLinkUrl, '_blank')}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Preview as Designer
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-xl gap-2 text-destructive hover:bg-destructive/10 text-xs"
+                  onClick={handleDisableLink}
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Disable Link
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* ❌ No link — generate button */
+            <div className="space-y-3">
+              <Button
+                className="w-full md:w-auto h-14 px-8 rounded-2xl bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 font-bold gap-3 shadow-lg shadow-primary/20"
+                onClick={handleGenerateLink}
+                disabled={isGenerating || selectedItems.length === 0}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Creating Link...
+                  </>
+                ) : (
+                  <>
+                    <Share2 className="w-5 h-5" />
+                    Create Album Designer Link
+                  </>
+                )}
+              </Button>
+              <p className="text-[11px] text-muted-foreground italic">
+                💡 Ek click mein secure link ban jayega jo album designer khol sakta hai.
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Selection Controls */}
       <div className="flex items-center justify-between">
@@ -359,7 +422,6 @@ export default function AlbumSelectionDetailPage() {
             {selectedIds.size} / {selectedItems.length} Selected
           </span>
           
-          {/* Download Selected (agar koi select kiya ho) */}
           {selectedIds.size > 0 && selectedIds.size < selectedItems.length && (
             <Button 
               size="sm"
@@ -368,7 +430,7 @@ export default function AlbumSelectionDetailPage() {
               disabled={isProcessing}
             >
               <Download className="w-3 h-3" />
-              Download Selected ({selectedIds.size})
+              Download ({selectedIds.size})
             </Button>
           )}
         </div>
@@ -378,10 +440,11 @@ export default function AlbumSelectionDetailPage() {
         </div>
       </div>
 
+      {/* Favorites Grid */}
       {selectedItems.length === 0 ? (
         <div className="text-center py-40 border-2 border-dashed border-border/20 rounded-[3rem] bg-card/10">
           <ImageIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-          <p className="text-muted-foreground italic font-headline text-xl">No favorites have been selected for this event yet.</p>
+          <p className="text-muted-foreground italic font-headline text-xl">No favorites selected yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">

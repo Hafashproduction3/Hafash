@@ -2,22 +2,17 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import { 
-  Download, 
-  Loader2, 
-  ShieldCheck, 
-  BookOpen, 
-  Camera, 
-  ArrowLeft,
-  Lock,
-  ChevronRight,
-  Monitor
+  Download, Loader2, ShieldCheck, BookOpen, Camera, 
+  ArrowLeft, Lock, ChevronRight, Monitor 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { resolveAlbumByToken } from '@/app/actions/album';
+import { useFirestore } from '@/firebase';
+import { collection, getDocs, query, where, limit } from 'firebase/firestore';
 import { HafashLoader } from '@/components/ui/hafash-loader';
+import { refreshPhotoUrls } from '@/app/actions/storage';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -26,54 +21,93 @@ export default function AlbumDesignerViewPage() {
   const token = params?.token as string;
   const { toast } = useToast();
   const router = useRouter();
+  const firestore = useFirestore();
   
   const [activeGallery, setActiveGallery] = useState<any>(null);
+  const [favoriteItems, setFavoriteItems] = useState<any[]>([]);
   const [searching, setSearching] = useState(true);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
 
   useEffect(() => {
+    let cancelled = false;
+
     async function resolve() {
-      if (!token) return;
-      setSearching(true);
+      if (!firestore || !token) {
+        if (!cancelled) setSearching(false);
+        return;
+      }
+
       try {
-        const result = await resolveAlbumByToken(token);
-        setActiveGallery(result);
+        setSearching(true);
+
+        // ✅ Find gallery by albumLinkToken
+        const galQuery = query(
+          collection(firestore, 'galleries'),
+          where('albumLinkToken', '==', token),
+          where('albumLinkEnabled', '==', true),
+          limit(1)
+        );
+        const galSnap = await getDocs(galQuery);
+
+        if (cancelled) return;
+
+        if (galSnap.empty) {
+          setActiveGallery(null);
+          setSearching(false);
+          return;
+        }
+
+        const galleryData = { id: galSnap.docs[0].id, ...galSnap.docs[0].data() };
+        setActiveGallery(galleryData);
+
+        // ✅ Fetch favorites from subcollection
+        const photosRef = collection(firestore, 'galleries', galleryData.id, 'photos');
+        const favQuery = query(photosRef, where('isFavorite', '==', true));
+        const favSnap = await getDocs(favQuery);
+
+        if (cancelled) return;
+
+        const favs = favSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+        // ✅ Refresh URLs
+        const keysToRefresh: string[] = [];
+        favs.forEach((p: any) => {
+          if (p.storageKey) keysToRefresh.push(p.storageKey);
+          if (p.thumbKey) keysToRefresh.push(p.thumbKey);
+        });
+
+        let urlMap: Record<string, string> = {};
+        for (let i = 0; i < keysToRefresh.length; i += 200) {
+          const batch = keysToRefresh.slice(i, i + 200);
+          try {
+            const result = await refreshPhotoUrls(batch);
+            if (result.success) Object.assign(urlMap, result.urls);
+          } catch (e) {}
+        }
+
+        const refreshedFavs = favs.map((p: any) => ({
+          ...p,
+          url: urlMap[p.storageKey] || p.url,
+          masterUrl: urlMap[p.storageKey] || p.masterUrl,
+          thumbUrl: p.thumbKey ? (urlMap[p.thumbKey] || p.thumbUrl) : (urlMap[p.storageKey] || p.url),
+        }));
+
+        if (!cancelled) setFavoriteItems(refreshedFavs);
       } catch (err) {
-        console.error("ALBUM_DEBUG: Resolution error:", err);
+        console.error('[ALBUM_DESIGNER]', err);
       } finally {
-        setSearching(false);
+        if (!cancelled) setSearching(false);
       }
     }
+
     resolve();
-  }, [token]);
 
-  const selectedItems = useMemo(() => {
-    return (activeGallery?.items || []).filter((item: any) => item.isFavorite);
-  }, [activeGallery?.items]);
+    return () => { cancelled = true; };
+  }, [firestore, token]);
 
-  // ✅ UPDATED: Individual download via proxy
-  const handleDownloadOriginal = useCallback(async (item: any) => {
-    const downloadUrl = item.masterUrl || item.url;
-    const filename = item.fileName || `${activeGallery?.title || 'hafash'}-master-${item.id}.jpg`;
-    
-    const proxyUrl = `/api/download?url=${encodeURIComponent(downloadUrl)}&filename=${encodeURIComponent(filename)}`;
-    
-    try {
-      toast({ title: "Downloading...", description: "Original high-resolution master file." });
-      const link = document.createElement('a');
-      link.href = proxyUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('Download error:', error);
-      toast({ variant: "destructive", title: "Download Failed" });
-    }
-  }, [activeGallery?.title, toast]);
+  const selectedItems = favoriteItems;
 
-  // ✅ UPDATED: ZIP download via proxy
   const handleDownloadAll = useCallback(async () => {
     if (isPreparing || !activeGallery || selectedItems.length === 0) return;
     
@@ -83,48 +117,48 @@ export default function AlbumDesignerViewPage() {
     try {
       for (let i = 0; i < selectedItems.length; i++) {
         const item = selectedItems[i];
-        setPreparationStep(`Fetching: ${i + 1} / ${selectedItems.length}`);
+        setPreparationStep(`Fetching ${i + 1} / ${selectedItems.length}`);
         
         const url = item.masterUrl || item.url;
         if (!url) continue;
         
-        // ✅ Proxy route se fetch karein — CORS bypass
         const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(item.fileName || `photo-${i + 1}.jpg`)}`;
         const res = await fetch(proxyUrl);
         const blob = await res.blob();
-        const fileName = item.fileName || `master-${i + 1}.jpg`;
-        zip.file(fileName, blob);
+        zip.file(item.fileName || `master-${i + 1}.jpg`, blob);
       }
       
-      setPreparationStep('Compiling ZIP Package...');
+      setPreparationStep('Compiling ZIP...');
       const content = await zip.generateAsync({ type: 'blob' });
-      const zipName = `${activeGallery.title || 'hafash-selection'}-Selection.zip`;
-      saveAs(content, zipName);
+      saveAs(content, `${activeGallery.title || 'hafash'}-Selection.zip`);
       
-      toast({ 
-        title: "Download Ready", 
-        description: `All ${selectedItems.length} masterpieces packaged successfully.` 
-      });
+      toast({ title: "Download Ready" });
     } catch (error) {
-      console.error("ZIP Error:", error);
-      toast({ 
-        variant: "destructive", 
-        title: "Package Error", 
-        description: "Failed to compile the selection. Please try again." 
-      });
+      toast({ variant: "destructive", title: "Package Error" });
     } finally {
       setIsPreparing(false);
       setPreparationStep('');
     }
   }, [activeGallery, selectedItems, isPreparing, toast]);
 
+  const handleDownloadSingle = useCallback(async (item: any) => {
+    const url = item.masterUrl || item.url;
+    const filename = item.fileName || `${activeGallery?.title}-${item.id}.jpg`;
+    const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+
+    const link = document.createElement('a');
+    link.href = proxyUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [activeGallery?.title]);
+
   if (searching) {
-    return (
-      <HafashLoader text="Accessing Secure Review Workspace..." />
-    );
+    return <HafashLoader text="Accessing Secure Review Workspace..." />;
   }
 
-  if (!activeGallery || !activeGallery.albumLinkEnabled) {
+  if (!activeGallery) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
         <div className="bg-destructive/10 p-6 rounded-full mb-8 ring-4 ring-destructive/5">
@@ -133,11 +167,11 @@ export default function AlbumDesignerViewPage() {
         <h1 className="text-3xl lg:text-4xl font-headline font-bold mb-4 uppercase tracking-tighter">
           Access Restricted
         </h1>
-        <p className="text-muted-foreground max-w-md mb-8 italic leading-relaxed">
-          This album designer link is currently inactive or the security token has expired. Please contact the photographer for a valid workspace link.
+        <p className="text-muted-foreground max-w-md mb-8 italic">
+          This designer link is inactive or has expired. Contact the photographer.
         </p>
         <Link href="/">
-          <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground font-bold shadow-2xl hover:scale-105 transition-all">
+          <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground font-bold">
             Hafash Home
           </Button>
         </Link>
@@ -146,83 +180,64 @@ export default function AlbumDesignerViewPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 selection:bg-primary selection:text-primary-foreground">
-      {/* Designer Workspace Header */}
+    <div className="min-h-screen bg-background pb-20">
+      {/* Header */}
       <div className="bg-card border-b border-border/50 py-12 px-6">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-end gap-8">
           <div className="space-y-4">
-            <div className="flex items-center gap-4">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="rounded-full" 
-                onClick={() => router.back()}
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-              <div className="flex items-center gap-3">
-                <div className="bg-primary/10 p-2 rounded-lg">
-                  <BookOpen className="w-5 h-5 text-primary" />
-                </div>
-                <span className="text-[10px] uppercase tracking-[0.4em] font-bold text-primary">
-                  Designer Workspace
-                </span>
+            <div className="flex items-center gap-3">
+              <div className="bg-primary/10 p-2 rounded-lg">
+                <BookOpen className="w-5 h-5 text-primary" />
               </div>
+              <span className="text-[10px] uppercase tracking-[0.4em] font-bold text-primary">
+                Designer Workspace
+              </span>
             </div>
-            <h1 className="text-4xl md:text-6xl font-headline font-bold tracking-tight">
-              {activeGallery.title}
-            </h1>
-            <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground font-medium">
+            <h1 className="text-4xl md:text-6xl font-headline font-bold">{activeGallery.title}</h1>
+            <div className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
               <span className="flex items-center gap-2">
                 <Camera className="w-4 h-4 text-primary" /> {activeGallery.clientName}
               </span>
               <span className="flex items-center gap-2 text-primary font-bold">
                 {selectedItems.length} Selection Masterpieces
               </span>
-              <span className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-green-500" /> Original File Access Active
+              <span className="flex items-center gap-2 text-green-500">
+                <ShieldCheck className="w-4 h-4" /> Original Access
               </span>
             </div>
           </div>
           
-          <div className="flex gap-4 w-full md:w-auto">
-            <Button 
-              className="flex-1 md:flex-none h-14 px-10 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-bold gap-3 shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95 disabled:opacity-70 disabled:cursor-wait"
-              onClick={handleDownloadAll}
-              disabled={isPreparing || selectedItems.length === 0}
-            >
-              {isPreparing ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <Download className="w-5 h-5" />
-              )}
-              {isPreparing ? preparationStep : "Download Full Selection"}
-            </Button>
-          </div>
+          <Button 
+            className="h-14 px-10 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full font-bold gap-3 shadow-xl"
+            onClick={handleDownloadAll}
+            disabled={isPreparing || selectedItems.length === 0}
+          >
+            {isPreparing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+            {isPreparing ? preparationStep : "Download Full Selection"}
+          </Button>
         </div>
       </div>
 
-      {/* Grid Workspace */}
+      {/* Grid */}
       <div className="max-w-7xl mx-auto px-6 mt-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
           {selectedItems.map((item: any) => (
             <div 
               key={item.id} 
-              className="bg-card border border-border/30 rounded-3xl overflow-hidden group hover:border-primary/50 transition-all shadow-lg hover:shadow-primary/5 hover:translate-y-[-4px]"
+              className="bg-card border border-border/30 rounded-3xl overflow-hidden group hover:border-primary/50 transition-all shadow-lg"
             >
               <div className="aspect-[4/5] relative overflow-hidden bg-background">
                 <img 
-                  src={item.url} 
+                  src={item.thumbUrl || item.url} 
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                  alt="Selected Item"
+                  alt="Selection"
                   loading="lazy"
-                  decoding="async"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <Button 
                     size="icon" 
-                    className="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-2xl scale-75 group-hover:scale-100 transition-transform"
-                    onClick={() => handleDownloadOriginal(item)}
+                    className="h-16 w-16 rounded-full bg-primary text-primary-foreground shadow-2xl"
+                    onClick={() => handleDownloadSingle(item)}
                   >
                     <Download className="w-6 h-6" />
                   </Button>
@@ -231,15 +246,15 @@ export default function AlbumDesignerViewPage() {
               <div className="p-5 flex items-center justify-between">
                 <div>
                   <p className="text-[10px] font-mono text-muted-foreground uppercase mb-1">
-                    Asset: {item.id}
+                    Asset: {item.id.slice(0, 8)}
                   </p>
-                  <p className="text-xs font-bold text-primary">High-Resolution Master</p>
+                  <p className="text-xs font-bold text-primary">High-Res Master</p>
                 </div>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  className="rounded-lg gap-2 text-[10px] font-bold uppercase tracking-tighter hover:bg-primary/10 hover:text-primary"
-                  onClick={() => handleDownloadOriginal(item)}
+                  className="rounded-lg gap-2 text-[10px] font-bold uppercase hover:bg-primary/10"
+                  onClick={() => handleDownloadSingle(item)}
                 >
                   Download <ChevronRight className="w-3 h-3" />
                 </Button>
@@ -252,23 +267,16 @@ export default function AlbumDesignerViewPage() {
           <div className="text-center py-40 border-2 border-dashed border-border/30 rounded-[3rem]">
             <Monitor className="w-12 h-12 text-muted-foreground mx-auto mb-6 opacity-20" />
             <p className="text-xl text-muted-foreground italic font-headline">
-              No favorites have been synchronized for this selection.
+              No favorites have been synchronized.
             </p>
           </div>
         )}
       </div>
 
-      {/* Footer Support */}
       <div className="max-w-4xl mx-auto text-center mt-20 px-6 py-12 border-t border-border/20">
         <div className="flex items-center justify-center gap-2 mb-6 text-primary">
           <img src="/hafash-logo.png" alt="Hafash" className="h-12 w-auto" />
           <span className="text-xl font-headline font-bold italic">Hafash Studio Flow</span>
-        </div>
-        <p className="text-muted-foreground text-sm max-w-lg mx-auto leading-relaxed">
-          This secure designer workspace ensures you have direct access to the client's final selections in their original high-resolution format. For technical support or asset clarification, please contact the photographer directly.
-        </p>
-        <div className="mt-12 text-[10px] uppercase tracking-[0.5em] text-muted-foreground/30 font-bold">
-          End-to-End Asset Integrity Guaranteed by Hafash
         </div>
       </div>
     </div>
