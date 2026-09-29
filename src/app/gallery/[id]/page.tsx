@@ -1,6 +1,6 @@
 "use client";
 
-import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
+import { useFirestore, useUser, useDoc, useCollection } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
@@ -14,7 +14,10 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, limit, arrayUnion, orderBy, startAfter } from 'firebase/firestore';
+import { 
+  collection, query, where, getDocs, doc, updateDoc, 
+  limit, arrayUnion, orderBy, startAfter, getDocFromServer 
+} from 'firebase/firestore';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
@@ -143,6 +146,10 @@ export default function ClientGalleryPage() {
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
   
+  // ✅ Fresh gallery data (cache bypass)
+  const [dbGallery, setDbGallery] = useState<any>(null);
+  const [docLoading, setDocLoading] = useState(true);
+  
   const [photos, setPhotos] = useState<any[]>([]);
   const [photosLoading, setPhotosLoading] = useState(false);
   const [lastDoc, setLastDoc] = useState<any>(null);
@@ -200,6 +207,50 @@ export default function ClientGalleryPage() {
     { id: 'demo-6', url: 'https://picsum.photos/seed/hafash-demo-6/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-6/400/500', fileName: 'demo-6.jpg', isFavorite: false },
   ], []);
 
+  // ✅ Gallery ref
+  const galleryRef = useMemo(() => {
+    if (!firestore || !galleryId || galleryId === 'demo') return null;
+    return doc(firestore, 'galleries', galleryId);
+  }, [firestore, galleryId]);
+
+  // ✅ FORCE FRESH DATA (bypass cache) — toggle OFF ka foran asar
+  useEffect(() => {
+    let cancelled = false;
+    
+    async function fetchGalleryFresh() {
+      if (!galleryRef || galleryId === 'demo') {
+        setDocLoading(false);
+        return;
+      }
+      
+      try {
+        // ✅ getDocFromServer — cache bypass, fresh data
+        const snap = await getDocFromServer(galleryRef);
+        
+        if (cancelled) return;
+        
+        if (snap.exists()) {
+          setDbGallery({ id: snap.id, ...snap.data() });
+        } else {
+          setDbGallery(null);
+        }
+      } catch (err: any) {
+        console.error('[GALLERY_FRESH_FETCH]', err);
+        if (!cancelled) setDbGallery(null);
+      } finally {
+        if (!cancelled) setDocLoading(false);
+      }
+    }
+    
+    if (galleryId) {
+      setDocLoading(true);
+      fetchGalleryFresh();
+    }
+    
+    return () => { cancelled = true; };
+  }, [galleryRef, galleryId]);
+
+  // ✅ Load photos
   const loadPhotos = useCallback(async (reset = false) => {
     if (!firestore || !galleryId || galleryId === 'demo') return;
     if (photosLoading) return;
@@ -384,13 +435,6 @@ export default function ClientGalleryPage() {
     resolve();
   }, [firestore, galleryParam]);
 
-  const galleryRef = useMemo(() => {
-    if (!firestore || !galleryId || galleryId === 'demo') return null;
-    return doc(firestore, 'galleries', galleryId);
-  }, [firestore, galleryId]);
-
-  const { data: dbGallery, loading: docLoading } = useDoc(galleryRef);
-
   const gallery = useMemo(() => {
     if (galleryParam === 'demo' || galleryId === 'demo') {
       return {
@@ -493,12 +537,16 @@ export default function ClientGalleryPage() {
     return user.uid === gallery.userId;
   }, [user?.uid, gallery?.userId]);
 
+  // ✅ SIMPLE RULE: Gallery khulegi SIRF jab isPublic: true ho
+  // Toggle OFF → Koi nahi dekhega (not even owner — testing ke liye)
   const isAvailable = useMemo(() => {
     if (galleryParam === 'demo') return true;
     if (isResolving || (galleryId && docLoading) || authLoading) return false;
     if (!gallery) return false;
-    return isOwner || gallery.isPublic === true;
-  }, [gallery, isOwner, isResolving, docLoading, authLoading, galleryId, galleryParam]);
+    
+    // ✅ Sirf isPublic === true wali galleries dikhein
+    return gallery.isPublic === true;
+  }, [gallery, isResolving, docLoading, authLoading, galleryId, galleryParam]);
 
   const canDownload = useMemo(() => gallery ? (!gallery.isLocked && !!gallery.isPaid) : false, [gallery]);
   const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
@@ -1113,22 +1161,25 @@ export default function ClientGalleryPage() {
     return <HafashLoader text="Synchronizing Luxury Assets..." />;
   }
 
+  // ✅ Toggle OFF → Gallery Restricted
   if (!isAvailable) {
-    const isPrivate = gallery && gallery.isPublic === false;
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-10 text-center animate-in fade-in zoom-in-95 duration-700">
         <div className="bg-destructive/10 p-10 rounded-full mb-10 ring-4 ring-destructive/5">
           <ShieldAlert className="w-16 h-16 text-destructive" />
         </div>
         <h1 className="text-4xl lg:text-5xl font-headline font-bold mb-6 uppercase tracking-tighter">
-          {isPrivate ? "Gallery Restricted" : "Vault Unavailable"}
+          Gallery Restricted
         </h1>
         <p className="text-muted-foreground mb-12 max-w-sm mx-auto italic text-lg leading-relaxed">
-          {isPrivate 
-            ? "Access to this private collection has been restricted by the studio."
-            : "The requested visual collection could not be synchronized."}
+          Access to this collection has been restricted by the studio.
+          Please contact the photographer for access.
         </p>
-        <Link href="/"><Button className="rounded-full px-12 h-14 bg-primary font-bold text-lg shadow-2xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">Return to Hafash</Button></Link>
+        <Link href="/">
+          <Button className="rounded-full px-12 h-14 bg-primary font-bold text-lg shadow-2xl shadow-primary/20 transition-all hover:scale-105 active:scale-95">
+            Return to Hafash
+          </Button>
+        </Link>
       </div>
     );
   }
