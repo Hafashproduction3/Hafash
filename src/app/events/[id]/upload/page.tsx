@@ -315,7 +315,7 @@ export default function GalleryUploadPage() {
     startUpload();
   };
 
-  // ✅ NEW: Cancel entire upload
+  // ✅ Cancel entire upload
   const handleCancelAll = () => {
     if (!confirm('Cancel entire upload? Progress will be lost.')) return;
     cancelRef.current = true;
@@ -323,7 +323,6 @@ export default function GalleryUploadPage() {
     setIsPaused(false);
     setIsUploading(false);
     
-    // Reset all non-completed files
     setFiles(prev => prev.map(f => 
       f.status === 'completed' 
         ? f 
@@ -337,7 +336,7 @@ export default function GalleryUploadPage() {
     });
   };
 
-  // ✅ NEW: Erase completed files from upload list
+  // ✅ Erase completed files from upload list
   const handleEraseCompleted = () => {
     const completedCount = files.filter(f => f.status === 'completed').length;
     if (completedCount === 0) {
@@ -854,7 +853,7 @@ export default function GalleryUploadPage() {
                )}
             </div>
             
-            <div className="flex gap-3 w-full sm:w-auto">
+            <div className="flex gap-3 w-full sm:w-auto flex-wrap justify-end">
               {/* ✅ PAUSE Button */}
               {isUploading && !isPaused && (
                 <Button variant="outline" className="rounded-2xl h-14 px-6 border-orange-500/30 text-orange-500 hover:bg-orange-500/10 font-bold gap-2" onClick={handlePause}>
@@ -863,11 +862,27 @@ export default function GalleryUploadPage() {
                 </Button>
               )}
 
-              {/* ✅ CANCEL Button (next to Pause) */}
+              {/* ✅ CANCEL Button (Pause ke saath, upload ke doran) */}
               {isUploading && (
-                <Button variant="outline" className="rounded-2xl h-14 px-6 border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold gap-2" onClick={handleCancelAll}>
+                <Button 
+                  variant="outline" 
+                  className="rounded-2xl h-14 px-6 border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold gap-2" 
+                  onClick={handleCancelAll}
+                >
                   <Ban className="w-4 h-4" />
                   Cancel
+                </Button>
+              )}
+
+              {/* ✅ ERASE Button (upload ke baad, neeche) */}
+              {stats.completedFiles > 0 && !isUploading && (
+                <Button 
+                  variant="outline" 
+                  className="rounded-2xl h-14 px-6 border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold gap-2" 
+                  onClick={handleEraseCompleted}
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Erase ({stats.completedFiles})
                 </Button>
               )}
 
@@ -919,22 +934,7 @@ export default function GalleryUploadPage() {
             <h3 className="text-xl font-headline font-bold flex items-center gap-3">
               <Activity className="w-6 h-6 text-primary" /> Active Pipeline
             </h3>
-            <div className="flex items-center gap-2">
-              {/* ✅ ERASE COMPLETED Button */}
-              {stats.completedFiles > 0 && !isUploading && (
-                <Button 
-                  size="sm"
-                  variant="ghost"
-                  className="rounded-lg h-7 px-2 text-[9px] font-bold text-red-400 hover:bg-red-500/10 gap-1"
-                  onClick={handleEraseCompleted}
-                  title="Remove completed files from list"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Erase
-                </Button>
-              )}
-              <Badge className="bg-primary/20 text-primary">{files.length} ASSETS</Badge>
-            </div>
+            <Badge className="bg-primary/20 text-primary">{files.length} ASSETS</Badge>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-4 pr-2">
