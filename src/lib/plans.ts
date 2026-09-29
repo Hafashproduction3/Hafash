@@ -1,9 +1,12 @@
 /**
  * Hafash Subscription Plan Definitions
- * Now includes Hafash Drive
+ * 4 Plans: Starter, Professional, Business, Enterprise
+ * 
+ * NOTE: Enterprise plan includes Full Custom Domain,
+ * but domain cost (registration + renewal) is paid separately by photographer.
  */
 
-export type PlanId = 'starter' | 'pro' | 'business' | 'enterprise';
+export type PlanId = 'starter' | 'professional' | 'business' | 'enterprise';
 
 export interface HafashPlan {
   id: PlanId | 'none';
@@ -12,12 +15,26 @@ export interface HafashPlan {
   zipLimitGb: number;
   price: string;
   priceAmount: number;
+  yearlyPrice: string;
+  yearlyPriceAmount: number;
   features: string[];
   priorityLevel: number;
   priorityLabel: string;
   driveEnabled: boolean;
+  customBranding: boolean;
+  customSubdomain: boolean;
+  customDomain: boolean;
+  whiteLabel: boolean;
   maxFolderDepth: number;
   maxFileSizeGb: number;
+  supportLevel: string;
+  supportResponseTime: string;
+  domainInfo?: {
+    available: boolean;
+    cost: string;
+    description: string;
+    howItWorks: string[];
+  };
 }
 
 export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
@@ -28,80 +45,169 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     zipLimitGb: 999,
     price: 'Rs. 499',
     priceAmount: 499,
+    yearlyPrice: 'Rs. 5,400',
+    yearlyPriceAmount: 5400,
     features: [
-      '20GB Hafash Drive',
-      'Unlimited Galleries',
-      'Download All Originals',
-      'Standard Processing',
+      '📁 20GB Hafash Drive Storage',
+      '🖼️ Max 5 Galleries per month',
+      '📸 Max 500 Photos per gallery',
+      '📦 Max 200 MB per photo',
+      '⬇️ Download All Originals',
+      '🎬 Slideshow & Favorites',
+      '🔒 Password Protection',
+      '⚠️ Hafash Watermark (Forced)',
+      '⏰ Gallery Expires in 7 days',
+      '👥 Client Download Limit: 50 photos/gallery',
+      '❌ No Video Upload',
+      '❌ No Photographer\'s Note',
+      '❌ No Client Reply',
+      '📧 Email Support (48 hours)',
     ],
     priorityLevel: 1,
     priorityLabel: 'Standard',
     driveEnabled: true,
+    customBranding: false,
+    customSubdomain: false,
+    customDomain: false,
+    whiteLabel: false,
     maxFolderDepth: 3,
-    maxFileSizeGb: 2,
+    maxFileSizeGb: 1,
+    supportLevel: 'Email',
+    supportResponseTime: '48 hours',
   },
-  pro: {
-    id: 'pro',
+  professional: {
+    id: 'professional',
     name: 'Professional',
     storageGb: 50,
     zipLimitGb: 999,
     price: 'Rs. 999',
     priceAmount: 999,
+    yearlyPrice: 'Rs. 10,800',
+    yearlyPriceAmount: 10800,
     features: [
-      '50GB Hafash Drive',
-      'Unlimited Galleries',
-      'Download All Originals',
-      'Priority Processing',
-      'Custom Branding',
+      '📁 50GB Hafash Drive Storage',
+      '🖼️ Unlimited Galleries',
+      '📸 Unlimited Photos per gallery',
+      '📦 Unlimited File Size',
+      '🎥 Video Upload (HD)',
+      '✨ No Watermark',
+      '⏰ Galleries Never Expire',
+      '👥 Unlimited Client Downloads',
+      '✍️ Photographer\'s Note',
+      '💬 Client Reply',
+      '🎵 Background Music',
+      '📂 Full Hafash Drive Access',
+      '🖼️ Create Gallery from Drive',
+      '📧 Email Support (24 hours)',
     ],
     priorityLevel: 2,
-    priorityLabel: 'High Priority',
+    priorityLabel: 'Priority',
     driveEnabled: true,
+    customBranding: false,
+    customSubdomain: false,
+    customDomain: false,
+    whiteLabel: false,
     maxFolderDepth: 5,
     maxFileSizeGb: 5,
+    supportLevel: 'Email',
+    supportResponseTime: '24 hours',
   },
   business: {
     id: 'business',
-    name: 'Studio',
+    name: 'Business',
     storageGb: 100,
     zipLimitGb: 999,
-    price: 'Rs. 1,800',
-    priceAmount: 1800,
+    price: 'Rs. 1,999',
+    priceAmount: 1999,
+    yearlyPrice: 'Rs. 21,600',
+    yearlyPriceAmount: 21600,
     features: [
-      '100GB Hafash Drive',
-      'Unlimited Galleries',
-      'Download All Originals',
-      'Premium Processing',
-      'Custom Branding',
-      'Advanced Analytics (Future)',
+      '📁 100GB Hafash Drive Storage',
+      '✅ Everything in Professional',
+      '🎨 Custom Logo on Gallery',
+      '📝 Custom Studio Name',
+      '🚫 Hafash Logo Hidden',
+      '🌐 Custom Subdomain (yourname.hafash.pk)',
+      '📊 Basic Analytics (Views, Favorites)',
+      '📧 Priority Email Support (12 hours)',
     ],
     priorityLevel: 3,
     priorityLabel: 'Premium',
     driveEnabled: true,
+    customBranding: true,
+    customSubdomain: true,
+    customDomain: false,
+    whiteLabel: false,
     maxFolderDepth: 8,
     maxFileSizeGb: 10,
+    supportLevel: 'Priority Email',
+    supportResponseTime: '12 hours',
   },
   enterprise: {
     id: 'enterprise',
     name: 'Enterprise',
-    storageGb: 250,
+    storageGb: 200,
     zipLimitGb: 9999,
     price: 'Rs. 3,500',
     priceAmount: 3500,
+    yearlyPrice: 'Rs. 38,000',
+    yearlyPriceAmount: 38000,
     features: [
-      '250GB Hafash Drive',
-      'Unlimited Galleries',
-      'Download All Originals',
-      'Dedicated Processing',
-      'Custom Branding',
-      'Advanced Analytics (Future)',
-      'Priority Support',
+      '📁 200GB Hafash Drive Storage',
+      '✅ Everything in Business',
+      '🌐 Full Custom Domain (ahmedphotography.com)',
+      '⚪ White Label (Complete Hafash Removal)',
+      '📊 Advanced Analytics',
+      '📧 Priority Email + Call Support (6 hours)',
+      '👤 Dedicated Account Manager',
+      '',
+      '═══════════════════════════════',
+      '🌐 CUSTOM DOMAIN — DETAILS',
+      '═══════════════════════════════',
+      '📌 Domain registration INCLUDED',
+      '💰 Domain cost is paid SEPARATELY (yearly)',
+      '📅 Domain renewed every year',
+      '💵 Yearly domain fee: Rs. 3,000-5,000',
+      '🔧 Domain setup handled by Hafash',
+      '✅ Photographer only pays domain cost',
+      '⚠️ Domain cost depends on TLD (.com, .pk, etc.)',
     ],
     priorityLevel: 4,
     priorityLabel: 'Enterprise',
     driveEnabled: true,
+    customBranding: true,
+    customSubdomain: true,
+    customDomain: true,
+    whiteLabel: true,
     maxFolderDepth: 15,
     maxFileSizeGb: 25,
+    supportLevel: 'Priority Email + Call',
+    supportResponseTime: '6 hours',
+    domainInfo: {
+      available: true,
+      cost: 'Rs. 3,000 - Rs. 5,000 / year',
+      description: 'Full custom domain (ahmedphotography.com) included. Domain cost is paid separately by photographer.',
+      howItWorks: [
+        '1. Photographer Enterprise Plan leta hai (Rs. 3,500/month)',
+        '2. Hafash Settings → Custom Domain khole',
+        '3. Apna domain type kare (ahmedphotography.com)',
+        '4. Hafash availability check kare',
+        '5. Photographer domain cost pay kare (yearly)',
+        '6. Hafash domain register kare',
+        '7. DNS + SSL automatically setup ho',
+        '8. 5 minute mein live! ahmedphotography.com',
+        '',
+        '💰 Domain Cost (Yearly):',
+        '• .com domain: Rs. 3,000-4,000/year',
+        '• .pk domain: Rs. 3,000-5,000/year',
+        '• .photography: Rs. 4,000-5,000/year',
+        '',
+        '⚠️ Yeh cost Hafash ka nahi — domain registrar ka hai.',
+        '📅 Har saal domain renewal fee deni hogi.',
+        '✅ Photographer domain ka owner hoga.',
+        '🔧 Setup + DNS + SSL — Hafash handle karega.',
+      ],
+    },
   },
 };
 
@@ -112,12 +218,20 @@ export const NO_PLAN: HafashPlan = {
   zipLimitGb: 0,
   price: 'Rs. 0',
   priceAmount: 0,
+  yearlyPrice: 'Rs. 0',
+  yearlyPriceAmount: 0,
   features: [],
   priorityLevel: 0,
   priorityLabel: 'None',
   driveEnabled: false,
+  customBranding: false,
+  customSubdomain: false,
+  customDomain: false,
+  whiteLabel: false,
   maxFolderDepth: 0,
   maxFileSizeGb: 0,
+  supportLevel: 'None',
+  supportResponseTime: 'N/A',
 };
 
 export const DEFAULT_PLAN = NO_PLAN;
@@ -133,19 +247,29 @@ export const OWNER_PLAN: HafashPlan = {
   zipLimitGb: 999999,
   price: 'Rs. 0',
   priceAmount: 0,
+  yearlyPrice: 'Rs. 0',
+  yearlyPriceAmount: 0,
   features: [
     'Unlimited Storage',
     'Unlimited Drive',
     'All Features Unlocked',
     'Custom Branding',
+    'Full Custom Domain',
+    'White Label',
     'Priority Processing',
     'Owner Account',
   ],
   priorityLevel: 999,
   priorityLabel: 'Owner',
   driveEnabled: true,
+  customBranding: true,
+  customSubdomain: true,
+  customDomain: true,
+  whiteLabel: true,
   maxFolderDepth: 999,
   maxFileSizeGb: 999,
+  supportLevel: 'Owner',
+  supportResponseTime: 'N/A',
 };
 
 export function isOwnerEmail(email?: string | null): boolean {

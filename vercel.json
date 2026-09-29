@@ -1,8 +1,16 @@
 {
-    "crons": [
-      {
-        "path": "/api/cron/check-expiry",
-        "schedule": "0 4 * * *"
-      }
-    ]
-  }
+  "crons": [
+    {
+      "path": "/api/cron/check-expiry",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/expiry-warnings",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-expired-galleries",
+      "schedule": "0 19 * * *"
+    }
+  ]
+}
