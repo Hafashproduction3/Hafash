@@ -2,18 +2,30 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { sendExpiryReminderEmail } from '@/lib/email/sendExpiryReminder';
 
-// ✅ Vercel Cron Secret check (security)
+// ✅ Vercel Cron — with Protection Bypass support
 export async function GET(request: Request) {
-  // ✅ Verify cron secret
+  // ✅ Check 1: Vercel's Protection Bypass (for automatic cron)
+  const bypassHeader = request.headers.get('x-vercel-protection-bypass');
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  const isVercelCron = bypassSecret && bypassHeader === bypassSecret;
+
+  // ✅ Check 2: CRON_SECRET (for manual testing)
   const authHeader = request.headers.get('authorization');
-  if (
-    process.env.CRON_SECRET &&
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
-  ) {
+  const cronSecret = process.env.CRON_SECRET;
+  const isAuthCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+
+  // ✅ Check 3: Query param token (Cloudflare bypass)
+  const url = new URL(request.url);
+  const queryToken = url.searchParams.get('token');
+  const isQueryCron = cronSecret && queryToken === cronSecret;
+
+  // ❌ Agar koi bhi check pass nahi hua
+  if (!isVercelCron && !isAuthCron && !isQueryCron) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   console.log('🔔 [CRON] Starting plan expiry check...');
+  console.log('🔔 [CRON] Auth method:', isVercelCron ? 'Vercel Cron' : isAuthCron ? 'Header' : 'Query');
 
   if (!adminDb) {
     return NextResponse.json({ error: 'DB offline' }, { status: 500 });
