@@ -4,11 +4,12 @@ import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import { 
   Download, FileText, Check, X, Loader2, ArrowLeft, 
-  ImageIcon, User, Calendar, Grid, CheckCircle2, Package
+  ImageIcon, User, Calendar, Grid, CheckCircle2, Package,
+  Share2, Copy, Link as LinkIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { doc, collection, getDocs, query, where } from 'firebase/firestore';
 import { cn } from '@/lib/utils';
 import { HafashLoader } from '@/components/ui/hafash-loader';
@@ -29,6 +30,11 @@ export default function AlbumSelectionDetailPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState("");
+  const [origin, setOrigin] = useState('');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') setOrigin(window.location.origin);
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -36,7 +42,6 @@ export default function AlbumSelectionDetailPage() {
     }
   }, [user, authLoading, router]);
 
-  // ✅ Gallery document
   const eventRef = useMemo(() => {
     if (!firestore || !id) return null;
     return doc(firestore, 'galleries', id);
@@ -44,7 +49,7 @@ export default function AlbumSelectionDetailPage() {
 
   const { data: event, loading: dataLoading } = useDoc(eventRef);
 
-  // ✅ Fetch favorites from SUBCOLLECTION (not from event.items)
+  // ✅ Fetch favorites from subcollection
   useEffect(() => {
     let cancelled = false;
 
@@ -56,7 +61,6 @@ export default function AlbumSelectionDetailPage() {
 
       try {
         setLoadingFavorites(true);
-        console.log('[ALBUM_DETAIL] Loading favorites for:', id);
 
         const photosRef = collection(firestore, 'galleries', id, 'photos');
         const favQuery = query(photosRef, where('isFavorite', '==', true));
@@ -65,9 +69,7 @@ export default function AlbumSelectionDetailPage() {
         if (cancelled) return;
 
         const favs = favSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        console.log('[ALBUM_DETAIL] Favorites found:', favs.length);
 
-        // ✅ Refresh URLs (7-day fix)
         const keysToRefresh: string[] = [];
         favs.forEach((p: any) => {
           if (p.storageKey) keysToRefresh.push(p.storageKey);
@@ -80,9 +82,7 @@ export default function AlbumSelectionDetailPage() {
           try {
             const result = await refreshPhotoUrls(batch);
             if (result.success) Object.assign(urlMap, result.urls);
-          } catch (e) {
-            console.error('[ALBUM_REFRESH]', e);
-          }
+          } catch (e) {}
         }
 
         const refreshedFavs = favs.map((p: any) => ({
@@ -93,8 +93,8 @@ export default function AlbumSelectionDetailPage() {
         }));
 
         if (!cancelled) setFavoriteItems(refreshedFavs);
-      } catch (err: any) {
-        console.error('[ALBUM_DETAIL] Error:', err);
+      } catch (err) {
+        console.error('[ALBUM_DETAIL]', err);
       } finally {
         if (!cancelled) setLoadingFavorites(false);
       }
@@ -122,8 +122,47 @@ export default function AlbumSelectionDetailPage() {
     }
   };
 
-  // ✅ Download via proxy (CORS bypass)
-  const handleDownload = async () => {
+  // ✅ Download ALL favorites (ek click mein)
+  const handleDownloadAll = async () => {
+    if (selectedItems.length === 0 || isProcessing) return;
+    
+    setIsProcessing(true);
+    setProgress("Preparing package...");
+    
+    try {
+      const zip = new JSZip();
+      
+      for (let i = 0; i < selectedItems.length; i++) {
+        const item = selectedItems[i];
+        setProgress(`Fetching ${i + 1}/${selectedItems.length}`);
+        
+        const url = item.masterUrl || item.url;
+        if (!url) continue;
+        
+        const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(item.fileName || `photo-${i + 1}.jpg`)}`;
+        const res = await fetch(proxyUrl);
+        if (!res.ok) continue;
+        const blob = await res.blob();
+        
+        zip.file(item.fileName || `selection-${i + 1}.jpg`, blob);
+      }
+      
+      setProgress("Generating ZIP...");
+      const content = await zip.generateAsync({ type: 'blob' });
+      const zipName = `${event?.title || 'selections'}-all-favorites.zip`;
+      saveAs(content, zipName);
+      
+      toast({ title: "✅ Download Ready", description: `${selectedItems.length} favorites packaged.` });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Download Failed", description: error.message });
+    } finally {
+      setIsProcessing(false);
+      setProgress("");
+    }
+  };
+
+  // ✅ Download SELECTED
+  const handleDownloadSelected = async () => {
     if (selectedIds.size === 0 || isProcessing) return;
     
     setIsProcessing(true);
@@ -135,29 +174,26 @@ export default function AlbumSelectionDetailPage() {
       
       for (let i = 0; i < itemsToDownload.length; i++) {
         const item = itemsToDownload[i];
-        setProgress(`Fetching asset ${i + 1}/${itemsToDownload.length}`);
+        setProgress(`Fetching ${i + 1}/${itemsToDownload.length}`);
         
         const url = item.masterUrl || item.url;
         if (!url) continue;
         
-        // ✅ Proxy se fetch (CORS bypass)
         const proxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(item.fileName || `photo-${i + 1}.jpg`)}`;
         const res = await fetch(proxyUrl);
-        if (!res.ok) throw new Error(`Failed to fetch ${item.fileName}`);
+        if (!res.ok) continue;
         const blob = await res.blob();
         
-        const fileName = item.fileName || `selection-${item.id}.jpg`;
-        zip.file(fileName, blob);
+        zip.file(item.fileName || `selection-${i + 1}.jpg`, blob);
       }
       
       setProgress("Generating ZIP...");
       const content = await zip.generateAsync({ type: 'blob' });
-      const zipName = `${event?.title || 'selections'}-package.zip`;
+      const zipName = `${event?.title || 'selections'}-selected.zip`;
       saveAs(content, zipName);
       
-      toast({ title: "Success", description: "Batch download started." });
+      toast({ title: "✅ Download Ready", description: `${itemsToDownload.length} selected photos packaged.` });
     } catch (error: any) {
-      console.error('[DOWNLOAD_BATCH]', error);
       toast({ variant: "destructive", title: "Download Failed", description: error.message });
     } finally {
       setIsProcessing(false);
@@ -165,7 +201,25 @@ export default function AlbumSelectionDetailPage() {
     }
   };
 
-  // ✅ CSV Export
+  // ✅ Share album designer link
+  const handleShareLink = () => {
+    if (!event?.albumLinkToken) {
+      toast({ 
+        variant: "destructive", 
+        title: "Link Not Available",
+        description: "Album link enable karein pehle (Manage → Album Link)",
+      });
+      return;
+    }
+
+    const shareUrl = `${origin}/album/${event.albumLinkToken}`;
+    navigator.clipboard.writeText(shareUrl);
+    toast({ 
+      title: "✅ Link Copied!", 
+      description: "Album designer ko bhejne ke liye ready hai.",
+    });
+  };
+
   const handleExportCSV = () => {
     if (selectedItems.length === 0) return;
     
@@ -187,10 +241,9 @@ export default function AlbumSelectionDetailPage() {
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const fileName = `${event?.title || 'album'}-selections.csv`;
-    saveAs(blob, fileName);
+    saveAs(blob, `${event?.title || 'album'}-selections.csv`);
     
-    toast({ title: "CSV Exported", description: `Data for ${itemsToExport.length} assets ready.` });
+    toast({ title: "CSV Exported" });
   };
 
   if (authLoading || dataLoading || loadingFavorites) {
@@ -198,6 +251,8 @@ export default function AlbumSelectionDetailPage() {
   }
 
   if (!event) return null;
+
+  const hasAlbumLink = !!event.albumLinkToken && event.albumLinkEnabled;
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -222,26 +277,72 @@ export default function AlbumSelectionDetailPage() {
           </div>
         </div>
 
+        {/* ✅ Action Buttons — Share Link + Download All */}
         <div className="flex flex-wrap gap-3 w-full md:w-auto">
+          
+          {/* Share Link (Album Designer ko bhejne ke liye) */}
+          <Button 
+            variant="outline" 
+            className={cn(
+              "rounded-xl font-bold gap-2 h-12 border-border/50",
+              hasAlbumLink 
+                ? "hover:bg-primary/5 hover:text-primary" 
+                : "opacity-50 cursor-not-allowed"
+            )}
+            onClick={handleShareLink}
+            disabled={!hasAlbumLink}
+            title={hasAlbumLink ? "Copy album designer link" : "Enable Album Link first (Manage page)"}
+          >
+            <Share2 className="w-4 h-4" />
+            Share Link
+          </Button>
+
+          {/* Export CSV */}
           <Button 
             variant="outline" 
             className="rounded-xl font-bold gap-2 h-12 border-border/50 hover:bg-primary/5 hover:text-primary"
             onClick={handleExportCSV}
             disabled={selectedItems.length === 0}
           >
-            <FileText className="w-4 h-4" /> Export CSV
+            <FileText className="w-4 h-4" /> CSV
           </Button>
+
+          {/* ✅ Download ALL Favorites (ek click) */}
           <Button 
-            className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl font-bold gap-2 h-12 px-6 shadow-lg shadow-primary/20"
-            onClick={handleDownload}
-            disabled={selectedIds.size === 0 || isProcessing}
+            className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 rounded-xl font-bold gap-2 h-12 px-6 shadow-lg shadow-primary/20"
+            onClick={handleDownloadAll}
+            disabled={selectedItems.length === 0 || isProcessing}
           >
             {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {isProcessing ? progress : `Download Selected (${selectedIds.size})`}
+            {isProcessing ? progress : `Download All (${selectedItems.length})`}
           </Button>
         </div>
       </div>
 
+      {/* ✅ Album Link Status Banner */}
+      {!hasAlbumLink && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-4">
+          <div className="bg-amber-500/20 p-2 rounded-lg shrink-0">
+            <LinkIcon className="w-4 h-4 text-amber-500" />
+          </div>
+          <div className="flex-1">
+            <h4 className="font-bold text-sm text-white">Album Designer Link Not Enabled</h4>
+            <p className="text-xs text-muted-foreground mt-1">
+              Album designer ko favorites bhejne ke liye pehle <strong className="text-amber-400">Manage → Album Link</strong> enable karein.
+            </p>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="rounded-lg border-amber-500/30 text-amber-500 hover:bg-amber-500/10 shrink-0"
+            onClick={() => router.push(`/events/${id}/manage`)}
+          >
+            Enable Now
+          </Button>
+        </div>
+      )}
+
+      {/* Selection Controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button 
@@ -257,6 +358,19 @@ export default function AlbumSelectionDetailPage() {
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             {selectedIds.size} / {selectedItems.length} Selected
           </span>
+          
+          {/* Download Selected (agar koi select kiya ho) */}
+          {selectedIds.size > 0 && selectedIds.size < selectedItems.length && (
+            <Button 
+              size="sm"
+              className="rounded-lg gap-2 h-8 text-[10px] font-bold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30"
+              onClick={handleDownloadSelected}
+              disabled={isProcessing}
+            >
+              <Download className="w-3 h-3" />
+              Download Selected ({selectedIds.size})
+            </Button>
+          )}
         </div>
         <div className="bg-muted/30 px-3 py-1.5 rounded-lg border border-border/50 flex items-center gap-2">
           <Grid className="w-3 h-3 text-muted-foreground" />
@@ -301,7 +415,6 @@ export default function AlbumSelectionDetailPage() {
                   )}>
                     <Check className="w-3 h-3" />
                   </div>
-                  <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 <div className="p-4 bg-card/80 backdrop-blur-md">
                    <p className="text-[9px] font-mono text-muted-foreground truncate" title={item.fileName}>
