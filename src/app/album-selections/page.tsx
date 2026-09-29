@@ -25,7 +25,6 @@ export default function AlbumSelectionsPage() {
 
   const { data: galleries, loading: dataLoading } = useCollection(galleriesQuery);
 
-  // ✅ Sirf woh galleries jinka photoCount > 0 hai
   const selections = useMemo(() => {
     if (!galleries || !Array.isArray(galleries)) return [];
     return galleries.filter(g => (g.photoCount || 0) > 0);
@@ -90,8 +89,8 @@ export default function AlbumSelectionsPage() {
                           <Badge
                             className={cn(
                               "text-[9px] uppercase tracking-widest px-3 py-1 font-bold",
-                              status === "Completed" ? "bg-green-500/20 text-green-500 hover:bg-green-500/30" :
-                              status === "Album Package Generated" ? "bg-primary/20 text-primary hover:bg-primary/30" :
+                              status === "Completed" ? "bg-green-500/20 text-green-500" :
+                              status === "Album Package Generated" ? "bg-primary/20 text-primary" :
                               "bg-muted text-muted-foreground"
                             )}
                           >
@@ -123,7 +122,7 @@ export default function AlbumSelectionsPage() {
                       </div>
 
                       <div className="flex items-center gap-3 w-full md:w-auto">
-                        <Link href={`/album-selections/${selection.id}/details`} className="flex-1 md:flex-none">
+                        <Link href={`/album-selections/${selection.id}`} className="flex-1 md:flex-none">
                           <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl font-bold gap-2 h-12 px-6">
                             Open Selections <Eye className="w-4 h-4" />
                           </Button>
