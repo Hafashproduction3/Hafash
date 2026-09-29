@@ -19,7 +19,7 @@ const ORIGINAL_OPTIONS = {
   maxSizeMB: 3,
   maxWidthOrHeight: 4000,
   useWebWorker: true,
-  initialQuality: 0.88,
+  initialQuality: 0.90,
   fileType: 'image/jpeg',
 };
 

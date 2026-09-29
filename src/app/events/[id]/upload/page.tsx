@@ -7,7 +7,8 @@ import { doc, collection, query, where } from 'firebase/firestore';
 import { 
   Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, 
   X, AlertTriangle, Activity, ShieldCheck, HardDrive, FileIcon,
-  RefreshCw, Clock, Zap, Play, Pause, Lock, Share2, Timer, AlertCircle
+  RefreshCw, Clock, Zap, Play, Pause, Lock, Share2, Timer, AlertCircle,
+  Trash2, Ban
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -53,7 +54,6 @@ interface FileItem {
 const PARALLEL_LIMIT = 2;
 const MAX_RETRIES = 3;
 
-// 🖼️ Thumbnail — Tiny grid
 const THUMBNAIL_OPTIONS = {
   maxSizeMB: 0.05,
   maxWidthOrHeight: 400,
@@ -62,12 +62,11 @@ const THUMBNAIL_OPTIONS = {
   fileType: 'image/jpeg',
 };
 
-// ✅ Original — High quality, compressed
 const ORIGINAL_OPTIONS = {
   maxSizeMB: 3,
   maxWidthOrHeight: 4000,
   useWebWorker: true,
-  initialQuality: 0.88,
+  initialQuality: 0.90,
   fileType: 'image/jpeg',
 };
 
@@ -316,6 +315,45 @@ export default function GalleryUploadPage() {
     startUpload();
   };
 
+  // ✅ NEW: Cancel entire upload
+  const handleCancelAll = () => {
+    if (!confirm('Cancel entire upload? Progress will be lost.')) return;
+    cancelRef.current = true;
+    pauseRef.current = false;
+    setIsPaused(false);
+    setIsUploading(false);
+    
+    // Reset all non-completed files
+    setFiles(prev => prev.map(f => 
+      f.status === 'completed' 
+        ? f 
+        : { ...f, status: 'cancelled' as UploadStepStatus, currentStep: 'Cancelled', progress: 0 }
+    ));
+    
+    toast({ 
+      title: "❌ Upload Cancelled", 
+      description: "Saari pending uploads ruk gayin.",
+      variant: "destructive"
+    });
+  };
+
+  // ✅ NEW: Erase completed files from upload list
+  const handleEraseCompleted = () => {
+    const completedCount = files.filter(f => f.status === 'completed').length;
+    if (completedCount === 0) {
+      toast({ title: "No completed files to erase" });
+      return;
+    }
+    
+    if (!confirm(`Remove ${completedCount} completed file(s) from upload list? (Photos remain in gallery)`)) return;
+    
+    setFiles(prev => prev.filter(f => f.status !== 'completed'));
+    toast({ 
+      title: `🗑️ ${completedCount} files cleared from list`,
+      description: "Photos abhi bhi gallery mein safe hain.",
+    });
+  };
+
   const generateThumbnail = async (file: File): Promise<File | null> => {
     if (!file.type.startsWith('image/')) return null;
     try {
@@ -387,7 +425,7 @@ export default function GalleryUploadPage() {
     const tracker = new Set(uploadedNames);
 
     const filesToUpload = files.filter(
-      (f) => f.status !== "completed" && !alreadyUploaded.has(f.name)
+      (f) => f.status !== "completed" && !alreadyUploaded.has(f.name) && f.status !== 'cancelled'
     );
 
     setFiles(prev => prev.map(f => 
@@ -416,12 +454,10 @@ export default function GalleryUploadPage() {
       }
 
       try {
-        // 1. Compress original
         updateFileStatus(item.id, { status: 'compressing', currentStep: 'Optimizing...' });
         const originalFile = await generateCompressedOriginal(item.file);
         const fileToUpload = originalFile;
 
-        // 2. Generate thumbnail
         let thumbFile = item.thumbFile;
         if (!thumbFile && item.file.type.startsWith('image/')) {
           updateFileStatus(item.id, { currentStep: 'Creating thumbnail...' });
@@ -439,8 +475,11 @@ export default function GalleryUploadPage() {
           updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
           return;
         }
+        if (cancelRef.current) {
+          updateFileStatus(item.id, { status: 'cancelled', currentStep: 'Cancelled' });
+          return;
+        }
 
-        // 3. Upload original
         updateFileStatus(item.id, { status: 'uploading', currentStep: 'Uploading...' });
 
         const originalResult = await requestUploadUrl({
@@ -460,7 +499,6 @@ export default function GalleryUploadPage() {
           updateFileStatus(item.id, { progress });
         });
 
-        // 4. Upload thumbnail
         let thumbKey: string | undefined;
         if (thumbFile) {
           updateFileStatus(item.id, { currentStep: "Uploading thumbnail..." });
@@ -480,7 +518,6 @@ export default function GalleryUploadPage() {
           } catch (thumbErr) {}
         }
 
-        // 5. Finalize
         updateFileStatus(item.id, { currentStep: "Finalizing..." });
 
         await completeUpload({
@@ -583,7 +620,8 @@ export default function GalleryUploadPage() {
     const totalFiles = files.length;
     const completedFiles = files.filter(f => f.status === 'completed').length;
     const failedFiles = files.filter(f => f.status === 'error').length;
-    const remainingFiles = totalFiles - completedFiles - failedFiles;
+    const cancelledFiles = files.filter(f => f.status === 'cancelled').length;
+    const remainingFiles = totalFiles - completedFiles - failedFiles - cancelledFiles;
 
     const avgProgress = totalFiles > 0 ? Math.round((completedFiles / totalFiles) * 100) : 0;
     const isComplete = completedFiles === totalFiles && totalFiles > 0;
@@ -607,6 +645,7 @@ export default function GalleryUploadPage() {
       totalFiles,
       completedFiles,
       failedFiles,
+      cancelledFiles,
       remainingFiles,
       avgProgress,
       isComplete,
@@ -739,7 +778,7 @@ export default function GalleryUploadPage() {
             </div>
             <div className="text-center space-y-2">
               <p className="text-2xl font-headline font-bold">Deliver Masterpieces</p>
-              <p className="text-sm text-muted-foreground italic">⚡ Original Quality • Compressed to 4 MB</p>
+              <p className="text-sm text-muted-foreground italic">⚡ High Quality • Fast Upload</p>
             </div>
             
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border">
@@ -816,6 +855,7 @@ export default function GalleryUploadPage() {
             </div>
             
             <div className="flex gap-3 w-full sm:w-auto">
+              {/* ✅ PAUSE Button */}
               {isUploading && !isPaused && (
                 <Button variant="outline" className="rounded-2xl h-14 px-6 border-orange-500/30 text-orange-500 hover:bg-orange-500/10 font-bold gap-2" onClick={handlePause}>
                   <Pause className="w-4 h-4" />
@@ -823,6 +863,15 @@ export default function GalleryUploadPage() {
                 </Button>
               )}
 
+              {/* ✅ CANCEL Button (next to Pause) */}
+              {isUploading && (
+                <Button variant="outline" className="rounded-2xl h-14 px-6 border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold gap-2" onClick={handleCancelAll}>
+                  <Ban className="w-4 h-4" />
+                  Cancel
+                </Button>
+              )}
+
+              {/* Resume Button */}
               {isPaused && (
                 <Button className="rounded-2xl h-14 px-6 bg-green-500 hover:bg-green-600 text-white font-bold gap-2" onClick={handleResume}>
                   <Play className="w-4 h-4" />
@@ -870,7 +919,22 @@ export default function GalleryUploadPage() {
             <h3 className="text-xl font-headline font-bold flex items-center gap-3">
               <Activity className="w-6 h-6 text-primary" /> Active Pipeline
             </h3>
-            <Badge className="bg-primary/20 text-primary">{files.length} ASSETS</Badge>
+            <div className="flex items-center gap-2">
+              {/* ✅ ERASE COMPLETED Button */}
+              {stats.completedFiles > 0 && !isUploading && (
+                <Button 
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-lg h-7 px-2 text-[9px] font-bold text-red-400 hover:bg-red-500/10 gap-1"
+                  onClick={handleEraseCompleted}
+                  title="Remove completed files from list"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Erase
+                </Button>
+              )}
+              <Badge className="bg-primary/20 text-primary">{files.length} ASSETS</Badge>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-4 pr-2">
@@ -885,6 +949,7 @@ export default function GalleryUploadPage() {
                   "bg-background/40 p-4 rounded-2xl border relative overflow-hidden",
                   file.status === 'error' ? 'border-destructive/30' : 
                   file.status === 'paused' ? 'border-orange-500/30' :
+                  file.status === 'cancelled' ? 'border-red-500/30 opacity-50' :
                   file.status === 'completed' ? 'border-green-500/20' : 'border-border/30'
                 )}>
                   <div className="absolute bottom-0 left-0 h-1 bg-primary/20 transition-all duration-500" style={{ width: `${file.progress}%` }} />
@@ -909,6 +974,8 @@ export default function GalleryUploadPage() {
                            <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
                          ) : file.status === 'paused' ? (
                            <Pause className="w-3.5 h-3.5 text-orange-500" />
+                         ) : file.status === 'cancelled' ? (
+                           <Ban className="w-3.5 h-3.5 text-red-500" />
                          ) : file.status === 'error' ? (
                            <AlertTriangle className="w-4 h-4 text-destructive" />
                          ) : (
@@ -919,6 +986,7 @@ export default function GalleryUploadPage() {
                         "text-[9px] font-bold uppercase",
                         file.status === 'error' ? 'text-destructive' : 
                         file.status === 'paused' ? 'text-orange-500' :
+                        file.status === 'cancelled' ? 'text-red-500' :
                         file.status === 'completed' ? 'text-green-500' : 'text-primary'
                       )}>
                         {file.currentStep}
