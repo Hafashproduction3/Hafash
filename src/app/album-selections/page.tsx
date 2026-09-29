@@ -9,13 +9,12 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Link from 'next/link';
-import { useFirestore } from '@/firebase';
-import { collection, getDocs, query, where, doc, getDocFromServer } from 'firebase/firestore';
+import { useFirestore, useDoc } from '@/firebase';
+import { doc, collection, getDocs, query, where } from 'firebase/firestore';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { refreshPhotoUrls } from '@/app/actions/storage';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { resolveAlbumByToken } from '@/app/actions/album';
 
 export default function AlbumDetailsPage() {
   const params = useParams();
@@ -24,40 +23,41 @@ export default function AlbumDetailsPage() {
   const router = useRouter();
   const firestore = useFirestore();
   
-  const [activeGallery, setActiveGallery] = useState<any>(null);
   const [favoriteItems, setFavoriteItems] = useState<any[]>([]);
-  const [searching, setSearching] = useState(true);
+  const [loadingFavorites, setLoadingFavorites] = useState(true);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
 
-  // ✅ Load gallery + favorites from subcollection
+  // ✅ Use existing useDoc (known to work)
+  const galleryRef = useMemo(() => {
+    if (!firestore || !galleryId) return null;
+    return doc(firestore, 'galleries', galleryId);
+  }, [firestore, galleryId]);
+
+  const { data: activeGallery, loading: galleryLoading } = useDoc(galleryRef);
+
+  // ✅ Fetch favorites from subcollection
   useEffect(() => {
-    async function load() {
-      if (!firestore || !galleryId) return;
-      setSearching(true);
+    let cancelled = false;
+
+    async function loadFavorites() {
+      if (!firestore || !galleryId) {
+        if (!cancelled) setLoadingFavorites(false);
+        return;
+      }
 
       try {
-        // ✅ Step 1: Get gallery fresh
-        const galleryRef = doc(firestore, 'galleries', galleryId);
-        const gallerySnap = await getDocFromServer(galleryRef);
+        setLoadingFavorites(true);
         
-        if (!gallerySnap.exists()) {
-          setActiveGallery(null);
-          setSearching(false);
-          return;
-        }
-
-        const galleryData = { id: gallerySnap.id, ...gallerySnap.data() };
-        setActiveGallery(galleryData);
-
-        // ✅ Step 2: Fetch ONLY favorites from subcollection
         const photosRef = collection(firestore, 'galleries', galleryId, 'photos');
         const favQuery = query(photosRef, where('isFavorite', '==', true));
         const favSnap = await getDocs(favQuery);
         
+        if (cancelled) return;
+        
         const favs = favSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         
-        // ✅ Step 3: Refresh URLs (7-day fix)
+        // Refresh URLs
         const keysToRefresh: string[] = [];
         favs.forEach((p: any) => {
           if (p.storageKey) keysToRefresh.push(p.storageKey);
@@ -82,17 +82,23 @@ export default function AlbumDetailsPage() {
           thumbUrl: p.thumbKey ? (urlMap[p.thumbKey] || p.thumbUrl) : (urlMap[p.storageKey] || p.url),
         }));
 
-        setFavoriteItems(refreshedFavs);
+        if (!cancelled) {
+          setFavoriteItems(refreshedFavs);
+        }
       } catch (err) {
         console.error('[ALBUM_DETAILS] Error:', err);
       } finally {
-        setSearching(false);
+        if (!cancelled) setLoadingFavorites(false);
       }
     }
-    load();
+
+    loadFavorites();
+
+    return () => { cancelled = true; };
   }, [firestore, galleryId]);
 
   const selectedItems = favoriteItems;
+  const isLoading = galleryLoading || loadingFavorites;
 
   // ✅ Individual download
   const handleDownloadOriginal = useCallback(async (item: any) => {
@@ -159,10 +165,12 @@ export default function AlbumDetailsPage() {
     }
   }, [activeGallery, selectedItems, isPreparing, toast]);
 
-  if (searching) {
+  // ✅ Loading state
+  if (isLoading) {
     return <HafashLoader text="Accessing Secure Review Workspace..." />;
   }
 
+  // ✅ Not found / no gallery
   if (!activeGallery) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-6 text-center">
@@ -175,9 +183,9 @@ export default function AlbumDetailsPage() {
         <p className="text-muted-foreground max-w-md mb-8 italic leading-relaxed">
           This selection workspace is currently inactive.
         </p>
-        <Link href="/">
+        <Link href="/album-selections">
           <Button className="rounded-full px-10 h-14 bg-primary text-primary-foreground font-bold shadow-2xl hover:scale-105 transition-all">
-            Hafash Home
+            Back to Selections
           </Button>
         </Link>
       </div>
@@ -306,9 +314,6 @@ export default function AlbumDetailsPage() {
         <p className="text-muted-foreground text-sm max-w-lg mx-auto leading-relaxed">
           This secure designer workspace ensures you have direct access to the client's final selections in their original high-resolution format.
         </p>
-        <div className="mt-12 text-[10px] uppercase tracking-[0.5em] text-muted-foreground/30 font-bold">
-          End-to-End Asset Integrity Guaranteed by Hafash
-        </div>
       </div>
     </div>
   );
