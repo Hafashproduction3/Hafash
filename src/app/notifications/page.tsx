@@ -84,13 +84,14 @@ export default function NotificationsPage() {
     });
   }, [rawNotifications]);
 
+  // ✅ Use isRead consistently (matches cron jobs)
   const filtered = useMemo(() => {
-    if (filter === 'unread') return allNotifications.filter((n: any) => !n.read);
+    if (filter === 'unread') return allNotifications.filter((n: any) => !n.isRead);
     return allNotifications;
   }, [allNotifications, filter]);
 
   const unreadCount = useMemo(
-    () => allNotifications.filter((n: any) => !n.read).length,
+    () => allNotifications.filter((n: any) => !n.isRead).length,
     [allNotifications]
   );
 
@@ -100,9 +101,9 @@ export default function NotificationsPage() {
     try {
       const batch = writeBatch(firestore);
       allNotifications
-        .filter((n: any) => !n.read)
+        .filter((n: any) => !n.isRead)
         .forEach((n: any) => {
-          batch.update(doc(firestore, "notifications", n.id), { read: true });
+          batch.update(doc(firestore, "notifications", n.id), { isRead: true });
         });
       await batch.commit();
       toast({ title: "All marked as read" });
@@ -115,9 +116,9 @@ export default function NotificationsPage() {
 
   const handleClick = async (notif: any) => {
     if (!firestore) return;
-    if (!notif.read) {
+    if (!notif.isRead) {
       try {
-        await updateDoc(doc(firestore, "notifications", notif.id), { read: true });
+        await updateDoc(doc(firestore, "notifications", notif.id), { isRead: true });
       } catch (err) {
         console.error("[NOTIF] Mark read error:", err);
       }
@@ -152,7 +153,6 @@ export default function NotificationsPage() {
     <div className="min-h-screen bg-background p-6 lg:p-12 animate-in fade-in duration-500">
       <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* Header */}
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -178,7 +178,6 @@ export default function NotificationsPage() {
           </div>
         </div>
 
-        {/* Filters + Actions */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex gap-2">
             <button
@@ -230,7 +229,6 @@ export default function NotificationsPage() {
           )}
         </div>
 
-        {/* Content */}
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
@@ -274,13 +272,12 @@ export default function NotificationsPage() {
                   key={notif.id}
                   className={cn(
                     "relative rounded-2xl border bg-card/80 overflow-hidden transition-all duration-300 group",
-                    notif.read
+                    notif.isRead
                       ? "border-border/40 hover:border-primary/30"
                       : "border-primary/30 bg-primary/[0.03] hover:border-primary/50 shadow-md shadow-primary/5"
                   )}
                 >
-                  {/* Unread bar */}
-                  {!notif.read && (
+                  {!notif.isRead && (
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary" />
                   )}
 
@@ -289,7 +286,6 @@ export default function NotificationsPage() {
                       className="flex items-start gap-4 cursor-pointer"
                       onClick={() => handleClick(notif)}
                     >
-                      {/* Icon */}
                       <div className={cn(
                         "w-12 h-12 rounded-xl flex items-center justify-center shrink-0",
                         style.bgColor,
@@ -298,18 +294,17 @@ export default function NotificationsPage() {
                         {icon}
                       </div>
 
-                      {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-3 mb-1">
                           <h3 className={cn(
                             "text-[15px] leading-tight",
-                            notif.read
+                            notif.isRead
                               ? "font-medium text-muted-foreground"
                               : "font-bold text-white"
                           )}>
                             {notif.title}
                           </h3>
-                          {!notif.read && (
+                          {!notif.isRead && (
                             <Badge className="rounded-md bg-primary/15 text-primary border-primary/30 text-[9px] font-bold uppercase tracking-widest shrink-0">
                               New
                             </Badge>

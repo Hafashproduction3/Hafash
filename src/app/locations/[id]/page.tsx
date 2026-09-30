@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUser, useFirestore, useDoc } from "@/firebase";
-import { doc, setDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -118,32 +118,33 @@ export default function LocationDetailPage() {
     navigator.clipboard.writeText(window.location.href);
     toast({ title: "Link copied!" });
   }, [toast]);
-    // Increment views counter (once per session per location)
-    useEffect(() => {
-      if (!firestore || !locationId || !location) return;
-  
-      const viewKey = `viewed_location_${locationId}`;
-      const alreadyViewed = sessionStorage.getItem(viewKey);
-  
-      if (alreadyViewed === "true") return;
-  
-      // Don't count owner's own views
-      if (user && location.ownerId === user.uid) return;
-  
-      const incrementView = async () => {
-        try {
-          const { updateDoc, increment, doc: firestoreDoc } = await import("firebase/firestore");
-          await updateDoc(firestoreDoc(firestore, "shootLocations", locationId), {
-            viewCount: increment(1),
-          });
-          sessionStorage.setItem(viewKey, "true");
-        } catch (err) {
-          // Silent fail
-        }
-      };
-  
-      incrementView();
-    }, [firestore, locationId, location, user]);
+
+  // Increment views counter (once per session per location)
+  useEffect(() => {
+    if (!firestore || !locationId || !location) return;
+
+    const viewKey = `viewed_location_${locationId}`;
+    const alreadyViewed = sessionStorage.getItem(viewKey);
+
+    if (alreadyViewed === "true") return;
+
+    // Don't count owner's own views
+    if (user && location.ownerId === user.uid) return;
+
+    const incrementView = async () => {
+      try {
+        const { updateDoc, increment, doc: firestoreDoc } = await import("firebase/firestore");
+        await updateDoc(firestoreDoc(firestore, "shootLocations", locationId), {
+          viewCount: increment(1),
+        });
+        sessionStorage.setItem(viewKey, "true");
+      } catch (err) {
+        // Silent fail
+      }
+    };
+
+    incrementView();
+  }, [firestore, locationId, location, user]);
 
   const handleOpenChat = () => {
     if (!user) {
@@ -346,7 +347,6 @@ export default function LocationDetailPage() {
           {/* LEFT COLUMN */}
           <div className="space-y-6">
 
-            {/* Description */}
             {location.description && (
               <SectionCard title="About" icon={<Info className="w-4 h-4" />}>
                 <p className="text-sm leading-7 text-muted-foreground whitespace-pre-wrap">
@@ -355,7 +355,6 @@ export default function LocationDetailPage() {
               </SectionCard>
             )}
 
-            {/* Amenities */}
             {amenities.length > 0 && (
               <SectionCard title="Facilities & Amenities" icon={<Sparkles className="w-4 h-4" />}>
                 <div className="flex flex-wrap gap-2">
@@ -377,7 +376,6 @@ export default function LocationDetailPage() {
               </SectionCard>
             )}
 
-            {/* ═══ AVAILABILITY ═══ */}
             <SectionCard title="Availability" icon={<CalendarDays className="w-4 h-4" />}>
               <div className="space-y-5">
 
@@ -428,7 +426,6 @@ export default function LocationDetailPage() {
               </div>
             </SectionCard>
 
-            {/* ═══ RULES / POLICIES ═══ */}
             <SectionCard title="Shooting Rules" icon={<AlertCircle className="w-4 h-4" />}>
               <ul className="space-y-2 text-sm text-muted-foreground">
                 <li className="flex items-start gap-2">
@@ -455,7 +452,6 @@ export default function LocationDetailPage() {
           {/* RIGHT SIDEBAR */}
           <div className="space-y-6">
 
-            {/* PRICING CARD */}
             <Card className="rounded-[2rem] border-primary/30 bg-gradient-to-br from-primary/10 via-card/80 to-background shadow-xl overflow-hidden sticky top-6">
               <div className="h-1 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
 
@@ -539,7 +535,6 @@ export default function LocationDetailPage() {
               </CardContent>
             </Card>
 
-            {/* QUICK INFO */}
             <SectionCard title="Location Info" icon={<Navigation className="w-4 h-4" />}>
               <div className="space-y-3">
                 <InfoRow icon={<MapPin className="w-4 h-4" />} label="City" value={location.city} />
@@ -734,7 +729,7 @@ export default function LocationDetailPage() {
         </div>
       )}
 
-      {/* ═══ CHAT MODAL PLACEHOLDER ═══ */}
+      {/* ═══ CHAT MODAL ═══ */}
       {showChat && (
         <ChatModal
           location={location}
@@ -769,35 +764,6 @@ function ChatModal({
   const { toast } = useToast();
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [initialized, setInitialized] = useState(false);
-
-  // Ensure chat meta doc exists
-  const initChat = useCallback(async () => {
-    if (!user || !firestore || !locationId || initialized) return;
-    try {
-      const chatId = `loc_${locationId}_${user.uid}`;
-      await setDoc(
-        doc(firestore, "locationChats", chatId),
-        {
-          locationId,
-          locationName: location.name,
-          participants: [user.uid, location.ownerId],
-          lastMessage: "",
-          updatedAt: serverTimestamp(),
-          createdAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      setInitialized(true);
-    } catch (err: any) {
-      console.error("[CHAT_INIT]", err);
-    }
-  }, [user, firestore, locationId, location, initialized]);
-
-  // Auto-init
-  useMemo(() => {
-    initChat();
-  }, [initChat]);
 
   const handleSendPaymentDetails = async () => {
     if (!user || !firestore || !locationId) return;
@@ -929,120 +895,3 @@ function ChatModal({
               onClick={handleSendPaymentDetails}
             >
               <Wallet className="w-4 h-4" />
-              Send Payment Details to Owner
-            </Button>
-          </div>
-
-          {/* Simple message input */}
-          <div className="pt-3 border-t border-border/20 space-y-2">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Quick message
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Type a message..."
-                className="flex-1 h-11 px-4 rounded-xl border border-input bg-background text-sm"
-                value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                disabled={isSending}
-              />
-              <Button
-                size="icon"
-                className="h-11 w-11 rounded-xl bg-primary text-primary-foreground shrink-0"
-                onClick={handleSend}
-                disabled={!messageText.trim() || isSending}
-              >
-                {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-              </Button>
-            </div>
-          </div>
-
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// Helper Components
-// ─────────────────────────────────────────────────────────────
-
-function SectionCard({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <Card className="rounded-[2rem] border-border/40 bg-card/70 overflow-hidden">
-      <div className="px-6 pt-5 pb-3 flex items-center gap-2 border-b border-border/20">
-        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-          {icon}
-        </div>
-        <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">
-          {title}
-        </h3>
-      </div>
-      <div className="p-6">{children}</div>
-    </Card>
-  );
-}
-
-function InfoRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center justify-between py-2 border-b border-border/20 last:border-0">
-      <span className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="text-primary">{icon}</span>
-        {label}
-      </span>
-      <span className="text-xs font-bold">{value}</span>
-    </div>
-  );
-}
-
-function PaymentRow({
-  label,
-  value,
-  copied,
-  onCopy,
-  emoji,
-}: {
-  label: string;
-  value: string;
-  copied: boolean;
-  onCopy: () => void;
-  emoji: string;
-}) {
-  return (
-    <div className="p-4 rounded-2xl bg-background/40 border border-border/30 space-y-1">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-1.5">
-          <span>{emoji}</span> {label}
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 gap-1.5 rounded-lg text-xs"
-          onClick={onCopy}
-        >
-          {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
-          {copied ? "Copied" : "Copy"}
-        </Button>
-      </div>
-      <p className="font-mono font-bold text-sm">{value}</p>
-    </div>
-  );
-}
