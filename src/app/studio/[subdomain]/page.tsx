@@ -6,21 +6,13 @@ import Link from "next/link";
 import { useFirestore } from "@/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import {
-  Camera,
-  Star,
-  MapPin,
-  MessageCircle,
-  Instagram,
-  Sparkles,
-  Award,
-  Crown,
-  AlertTriangle,
+  Camera, MapPin, MessageCircle, Instagram, Sparkles, Award,
+  Crown, AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { HafashLoader } from "@/components/ui/hafash-loader";
-import { cn } from "@/lib/utils";
 
 export default function StudioPortfolioPage() {
   const params = useParams();
@@ -43,7 +35,7 @@ export default function StudioPortfolioPage() {
       }
 
       try {
-        // Step 1: Find photographer by subdomain
+        // ✅ Query publicProfiles (secure)
         const userQuery = query(
           collection(firestore, "publicProfiles"),
           where("subdomain", "==", subdomain.toLowerCase()),
@@ -75,7 +67,7 @@ export default function StudioPortfolioPage() {
           return;
         }
 
-        // Step 2: Load public galleries
+        // ✅ Load public galleries
         const galleriesQuery = query(
           collection(firestore, "galleries"),
           where("userId", "==", photographerData.userId),
@@ -121,7 +113,6 @@ export default function StudioPortfolioPage() {
     return <HafashLoader text="Loading studio..." />;
   }
 
-  // ✅ Enterprise plan required
   if (needsUpgrade && photographer) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-background">
@@ -138,7 +129,6 @@ export default function StudioPortfolioPage() {
               </h2>
               <p className="text-muted-foreground leading-relaxed">
                 <strong className="text-white">{photographer.studioName}</strong> ka portfolio abhi activate nahi hua.
-                Photographer ko Enterprise plan lena hoga.
               </p>
             </div>
 
@@ -149,7 +139,7 @@ export default function StudioPortfolioPage() {
                   Photographer Ke Liye
                 </p>
                 <p className="text-xs text-amber-200/80 mt-1">
-                  Apna portfolio live karne ke liye Settings → Enterprise Plan activate karein.
+                  Apna portfolio live karne ke liye Enterprise plan activate karein.
                 </p>
               </div>
             </div>
@@ -208,20 +198,11 @@ export default function StudioPortfolioPage() {
 
   return (
     <div className="min-h-screen bg-background pb-20">
-      {/* HERO */}
       <div className="relative h-[70vh] lg:h-[80vh] overflow-hidden">
         {banner ? (
-          <img
-            src={banner}
-            alt={studioName}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          <img src={banner} alt={studioName} className="absolute inset-0 w-full h-full object-cover" />
         ) : galleries[0]?.coverImage ? (
-          <img
-            src={galleries[0].coverImage}
-            alt={studioName}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          <img src={galleries[0].coverImage} alt={studioName} className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-background to-background" />
         )}
@@ -230,11 +211,7 @@ export default function StudioPortfolioPage() {
 
         <div className="relative h-full flex flex-col items-center justify-center text-center px-6">
           {logo && (
-            <img
-              src={logo}
-              alt={studioName}
-              className="h-24 lg:h-32 w-auto mb-6 object-contain drop-shadow-2xl"
-            />
+            <img src={logo} alt={studioName} className="h-24 lg:h-32 w-auto mb-6 object-contain drop-shadow-2xl" />
           )}
 
           <div className="flex items-center gap-3 mb-4">
@@ -280,10 +257,7 @@ export default function StudioPortfolioPage() {
               <Button
                 className="rounded-full px-8 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl"
                 onClick={() =>
-                  window.open(
-                    `https://wa.me/${whatsapp.replace(/\D/g, "")}`,
-                    "_blank"
-                  )
+                  window.open(`https://wa.me/${whatsapp.replace(/\D/g, "")}`, "_blank")
                 }
               >
                 <MessageCircle className="w-5 h-5" />
@@ -293,9 +267,7 @@ export default function StudioPortfolioPage() {
             <Button
               className="rounded-full px-8 h-14 bg-white/10 backdrop-blur-xl border border-white/20 text-white hover:bg-white/20 font-bold gap-3"
               onClick={() => {
-                document
-                  .getElementById("portfolio")
-                  ?.scrollIntoView({ behavior: "smooth" });
+                document.getElementById("portfolio")?.scrollIntoView({ behavior: "smooth" });
               }}
             >
               <Camera className="w-5 h-5" />
@@ -305,7 +277,6 @@ export default function StudioPortfolioPage() {
         </div>
       </div>
 
-      {/* PORTFOLIO */}
       <div id="portfolio" className="max-w-7xl mx-auto px-6 mt-20">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 mb-4">
@@ -372,7 +343,6 @@ export default function StudioPortfolioPage() {
         )}
       </div>
 
-      {/* CONTACT */}
       <div className="max-w-4xl mx-auto px-6 mt-32 text-center">
         <div className="bg-gradient-to-br from-primary/10 via-card/60 to-background border border-primary/30 rounded-[3rem] p-12 lg:p-16">
           <h2 className="text-4xl lg:text-5xl font-headline font-bold mb-4">
@@ -387,10 +357,7 @@ export default function StudioPortfolioPage() {
               <Button
                 className="rounded-full px-8 h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3"
                 onClick={() =>
-                  window.open(
-                    `https://wa.me/${whatsapp.replace(/\D/g, "")}`,
-                    "_blank"
-                  )
+                  window.open(`https://wa.me/${whatsapp.replace(/\D/g, "")}`, "_blank")
                 }
               >
                 <MessageCircle className="w-5 h-5" />
@@ -418,15 +385,10 @@ export default function StudioPortfolioPage() {
         </div>
       </div>
 
-      {/* FOOTER */}
       <footer className="mt-20 pt-12 pb-8 border-t border-border/20 px-6">
         <div className="max-w-4xl mx-auto text-center space-y-4">
           <div className="flex items-center justify-center gap-3 opacity-50">
-            <img
-              src="/hafash-logo.png"
-              alt="Hafash"
-              className="h-8 w-auto grayscale brightness-200"
-            />
+            <img src="/hafash-logo.png" alt="Hafash" className="h-8 w-auto grayscale brightness-200" />
             <span className="text-[10px] font-bold uppercase tracking-[0.5em] text-muted-foreground">
               Powered by Hafash
             </span>

@@ -50,6 +50,9 @@ export default function SettingsPage() {
     studioBanner: '',
     website: '',
     subdomain: '',
+    tagline: '',
+    city: '',
+    instagramLink: '',
     defaultWatermark: true,
     defaultAllowDownloads: false,
     defaultPublicLink: true,
@@ -68,6 +71,9 @@ export default function SettingsPage() {
         studioBanner: profile.studioBanner || '',
         website: profile.website || '',
         subdomain: profile.subdomain || '',
+        tagline: profile.tagline || '',
+        city: profile.city || '',
+        instagramLink: profile.instagramLink || '',
         defaultWatermark: profile.defaultWatermark ?? true,
         defaultAllowDownloads: profile.defaultAllowDownloads ?? false,
         defaultPublicLink: profile.defaultPublicLink ?? true,
@@ -156,26 +162,28 @@ export default function SettingsPage() {
         }
       }
 
+      // ✅ Update private user document
       await setDoc(doc(firestore, 'users', user.uid), {
         ...formData,
         userId: user.uid,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
+
       // ✅ Update public profile document
-await setDoc(doc(firestore, 'publicProfiles', user.uid), {
-  userId: user.uid,
-  studioName: formData.studioName.trim(),
-  photographerName: formData.photographerName.trim(),
-  tagline: (formData as any).tagline?.trim() || '',
-  city: (formData as any).city?.trim() || '',
-  whatsappNumber: formData.whatsappNumber.replace(/\s+/g, ''),
-  instagramLink: (formData as any).instagramLink?.trim() || '',
-  studioLogo: formData.studioLogo || '',
-  studioBanner: formData.studioBanner || '',
-  subdomain: formData.subdomain || '',
-  planId: profile?.planId || 'starter',
-  updatedAt: new Date().toISOString(),
-}, { merge: true });
+      await setDoc(doc(firestore, 'publicProfiles', user.uid), {
+        userId: user.uid,
+        studioName: formData.studioName.trim(),
+        photographerName: formData.photographerName.trim(),
+        tagline: formData.tagline?.trim() || '',
+        city: formData.city?.trim() || '',
+        whatsappNumber: formData.whatsappNumber.replace(/\s+/g, ''),
+        instagramLink: formData.instagramLink?.trim() || '',
+        studioLogo: formData.studioLogo || '',
+        studioBanner: formData.studioBanner || '',
+        subdomain: formData.subdomain || '',
+        planId: profile?.planId || 'starter',
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
       
       toast({
         title: "Configuration Synchronized",
@@ -195,7 +203,6 @@ await setDoc(doc(firestore, 'publicProfiles', user.uid), {
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 border-b border-border/50 pb-12">
         <div className="flex items-center gap-6">
           <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-primary/10 transition-all" onClick={() => router.back()}>
@@ -244,7 +251,6 @@ await setDoc(doc(firestore, 'publicProfiles', user.uid), {
           </TabsTrigger>
         </TabsList>
 
-        {/* Studio Profile Tab */}
         <TabsContent value="studio" className="animate-in fade-in slide-in-from-left-6 duration-500">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             <div className="lg:col-span-2 space-y-10">
@@ -364,7 +370,6 @@ await setDoc(doc(firestore, 'publicProfiles', user.uid), {
                     </div>
                   </div>
 
-                  {/* SUBDOMAIN SECTION */}
                   {isEnterprise ? (
                     <div className="space-y-6 pt-10 border-t-2 border-primary/20">
                       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -515,7 +520,6 @@ await setDoc(doc(firestore, 'publicProfiles', user.uid), {
           </div>
         </TabsContent>
 
-        {/* Account & Security Tab */}
         <TabsContent value="account" className="animate-in fade-in slide-in-from-left-6 duration-500">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
             <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
@@ -577,7 +581,6 @@ await setDoc(doc(firestore, 'publicProfiles', user.uid), {
           </div>
         </TabsContent>
 
-        {/* Gallery Defaults Tab */}
         <TabsContent value="gallery" className="animate-in fade-in slide-in-from-left-6 duration-500">
           <Card className="max-w-5xl bg-card/40 backdrop-blur-md border-border/50 rounded-[3rem] overflow-hidden shadow-2xl mx-auto lg:mx-0 luxury-card-hover">
             <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
@@ -620,7 +623,6 @@ await setDoc(doc(firestore, 'publicProfiles', user.uid), {
           </Card>
         </TabsContent>
 
-        {/* Notifications Tab */}
         <TabsContent value="notifications" className="animate-in fade-in slide-in-from-left-6 duration-500">
            <Card className="max-w-5xl bg-card/40 backdrop-blur-md border-border/50 rounded-[3rem] overflow-hidden shadow-2xl mx-auto lg:mx-0 luxury-card-hover">
             <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">

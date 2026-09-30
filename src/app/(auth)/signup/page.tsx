@@ -171,21 +171,23 @@ export default function SignupPage() {
         };
 
         await setDoc(doc(firestore, 'users', newUser.uid), userProfile);
-// ✅ Public profile document (subdomain lookup ke liye)
-await setDoc(doc(firestore, 'publicProfiles', newUser.uid), {
-  userId: newUser.uid,
-  studioName: studioName.trim(),
-  photographerName: photographerName.trim(),
-  tagline: tagline.trim(),
-  city: city.trim(),
-  whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
-  instagramLink: instagramLink.trim(),
-  studioLogo: '',
-  studioBanner: '',
-  subdomain: finalSubdomain,
-  planId: 'starter',
-  updatedAt: new Date().toISOString(),
-});
+
+        // ✅ Public profile document (subdomain lookup ke liye)
+        await setDoc(doc(firestore, 'publicProfiles', newUser.uid), {
+          userId: newUser.uid,
+          studioName: studioName.trim(),
+          photographerName: photographerName.trim(),
+          tagline: tagline.trim(),
+          city: city.trim(),
+          whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
+          instagramLink: instagramLink.trim(),
+          studioLogo: '',
+          studioBanner: '',
+          subdomain: finalSubdomain,
+          planId: 'starter',
+          updatedAt: new Date().toISOString(),
+        });
+
         try {
           await sendEmailVerification(newUser);
           toast({
@@ -242,7 +244,6 @@ await setDoc(doc(firestore, 'publicProfiles', newUser.uid), {
         <div className="bg-card border border-border/50 rounded-[2rem] p-8 lg:p-10 shadow-2xl">
           <form className="space-y-5" onSubmit={handleSubmit}>
 
-            {/* STUDIO NAME */}
             <div className="space-y-2">
               <Label className="text-[11px] font-bold uppercase tracking-widest text-primary">
                 Studio Name *
