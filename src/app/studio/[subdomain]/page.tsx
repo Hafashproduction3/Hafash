@@ -59,7 +59,27 @@ export default function StudioPortfolioPage() {
 
         // ✅ Plan check — ONLY Enterprise plan can activate subdomain
         const planId = photographerData.planId;
-        const canUseSubdomain = planId === "enterprise";
+        // ✅ Enterprise + Active plan check
+const planExpiryDate = photographerData.planExpiryDate;
+let canUseSubdomain = planId === "enterprise";
+
+// Expiry check
+if (canUseSubdomain && planExpiryDate) {
+  try {
+    // Firestore Timestamp handle karein
+    const expiryMs = planExpiryDate?.seconds 
+      ? planExpiryDate.seconds * 1000 
+      : new Date(planExpiryDate).getTime();
+    canUseSubdomain = expiryMs > Date.now();
+  } catch (e) {
+    canUseSubdomain = false;
+  }
+}
+
+// Agar expiry date nahi hai, to plan invalid
+if (canUseSubdomain && !planExpiryDate) {
+  canUseSubdomain = false;
+}
 
         if (!canUseSubdomain) {
           setNeedsUpgrade(true);
