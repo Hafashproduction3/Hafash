@@ -161,6 +161,21 @@ export default function SettingsPage() {
         userId: user.uid,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
+      // ✅ Update public profile document
+await setDoc(doc(firestore, 'publicProfiles', user.uid), {
+  userId: user.uid,
+  studioName: formData.studioName.trim(),
+  photographerName: formData.photographerName.trim(),
+  tagline: (formData as any).tagline?.trim() || '',
+  city: (formData as any).city?.trim() || '',
+  whatsappNumber: formData.whatsappNumber.replace(/\s+/g, ''),
+  instagramLink: (formData as any).instagramLink?.trim() || '',
+  studioLogo: formData.studioLogo || '',
+  studioBanner: formData.studioBanner || '',
+  subdomain: formData.subdomain || '',
+  planId: profile?.planId || 'starter',
+  updatedAt: new Date().toISOString(),
+}, { merge: true });
       
       toast({
         title: "Configuration Synchronized",

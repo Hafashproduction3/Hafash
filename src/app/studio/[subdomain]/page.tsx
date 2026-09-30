@@ -45,7 +45,7 @@ export default function StudioPortfolioPage() {
       try {
         // Step 1: Find photographer by subdomain
         const userQuery = query(
-          collection(firestore, "users"),
+          collection(firestore, "publicProfiles"),
           where("subdomain", "==", subdomain.toLowerCase()),
           limit(1)
         );

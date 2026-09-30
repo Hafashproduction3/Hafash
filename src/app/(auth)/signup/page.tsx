@@ -171,7 +171,21 @@ export default function SignupPage() {
         };
 
         await setDoc(doc(firestore, 'users', newUser.uid), userProfile);
-
+// ✅ Public profile document (subdomain lookup ke liye)
+await setDoc(doc(firestore, 'publicProfiles', newUser.uid), {
+  userId: newUser.uid,
+  studioName: studioName.trim(),
+  photographerName: photographerName.trim(),
+  tagline: tagline.trim(),
+  city: city.trim(),
+  whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
+  instagramLink: instagramLink.trim(),
+  studioLogo: '',
+  studioBanner: '',
+  subdomain: finalSubdomain,
+  planId: 'starter',
+  updatedAt: new Date().toISOString(),
+});
         try {
           await sendEmailVerification(newUser);
           toast({
