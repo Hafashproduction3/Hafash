@@ -4,24 +4,10 @@ import { useUser, useFirestore, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
 import { 
-  User, 
-  Shield, 
-  Camera, 
-  Save, 
-  Loader2, 
-  Briefcase, 
-  Phone, 
-  Image as ImageIcon, 
-  ArrowLeft,
-  Settings,
-  Bell,
-  HardDrive,
-  CheckCircle2,
-  AlertTriangle,
-  Globe,
-  Lock,
-  Zap,
-  Sparkles
+  User, Shield, Camera, Save, Loader2, Briefcase, Phone,
+  Image as ImageIcon, ArrowLeft, Settings, Bell, HardDrive,
+  CheckCircle2, AlertTriangle, Globe, Lock, Zap, Sparkles,
+  Copy, Check
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,12 +16,13 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { doc, setDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
+import { updateSubdomain } from '@/app/actions/subdomain';
+import { isOwnerEmail } from '@/lib/plans';
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -46,6 +33,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [activeTab, setActiveTab] = useState("studio");
+  const [copiedUrl, setCopiedUrl] = useState(false);
 
   const settingsRef = useMemo(() => {
     if (!firestore || !user) return null;
@@ -61,11 +49,10 @@ export default function SettingsPage() {
     studioLogo: '',
     studioBanner: '',
     website: '',
-    // Gallery Defaults
+    subdomain: '',
     defaultWatermark: true,
     defaultAllowDownloads: false,
     defaultPublicLink: true,
-    // Notification Preferences
     notifyNewFavorite: true,
     notifyNewView: false,
     notifyPaymentReceived: true,
@@ -80,6 +67,7 @@ export default function SettingsPage() {
         studioLogo: profile.studioLogo || '',
         studioBanner: profile.studioBanner || '',
         website: profile.website || '',
+        subdomain: profile.subdomain || '',
         defaultWatermark: profile.defaultWatermark ?? true,
         defaultAllowDownloads: profile.defaultAllowDownloads ?? false,
         defaultPublicLink: profile.defaultPublicLink ?? true,
@@ -95,7 +83,10 @@ export default function SettingsPage() {
     return profile?.planId && profile.planId !== 'starter';
   }, [profile?.planId]);
 
-  // Prevent accidental navigation
+  const isEnterprise = useMemo(() => {
+    return profile?.planId === 'enterprise' || isOwnerEmail(user?.email);
+  }, [profile?.planId, user?.email]);
+
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (isDirty) {
@@ -115,6 +106,14 @@ export default function SettingsPage() {
   const validateWhatsApp = (number: string) => {
     const regex = /^03\d{9}$/;
     return regex.test(number.replace(/\s+/g, ''));
+  };
+
+  const handleCopyUrl = () => {
+    const url = `https://${formData.subdomain || 'yourstudio'}.hafash.pk`;
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(true);
+    toast({ title: "URL Copied!" });
+    setTimeout(() => setCopiedUrl(false), 2000);
   };
 
   const handleSave = async () => {
@@ -140,6 +139,23 @@ export default function SettingsPage() {
 
     setSaving(true);
     try {
+      if (
+        isEnterprise &&
+        formData.subdomain &&
+        formData.subdomain !== profile?.subdomain
+      ) {
+        const result = await updateSubdomain(user.uid, formData.subdomain);
+        if (!result.success) {
+          toast({
+            variant: "destructive",
+            title: "Subdomain Error",
+            description: result.error || "Subdomain update nahi ho saka",
+          });
+          setSaving(false);
+          return;
+        }
+      }
+
       await setDoc(doc(firestore, 'users', user.uid), {
         ...formData,
         userId: user.uid,
@@ -164,7 +180,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
-      {/* Dynamic Header */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 border-b border-border/50 pb-12">
         <div className="flex items-center gap-6">
           <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-primary/10 transition-all" onClick={() => router.back()}>
@@ -332,6 +348,115 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* SUBDOMAIN SECTION */}
+                  {isEnterprise ? (
+                    <div className="space-y-6 pt-10 border-t-2 border-primary/20">
+                      <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div>
+                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary ml-1">
+                            🌐 Your Personal Subdomain
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-2 ml-1 italic">
+                            Apka portfolio URL — jo clients ko bhejenge
+                          </p>
+                        </div>
+                        <Badge className="bg-green-500/20 text-green-500 border border-green-500/30 text-[10px] font-bold uppercase tracking-widest gap-1.5">
+                          <CheckCircle2 className="w-3 h-3" /> Enterprise Active
+                        </Badge>
+                      </div>
+
+                      <div className="relative">
+                        <Globe className="absolute left-4 top-4 w-5 h-5 text-primary z-10" />
+                        <Input
+                          value={formData.subdomain || ''}
+                          onChange={(e) => updateField('subdomain', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                          placeholder="yourstudio"
+                          className="pl-14 pr-36 h-14 rounded-xl bg-background/50 border-primary/30 focus:border-primary text-base font-mono font-bold shadow-inner"
+                          maxLength={30}
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-primary pointer-events-none">
+                          .hafash.pk
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+                            <Sparkles className="w-5 h-5 text-primary" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Live URL Preview</p>
+                            <p className="text-sm font-mono font-bold text-white mt-0.5 truncate">
+                              https://{formData.subdomain || 'yourstudio'}.hafash.pk
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg gap-2 border-primary/30 hover:bg-primary/10"
+                            onClick={handleCopyUrl}
+                          >
+                            {copiedUrl ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedUrl ? 'Copied' : 'Copy'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg gap-2 border-primary/30 hover:bg-primary/10"
+                            onClick={() => window.open(`https://${formData.subdomain || 'yourstudio'}.hafash.pk`, '_blank')}
+                            disabled={!formData.subdomain}
+                          >
+                            <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+                            Visit
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                        <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                          <strong>Note:</strong> Subdomain change karne ke liye 30 din ka wait karna hoga. Purana subdomain 90 din tak reserved rahega.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 pt-10 border-t-2 border-primary/20">
+                      <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div>
+                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary ml-1">
+                            🌐 Personal Subdomain
+                          </Label>
+                          <p className="text-xs text-muted-foreground mt-2 ml-1 italic">
+                            Enterprise plan mein aapko apna personal portfolio URL milega
+                          </p>
+                        </div>
+                        <Badge className="bg-amber-500/20 text-amber-500 border border-amber-500/30 text-[10px] font-bold uppercase tracking-widest gap-1.5">
+                          <Lock className="w-3 h-3" /> Enterprise Only
+                        </Badge>
+                      </div>
+
+                      <div className="p-8 rounded-2xl bg-gradient-to-br from-primary/10 via-card/60 to-background border border-primary/30 text-center space-y-4">
+                        <div className="bg-primary/15 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">
+                          <Globe className="w-8 h-8 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-headline font-bold text-xl">Upgrade to Enterprise</p>
+                          <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
+                            Rs. 3,500/month mein apna personal subdomain <strong className="text-primary">yourname.hafash.pk</strong> aur full custom domain milega
+                          </p>
+                        </div>
+                        <Link href="/storage">
+                          <Button className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 h-12 px-8">
+                            <Sparkles className="w-4 h-4" />
+                            View Enterprise Plan
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -344,7 +469,7 @@ export default function SettingsPage() {
                 <CardContent className="p-0">
                   <div className="relative h-64 w-full bg-muted overflow-hidden flex items-center justify-center group">
                     {formData.studioBanner && isCustomBrandingActive ? (
-                      <img src={formData.studioBanner} className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:scale-110 transition-transform duration-/[3s/]" alt="Banner Preview" />
+                      <img src={formData.studioBanner} className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:scale-110 transition-transform duration-500" alt="Banner Preview" />
                     ) : (
                       <div className="absolute inset-0 bg-primary/5 flex items-center justify-center">
                         <ImageIcon className="w-16 h-16 text-primary opacity-10 animate-pulse" />

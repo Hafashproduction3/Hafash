@@ -127,7 +127,6 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
       '🎨 Custom Logo on Gallery',
       '📝 Custom Studio Name',
       '🚫 Hafash Logo Hidden',
-      '🌐 Custom Subdomain (yourname.hafash.pk)',
       '📊 Basic Analytics (Views, Favorites)',
       '📧 Priority Email Support (12 hours)',
     ],
@@ -135,7 +134,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     priorityLabel: 'Premium',
     driveEnabled: true,
     customBranding: true,
-    customSubdomain: true,
+    customSubdomain: false,   // ✅ CHANGED
     customDomain: false,
     whiteLabel: false,
     maxFolderDepth: 8,
@@ -155,6 +154,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     features: [
       '📁 200GB Hafash Drive Storage',
       '✅ Everything in Business',
+      '🌐 Custom Subdomain (yourname.hafash.pk)',   // ✅ ADDED
       '🌐 Full Custom Domain (ahmedphotography.com)',
       '⚪ White Label (Complete Hafash Removal)',
       '📊 Advanced Analytics',
@@ -173,7 +173,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     priorityLabel: 'Enterprise',
     driveEnabled: true,
     customBranding: true,
-    customSubdomain: true,
+    customSubdomain: true,   // ✅ TRUE
     customDomain: true,
     whiteLabel: true,
     maxFolderDepth: 15,
@@ -251,6 +251,7 @@ export const OWNER_PLAN: HafashPlan = {
     'Unlimited Drive',
     'All Features Unlocked',
     'Custom Branding',
+    'Custom Subdomain',        // ✅ ADDED
     'Full Custom Domain',
     'White Label',
     'Priority Processing',
@@ -260,7 +261,7 @@ export const OWNER_PLAN: HafashPlan = {
   priorityLabel: 'Owner',
   driveEnabled: true,
   customBranding: true,
-  customSubdomain: true,
+  customSubdomain: true,       // ✅ TRUE (you had false)
   customDomain: true,
   whiteLabel: true,
   maxFolderDepth: 999,

@@ -1,274 +1,110 @@
-"use client";
-
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useAuth, useUser, useFirestore } from '@/firebase';
-import { createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
-import { Lock, Mail, Briefcase, User as UserIcon, Phone, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { useToast } from '@/hooks/use-toast';
-import { HafashLoader } from '@/components/ui/hafash-loader';
-
-export default function SignupPage() {
-  const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [studioName, setStudioName] = useState('');
-  const [photographerName, setPhotographerName] = useState('');
-  const [whatsappNumber, setWhatsappNumber] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  
-  const auth = useAuth();
-  const firestore = useFirestore();
-  const { user, loading: authLoading } = useUser();
-  const router = useRouter();
-  const { toast } = useToast();
-
-  useEffect(() => {
-    if (!authLoading && user) {
-      if (user.emailVerified) {
-        router.push('/dashboard');
-      } else {
-        router.push('/verify-email');
-      }
-    }
-  }, [user, authLoading, router]);
-
-  const validateWhatsApp = (number: string) => {
-    const regex = /^03\d{9}$/;
-    return regex.test(number.replace(/\s+/g, ''));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!auth || !firestore) {
-      toast({
-        variant: "destructive",
-        title: "Configuration Error",
-        description: "Firebase services are not initialized.",
-      });
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      toast({
-        variant: "destructive",
-        title: "Validation Error",
-        description: "Passwords do not match.",
-      });
-      return;
-    }
-
-    if (!validateWhatsApp(whatsappNumber)) {
-      toast({
-        variant: "destructive",
-        title: "Invalid WhatsApp",
-        description: "Please enter a valid Pakistani WhatsApp number (e.g., 03001234567).",
-      });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const newUser = userCredential.user;
-
-      if (newUser) {
-        await updateProfile(newUser, {
-          displayName: studioName
-        });
-
-        const userProfile = {
-          userId: newUser.uid,
-          studioName,
-          photographerName,
-          whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
-          planId: 'starter',
-subscriptionStatus: 'inactive',
-updatedAt: new Date().toISOString()
-        };
-        
-        await setDoc(doc(firestore, 'users', newUser.uid), userProfile);
-        
-        try {
-          await sendEmailVerification(newUser);
-          toast({
-            title: "Account Created",
-            description: "Verification email sent. Please check your inbox.",
-          });
-        } catch (verifyError: any) {
-          toast({
-            variant: "destructive",
-            title: "Verification Delayed",
-            description: "Account created, but we couldn't send the verification email. You can resend it from the next screen.",
-          });
-        }
-        
-        router.push('/verify-email');
-      }
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Signup Failed",
-        description: error.message || "Please check your details and try again.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (authLoading) return (
-    <HafashLoader text="Initializing Your Studio Environment..." />
-  );
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-6 bg-background relative overflow-hidden">
-      <div className="absolute inset-0 z-0 opacity-10">
-        <img src="https://picsum.photos/seed/signup/1920/1080" className="w-full h-full object-cover grayscale" alt="Background" data-ai-hint="wedding background" />
+{/* ═══ SUBDOMAIN SECTION ═══ */}
+{profile?.planId === 'enterprise' || isOwnerEmail(user?.email) ? (
+  // Enterprise wale ko input dikhao
+  <div className="space-y-6 pt-10 border-t-2 border-primary/20">
+    <div className="flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary ml-1">
+          🌐 Your Personal Subdomain
+        </Label>
+        <p className="text-xs text-muted-foreground mt-2 ml-1 italic">
+          Apka portfolio URL — jo clients ko bhejenge
+        </p>
       </div>
+      <Badge className="bg-green-500/20 text-green-500 border border-green-500/30 text-[10px] font-bold uppercase tracking-widest gap-1.5">
+        <CheckCircle2 className="w-3 h-3" /> Enterprise Active
+      </Badge>
+    </div>
 
-      <div className="w-full max-w-md relative z-10 my-10">
-        <div className="text-center mb-10">
-          <div className="flex items-center justify-center gap-1 mb-6">
-            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-[57px] lg:h-[70px] w-auto" />
-            <Link href="/" className="inline-block">
-              <span className="text-4xl font-headline font-bold text-primary italic">Hafash.pk</span>
-            </Link>
-          </div>
-          <div className="mt-2">
-            <h1 className="text-2xl font-headline font-bold">Start Your Studio</h1>
-            <p className="text-muted-foreground mt-1 text-sm">Join the luxury platform for photographers</p>
-          </div>
+    <div className="relative">
+      <Globe className="absolute left-4 top-4 w-5 h-5 text-primary z-10" />
+      <Input
+        value={formData.subdomain || ''}
+        onChange={(e) => updateField('subdomain', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+        placeholder="yourstudio"
+        className="pl-14 pr-36 h-14 rounded-xl bg-background/50 border-primary/30 focus:border-primary text-base font-mono font-bold shadow-inner"
+        maxLength={30}
+      />
+      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-primary pointer-events-none">
+        .hafash.pk
+      </span>
+    </div>
+
+    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
+        <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
+          <Sparkles className="w-5 h-5 text-primary" />
         </div>
-
-        <div className="bg-card border border-border/50 rounded-[2rem] p-8 lg:p-10 shadow-2xl">
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="studio">Studio Name</Label>
-              <div className="relative">
-                <Briefcase className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                <Input 
-                  id="studio" 
-                  placeholder="E.g., Cinematic Memories" 
-                  className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
-                  required 
-                  value={studioName}
-                  onChange={(e) => setStudioName(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="name">Photographer Name</Label>
-              <div className="relative">
-                <UserIcon className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                <Input 
-                  id="name" 
-                  placeholder="Your Full Name" 
-                  className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
-                  required 
-                  value={photographerName}
-                  onChange={(e) => setPhotographerName(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="name@studio.com" 
-                  className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
-                  required 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="whatsapp">WhatsApp Number</Label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                <Input 
-                  id="whatsapp" 
-                  placeholder="03001234567" 
-                  className="pl-10 h-11 rounded-xl bg-background/50 border-border/50" 
-                  required 
-                  value={whatsappNumber}
-                  onChange={(e) => setWhatsappNumber(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                  <Input 
-                    id="password" 
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="••••••••" 
-                    className="pl-10 pr-10 h-11 rounded-xl bg-background/50 border-border/50" 
-                    required 
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm</Label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                  <Input 
-                    id="confirmPassword" 
-                    type={showPassword ? "text" : "password"} 
-                    placeholder="••••••••" 
-                    className="pl-10 pr-10 h-11 rounded-xl bg-background/50 border-border/50" 
-                    required 
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                  />
-                  <button 
-                    type="button" 
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-3 text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <Button type="submit" className="w-full h-14 bg-primary text-primary-foreground hover:bg-primary/90 text-lg font-bold rounded-2xl shadow-lg shadow-primary/20 mt-4" disabled={loading}>
-              {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <CheckCircle2 className="w-5 h-5 mr-2" />}
-              {loading ? "Creating Studio..." : "Join Now"}
-            </Button>
-          </form>
-
-          <div className="mt-8 text-center text-sm">
-            <span className="text-muted-foreground">Already have a studio? </span>
-            <Link href="/login" className="text-primary font-bold hover:underline">Login here</Link>
-          </div>
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Live URL Preview</p>
+          <p className="text-sm font-mono font-bold text-white mt-0.5 truncate">
+            https://{formData.subdomain || 'yourstudio'}.hafash.pk
+          </p>
         </div>
+      </div>
+      <div className="flex gap-2 shrink-0">
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-lg gap-2 border-primary/30 hover:bg-primary/10"
+          onClick={handleCopyUrl}
+        >
+          {copiedUrl ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+          {copiedUrl ? 'Copied' : 'Copy'}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-lg gap-2 border-primary/30 hover:bg-primary/10"
+          onClick={() => window.open(`https://${formData.subdomain || 'yourstudio'}.hafash.pk`, '_blank')}
+          disabled={!formData.subdomain}
+        >
+          <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+          Visit
+        </Button>
       </div>
     </div>
-  );
-}
+
+    <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+      <p className="text-[11px] text-amber-200/90 leading-relaxed">
+        <strong>Note:</strong> Subdomain change karne ke liye 30 din ka wait karna hoga. Purana subdomain 90 din tak reserved rahega.
+      </p>
+    </div>
+  </div>
+) : (
+  // Baaki plans ke liye upgrade prompt
+  <div className="space-y-6 pt-10 border-t-2 border-primary/20">
+    <div className="flex items-center justify-between flex-wrap gap-4">
+      <div>
+        <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary ml-1">
+          🌐 Personal Subdomain
+        </Label>
+        <p className="text-xs text-muted-foreground mt-2 ml-1 italic">
+          Enterprise plan mein aapko apna personal portfolio URL milega
+        </p>
+      </div>
+      <Badge className="bg-amber-500/20 text-amber-500 border border-amber-500/30 text-[10px] font-bold uppercase tracking-widest gap-1.5">
+        <Lock className="w-3 h-3" /> Enterprise Only
+      </Badge>
+    </div>
+
+    <div className="p-8 rounded-2xl bg-gradient-to-br from-primary/10 via-card/60 to-background border border-primary/30 text-center space-y-4">
+      <div className="bg-primary/15 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">
+        <Globe className="w-8 h-8 text-primary" />
+      </div>
+      <div>
+        <p className="font-headline font-bold text-xl">Upgrade to Enterprise</p>
+        <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
+          Rs. 3,500/month mein apna personal subdomain <strong className="text-primary">yourname.hafash.pk</strong> aur full custom domain milega
+        </p>
+      </div>
+      <Link href="/storage">
+        <Button className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 h-12 px-8">
+          <Sparkles className="w-4 h-4" />
+          View Enterprise Plan
+        </Button>
+      </Link>
+    </div>
+  </div>
+)}
