@@ -85,7 +85,6 @@ export default function LocationDetailPage() {
     return getSlotsForDate(location.bookedSlots, dateKey);
   }, [location?.bookedSlots, dateKey]);
 
-  // Generate all possible slots from open to close
   const availableSlots = useMemo(() => {
     if (!location) return [];
     const openIdx = OPENING_HOURS.indexOf(location.openTime);
@@ -119,7 +118,7 @@ export default function LocationDetailPage() {
     toast({ title: "Link copied!" });
   }, [toast]);
 
-  // Increment views counter (once per session per location)
+  // Increment views counter
   useEffect(() => {
     if (!firestore || !locationId || !location) return;
 
@@ -127,8 +126,6 @@ export default function LocationDetailPage() {
     const alreadyViewed = sessionStorage.getItem(viewKey);
 
     if (alreadyViewed === "true") return;
-
-    // Don't count owner's own views
     if (user && location.ownerId === user.uid) return;
 
     const incrementView = async () => {
@@ -206,7 +203,7 @@ export default function LocationDetailPage() {
           Back
         </Button>
 
-        {/* ═══ HERO ═══ */}
+        {/* HERO */}
         <Card className="relative overflow-hidden rounded-[2.5rem] border-border/40 bg-card/60 shadow-xl">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/15 via-background to-background" />
           <div className="absolute -top-32 -right-32 h-64 w-64 rounded-full bg-primary/20 blur-3xl" />
@@ -315,7 +312,7 @@ export default function LocationDetailPage() {
           </div>
         </Card>
 
-        {/* ═══ PHOTO GALLERY ═══ */}
+        {/* PHOTO GALLERY */}
         {photos.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {photos.slice(0, 8).map((p: any, idx: number) => (
@@ -341,7 +338,7 @@ export default function LocationDetailPage() {
           </div>
         )}
 
-        {/* ═══ MAIN GRID ═══ */}
+        {/* MAIN GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
 
           {/* LEFT COLUMN */}
@@ -378,7 +375,6 @@ export default function LocationDetailPage() {
 
             <SectionCard title="Availability" icon={<CalendarDays className="w-4 h-4" />}>
               <div className="space-y-5">
-
                 <div className="rounded-2xl border border-border/40 bg-background/30 p-2 flex justify-center">
                   <Calendar
                     mode="single"
@@ -578,7 +574,7 @@ export default function LocationDetailPage() {
         </div>
       </div>
 
-      {/* ═══ LIGHTBOX ═══ */}
+      {/* LIGHTBOX */}
       {selectedPhotoIdx !== null && photos[selectedPhotoIdx] && (
         <div
           className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-3xl flex items-center justify-center p-4"
@@ -637,7 +633,7 @@ export default function LocationDetailPage() {
         </div>
       )}
 
-      {/* ═══ PAYMENT DETAILS MODAL ═══ */}
+      {/* PAYMENT DETAILS MODAL */}
       {showPayment && (
         <div
           className="fixed inset-0 z-[90] bg-background/80 backdrop-blur-xl flex items-center justify-center p-4"
@@ -729,7 +725,7 @@ export default function LocationDetailPage() {
         </div>
       )}
 
-      {/* ═══ CHAT MODAL ═══ */}
+      {/* CHAT MODAL */}
       {showChat && (
         <ChatModal
           location={location}
@@ -764,6 +760,33 @@ function ChatModal({
   const { toast } = useToast();
   const [messageText, setMessageText] = useState("");
   const [isSending, setIsSending] = useState(false);
+
+  // ✅ Initialize chat meta doc
+  useEffect(() => {
+    if (!user || !firestore || !locationId) return;
+
+    const initChat = async () => {
+      try {
+        const chatId = `loc_${locationId}_${user.uid}`;
+        await setDoc(
+          doc(firestore, "locationChats", chatId),
+          {
+            locationId,
+            locationName: location.name,
+            participants: [user.uid, location.ownerId],
+            lastMessage: "",
+            updatedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (err: any) {
+        console.error("[CHAT_INIT]", err);
+      }
+    };
+
+    initChat();
+  }, [user, firestore, locationId, location]);
 
   const handleSendPaymentDetails = async () => {
     if (!user || !firestore || !locationId) return;
@@ -895,3 +918,119 @@ function ChatModal({
               onClick={handleSendPaymentDetails}
             >
               <Wallet className="w-4 h-4" />
+              Send Payment Details to Owner
+            </Button>
+          </div>
+
+          <div className="pt-3 border-t border-border/20 space-y-2">
+            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Quick message
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Type a message..."
+                className="flex-1 h-11 px-4 rounded-xl border border-input bg-background text-sm"
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                disabled={isSending}
+              />
+              <Button
+                size="icon"
+                className="h-11 w-11 rounded-xl bg-primary text-primary-foreground shrink-0"
+                onClick={handleSend}
+                disabled={!messageText.trim() || isSending}
+              >
+                {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helper Components
+// ─────────────────────────────────────────────────────────────
+
+function SectionCard({
+  title,
+  icon,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="rounded-[2rem] border-border/40 bg-card/70 overflow-hidden">
+      <div className="px-6 pt-5 pb-3 flex items-center gap-2 border-b border-border/20">
+        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+          {icon}
+        </div>
+        <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-muted-foreground">
+          {title}
+        </h3>
+      </div>
+      <div className="p-6">{children}</div>
+    </Card>
+  );
+}
+
+function InfoRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center justify-between py-2 border-b border-border/20 last:border-0">
+      <span className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span className="text-primary">{icon}</span>
+        {label}
+      </span>
+      <span className="text-xs font-bold">{value}</span>
+    </div>
+  );
+}
+
+function PaymentRow({
+  label,
+  value,
+  copied,
+  onCopy,
+  emoji,
+}: {
+  label: string;
+  value: string;
+  copied: boolean;
+  onCopy: () => void;
+  emoji: string;
+}) {
+  return (
+    <div className="p-4 rounded-2xl bg-background/40 border border-border/30 space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-1.5">
+          <span>{emoji}</span> {label}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1.5 rounded-lg text-xs"
+          onClick={onCopy}
+        >
+          {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      <p className="font-mono font-bold text-sm">{value}</p>
+    </div>
+  );
+}

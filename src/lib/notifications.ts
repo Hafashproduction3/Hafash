@@ -27,7 +27,7 @@ export interface NotificationData {
   link: string;           // Click karne par kahan jaye
   actorId?: string;       // Kisne kiya
   actorName?: string;
-  read: boolean;
+  isRead: boolean;        // ✅ CHANGED: read → isRead (consistent with cron jobs)
   createdAt: any;
 }
 
