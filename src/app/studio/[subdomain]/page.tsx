@@ -7,9 +7,8 @@ import { useFirestore } from "@/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import {
   Camera, MapPin, MessageCircle, Instagram, Sparkles, Award,
-  Crown, AlertTriangle, Star, Heart, Eye, Users, Calendar,
-  Play, ChevronRight, Phone, Mail, ArrowRight, Quote,
-  CheckCircle2, Facebook, Youtube, Music2, Globe
+  Crown, AlertTriangle, Star, Heart, Eye,
+  Phone, ArrowRight, Quote, CheckCircle2, Share2, Video
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -54,28 +53,41 @@ export default function StudioPortfolioPage() {
           return;
         }
 
-        const photographerData = {
+        const photographerData: any = {
           userId: userSnap.docs[0].id,
           ...userSnap.docs[0].data(),
         };
         setPhotographer(photographerData);
 
-        // ✅ Enterprise + expiry check
-        const planId = photographerData.planId;
-        let canUseSubdomain = planId === "enterprise";
+        // ✅ Owner check — unlimited access
+        const isOwner = photographerData.isOwner === true;
 
-        if (canUseSubdomain && photographerData.planExpiryDate) {
+        // ✅ Enterprise + expiry check (skip for owner)
+        const planId = photographerData.planId;
+        let canUseSubdomain = isOwner || planId === "enterprise";
+
+        // Agar owner nahi hai, to expiry check karo
+        if (!isOwner && canUseSubdomain && photographerData.planExpiryDate) {
           try {
             const expiryDate = photographerData.planExpiryDate;
             let expiryMs: number;
-            if (expiryDate?.seconds) expiryMs = expiryDate.seconds * 1000;
-            else if (expiryDate?.toDate) expiryMs = expiryDate.toDate().getTime();
-            else expiryMs = new Date(expiryDate).getTime();
+
+            if (expiryDate?.seconds) {
+              expiryMs = expiryDate.seconds * 1000;
+            } else if (expiryDate?.toDate) {
+              expiryMs = expiryDate.toDate().getTime();
+            } else if (typeof expiryDate === 'string') {
+              expiryMs = new Date(expiryDate).getTime();
+            } else {
+              expiryMs = new Date(expiryDate).getTime();
+            }
+
             canUseSubdomain = expiryMs > Date.now();
-          } catch {
+          } catch (e) {
+            console.error('[EXPIRY_CHECK]', e);
             canUseSubdomain = false;
           }
-        } else if (canUseSubdomain && !photographerData.planExpiryDate) {
+        } else if (!isOwner && canUseSubdomain && !photographerData.planExpiryDate) {
           canUseSubdomain = false;
         }
 
@@ -85,7 +97,7 @@ export default function StudioPortfolioPage() {
           return;
         }
 
-        // ✅ Load galleries
+        // Load galleries
         const galleriesQuery = query(
           collection(firestore, "galleries"),
           where("userId", "==", photographerData.userId),
@@ -105,17 +117,16 @@ export default function StudioPortfolioPage() {
 
         setGalleries(galleriesData);
 
-        // ✅ Load reviews (if any)
+        // Load reviews
         try {
           const reviewsQuery = query(
             collection(firestore, "networkReviews"),
-            where("professionalId", "==", photographerData.userId),
-            where("approved", "==", true)
+            where("professionalId", "==", photographerData.userId)
           );
           const reviewsSnap = await getDocs(reviewsQuery);
           setReviews(reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         } catch (e) {
-          // Silent fail
+          // Silent
         }
 
       } catch (err: any) {
@@ -127,12 +138,9 @@ export default function StudioPortfolioPage() {
     }
 
     load();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [firestore, subdomain]);
 
-  // ✅ Get theme
   const theme = useMemo(() => getTheme(photographer?.theme), [photographer?.theme]);
 
   const stats = useMemo(() => {
@@ -148,7 +156,7 @@ export default function StudioPortfolioPage() {
   }, [galleries, photographer?.stats]);
 
   const avgRating = useMemo(() => {
-    if (reviews.length === 0) return 5.0;
+    if (reviews.length === 0) return "5.0";
     const sum = reviews.reduce((acc, r) => acc + (r.rating || 5), 0);
     return (sum / reviews.length).toFixed(1);
   }, [reviews]);
@@ -158,32 +166,31 @@ export default function StudioPortfolioPage() {
   if (needsUpgrade && photographer) {
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={{ background: theme.colors.pageBg }}>
-        <Card className="max-w-lg rounded-[2.5rem] border-primary/30 shadow-2xl overflow-hidden">
+        <Card className="max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden" style={{ borderColor: `${theme.colors.primary}50` }}>
           <div className="h-1" style={{ background: `linear-gradient(to right, ${theme.colors.primary}, transparent)` }} />
           <CardContent className="p-10 text-center space-y-6">
-            <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto ring-8 ring-primary/5">
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
+              style={{ background: `${theme.colors.primary}15` }}>
               <Crown className="w-10 h-10" style={{ color: theme.colors.primary }} />
             </div>
             <div className="space-y-3">
-              <h2 className="text-3xl font-headline font-bold">Portfolio Coming Soon</h2>
-              <p className="text-muted-foreground leading-relaxed">
-                <strong>{photographer.studioName}</strong> ka portfolio abhi activate nahi hua.
+              <h2 className="text-3xl font-headline font-bold" style={{ color: theme.colors.headingText }}>Portfolio Coming Soon</h2>
+              <p style={{ color: theme.colors.mutedText }}>
+                <strong style={{ color: theme.colors.headingText }}>{photographer.studioName}</strong> ka portfolio abhi activate nahi hua.
               </p>
             </div>
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-3 text-left">
-              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="p-4 rounded-2xl flex items-start gap-3 text-left"
+              style={{ background: '#F59E0B10', border: '1px solid #F59E0B30' }}>
+              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#F59E0B' }} />
               <div>
-                <p className="text-xs font-bold text-amber-400 uppercase tracking-widest">Photographer Ke Liye</p>
-                <p className="text-xs text-amber-200/80 mt-1">Apna portfolio live karne ke liye Enterprise plan activate karein.</p>
+                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#F59E0B' }}>Photographer Ke Liye</p>
+                <p className="text-xs mt-1" style={{ color: theme.colors.mutedText }}>Apna portfolio live karne ke liye Enterprise plan activate karein.</p>
               </div>
             </div>
             <Link href="/storage">
               <Button className="w-full h-12 rounded-xl font-bold gap-2" style={{ background: theme.colors.primary, color: theme.colors.primaryText }}>
                 <Crown className="w-4 h-4" /> View Enterprise Plan
               </Button>
-            </Link>
-            <Link href="/">
-              <Button variant="outline" className="w-full h-12 rounded-xl">Back to Hafash</Button>
             </Link>
           </CardContent>
         </Card>
@@ -196,7 +203,7 @@ export default function StudioPortfolioPage() {
       <div className="min-h-screen flex items-center justify-center p-6" style={{ background: theme.colors.pageBg }}>
         <Card className="max-w-md rounded-[2rem]">
           <CardContent className="p-10 text-center space-y-4">
-            <Camera className="w-14 h-14 text-muted-foreground/40 mx-auto" />
+            <Camera className="w-14 h-14 mx-auto" style={{ color: theme.colors.mutedText }} />
             <h2 className="text-xl font-headline font-bold" style={{ color: theme.colors.headingText }}>Studio Not Found</h2>
             <p className="text-sm" style={{ color: theme.colors.mutedText }}>Yeh studio ab available nahi hai.</p>
             <Link href="/">
@@ -215,7 +222,6 @@ export default function StudioPortfolioPage() {
   const instagram = photographer.instagramLink;
   const facebook = photographer.facebookLink;
   const youtube = photographer.youtubeLink;
-  const tiktok = photographer.tiktokLink;
   const tagline = photographer.tagline;
   const city = photographer.city;
   const aboutBio = photographer.aboutBio;
@@ -228,11 +234,9 @@ export default function StudioPortfolioPage() {
   return (
     <div className="min-h-screen" style={{ background: theme.colors.pageBg, color: theme.colors.bodyText }}>
 
-      {/* ═══ HEADER ═══ */}
-      <header
-        className="sticky top-0 z-50 backdrop-blur-xl border-b"
-        style={{ background: theme.colors.headerBg, borderColor: theme.colors.headerBorder }}
-      >
+      {/* HEADER */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl border-b"
+        style={{ background: theme.colors.headerBg, borderColor: theme.colors.headerBorder }}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link href={`/studio/${subdomain}`} className="flex items-center gap-3">
             {logo ? (
@@ -249,26 +253,25 @@ export default function StudioPortfolioPage() {
           </Link>
 
           <nav className="hidden lg:flex items-center gap-8">
-            <a href="#home" className="text-sm font-bold hover:opacity-70 transition" style={{ color: theme.colors.headerText }}>Home</a>
-            <a href="#galleries" className="text-sm font-bold hover:opacity-70 transition" style={{ color: theme.colors.headerText }}>Galleries</a>
-            <a href="#about" className="text-sm font-bold hover:opacity-70 transition" style={{ color: theme.colors.headerText }}>About</a>
-            <a href="#booking" className="text-sm font-bold hover:opacity-70 transition" style={{ color: theme.colors.headerText }}>Contact</a>
+            <a href="#home" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>Home</a>
+            <a href="#galleries" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>Galleries</a>
+            <a href="#about" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>About</a>
+            <a href="#booking" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>Contact</a>
           </nav>
 
-          <div className="flex items-center gap-3">
-            {whatsapp && (
-              <a href={`https://wa.me/${whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
-                <Button size="sm" className="rounded-full gap-2 font-bold" style={{ background: theme.colors.primary, color: theme.colors.primaryText }}>
-                  <MessageCircle className="w-4 h-4" />
-                  <span className="hidden sm:inline">WhatsApp</span>
-                </Button>
-              </a>
-            )}
-          </div>
+          {whatsapp && (
+            <a href={`https://wa.me/${whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" className="rounded-full gap-2 font-bold"
+                style={{ background: theme.colors.primary, color: theme.colors.primaryText }}>
+                <MessageCircle className="w-4 h-4" />
+                <span className="hidden sm:inline">WhatsApp</span>
+              </Button>
+            </a>
+          )}
         </div>
       </header>
 
-      {/* ═══ HERO ═══ */}
+      {/* HERO */}
       <section id="home" className="relative h-[85vh] lg:h-[90vh] overflow-hidden">
         {banner ? (
           <img src={banner} alt={studioName} className="absolute inset-0 w-full h-full object-cover" />
@@ -318,17 +321,17 @@ export default function StudioPortfolioPage() {
         </div>
       </section>
 
-      {/* ═══ STATS BAR ═══ */}
+      {/* STATS BAR */}
       <section className="py-10 border-b" style={{ background: theme.colors.sectionBg, borderColor: theme.colors.border }}>
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
-          <StatItem icon={<Camera />} value={`${stats.totalGalleries}+`} label="Projects" theme={theme} />
-          <StatItem icon={<Heart />} value={`${stats.appreciations}+`} label="Appreciations" theme={theme} />
-          <StatItem icon={<Eye />} value={`${stats.totalPhotos}+`} label="Views" theme={theme} />
-          <StatItem icon={<Award />} value={`${stats.years}+`} label="Years Experience" theme={theme} />
+          <StatItem icon={<Camera className="w-5 h-5" />} value={`${stats.totalGalleries}+`} label="Projects" theme={theme} />
+          <StatItem icon={<Heart className="w-5 h-5" />} value={`${stats.appreciations}+`} label="Appreciations" theme={theme} />
+          <StatItem icon={<Eye className="w-5 h-5" />} value={`${stats.totalPhotos}+`} label="Photos" theme={theme} />
+          <StatItem icon={<Award className="w-5 h-5" />} value={`${stats.years}+`} label="Years" theme={theme} />
         </div>
       </section>
 
-      {/* ═══ FEATURED GALLERIES ═══ */}
+      {/* FEATURED GALLERIES */}
       <section id="galleries" className="py-20 lg:py-24" style={{ background: theme.colors.pageBg }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-end justify-between mb-12 flex-wrap gap-4">
@@ -343,11 +346,6 @@ export default function StudioPortfolioPage() {
                 Explore My Work
               </h2>
             </div>
-            {galleries.length > 6 && (
-              <a href="#all-galleries" className="text-sm font-bold flex items-center gap-2" style={{ color: theme.colors.primary }}>
-                View All <ArrowRight className="w-4 h-4" />
-              </a>
-            )}
           </div>
 
           {displayGalleries.length === 0 ? (
@@ -359,7 +357,7 @@ export default function StudioPortfolioPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {displayGalleries.map((gallery: any) => (
                 <Link key={gallery.id} href={`/gallery/${gallery.slug || gallery.id}`} className="group">
-                  <Card className="overflow-hidden rounded-[2rem] border-0 hover:-translate-y-2 transition-all duration-500"
+                  <Card className="overflow-hidden rounded-[2rem] hover:-translate-y-2 transition-all duration-500"
                     style={{ background: theme.colors.cardBg, borderColor: theme.colors.border }}>
                     <div className="aspect-[4/5] relative overflow-hidden">
                       {gallery.coverImage ? (
@@ -387,7 +385,7 @@ export default function StudioPortfolioPage() {
         </div>
       </section>
 
-      {/* ═══ ABOUT ME ═══ */}
+      {/* ABOUT ME */}
       {(aboutBio || photographerPhoto) && (
         <section id="about" className="py-20 lg:py-24" style={{ background: theme.colors.sectionBg }}>
           <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
@@ -409,15 +407,13 @@ export default function StudioPortfolioPage() {
             <div className="space-y-6">
               <div className="flex items-center gap-2">
                 <div className="h-px w-8" style={{ background: theme.colors.primary }} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>
-                  About Me
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>About Me</span>
               </div>
               <h2 className="text-4xl lg:text-5xl font-headline font-bold leading-tight" style={{ color: theme.colors.headingText }}>
                 Turning Moments Into Timeless Memories
               </h2>
               <p className="text-base leading-relaxed whitespace-pre-wrap" style={{ color: theme.colors.bodyText }}>
-                {aboutBio || `Hi, I'm ${photographer.photographerName}. I'm a professional wedding photographer based in ${city}. I believe in real emotions, natural moments, and timeless storytelling.`}
+                {aboutBio || `Hi, I'm ${photographer.photographerName}. I'm a professional wedding photographer based in ${city}.`}
               </p>
 
               {services.length > 0 && (
@@ -435,16 +431,14 @@ export default function StudioPortfolioPage() {
         </section>
       )}
 
-      {/* ═══ PRICING PACKAGES ═══ */}
+      {/* PRICING PACKAGES */}
       {packages.length > 0 && (
         <section className="py-20 lg:py-24" style={{ background: theme.colors.pageBg }}>
           <div className="max-w-7xl mx-auto px-6">
             <div className="text-center mb-16">
               <div className="flex items-center justify-center gap-2 mb-3">
                 <div className="h-px w-8" style={{ background: theme.colors.primary }} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>
-                  Pricing
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>Pricing</span>
                 <div className="h-px w-8" style={{ background: theme.colors.primary }} />
               </div>
               <h2 className="text-4xl lg:text-5xl font-headline font-bold" style={{ color: theme.colors.headingText }}>
@@ -454,7 +448,7 @@ export default function StudioPortfolioPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {packages.map((pkg: any, idx: number) => (
-                <Card key={idx} className="rounded-[2rem] overflow-hidden border-2 p-8 space-y-6 hover:-translate-y-2 transition-all"
+                <Card key={idx} className="rounded-[2rem] overflow-hidden border-2 p-8 space-y-6"
                   style={{ background: theme.colors.cardBg, borderColor: idx === 1 ? theme.colors.primary : theme.colors.border }}>
                   <div>
                     <h3 className="text-2xl font-headline font-bold" style={{ color: theme.colors.headingText }}>{pkg.name}</h3>
@@ -486,15 +480,13 @@ export default function StudioPortfolioPage() {
         </section>
       )}
 
-      {/* ═══ VIDEO SECTION ═══ */}
+      {/* VIDEO */}
       {videoUrl && (
         <section className="py-20 lg:py-24" style={{ background: theme.colors.sectionBg }}>
           <div className="max-w-5xl mx-auto px-6 text-center">
             <div className="flex items-center justify-center gap-2 mb-3">
               <div className="h-px w-8" style={{ background: theme.colors.primary }} />
-              <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>
-                Watch
-              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>Watch</span>
               <div className="h-px w-8" style={{ background: theme.colors.primary }} />
             </div>
             <h2 className="text-4xl lg:text-5xl font-headline font-bold mb-10" style={{ color: theme.colors.headingText }}>
@@ -507,7 +499,7 @@ export default function StudioPortfolioPage() {
         </section>
       )}
 
-      {/* ═══ CLIENT REVIEWS ═══ */}
+      {/* REVIEWS */}
       {reviews.length > 0 && (
         <section className="py-20 lg:py-24" style={{ background: theme.colors.pageBg }}>
           <div className="max-w-7xl mx-auto px-6">
@@ -515,9 +507,7 @@ export default function StudioPortfolioPage() {
               <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-4"
                 style={{ background: `${theme.colors.primary}15`, border: `1px solid ${theme.colors.primary}30` }}>
                 <Star className="w-3 h-3 fill-current" style={{ color: theme.colors.primary }} />
-                <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>
-                  Client Reviews
-                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>Client Reviews</span>
               </div>
               <h2 className="text-4xl lg:text-5xl font-headline font-bold mb-3" style={{ color: theme.colors.headingText }}>
                 Real Stories From Couples
@@ -543,7 +533,6 @@ export default function StudioPortfolioPage() {
                   </p>
                   <div className="pt-4 border-t" style={{ borderColor: theme.colors.border }}>
                     <p className="font-bold text-sm" style={{ color: theme.colors.headingText }}>{review.clientName || "Happy Client"}</p>
-                    <p className="text-xs" style={{ color: theme.colors.mutedText }}>{review.eventType || "Wedding"}</p>
                   </div>
                 </Card>
               ))}
@@ -552,15 +541,13 @@ export default function StudioPortfolioPage() {
         </section>
       )}
 
-      {/* ═══ BOOKING FORM ═══ */}
+      {/* BOOKING */}
       <section id="booking" className="py-20 lg:py-24" style={{ background: theme.colors.sectionBg }}>
         <div className="max-w-3xl mx-auto px-6">
           <div className="text-center mb-12">
             <div className="flex items-center justify-center gap-2 mb-3">
               <div className="h-px w-8" style={{ background: theme.colors.primary }} />
-              <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>
-                Contact
-              </span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>Contact</span>
               <div className="h-px w-8" style={{ background: theme.colors.primary }} />
             </div>
             <h2 className="text-4xl lg:text-5xl font-headline font-bold mb-3" style={{ color: theme.colors.headingText }}>
@@ -572,7 +559,7 @@ export default function StudioPortfolioPage() {
           <Card className="rounded-[2rem] p-8 lg:p-12" style={{ background: theme.colors.cardBg, borderColor: theme.colors.border }}>
             <div className="text-center space-y-6">
               {whatsapp && (
-                <a href={`https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`Salam, I want to book you for my event.`)}`} target="_blank" rel="noopener noreferrer">
+                <a href={`https://wa.me/${whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
                   <Button size="lg" className="rounded-full px-10 h-16 font-bold gap-3 text-lg shadow-2xl"
                     style={{ background: theme.colors.primary, color: theme.colors.primaryText }}>
                     <MessageCircle className="w-6 h-6" />
@@ -594,21 +581,14 @@ export default function StudioPortfolioPage() {
                   <a href={facebook} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm font-bold hover:opacity-70"
                     style={{ color: theme.colors.headingText }}>
-                    <Facebook className="w-5 h-5" /> Facebook
+                    <Share2 className="w-5 h-5" /> Facebook
                   </a>
                 )}
                 {youtube && (
                   <a href={youtube} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-2 text-sm font-bold hover:opacity-70"
                     style={{ color: theme.colors.headingText }}>
-                    <Youtube className="w-5 h-5" /> YouTube
-                  </a>
-                )}
-                {tiktok && (
-                  <a href={tiktok} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm font-bold hover:opacity-70"
-                    style={{ color: theme.colors.headingText }}>
-                    <Music2 className="w-5 h-5" /> TikTok
+                    <Video className="w-5 h-5" /> YouTube
                   </a>
                 )}
               </div>
@@ -624,7 +604,7 @@ export default function StudioPortfolioPage() {
         </div>
       </section>
 
-      {/* ═══ FOOTER ═══ */}
+      {/* FOOTER */}
       <footer className="py-12" style={{ background: theme.colors.footerBg, color: theme.colors.footerText }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center space-y-4">
@@ -640,7 +620,6 @@ export default function StudioPortfolioPage() {
   );
 }
 
-// ═══ Sub-component: Stat Item ═══
 function StatItem({ icon, value, label, theme }: { icon: React.ReactNode; value: string; label: string; theme: any }) {
   return (
     <div className="text-center space-y-2">

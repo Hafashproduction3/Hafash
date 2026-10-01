@@ -3,6 +3,20 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { validateSubdomain } from '@/lib/subdomain';
 
+// ═══ Owner Emails (Unlimited changes) ═══
+const OWNER_EMAILS = [
+  'hafashgroup60@gmail.com',
+];
+
+function isOwnerEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return OWNER_EMAILS.includes(email.toLowerCase().trim());
+}
+
+// ═══ Change Limits ═══
+const SUBDOMAIN_CHANGE_COOLDOWN_DAYS = 30;
+const OLD_SUBDOMAIN_RESERVE_DAYS = 90;
+
 /**
  * Check if subdomain is available
  */
@@ -20,13 +34,13 @@ export async function checkSubdomainAvailability(subdomain: string): Promise<{
   }
 
   try {
-    const snapshot = await adminDb
-      .collection('users')
+    const publicSnap = await adminDb
+      .collection('publicProfiles')
       .where('subdomain', '==', subdomain)
       .limit(1)
       .get();
 
-    if (!snapshot.empty) {
+    if (!publicSnap.empty) {
       return { available: false, error: 'Yeh subdomain already taken hai' };
     }
 
@@ -37,7 +51,7 @@ export async function checkSubdomainAvailability(subdomain: string): Promise<{
 }
 
 /**
- * Reserve subdomain on signup (with number suffix if taken)
+ * Reserve subdomain on signup
  */
 export async function reserveSubdomain(
   userId: string,
@@ -62,7 +76,6 @@ export async function reserveSubdomain(
       return { success: false, error: 'Studio name se valid subdomain nahi ban sakta' };
     }
 
-    // Try base subdomain first, then add numbers
     let finalSubdomain = baseSubdomain;
     let counter = 1;
 
@@ -70,17 +83,14 @@ export async function reserveSubdomain(
       const validation = validateSubdomain(finalSubdomain);
       if (validation.valid) {
         const snapshot = await adminDb
-          .collection('users')
+          .collection('publicProfiles')
           .where('subdomain', '==', finalSubdomain)
           .limit(1)
           .get();
 
-        if (snapshot.empty) {
-          break;
-        }
+        if (snapshot.empty) break;
       }
 
-      // Try with number
       counter++;
       finalSubdomain = `${baseSubdomain}${counter}`;
     }
@@ -94,6 +104,11 @@ export async function reserveSubdomain(
       subdomainReservedAt: new Date().toISOString(),
     });
 
+    await adminDb.collection('publicProfiles').doc(userId).update({
+      subdomain: finalSubdomain,
+      updatedAt: new Date().toISOString(),
+    });
+
     return { success: true, subdomain: finalSubdomain };
   } catch (error: any) {
     console.error('[RESERVE_SUBDOMAIN]', error);
@@ -102,7 +117,7 @@ export async function reserveSubdomain(
 }
 
 /**
- * Update subdomain (from settings)
+ * Update subdomain — OWNER UNLIMITED + PHOTOGRAPHER LIMIT
  */
 export async function updateSubdomain(
   userId: string,
@@ -121,25 +136,54 @@ export async function updateSubdomain(
   }
 
   try {
-    // Check if taken by another user
-    const snapshot = await adminDb
-      .collection('users')
+    const userSnap = await adminDb.collection('users').doc(userId).get();
+    if (!userSnap.exists) {
+      return { success: false, error: 'User not found' };
+    }
+
+    const userData = userSnap.data() || {};
+    const userEmail = userData.email || null;
+    const isOwner = isOwnerEmail(userEmail);
+
+    // Check if subdomain taken
+    const publicSnap = await adminDb
+      .collection('publicProfiles')
       .where('subdomain', '==', newSubdomain)
       .limit(1)
       .get();
 
-    if (!snapshot.empty && snapshot.docs[0].id !== userId) {
+    if (!publicSnap.empty && publicSnap.docs[0].id !== userId) {
       return { success: false, error: 'Yeh subdomain already taken hai' };
     }
 
-    // Get current user to track history
-    const userSnap = await adminDb.collection('users').doc(userId).get();
-    const userData = userSnap.data() || {};
+    // ✅ COOLDOWN — ONLY FOR NON-OWNERS
+    if (!isOwner && userData.subdomainUpdatedAt) {
+      const lastUpdate = new Date(userData.subdomainUpdatedAt);
+      const daysSinceUpdate = (Date.now() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
 
+      if (daysSinceUpdate < SUBDOMAIN_CHANGE_COOLDOWN_DAYS) {
+        const daysLeft = Math.ceil(SUBDOMAIN_CHANGE_COOLDOWN_DAYS - daysSinceUpdate);
+        return {
+          success: false,
+          error: `Aap ${SUBDOMAIN_CHANGE_COOLDOWN_DAYS} din mein sirf 1 baar subdomain change kar sakte hain. ${daysLeft} din baaki hain.`,
+        };
+      }
+    }
+
+    const previousSubdomain = userData.subdomain || null;
+    const now = new Date().toISOString();
+
+    // ✅ Update users collection
     await adminDb.collection('users').doc(userId).update({
       subdomain: newSubdomain,
-      previousSubdomain: userData.subdomain || null,
-      subdomainUpdatedAt: new Date().toISOString(),
+      previousSubdomain: previousSubdomain,
+      subdomainUpdatedAt: now,
+    });
+
+    // ✅ Update publicProfiles
+    await adminDb.collection('publicProfiles').doc(userId).update({
+      subdomain: newSubdomain,
+      updatedAt: now,
     });
 
     return { success: true };
@@ -150,7 +194,7 @@ export async function updateSubdomain(
 }
 
 /**
- * Get photographer by subdomain (public lookup)
+ * Get photographer by subdomain
  */
 export async function getPhotographerBySubdomain(subdomain: string): Promise<{
   success: boolean;
@@ -163,7 +207,7 @@ export async function getPhotographerBySubdomain(subdomain: string): Promise<{
 
   try {
     const snapshot = await adminDb
-      .collection('users')
+      .collection('publicProfiles')
       .where('subdomain', '==', subdomain)
       .limit(1)
       .get();
@@ -172,23 +216,11 @@ export async function getPhotographerBySubdomain(subdomain: string): Promise<{
       return { success: false, error: 'Photographer not found' };
     }
 
-    const data = snapshot.docs[0].data();
-
     return {
       success: true,
       photographer: {
         userId: snapshot.docs[0].id,
-        studioName: data.studioName || '',
-        photographerName: data.photographerName || '',
-        studioLogo: data.studioLogo || '',
-        studioBanner: data.studioBanner || '',
-        whatsappNumber: data.whatsappNumber || '',
-        instagramLink: data.instagramLink || '',
-        tagline: data.tagline || '',
-        about: data.about || '',
-        city: data.city || '',
-        planId: data.planId || 'starter',
-        subdomain: data.subdomain,
+        ...snapshot.docs[0].data(),
       },
     };
   } catch (error: any) {

@@ -46,7 +46,6 @@ export default function SettingsPage() {
   const { data: profile, loading: profileLoading } = useDoc(settingsRef);
 
   const [formData, setFormData] = useState({
-    // Basic
     studioName: '',
     photographerName: '',
     whatsappNumber: '',
@@ -58,25 +57,19 @@ export default function SettingsPage() {
     youtubeLink: '',
     tiktokLink: '',
     website: '',
-    // Subdomain & Theme
     subdomain: '',
     theme: 'mixed' as ThemeId,
-    // Branding
     studioLogo: '',
     studioBanner: '',
     photographerPhoto: '',
-    // About
     aboutBio: '',
-    // Portfolio content
     services: [] as any[],
     packages: [] as any[],
     videoUrl: '',
     stats: { years: 5, clients: 100, appreciations: 0 },
-    // Gallery defaults
     defaultWatermark: true,
     defaultAllowDownloads: false,
     defaultPublicLink: true,
-    // Notification prefs
     notifyNewFavorite: true,
     notifyNewView: false,
     notifyPaymentReceived: true,
@@ -124,6 +117,8 @@ export default function SettingsPage() {
   const isEnterprise = useMemo(() => {
     return profile?.planId === 'enterprise' || isOwnerEmail(user?.email);
   }, [profile?.planId, user?.email]);
+
+  const isOwner = useMemo(() => isOwnerEmail(user?.email), [user?.email]);
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -194,14 +189,12 @@ export default function SettingsPage() {
         }
       }
 
-      // Update private user doc
       await setDoc(doc(firestore, 'users', user.uid), {
         ...formData,
         userId: user.uid,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
-      // Update public profile doc
       await setDoc(doc(firestore, 'publicProfiles', user.uid), {
         userId: user.uid,
         studioName: formData.studioName.trim(),
@@ -224,6 +217,7 @@ export default function SettingsPage() {
         theme: formData.theme || 'mixed',
         subdomain: formData.subdomain || '',
         planId: profile?.planId || 'starter',
+        isOwner: isOwnerEmail(user?.email),
         updatedAt: new Date().toISOString(),
       }, { merge: true });
       
@@ -245,7 +239,6 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 border-b border-border/50 pb-12">
         <div className="flex items-center gap-6">
           <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-primary/10" onClick={() => router.back()}>
@@ -329,7 +322,6 @@ export default function SettingsPage() {
                     <Input value={formData.tagline} onChange={(e) => updateField('tagline', e.target.value)} placeholder="Capturing Emotions, Creating Memories" className="h-14 rounded-xl" />
                   </div>
 
-                  {/* Social Links */}
                   <div className="pt-6 border-t border-border/20 space-y-4">
                     <Label className="text-lg font-bold">Social Media</Label>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -352,7 +344,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Branding URLs */}
                   <div className="pt-6 border-t border-border/20 space-y-4">
                     <Label className="text-lg font-bold">Branding Images (URLs)</Label>
                     <div className="space-y-3">
@@ -362,15 +353,26 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Subdomain */}
+                  {/* SUBDOMAIN SECTION */}
                   {isEnterprise ? (
-                    <div className="pt-10 border-t-2 border-primary/20 space-y-6">
-                      <div className="flex items-center justify-between">
+                    <div className="space-y-6 pt-10 border-t-2 border-primary/20">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
                         <div>
                           <Label className="text-primary">🌐 Your Subdomain</Label>
-                          <p className="text-xs text-muted-foreground mt-2">Your portfolio URL</p>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {isOwner
+                              ? '👑 Owner — Unlimited changes allowed'
+                              : 'Your portfolio URL — 30 din mein 1 baar change'}
+                          </p>
                         </div>
-                        <Badge className="bg-green-500/20 text-green-500">Enterprise Active</Badge>
+                        <Badge className={cn(
+                          "text-[10px] font-bold uppercase tracking-widest",
+                          isOwner
+                            ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                            : "bg-green-500/20 text-green-500 border-green-500/30"
+                        )}>
+                          {isOwner ? '👑 Owner Unlimited' : '✅ Enterprise Active'}
+                        </Badge>
                       </div>
                       <div className="relative">
                         <Globe className="absolute left-4 top-4 w-5 h-5 text-primary z-10" />
@@ -386,27 +388,53 @@ export default function SettingsPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
-                        <p className="flex-1 text-sm font-mono truncate">https://{formData.subdomain || 'yourstudio'}.hafash.pk</p>
+                        <p className="flex-1 text-sm font-mono truncate">
+                          https://{formData.subdomain || 'yourstudio'}.hafash.pk
+                        </p>
                         <Button size="sm" variant="outline" onClick={handleCopyUrl} className="rounded-lg gap-2">
                           {copiedUrl ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
                           {copiedUrl ? 'Copied' : 'Copy'}
                         </Button>
                       </div>
+
+                      {isOwner && (
+                        <div className="flex items-start gap-3 p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
+                          <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                          <p className="text-[11px] text-purple-200/90 leading-relaxed">
+                            <strong>Owner Account:</strong> Aap unlimited subdomain changes kar sakte hain. Koi 30-din limit nahi.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ) : (
-                    <div className="pt-10 border-t-2 border-primary/20 space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-primary">🌐 Personal Subdomain</Label>
-                        <Badge className="bg-amber-500/20 text-amber-500">Enterprise Only</Badge>
-                      </div>
-                      <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-background border border-primary/30 text-center space-y-4">
-                        <Globe className="w-12 h-12 text-primary mx-auto" />
+                    <div className="space-y-6 pt-10 border-t-2 border-primary/20">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
                         <div>
-                          <p className="font-headline font-bold">Upgrade to Enterprise</p>
-                          <p className="text-xs text-muted-foreground mt-2">Rs. 3,500/month for subdomain + custom domain</p>
+                          <Label className="text-primary">🌐 Personal Subdomain</Label>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Enterprise plan mein aapko apna personal portfolio URL milega
+                          </p>
+                        </div>
+                        <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px] font-bold uppercase tracking-widest gap-1.5">
+                          <Lock className="w-3 h-3" /> Enterprise Only
+                        </Badge>
+                      </div>
+
+                      <div className="p-8 rounded-2xl bg-gradient-to-br from-primary/10 via-card/60 to-background border border-primary/30 text-center space-y-4">
+                        <div className="bg-primary/15 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">
+                          <Globe className="w-8 h-8 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-headline font-bold text-xl">Upgrade to Enterprise</p>
+                          <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
+                            Rs. 3,500/month mein apna personal subdomain <strong className="text-primary">yourname.hafash.pk</strong> aur full custom domain milega
+                          </p>
                         </div>
                         <Link href="/storage">
-                          <Button className="rounded-xl gap-2"><Sparkles className="w-4 h-4" /> View Plan</Button>
+                          <Button className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 h-12 px-8">
+                            <Sparkles className="w-4 h-4" />
+                            View Enterprise Plan
+                          </Button>
                         </Link>
                       </div>
                     </div>
@@ -420,7 +448,6 @@ export default function SettingsPage() {
         {/* PORTFOLIO TAB */}
         <TabsContent value="portfolio" className="space-y-8">
 
-          {/* THEME SELECTOR */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
               <CardTitle className="text-3xl font-headline font-bold flex items-center gap-3">
@@ -435,7 +462,7 @@ export default function SettingsPage() {
                     key={theme.id}
                     onClick={() => updateField('theme', theme.id)}
                     className={cn(
-                      "p-4 rounded-2xl border-2 transition-all text-left space-y-3 group",
+                      "p-4 rounded-2xl border-2 transition-all text-left space-y-3 group relative",
                       formData.theme === theme.id
                         ? "border-primary bg-primary/5 scale-105 shadow-xl"
                         : "border-border/30 hover:border-primary/50"
@@ -455,7 +482,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* ABOUT */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
               <CardTitle className="text-2xl font-headline font-bold">About Section</CardTitle>
@@ -490,7 +516,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* SERVICES */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between">
               <CardTitle className="text-2xl font-headline font-bold">Services</CardTitle>
@@ -533,7 +558,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* PACKAGES */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between">
               <CardTitle className="text-2xl font-headline font-bold">Pricing Packages</CardTitle>
@@ -599,7 +623,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* VIDEO */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
               <CardTitle className="text-2xl font-headline font-bold flex items-center gap-3">
