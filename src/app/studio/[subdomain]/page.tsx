@@ -8,25 +8,47 @@ import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import {
   Camera, MapPin, MessageCircle, Instagram, Sparkles, Award,
   Crown, AlertTriangle, Star, Heart, Eye,
-  Phone, ArrowRight, Quote, CheckCircle2, Share2, Video
+  Phone, ArrowRight, Quote, CheckCircle2, Share2, Video,
+  Calendar, Mail, User, Send, Loader2, X
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { HafashLoader } from "@/components/ui/hafash-loader";
 import { getTheme } from "@/lib/portfolio-themes";
+import { createBooking } from "@/app/actions/portfolio";
+import { EVENT_TYPES, PAKISTAN_CITIES } from "@/lib/portfolio-types";
+import { useToast } from "@/hooks/use-toast";
 
 export default function StudioPortfolioPage() {
   const params = useParams();
   const subdomain = (params?.subdomain as string) || "";
   const firestore = useFirestore();
+  const { toast } = useToast();
 
   const [photographer, setPhotographer] = useState<any>(null);
-  const [galleries, setGalleries] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
+
+  // Booking form state
+  const [bookingForm, setBookingForm] = useState({
+    clientName: '',
+    clientEmail: '',
+    clientPhone: '',
+    eventDate: '',
+    eventType: '',
+    city: '',
+    budget: '',
+    message: '',
+    packageSelected: '',
+  });
+  const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+  const [bookingSubmitted, setBookingSubmitted] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -59,32 +81,20 @@ export default function StudioPortfolioPage() {
         };
         setPhotographer(photographerData);
 
-        // ✅ Owner check — unlimited access
+        // Owner check
         const isOwner = photographerData.isOwner === true;
-
-        // ✅ Enterprise + expiry check (skip for owner)
         const planId = photographerData.planId;
         let canUseSubdomain = isOwner || planId === "enterprise";
 
-        // Agar owner nahi hai, to expiry check karo
         if (!isOwner && canUseSubdomain && photographerData.planExpiryDate) {
           try {
             const expiryDate = photographerData.planExpiryDate;
             let expiryMs: number;
-
-            if (expiryDate?.seconds) {
-              expiryMs = expiryDate.seconds * 1000;
-            } else if (expiryDate?.toDate) {
-              expiryMs = expiryDate.toDate().getTime();
-            } else if (typeof expiryDate === 'string') {
-              expiryMs = new Date(expiryDate).getTime();
-            } else {
-              expiryMs = new Date(expiryDate).getTime();
-            }
-
+            if (expiryDate?.seconds) expiryMs = expiryDate.seconds * 1000;
+            else if (expiryDate?.toDate) expiryMs = expiryDate.toDate().getTime();
+            else expiryMs = new Date(expiryDate).getTime();
             canUseSubdomain = expiryMs > Date.now();
-          } catch (e) {
-            console.error('[EXPIRY_CHECK]', e);
+          } catch {
             canUseSubdomain = false;
           }
         } else if (!isOwner && canUseSubdomain && !photographerData.planExpiryDate) {
@@ -96,26 +106,6 @@ export default function StudioPortfolioPage() {
           setLoading(false);
           return;
         }
-
-        // Load galleries
-        const galleriesQuery = query(
-          collection(firestore, "galleries"),
-          where("userId", "==", photographerData.userId),
-          where("isPublic", "==", true)
-        );
-        const galleriesSnap = await getDocs(galleriesQuery);
-
-        if (cancelled) return;
-
-        const galleriesData = galleriesSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() }))
-          .sort((a: any, b: any) => {
-            const aT = new Date(a.createdAt || 0).getTime();
-            const bT = new Date(b.createdAt || 0).getTime();
-            return bT - aT;
-          });
-
-        setGalleries(galleriesData);
 
         // Load reviews
         try {
@@ -143,23 +133,74 @@ export default function StudioPortfolioPage() {
 
   const theme = useMemo(() => getTheme(photographer?.theme), [photographer?.theme]);
 
+  const portfolioPhotos = useMemo(() => {
+    const photos = photographer?.portfolioPhotos || [];
+    return photos.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+  }, [photographer?.portfolioPhotos]);
+
   const stats = useMemo(() => {
-    const totalGalleries = galleries.length;
-    const totalPhotos = galleries.reduce((acc, g) => acc + (g.photoCount || 0), 0);
     return {
-      totalGalleries,
-      totalPhotos,
+      totalPhotos: portfolioPhotos.length,
       years: photographer?.stats?.years || 5,
       clients: photographer?.stats?.clients || 100,
       appreciations: photographer?.stats?.appreciations || 0,
     };
-  }, [galleries, photographer?.stats]);
+  }, [portfolioPhotos, photographer?.stats]);
 
   const avgRating = useMemo(() => {
     if (reviews.length === 0) return "5.0";
     const sum = reviews.reduce((acc, r) => acc + (r.rating || 5), 0);
     return (sum / reviews.length).toFixed(1);
   }, [reviews]);
+
+  const handleBookingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!photographer || isSubmittingBooking) return;
+
+    // Validation
+    if (!bookingForm.clientName || !bookingForm.clientPhone || !bookingForm.eventDate || !bookingForm.eventType) {
+      toast({
+        variant: 'destructive',
+        title: 'Required fields missing',
+        description: 'Name, phone, event date, aur event type zaroori hain',
+      });
+      return;
+    }
+
+    setIsSubmittingBooking(true);
+    try {
+      const result = await createBooking({
+        photographerId: photographer.userId,
+        photographerSubdomain: subdomain,
+        clientName: bookingForm.clientName,
+        clientEmail: bookingForm.clientEmail,
+        clientPhone: bookingForm.clientPhone,
+        eventDate: bookingForm.eventDate,
+        eventType: bookingForm.eventType,
+        city: bookingForm.city,
+        budget: bookingForm.budget,
+        message: bookingForm.message,
+        packageSelected: bookingForm.packageSelected,
+      });
+
+      if (!result.success) throw new Error(result.error);
+
+      setBookingSubmitted(true);
+      toast({
+        title: '✅ Booking request sent!',
+        description: 'Photographer aapko jald contact karega',
+      });
+    } catch (error: any) {
+      console.error('[BOOKING]', error);
+      toast({
+        variant: 'destructive',
+        title: 'Booking failed',
+        description: error.message || 'Please try again',
+      });
+    } finally {
+      setIsSubmittingBooking(false);
+    }
+  };
 
   if (loading) return <HafashLoader text="Loading studio..." />;
 
@@ -179,18 +220,8 @@ export default function StudioPortfolioPage() {
                 <strong style={{ color: theme.colors.headingText }}>{photographer.studioName}</strong> ka portfolio abhi activate nahi hua.
               </p>
             </div>
-            <div className="p-4 rounded-2xl flex items-start gap-3 text-left"
-              style={{ background: '#F59E0B10', border: '1px solid #F59E0B30' }}>
-              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#F59E0B' }} />
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest" style={{ color: '#F59E0B' }}>Photographer Ke Liye</p>
-                <p className="text-xs mt-1" style={{ color: theme.colors.mutedText }}>Apna portfolio live karne ke liye Enterprise plan activate karein.</p>
-              </div>
-            </div>
-            <Link href="/storage">
-              <Button className="w-full h-12 rounded-xl font-bold gap-2" style={{ background: theme.colors.primary, color: theme.colors.primaryText }}>
-                <Crown className="w-4 h-4" /> View Enterprise Plan
-              </Button>
+            <Link href="/">
+              <Button variant="outline" className="rounded-xl">Go to Hafash</Button>
             </Link>
           </CardContent>
         </Card>
@@ -229,7 +260,6 @@ export default function StudioPortfolioPage() {
   const services = photographer.services || [];
   const packages = photographer.packages || [];
   const videoUrl = photographer.videoUrl;
-  const displayGalleries = galleries.slice(0, 6);
 
   return (
     <div className="min-h-screen" style={{ background: theme.colors.pageBg, color: theme.colors.bodyText }}>
@@ -254,9 +284,9 @@ export default function StudioPortfolioPage() {
 
           <nav className="hidden lg:flex items-center gap-8">
             <a href="#home" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>Home</a>
-            <a href="#galleries" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>Galleries</a>
+            <a href="#portfolio" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>Portfolio</a>
             <a href="#about" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>About</a>
-            <a href="#booking" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>Contact</a>
+            <a href="#booking" className="text-sm font-bold hover:opacity-70" style={{ color: theme.colors.headerText }}>Book</a>
           </nav>
 
           {whatsapp && (
@@ -275,8 +305,8 @@ export default function StudioPortfolioPage() {
       <section id="home" className="relative h-[85vh] lg:h-[90vh] overflow-hidden">
         {banner ? (
           <img src={banner} alt={studioName} className="absolute inset-0 w-full h-full object-cover" />
-        ) : galleries[0]?.coverImage ? (
-          <img src={galleries[0].coverImage} alt={studioName} className="absolute inset-0 w-full h-full object-cover" />
+        ) : portfolioPhotos[0]?.url ? (
+          <img src={portfolioPhotos[0].url} alt={studioName} className="absolute inset-0 w-full h-full object-cover" />
         ) : (
           <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${theme.colors.primary}20, ${theme.colors.pageBg})` }} />
         )}
@@ -302,20 +332,18 @@ export default function StudioPortfolioPage() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4 pt-4">
-              <a href="#galleries">
+              <a href="#portfolio">
                 <Button size="lg" className="rounded-full px-8 h-14 font-bold gap-2 shadow-2xl"
                   style={{ background: theme.colors.primary, color: theme.colors.primaryText }}>
-                  Explore Galleries <ArrowRight className="w-4 h-4" />
+                  View Portfolio <ArrowRight className="w-4 h-4" />
                 </Button>
               </a>
-              {whatsapp && (
-                <a href={`https://wa.me/${whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
-                  <Button size="lg" variant="outline" className="rounded-full px-8 h-14 font-bold gap-2 backdrop-blur-md"
-                    style={{ background: `${theme.colors.heroText}15`, color: theme.colors.heroText, borderColor: `${theme.colors.heroText}30` }}>
-                    <Phone className="w-4 h-4" /> Contact on WhatsApp
-                  </Button>
-                </a>
-              )}
+              <a href="#booking">
+                <Button size="lg" variant="outline" className="rounded-full px-8 h-14 font-bold gap-2 backdrop-blur-md"
+                  style={{ background: `${theme.colors.heroText}15`, color: theme.colors.heroText, borderColor: `${theme.colors.heroText}30` }}>
+                  <Calendar className="w-4 h-4" /> Book Now
+                </Button>
+              </a>
             </div>
           </div>
         </div>
@@ -324,61 +352,51 @@ export default function StudioPortfolioPage() {
       {/* STATS BAR */}
       <section className="py-10 border-b" style={{ background: theme.colors.sectionBg, borderColor: theme.colors.border }}>
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
-          <StatItem icon={<Camera className="w-5 h-5" />} value={`${stats.totalGalleries}+`} label="Projects" theme={theme} />
+          <StatItem icon={<Camera className="w-5 h-5" />} value={`${stats.totalPhotos}+`} label="Portfolio Photos" theme={theme} />
           <StatItem icon={<Heart className="w-5 h-5" />} value={`${stats.appreciations}+`} label="Appreciations" theme={theme} />
-          <StatItem icon={<Eye className="w-5 h-5" />} value={`${stats.totalPhotos}+`} label="Photos" theme={theme} />
+          <StatItem icon={<User className="w-5 h-5" />} value={`${stats.clients}+`} label="Happy Clients" theme={theme} />
           <StatItem icon={<Award className="w-5 h-5" />} value={`${stats.years}+`} label="Years" theme={theme} />
         </div>
       </section>
 
-      {/* FEATURED GALLERIES */}
-      <section id="galleries" className="py-20 lg:py-24" style={{ background: theme.colors.pageBg }}>
+      {/* PORTFOLIO PHOTOS */}
+      <section id="portfolio" className="py-20 lg:py-24" style={{ background: theme.colors.pageBg }}>
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex items-end justify-between mb-12 flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <div className="h-px w-8" style={{ background: theme.colors.primary }} />
                 <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>
-                  Featured Galleries
+                  Portfolio
                 </span>
               </div>
               <h2 className="text-4xl lg:text-5xl font-headline font-bold" style={{ color: theme.colors.headingText }}>
-                Explore My Work
+                My Best Work
               </h2>
             </div>
           </div>
 
-          {displayGalleries.length === 0 ? (
+          {portfolioPhotos.length === 0 ? (
             <div className="text-center py-24 border-2 border-dashed rounded-[3rem]" style={{ borderColor: theme.colors.border }}>
               <Camera className="w-16 h-16 mx-auto mb-4 opacity-20" style={{ color: theme.colors.mutedText }} />
               <p className="text-lg italic" style={{ color: theme.colors.mutedText }}>Portfolio coming soon...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {displayGalleries.map((gallery: any) => (
-                <Link key={gallery.id} href={`/gallery/${gallery.slug || gallery.id}`} className="group">
-                  <Card className="overflow-hidden rounded-[2rem] hover:-translate-y-2 transition-all duration-500"
-                    style={{ background: theme.colors.cardBg, borderColor: theme.colors.border }}>
-                    <div className="aspect-[4/5] relative overflow-hidden">
-                      {gallery.coverImage ? (
-                        <img src={gallery.coverImage} alt={gallery.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center" style={{ background: theme.colors.sectionBg }}>
-                          <Camera className="w-12 h-12 opacity-30" style={{ color: theme.colors.mutedText }} />
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                      <div className="absolute bottom-6 left-6 right-6">
-                        <Badge className="mb-3 text-[10px] uppercase tracking-widest"
-                          style={{ background: `${theme.colors.primary}30`, color: theme.colors.primary, border: `1px solid ${theme.colors.primary}50` }}>
-                          {gallery.category}
-                        </Badge>
-                        <h3 className="text-2xl font-headline font-bold text-white drop-shadow-2xl">{gallery.title}</h3>
-                        {gallery.clientName && <p className="text-white/70 text-sm mt-1">{gallery.clientName}</p>}
-                      </div>
+            <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
+              {portfolioPhotos.map((photo: any, idx: number) => (
+                <div key={photo.id} className="break-inside-avoid group relative overflow-hidden rounded-[2rem]">
+                  <img
+                    src={photo.thumbUrl || photo.url}
+                    alt={photo.caption || `Portfolio ${idx + 1}`}
+                    className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-1000"
+                    loading="lazy"
+                  />
+                  {photo.caption && (
+                    <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/90 to-transparent">
+                      <p className="text-white text-sm font-bold">{photo.caption}</p>
                     </div>
-                  </Card>
-                </Link>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -466,13 +484,16 @@ export default function StudioPortfolioPage() {
                       </li>
                     ))}
                   </ul>
-                  {whatsapp && (
-                    <a href={`https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(`I want to book ${pkg.name} package`)}`} target="_blank" rel="noopener noreferrer">
-                      <Button className="w-full rounded-xl h-12 font-bold" style={{ background: theme.colors.primary, color: theme.colors.primaryText }}>
-                        Book {pkg.name}
-                      </Button>
-                    </a>
-                  )}
+                  <Button
+                    className="w-full rounded-xl h-12 font-bold"
+                    style={{ background: theme.colors.primary, color: theme.colors.primaryText }}
+                    onClick={() => {
+                      setBookingForm(prev => ({ ...prev, packageSelected: pkg.name }));
+                      document.getElementById('booking')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    Book {pkg.name}
+                  </Button>
                 </Card>
               ))}
             </div>
@@ -541,65 +562,190 @@ export default function StudioPortfolioPage() {
         </section>
       )}
 
-      {/* BOOKING */}
+      {/* BOOKING FORM */}
       <section id="booking" className="py-20 lg:py-24" style={{ background: theme.colors.sectionBg }}>
         <div className="max-w-3xl mx-auto px-6">
           <div className="text-center mb-12">
             <div className="flex items-center justify-center gap-2 mb-3">
               <div className="h-px w-8" style={{ background: theme.colors.primary }} />
-              <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>Contact</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em]" style={{ color: theme.colors.primary }}>Book Now</span>
               <div className="h-px w-8" style={{ background: theme.colors.primary }} />
             </div>
             <h2 className="text-4xl lg:text-5xl font-headline font-bold mb-3" style={{ color: theme.colors.headingText }}>
               Let's Work Together
             </h2>
-            <p style={{ color: theme.colors.mutedText }}>Have a project in mind? I'd love to hear from you.</p>
+            <p style={{ color: theme.colors.mutedText }}>Apna event book karne ke liye form fill karein</p>
           </div>
 
           <Card className="rounded-[2rem] p-8 lg:p-12" style={{ background: theme.colors.cardBg, borderColor: theme.colors.border }}>
-            <div className="text-center space-y-6">
-              {whatsapp && (
-                <a href={`https://wa.me/${whatsapp.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer">
-                  <Button size="lg" className="rounded-full px-10 h-16 font-bold gap-3 text-lg shadow-2xl"
-                    style={{ background: theme.colors.primary, color: theme.colors.primaryText }}>
-                    <MessageCircle className="w-6 h-6" />
-                    Contact on WhatsApp
-                  </Button>
-                </a>
-              )}
-
-              <div className="flex items-center justify-center gap-6 pt-6 flex-wrap">
-                {instagram && (
-                  <a href={instagram.startsWith("http") ? instagram : `https://instagram.com/${instagram.replace("@", "")}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm font-bold hover:opacity-70"
-                    style={{ color: theme.colors.headingText }}>
-                    <Instagram className="w-5 h-5" /> Instagram
-                  </a>
-                )}
-                {facebook && (
-                  <a href={facebook} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm font-bold hover:opacity-70"
-                    style={{ color: theme.colors.headingText }}>
-                    <Share2 className="w-5 h-5" /> Facebook
-                  </a>
-                )}
-                {youtube && (
-                  <a href={youtube} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-sm font-bold hover:opacity-70"
-                    style={{ color: theme.colors.headingText }}>
-                    <Video className="w-5 h-5" /> YouTube
-                  </a>
-                )}
-              </div>
-
-              {city && (
-                <div className="flex items-center justify-center gap-2 pt-4 text-sm" style={{ color: theme.colors.mutedText }}>
-                  <MapPin className="w-4 h-4" style={{ color: theme.colors.primary }} />
-                  {city}
+            {bookingSubmitted ? (
+              <div className="text-center space-y-6 py-10">
+                <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto"
+                  style={{ background: `${theme.colors.primary}15` }}>
+                  <CheckCircle2 className="w-10 h-10" style={{ color: theme.colors.primary }} />
                 </div>
-              )}
-            </div>
+                <h3 className="text-3xl font-headline font-bold" style={{ color: theme.colors.headingText }}>
+                  Booking Request Sent! 🎉
+                </h3>
+                <p className="text-sm" style={{ color: theme.colors.mutedText }}>
+                  Photographer aapse jald rabta karega. Shukriya!
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setBookingSubmitted(false);
+                    setBookingForm({
+                      clientName: '', clientEmail: '', clientPhone: '',
+                      eventDate: '', eventType: '', city: '', budget: '',
+                      message: '', packageSelected: '',
+                    });
+                  }}
+                  className="rounded-xl"
+                >
+                  Send Another Request
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleBookingSubmit} className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label style={{ color: theme.colors.headingText }}>Your Name *</Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
+                      <Input
+                        value={bookingForm.clientName}
+                        onChange={(e) => setBookingForm(prev => ({ ...prev, clientName: e.target.value }))}
+                        placeholder="Full name"
+                        className="pl-10 h-12 rounded-xl"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label style={{ color: theme.colors.headingText }}>Phone *</Label>
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
+                      <Input
+                        value={bookingForm.clientPhone}
+                        onChange={(e) => setBookingForm(prev => ({ ...prev, clientPhone: e.target.value }))}
+                        placeholder="03001234567"
+                        className="pl-10 h-12 rounded-xl"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label style={{ color: theme.colors.headingText }}>Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
+                    <Input
+                      type="email"
+                      value={bookingForm.clientEmail}
+                      onChange={(e) => setBookingForm(prev => ({ ...prev, clientEmail: e.target.value }))}
+                      placeholder="your@email.com"
+                      className="pl-10 h-12 rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label style={{ color: theme.colors.headingText }}>Event Date *</Label>
+                    <div className="relative">
+                      <Calendar className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
+                      <Input
+                        type="date"
+                        value={bookingForm.eventDate}
+                        onChange={(e) => setBookingForm(prev => ({ ...prev, eventDate: e.target.value }))}
+                        className="pl-10 h-12 rounded-xl"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label style={{ color: theme.colors.headingText }}>Event Type *</Label>
+                    <select
+                      value={bookingForm.eventType}
+                      onChange={(e) => setBookingForm(prev => ({ ...prev, eventType: e.target.value }))}
+                      className="w-full h-12 rounded-xl px-4 border"
+                      style={{ background: theme.colors.cardBg, borderColor: theme.colors.border, color: theme.colors.bodyText }}
+                      required
+                    >
+                      <option value="">Select type</option>
+                      {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label style={{ color: theme.colors.headingText }}>City</Label>
+                    <select
+                      value={bookingForm.city}
+                      onChange={(e) => setBookingForm(prev => ({ ...prev, city: e.target.value }))}
+                      className="w-full h-12 rounded-xl px-4 border"
+                      style={{ background: theme.colors.cardBg, borderColor: theme.colors.border, color: theme.colors.bodyText }}
+                    >
+                      <option value="">Select city</option>
+                      {PAKISTAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label style={{ color: theme.colors.headingText }}>Budget (Optional)</Label>
+                    <Input
+                      value={bookingForm.budget}
+                      onChange={(e) => setBookingForm(prev => ({ ...prev, budget: e.target.value }))}
+                      placeholder="e.g., 50,000 - 80,000"
+                      className="h-12 rounded-xl"
+                    />
+                  </div>
+                </div>
+
+                {bookingForm.packageSelected && (
+                  <div className="p-4 rounded-xl flex items-center justify-between"
+                    style={{ background: `${theme.colors.primary}10`, border: `1px solid ${theme.colors.primary}30` }}>
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4" style={{ color: theme.colors.primary }} />
+                      <span className="text-sm font-bold" style={{ color: theme.colors.headingText }}>
+                        Package: {bookingForm.packageSelected}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setBookingForm(prev => ({ ...prev, packageSelected: '' }))}
+                      className="opacity-50 hover:opacity-100"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label style={{ color: theme.colors.headingText }}>Message (Optional)</Label>
+                  <Textarea
+                    value={bookingForm.message}
+                    onChange={(e) => setBookingForm(prev => ({ ...prev, message: e.target.value }))}
+                    placeholder="Apne event ke baare mein kuch batayein..."
+                    className="rounded-xl min-h-[100px]"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={isSubmittingBooking}
+                  className="w-full h-14 rounded-xl font-bold text-base gap-2"
+                  style={{ background: theme.colors.primary, color: theme.colors.primaryText }}
+                >
+                  {isSubmittingBooking ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" /> Sending...</>
+                  ) : (
+                    <><Send className="w-5 h-5" /> Send Booking Request</>
+                  )}
+                </Button>
+              </form>
+            )}
           </Card>
         </div>
       </section>

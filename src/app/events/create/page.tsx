@@ -121,7 +121,7 @@ export default function CreateEventPage() {
           dateInputRef.current.focus();
         }
       } else {
-        dateInputRef.current.focus();
+        if (dateInputRef.current) (dateInputRef.current as any).focus();
       }
     }
   };

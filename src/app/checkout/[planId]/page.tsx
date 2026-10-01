@@ -47,7 +47,7 @@ export default function CheckoutPage() {
   const currentPlan = useMemo(() => getUserPlan(profile?.planId), [profile?.planId]);
 
   const targetPlan = useMemo(() => {
-    return HAFASH_PLANS[planId] || HAFASH_PLANS.pro;
+    return HAFASH_PLANS[planId] || HAFASH_PLANS.professional;
   }, [planId]);
 
   const hasNoPlan = currentPlan.id === 'none';

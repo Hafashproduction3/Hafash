@@ -3,6 +3,19 @@ import { getUserPlan } from '@/lib/plans';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { storage } from '@/lib/storage/storage';
 
+// ═══════════════════════════════════════════════════════════════
+// TYPE DEFINITIONS
+// ═══════════════════════════════════════════════════════════════
+
+interface DriveFile {
+  id: string;
+  storageKey?: string;
+  thumbKey?: string;
+  fileName?: string;
+  fileSize?: number;
+  contentType?: string;
+}
+
 function detectFileType(contentType: string): 'image' | 'video' | 'file' {
   if (contentType.startsWith('image/')) return 'image';
   if (contentType.startsWith('video/')) return 'video';
@@ -502,7 +515,10 @@ export async function createGalleryFromDriveFiles({
       fileIds.map(id => rootRef.collection('files').doc(id).get())
     );
 
-    const files = fileDocs.filter(d => d.exists).map(d => ({ id: d.id, ...d.data() }));
+    // ✅ FIXED: files typed as DriveFile[]
+    const files: DriveFile[] = fileDocs
+      .filter(d => d.exists)
+      .map(d => ({ id: d.id, ...(d.data() as any) }));
 
     if (files.length === 0) return { success: false, error: 'Files not found' };
 
@@ -535,7 +551,11 @@ export async function createGalleryFromDriveFiles({
 
     for (const file of files) {
       const photoRef = photosRef.doc(file.id);
-      const assetUrl = await storage.getSignedUrl(file.storageKey, 604800);
+
+      const assetUrl = file.storageKey
+        ? await storage.getSignedUrl(file.storageKey, 604800)
+        : '';
+
       const thumbUrl = file.thumbKey
         ? await storage.getSignedUrl(file.thumbKey, 604800)
         : assetUrl;
@@ -546,15 +566,15 @@ export async function createGalleryFromDriveFiles({
         masterUrl: assetUrl,
         thumbUrl: thumbUrl,
         thumbKey: file.thumbKey || null,
-        storageKey: file.storageKey,
-        previewKey: file.storageKey,
-        originalKey: file.storageKey,
+        storageKey: file.storageKey || '',
+        previewKey: file.storageKey || '',
+        originalKey: file.storageKey || '',
         originalUrl: assetUrl,
         originalReady: true,
-        originalSize: file.fileSize,
-        fileName: file.fileName,
-        fileSize: file.fileSize,
-        contentType: file.contentType,
+        originalSize: file.fileSize || 0,
+        fileName: file.fileName || 'photo.jpg',
+        fileSize: file.fileSize || 0,
+        contentType: file.contentType || 'image/jpeg',
         isFavorite: false,
         order: order++,
         uploadedAt: now,

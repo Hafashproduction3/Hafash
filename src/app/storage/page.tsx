@@ -219,13 +219,13 @@ export default function StoragePage() {
           const isUpgrade = !hasNoPlan && plan.priorityLevel > currentPlan.priorityLevel;
           
           return (
-            <Card key={plan.id} className={`relative overflow-hidden border-border/50 bg-card transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 rounded-[2.5rem] ${plan.id === 'pro' ? 'ring-2 ring-primary scale-105 z-10' : ''}`}>
+            <Card key={plan.id} className={`relative overflow-hidden border-border/50 bg-card transition-all duration-500 hover:shadow-2xl hover:shadow-primary/10 rounded-[2.5rem] ${plan.id === 'professional' ? 'ring-2 ring-primary scale-105 z-10' : ''}`}>
               {isCurrent && (
                 <div className="absolute top-0 left-0 bg-green-500 text-white text-[10px] uppercase font-bold px-6 py-2 rounded-br-3xl tracking-[0.2em] z-20">
                   Current Plan
                 </div>
               )}
-              {plan.id === 'pro' && (
+              {plan.id === 'professional' && (
                 <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] uppercase font-bold px-6 py-2 rounded-bl-3xl tracking-[0.2em] z-20">
                   Most Popular
                 </div>
@@ -255,7 +255,7 @@ export default function StoragePage() {
                   <Button disabled className="w-full h-14 rounded-2xl border-primary/30 text-primary bg-primary/10 font-bold uppercase tracking-widest text-xs">Current Plan</Button>
                 ) : (
                   <Link href={`/checkout/${plan.id}`} className="w-full">
-                    <Button className={`w-full h-14 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-[1.02] ${plan.id === 'pro' ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20' : 'bg-white text-black hover:bg-gray-100'}`}>
+                    <Button className={`w-full h-14 rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl transition-all hover:scale-[1.02] ${plan.id === 'professional' ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20' : 'bg-white text-black hover:bg-gray-100'}`}>
                       {isUpgrade ? 'Upgrade Workspace' : 'Select Plan'}
                     </Button>
                   </Link>

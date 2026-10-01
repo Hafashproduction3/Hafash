@@ -137,7 +137,7 @@ export function NotificationBell() {
 
   // Click on notification → navigate
   const handleNotificationClick = async (notif: NotificationData) => {
-    if (!notif.read) {
+    if (!notif.isRead) {
       await markAsRead(notif.id);
     }
     setIsOpen(false);

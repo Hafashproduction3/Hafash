@@ -2,13 +2,13 @@
 
 import { useUser, useFirestore, useDoc } from '@/firebase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { 
   User, Shield, Camera, Save, Loader2, Briefcase, Phone,
-  Image as ImageIcon, ArrowLeft, Settings, Bell, HardDrive,
+  Image as ImageIcon, ArrowLeft, Settings, HardDrive,
   CheckCircle2, AlertTriangle, Globe, Lock, Zap, Sparkles,
-  Copy, Check, Palette, Plus, Trash2, Star, Instagram,
-  Facebook, Youtube, Music2, Link as LinkIcon, Play
+  Copy, Check, Palette, Plus, Trash2, Instagram,
+  Facebook, Youtube, Music2, Play, Upload, X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,26 +24,39 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { updateSubdomain } from '@/app/actions/subdomain';
+import { 
+  addPortfolioPhoto, 
+  removePortfolioPhoto 
+} from '@/app/actions/portfolio';
 import { isOwnerEmail } from '@/lib/plans';
 import { THEME_LIST, type ThemeId } from '@/lib/portfolio-themes';
+import { requestUploadUrl, completeUpload } from '@/app/actions/storage';
 
 export default function SettingsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [saving, setSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [activeTab, setActiveTab] = useState("studio");
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   const settingsRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
   }, [firestore, user?.uid]);
 
+  const publicProfileRef = useMemo(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'publicProfiles', user.uid);
+  }, [firestore, user?.uid]);
+
   const { data: profile, loading: profileLoading } = useDoc(settingsRef);
+  const { data: publicProfile } = useDoc(publicProfileRef);
 
   const [formData, setFormData] = useState({
     studioName: '',
@@ -74,6 +87,8 @@ export default function SettingsPage() {
     notifyNewView: false,
     notifyPaymentReceived: true,
   });
+
+  const [portfolioPhotos, setPortfolioPhotos] = useState<any[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -109,6 +124,12 @@ export default function SettingsPage() {
       setIsDirty(false);
     }
   }, [profile, user?.email]);
+
+  useEffect(() => {
+    if (publicProfile) {
+      setPortfolioPhotos(publicProfile.portfolioPhotos || []);
+    }
+  }, [publicProfile]);
 
   const isCustomBrandingActive = useMemo(() => {
     return profile?.planId && profile.planId !== 'starter';
@@ -148,6 +169,138 @@ export default function SettingsPage() {
     const regex = /^03\d{9}$/;
     return regex.test(number.replace(/\s+/g, ''));
   };
+
+  // ═══════════════════════════════════════════════════════════════
+  // PORTFOLIO PHOTO UPLOAD
+  // ═══════════════════════════════════════════════════════════════
+
+  const handlePortfolioPhotoUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!e.target.files || !e.target.files[0] || !user || !firestore) return;
+
+    const file = e.target.files[0];
+
+    if (!file.type.startsWith('image/')) {
+      toast({
+        variant: 'destructive',
+        title: 'Invalid file',
+        description: 'Sirf image files allowed hain',
+      });
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        variant: 'destructive',
+        title: 'File too large',
+        description: 'Max 10MB per photo',
+      });
+      return;
+    }
+
+    if (portfolioPhotos.length >= 50) {
+      toast({
+        variant: 'destructive',
+        title: 'Limit reached',
+        description: 'Max 50 portfolio photos',
+      });
+      return;
+    }
+
+    setUploadingPhoto(true);
+
+    try {
+      // 1. Get signed upload URL
+      const uploadResult = await requestUploadUrl({
+        userId: user.uid,
+        galleryId: 'portfolio',
+        fileName: file.name,
+        contentType: file.type,
+        fileSize: file.size,
+      });
+
+      if (!uploadResult.success || !uploadResult.uploadUrl) {
+        throw new Error(uploadResult.error || 'Upload URL failed');
+      }
+
+      // 2. Upload to R2
+      const xhr = new XMLHttpRequest();
+      await new Promise<void>((resolve, reject) => {
+        xhr.open('PUT', uploadResult.uploadUrl!);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`R2: ${xhr.status}`)));
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.send(file);
+      });
+
+      // 3. Get public URL (use signed URL or R2 public URL)
+      const photoId = Math.random().toString(36).substring(2, 11);
+      
+      // Save to publicProfiles
+      const result = await addPortfolioPhoto(user.uid, {
+        id: photoId,
+        url: uploadResult.uploadUrl.split('?')[0],
+        storageKey: uploadResult.key!,
+        caption: '',
+      });
+
+      if (!result.success) {
+        throw new Error(result.error);
+      }
+
+      // Refresh local state
+      setPortfolioPhotos((prev) => [
+        ...prev,
+        {
+          id: photoId,
+          url: uploadResult.uploadUrl.split('?')[0],
+          storageKey: uploadResult.key!,
+          caption: '',
+          order: prev.length,
+          uploadedAt: new Date().toISOString(),
+        },
+      ]);
+
+      toast({
+        title: '✅ Photo uploaded',
+        description: 'Portfolio mein add ho gayi',
+      });
+    } catch (error: any) {
+      console.error('[PORTFOLIO_UPLOAD]', error);
+      toast({
+        variant: 'destructive',
+        title: 'Upload failed',
+        description: error.message || 'Please try again',
+      });
+    } finally {
+      setUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemovePortfolioPhoto = async (photoId: string) => {
+    if (!user) return;
+    if (!confirm('Yeh photo portfolio se remove karein?')) return;
+
+    try {
+      const result = await removePortfolioPhoto(user.uid, photoId);
+      if (!result.success) throw new Error(result.error);
+
+      setPortfolioPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      toast({ title: 'Photo removed' });
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Failed to remove',
+        description: error.message,
+      });
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // SAVE
+  // ═══════════════════════════════════════════════════════════════
 
   const handleSave = async () => {
     if (!firestore || !user) return;
@@ -218,6 +371,7 @@ export default function SettingsPage() {
         subdomain: formData.subdomain || '',
         planId: profile?.planId || 'starter',
         isOwner: isOwnerEmail(user?.email),
+        bookingEnabled: true,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
       
@@ -277,11 +431,11 @@ export default function SettingsPage() {
           <TabsTrigger value="portfolio" className="rounded-[1.5rem] px-6 py-3 font-bold text-[10px] uppercase">
             <Palette className="w-4 h-4 mr-2" /> Portfolio
           </TabsTrigger>
+          <TabsTrigger value="photos" className="rounded-[1.5rem] px-6 py-3 font-bold text-[10px] uppercase">
+            <ImageIcon className="w-4 h-4 mr-2" /> Photos
+          </TabsTrigger>
           <TabsTrigger value="account" className="rounded-[1.5rem] px-6 py-3 font-bold text-[10px] uppercase">
             <User className="w-4 h-4 mr-2" /> Account
-          </TabsTrigger>
-          <TabsTrigger value="gallery" className="rounded-[1.5rem] px-6 py-3 font-bold text-[10px] uppercase">
-            <Camera className="w-4 h-4 mr-2" /> Gallery
           </TabsTrigger>
         </TabsList>
 
@@ -353,7 +507,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* SUBDOMAIN SECTION */}
                   {isEnterprise ? (
                     <div className="space-y-6 pt-10 border-t-2 border-primary/20">
                       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -447,7 +600,6 @@ export default function SettingsPage() {
 
         {/* PORTFOLIO TAB */}
         <TabsContent value="portfolio" className="space-y-8">
-
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
               <CardTitle className="text-3xl font-headline font-bold flex items-center gap-3">
@@ -644,6 +796,97 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* PHOTOS TAB — NAYA */}
+        <TabsContent value="photos" className="space-y-8">
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <CardTitle className="text-3xl font-headline font-bold flex items-center gap-3">
+                    <ImageIcon className="w-8 h-8 text-primary" /> Portfolio Photos
+                  </CardTitle>
+                  <CardDescription className="mt-2">
+                    Yeh photos aapke subdomain portfolio pe dikhengi. Client galleries yahan NAHI dikhengi.
+                  </CardDescription>
+                </div>
+                <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-bold uppercase tracking-widest">
+                  {portfolioPhotos.length} / 50
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-10 space-y-6">
+              {/* Upload Button */}
+              <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border/40 rounded-[2rem] hover:border-primary/50 transition-all">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePortfolioPhotoUpload}
+                  disabled={uploadingPhoto || portfolioPhotos.length >= 50}
+                />
+                <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                  {uploadingPhoto ? (
+                    <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  ) : (
+                    <Upload className="w-8 h-8 text-primary" />
+                  )}
+                </div>
+                <h3 className="font-headline font-bold text-xl mb-2">
+                  {uploadingPhoto ? 'Uploading...' : 'Upload Portfolio Photo'}
+                </h3>
+                <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
+                  Apni best work ki photos upload karein. Max 10MB per photo. Total 50 photos allowed.
+                </p>
+                <Button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingPhoto || portfolioPhotos.length >= 50}
+                  className="rounded-xl gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-bold h-12 px-8"
+                >
+                  <Plus className="w-4 h-4" />
+                  Select Photo
+                </Button>
+              </div>
+
+              {/* Photos Grid */}
+              {portfolioPhotos.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-6 border-t border-border/20">
+                  {portfolioPhotos.map((photo) => (
+                    <div key={photo.id} className="relative group aspect-square rounded-2xl overflow-hidden border border-border/30">
+                      <img
+                        src={photo.thumbUrl || photo.url}
+                        alt={photo.caption || 'Portfolio'}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="rounded-full h-12 w-12"
+                          onClick={() => handleRemovePortfolioPhoto(photo.id)}
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </Button>
+                      </div>
+                      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg">
+                        #{photo.order + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {portfolioPhotos.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground italic">
+                    Abhi tak koi portfolio photo upload nahi ki.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* ACCOUNT TAB */}
         <TabsContent value="account" className="space-y-8">
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
@@ -678,31 +921,6 @@ export default function SettingsPage() {
                 <Link href="/storage">
                   <Button className="rounded-xl">Upgrade</Button>
                 </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* GALLERY TAB */}
-        <TabsContent value="gallery" className="space-y-8">
-          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
-            <CardHeader className="border-b border-border/30 px-10 py-10">
-              <CardTitle className="text-3xl font-headline font-bold">Gallery Defaults</CardTitle>
-            </CardHeader>
-            <CardContent className="p-10 space-y-8">
-              <div className="flex items-center justify-between p-6 bg-background/50 rounded-2xl border border-border/30">
-                <div>
-                  <Label className="text-lg font-bold">Watermark</Label>
-                  <p className="text-xs text-muted-foreground">Protect preview assets</p>
-                </div>
-                <Switch checked={formData.defaultWatermark} onCheckedChange={(v) => updateField('defaultWatermark', v)} />
-              </div>
-              <div className="flex items-center justify-between p-6 bg-background/50 rounded-2xl border border-border/30">
-                <div>
-                  <Label className="text-lg font-bold">Allow Downloads</Label>
-                  <p className="text-xs text-muted-foreground">Enable by default</p>
-                </div>
-                <Switch checked={formData.defaultAllowDownloads} onCheckedChange={(v) => updateField('defaultAllowDownloads', v)} />
               </div>
             </CardContent>
           </Card>

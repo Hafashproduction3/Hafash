@@ -170,17 +170,19 @@ export default function EventManagementPage() {
     refreshCover();
   }, [eventRaw?.coverImage]);
 
-  const event = useMemo(() => {
+  // ✅ FIXED: event typed as any
+  const event: any = useMemo(() => {
     if (!eventRaw) return null;
+    const eventData = eventRaw as any;
     const photos = refreshedPhotos.length > 0
       ? refreshedPhotos
       : (subcollectionPhotos && subcollectionPhotos.length > 0)
         ? subcollectionPhotos
-        : (eventRaw.items || []);
+        : (eventData.items || []);
     return { 
-      ...eventRaw, 
+      ...eventData, 
       items: photos,
-      coverImage: refreshedCover || eventRaw.coverImage,
+      coverImage: refreshedCover || eventData.coverImage,
     };
   }, [eventRaw, subcollectionPhotos, refreshedPhotos, refreshedCover]);
 

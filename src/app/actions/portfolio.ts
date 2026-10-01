@@ -1,32 +1,387 @@
 'use server';
 
 import { adminDb } from '@/lib/firebase-admin';
+import { 
+  generateInvoiceNumber, 
+  calculateInvoice,
+  type Booking,
+  type Invoice 
+} from '@/lib/portfolio-types';
+
+// ═══════════════════════════════════════════════════════════════
+// PORTFOLIO PHOTOS
+// ═══════════════════════════════════════════════════════════════
 
 /**
- * Update portfolio theme for a photographer
+ * Save a portfolio photo (after R2 upload)
  */
-export async function updatePortfolioTheme(
+export async function addPortfolioPhoto(
   userId: string,
-  theme: string
+  photo: {
+    id: string;
+    url: string;
+    thumbUrl?: string;
+    storageKey: string;
+    thumbKey?: string;
+    caption?: string;
+  }
 ): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) {
     return { success: false, error: 'DB offline' };
   }
 
   try {
-    await adminDb.collection('users').doc(userId).update({
-      theme,
-      updatedAt: new Date().toISOString(),
-    });
+    const userRef = adminDb.collection('publicProfiles').doc(userId);
+    const userSnap = await userRef.get();
 
-    await adminDb.collection('publicProfiles').doc(userId).update({
-      theme,
+    if (!userSnap.exists) {
+      return { success: false, error: 'Profile not found' };
+    }
+
+    const data = userSnap.data() || {};
+    const existing: any[] = data.portfolioPhotos || [];
+
+    // Max 50 portfolio photos
+    if (existing.length >= 50) {
+      return { success: false, error: 'Maximum 50 portfolio photos allowed' };
+    }
+
+    const newPhoto = {
+      id: photo.id,
+      url: photo.url,
+      thumbUrl: photo.thumbUrl || photo.url,
+      storageKey: photo.storageKey,
+      thumbKey: photo.thumbKey || '',
+      caption: photo.caption || '',
+      order: existing.length,
+      uploadedAt: new Date().toISOString(),
+    };
+
+    await userRef.update({
+      portfolioPhotos: [...existing, newPhoto],
       updatedAt: new Date().toISOString(),
     });
 
     return { success: true };
   } catch (error: any) {
-    console.error('[UPDATE_THEME]', error);
+    console.error('[ADD_PORTFOLIO_PHOTO]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Remove a portfolio photo
+ */
+export async function removePortfolioPhoto(
+  userId: string,
+  photoId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const userRef = adminDb.collection('publicProfiles').doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return { success: false, error: 'Profile not found' };
+    }
+
+    const data = userSnap.data() || {};
+    const existing: any[] = data.portfolioPhotos || [];
+    const filtered = existing.filter((p) => p.id !== photoId);
+
+    // Re-order
+    const reordered = filtered.map((p, idx) => ({ ...p, order: idx }));
+
+    await userRef.update({
+      portfolioPhotos: reordered,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[REMOVE_PORTFOLIO_PHOTO]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update portfolio photo caption
+ */
+export async function updatePortfolioPhotoCaption(
+  userId: string,
+  photoId: string,
+  caption: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const userRef = adminDb.collection('publicProfiles').doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return { success: false, error: 'Profile not found' };
+    }
+
+    const data = userSnap.data() || {};
+    const existing: any[] = data.portfolioPhotos || [];
+
+    const updated = existing.map((p) =>
+      p.id === photoId ? { ...p, caption } : p
+    );
+
+    await userRef.update({
+      portfolioPhotos: updated,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[UPDATE_CAPTION]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOKING
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Create a booking request (from client)
+ */
+export async function createBooking(
+  data: {
+    photographerId: string;
+    photographerSubdomain: string;
+    clientName: string;
+    clientEmail: string;
+    clientPhone: string;
+    eventDate: string;
+    eventType: string;
+    city: string;
+    budget?: string;
+    message?: string;
+    packageSelected?: string;
+  }
+): Promise<{ success: boolean; bookingId?: string; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const now = new Date().toISOString();
+
+    const bookingData: Omit<Booking, 'id'> = {
+      photographerId: data.photographerId,
+      photographerSubdomain: data.photographerSubdomain,
+      clientName: data.clientName.trim(),
+      clientEmail: data.clientEmail.trim().toLowerCase(),
+      clientPhone: data.clientPhone.trim(),
+      eventDate: data.eventDate,
+      eventType: data.eventType,
+      city: data.city,
+      budget: data.budget || '',
+      message: data.message || '',
+      packageSelected: data.packageSelected || '',
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    const ref = await adminDb.collection('bookings').add(bookingData);
+
+    // Create notification for photographer
+    await adminDb.collection('notifications').add({
+      userId: data.photographerId,
+      type: 'new_booking',
+      title: '🎉 New Booking Request',
+      body: `${data.clientName} — ${data.eventType} on ${data.eventDate}`,
+      link: '/dashboard/bookings',
+      isRead: false,
+      createdAt: now,
+    });
+
+    return { success: true, bookingId: ref.id };
+  } catch (error: any) {
+    console.error('[CREATE_BOOKING]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Accept booking + auto-generate invoice
+ */
+export async function acceptBooking(
+  bookingId: string,
+  packageName: string,
+  packagePrice: number,
+  advancePercent: number = 30
+): Promise<{ success: boolean; invoiceNumber?: string; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const bookingRef = adminDb.collection('bookings').doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+
+    if (!bookingSnap.exists) {
+      return { success: false, error: 'Booking not found' };
+    }
+
+    // Count existing invoices for sequence
+    const invoiceCount = await adminDb
+      .collection('bookings')
+      .where('invoice.status', '!=', null)
+      .get()
+      .then((snap) => snap.size);
+
+    const invoiceNumber = generateInvoiceNumber(invoiceCount + 1);
+    const invoiceData = calculateInvoice(packageName, packagePrice, advancePercent);
+
+    const invoice: Invoice = {
+      invoiceNumber,
+      ...invoiceData,
+      status: 'draft',
+    };
+
+    await bookingRef.update({
+      status: 'accepted',
+      invoice,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true, invoiceNumber };
+  } catch (error: any) {
+    console.error('[ACCEPT_BOOKING]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Reject booking
+ */
+export async function rejectBooking(
+  bookingId: string,
+  reason?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    await adminDb.collection('bookings').doc(bookingId).update({
+      status: 'rejected',
+      rejectionReason: reason || '',
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[REJECT_BOOKING]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update invoice (photographer edit)
+ */
+export async function updateInvoice(
+  bookingId: string,
+  invoice: Partial<Invoice>
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const bookingRef = adminDb.collection('bookings').doc(bookingId);
+    const bookingSnap = await bookingRef.get();
+
+    if (!bookingSnap.exists) {
+      return { success: false, error: 'Booking not found' };
+    }
+
+    const existing = bookingSnap.data()?.invoice || {};
+
+    await bookingRef.update({
+      invoice: { ...existing, ...invoice },
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[UPDATE_INVOICE]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Mark booking as completed
+ */
+export async function markBookingCompleted(
+  bookingId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    await adminDb.collection('bookings').doc(bookingId).update({
+      status: 'completed',
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[MARK_COMPLETED]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update booking status (general)
+ */
+export async function updateBookingStatus(
+  bookingId: string,
+  status: Booking['status']
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    await adminDb.collection('bookings').doc(bookingId).update({
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[UPDATE_BOOKING_STATUS]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete booking
+ */
+export async function deleteBooking(
+  bookingId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    await adminDb.collection('bookings').doc(bookingId).delete();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[DELETE_BOOKING]', error);
     return { success: false, error: error.message };
   }
 }

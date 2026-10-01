@@ -31,7 +31,7 @@ export default function PaymentGatewayPage() {
   const { toast } = useToast();
 
   const planId = (params?.planId as PlanId) || 'pro';
-  const targetPlan = HAFASH_PLANS[planId] || HAFASH_PLANS.pro;
+  const targetPlan = HAFASH_PLANS[planId] || HAFASH_PLANS.professional;
   const isOwner = isOwnerAccount(user?.email);
 
   // These come from the redirectUrl / cancelUrl we pass to Safepay when
