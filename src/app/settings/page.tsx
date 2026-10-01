@@ -30,7 +30,7 @@ import {
 } from '@/app/actions/portfolio';
 import { isOwnerEmail } from '@/lib/plans';
 import { THEME_LIST, type ThemeId } from '@/lib/portfolio-themes';
-import { requestUploadUrl, completeUpload } from '@/app/actions/storage';
+import { requestUploadUrl, refreshPhotoUrls } from '@/app/actions/storage';
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -125,10 +125,51 @@ export default function SettingsPage() {
     }
   }, [profile, user?.email]);
 
+  // ✅ Fresh URLs generate karo jab portfolio photos load hon
   useEffect(() => {
-    if (publicProfile) {
-      setPortfolioPhotos(publicProfile.portfolioPhotos || []);
+    async function loadPortfolioPhotos() {
+      if (!publicProfile?.portfolioPhotos || publicProfile.portfolioPhotos.length === 0) {
+        setPortfolioPhotos([]);
+        return;
+      }
+
+      const rawPhotos: any[] = publicProfile.portfolioPhotos;
+      
+      // Collect storage keys
+      const keysToRefresh: string[] = [];
+      rawPhotos.forEach((p: any) => {
+        if (p.storageKey) keysToRefresh.push(p.storageKey);
+        if (p.thumbKey) keysToRefresh.push(p.thumbKey);
+      });
+
+      // Generate fresh URLs
+      let urlMap: Record<string, string> = {};
+      if (keysToRefresh.length > 0) {
+        try {
+          const result = await refreshPhotoUrls(keysToRefresh);
+          if (result.success) {
+            urlMap = result.urls;
+          }
+        } catch (err) {
+          console.error('[SETTINGS_PORTFOLIO_REFRESH]', err);
+        }
+      }
+
+      // Map fresh URLs
+      const refreshed = rawPhotos
+        .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+        .map((p: any) => ({
+          ...p,
+          url: urlMap[p.storageKey] || p.url || '',
+          thumbUrl: p.thumbKey
+            ? (urlMap[p.thumbKey] || p.thumbUrl || p.url)
+            : (urlMap[p.storageKey] || p.url || ''),
+        }));
+
+      setPortfolioPhotos(refreshed);
     }
+
+    loadPortfolioPhotos();
   }, [publicProfile]);
 
   const isCustomBrandingActive = useMemo(() => {
@@ -211,7 +252,6 @@ export default function SettingsPage() {
     setUploadingPhoto(true);
 
     try {
-      // 1. Get signed upload URL
       const uploadResult = await requestUploadUrl({
         userId: user.uid,
         galleryId: 'portfolio',
@@ -224,7 +264,6 @@ export default function SettingsPage() {
         throw new Error(uploadResult.error || 'Upload URL failed');
       }
 
-      // 2. Upload to R2
       const xhr = new XMLHttpRequest();
       await new Promise<void>((resolve, reject) => {
         xhr.open('PUT', uploadResult.uploadUrl!);
@@ -234,10 +273,8 @@ export default function SettingsPage() {
         xhr.send(file);
       });
 
-      // 3. Get public URL (use signed URL or R2 public URL)
       const photoId = Math.random().toString(36).substring(2, 11);
       
-      // Save to publicProfiles
       const result = await addPortfolioPhoto(user.uid, {
         id: photoId,
         url: '',
@@ -249,18 +286,26 @@ export default function SettingsPage() {
         throw new Error(result.error);
       }
 
-      // Refresh local state
-      setPortfolioPhotos((prev) => [
-        ...prev,
-        {
-          id: photoId,
-          url: '',
-          storageKey: uploadResult.key!,
-          caption: '',
-          order: prev.length,
-          uploadedAt: new Date().toISOString(),
-        },
-      ]);
+      // Generate fresh URL for immediate preview
+      try {
+        const urlResult = await refreshPhotoUrls([uploadResult.key!]);
+        if (urlResult.success && urlResult.urls[uploadResult.key!]) {
+          setPortfolioPhotos((prev) => [
+            ...prev,
+            {
+              id: photoId,
+              url: urlResult.urls[uploadResult.key!],
+              thumbUrl: urlResult.urls[uploadResult.key!],
+              storageKey: uploadResult.key!,
+              caption: '',
+              order: prev.length,
+              uploadedAt: new Date().toISOString(),
+            },
+          ]);
+        }
+      } catch (err) {
+        console.error('[PORTFOLIO_PREVIEW]', err);
+      }
 
       toast({
         title: '✅ Photo uploaded',
@@ -796,7 +841,7 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* PHOTOS TAB — NAYA */}
+        {/* PHOTOS TAB */}
         <TabsContent value="photos" className="space-y-8">
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
@@ -815,7 +860,6 @@ export default function SettingsPage() {
               </div>
             </CardHeader>
             <CardContent className="p-10 space-y-6">
-              {/* Upload Button */}
               <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border/40 rounded-[2rem] hover:border-primary/50 transition-all">
                 <input
                   ref={fileInputRef}
@@ -848,16 +892,21 @@ export default function SettingsPage() {
                 </Button>
               </div>
 
-              {/* Photos Grid */}
               {portfolioPhotos.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-6 border-t border-border/20">
                   {portfolioPhotos.map((photo) => (
                     <div key={photo.id} className="relative group aspect-square rounded-2xl overflow-hidden border border-border/30">
-                      <img
-                        src={photo.thumbUrl || photo.url}
-                        alt={photo.caption || 'Portfolio'}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                      />
+                      {photo.thumbUrl || photo.url ? (
+                        <img
+                          src={photo.thumbUrl || photo.url}
+                          alt={photo.caption || 'Portfolio'}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-muted flex items-center justify-center">
+                          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        </div>
+                      )}
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <Button
                           size="icon"
