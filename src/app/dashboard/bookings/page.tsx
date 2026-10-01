@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUser, useFirestore } from "@/firebase";
-import { 
-  collection, query, where, onSnapshot, doc, updateDoc, deleteDoc 
+import {
+  collection, query, where, onSnapshot, doc, getDoc
 } from "firebase/firestore";
 import {
   Calendar, User, Mail, Phone, MapPin, MessageSquare,
@@ -13,6 +13,7 @@ import {
   FileText, Trash2, Check, X, Crown, AlertTriangle,
   Download, Edit3, Save, Send
 } from "lucide-react";
+import { generateInvoicePDF } from '@/lib/invoice-pdf';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,9 +23,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { HafashLoader } from "@/components/ui/hafash-loader";
-import { 
-  acceptBooking, 
-  rejectBooking, 
+import {
+  acceptBooking,
+  rejectBooking,
   deleteBooking,
   updateInvoice,
   markBookingCompleted,
@@ -40,15 +41,32 @@ export default function BookingsPage() {
   const { toast } = useToast();
 
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [photographer, setPhotographer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>('all');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [showInvoiceEditor, setShowInvoiceEditor] = useState(false);
 
-  // Invoice editor state
   const [invoiceEdit, setInvoiceEdit] = useState<Partial<Invoice>>({});
 
+  // Fetch photographer data
+  useEffect(() => {
+    async function fetchPhotographer() {
+      if (!firestore || !user) return;
+      try {
+        const snap = await getDoc(doc(firestore, 'publicProfiles', user.uid));
+        if (snap.exists()) {
+          setPhotographer(snap.data());
+        }
+      } catch (err) {
+        console.error('[PHOTOGRAPHER_FETCH]', err);
+      }
+    }
+    fetchPhotographer();
+  }, [firestore, user]);
+
+  // Fetch bookings
   useEffect(() => {
     if (!firestore || !user) {
       setLoading(false);
@@ -66,7 +84,6 @@ export default function BookingsPage() {
         ...d.data(),
       })) as Booking[];
 
-      // Sort by createdAt descending
       data.sort((a, b) => {
         const aT = a.createdAt?.seconds || 0;
         const bT = b.createdAt?.seconds || 0;
@@ -99,7 +116,6 @@ export default function BookingsPage() {
   const handleAccept = async (booking: Booking) => {
     if (!booking.id) return;
 
-    // Default package
     const pkgName = booking.packageSelected || 'Custom Package';
     const pkgPrice = 50000;
     const advancePercent = 30;
@@ -129,7 +145,6 @@ export default function BookingsPage() {
   const handleReject = async (booking: Booking) => {
     if (!booking.id) return;
     const reason = prompt('Rejection reason (optional):') || '';
-    if (reason === null) return;
 
     setProcessingId(booking.id);
     try {
@@ -213,9 +228,36 @@ export default function BookingsPage() {
     }
   };
 
-  const handlePrintInvoice = () => {
-    if (!selectedBooking?.invoice) return;
-    window.print();
+  const handleDownloadPDF = () => {
+    if (!selectedBooking?.invoice) {
+      toast({
+        variant: 'destructive',
+        title: 'No invoice',
+        description: 'Pehle invoice generate karein',
+      });
+      return;
+    }
+
+    try {
+      generateInvoicePDF({
+        booking: selectedBooking,
+        photographer: {
+          studioName: photographer?.studioName || 'Professional Studio',
+          photographerName: photographer?.photographerName,
+          whatsappNumber: photographer?.whatsappNumber,
+          city: photographer?.city,
+          studioLogo: photographer?.studioLogo,
+        },
+      });
+      toast({ title: '✅ PDF Downloaded' });
+    } catch (err: any) {
+      console.error('[PDF_GEN]', err);
+      toast({
+        variant: 'destructive',
+        title: 'PDF Failed',
+        description: err.message || 'Try again',
+      });
+    }
   };
 
   if (authLoading || loading) {
@@ -388,7 +430,6 @@ export default function BookingsPage() {
                         </div>
                       )}
 
-                      {/* Invoice Info */}
                       {booking.invoice && (
                         <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-2">
                           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -521,7 +562,6 @@ export default function BookingsPage() {
                 </Button>
               </div>
 
-              {/* Invoice Preview / Editable */}
               <div className="space-y-5 p-6 rounded-2xl bg-background/40 border border-border/30">
                 <div className="text-center pb-4 border-b border-border/30">
                   <h3 className="text-2xl font-headline font-bold">INVOICE</h3>
@@ -615,7 +655,7 @@ export default function BookingsPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Button
                   onClick={handleSaveInvoice}
                   disabled={processingId === selectedBooking.id}
@@ -629,6 +669,14 @@ export default function BookingsPage() {
                   Save Invoice
                 </Button>
                 <Button
+                  onClick={handleDownloadPDF}
+                  variant="outline"
+                  className="rounded-xl gap-2 border-primary/30 font-bold h-12"
+                >
+                  <Download className="w-4 h-4" />
+                  Download PDF
+                </Button>
+                <Button
                   variant="outline"
                   className="rounded-xl gap-2 border-primary/30 font-bold h-12"
                   onClick={() => {
@@ -640,7 +688,7 @@ export default function BookingsPage() {
                   }}
                 >
                   <Send className="w-4 h-4" />
-                  Send via WhatsApp
+                  WhatsApp
                 </Button>
               </div>
             </CardContent>
