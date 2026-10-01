@@ -139,6 +139,7 @@ export default function SignupPage() {
           displayName: studioName,
         });
 
+        // ✅ Reserve subdomain (with number suffix if taken)
         let finalSubdomain = suggestedSubdomain;
         let counter = 1;
 
@@ -154,10 +155,11 @@ export default function SignupPage() {
           finalSubdomain = `${suggestedSubdomain}${counter}`;
         }
 
+        // ✅ Private user document
         const userProfile = {
           userId: newUser.uid,
-          studioName,
-          photographerName,
+          studioName: studioName.trim(),
+          photographerName: photographerName.trim(),
           whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
           email: email,
           city: city.trim(),
@@ -167,6 +169,7 @@ export default function SignupPage() {
           subdomainReservedAt: new Date().toISOString(),
           planId: 'starter',
           subscriptionStatus: 'inactive',
+          theme: 'mixed',
           updatedAt: new Date().toISOString(),
         };
 
@@ -181,8 +184,18 @@ export default function SignupPage() {
           city: city.trim(),
           whatsappNumber: whatsappNumber.replace(/\s+/g, ''),
           instagramLink: instagramLink.trim(),
+          facebookLink: '',
+          youtubeLink: '',
+          tiktokLink: '',
           studioLogo: '',
           studioBanner: '',
+          photographerPhoto: '',
+          aboutBio: '',
+          services: [],
+          packages: [],
+          videoUrl: '',
+          stats: { years: 5, clients: 100, appreciations: 0 },
+          theme: 'mixed',
           subdomain: finalSubdomain,
           planId: 'starter',
           updatedAt: new Date().toISOString(),
@@ -244,6 +257,7 @@ export default function SignupPage() {
         <div className="bg-card border border-border/50 rounded-[2rem] p-8 lg:p-10 shadow-2xl">
           <form className="space-y-5" onSubmit={handleSubmit}>
 
+            {/* STUDIO NAME */}
             <div className="space-y-2">
               <Label className="text-[11px] font-bold uppercase tracking-widest text-primary">
                 Studio Name *

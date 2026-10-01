@@ -7,12 +7,14 @@ import {
   User, Shield, Camera, Save, Loader2, Briefcase, Phone,
   Image as ImageIcon, ArrowLeft, Settings, Bell, HardDrive,
   CheckCircle2, AlertTriangle, Globe, Lock, Zap, Sparkles,
-  Copy, Check
+  Copy, Check, Palette, Plus, Trash2, Star, Instagram,
+  Facebook, Youtube, Music2, Link as LinkIcon, Play
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
@@ -23,6 +25,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { updateSubdomain } from '@/app/actions/subdomain';
 import { isOwnerEmail } from '@/lib/plans';
+import { THEME_LIST, type ThemeId } from '@/lib/portfolio-themes';
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -43,19 +46,37 @@ export default function SettingsPage() {
   const { data: profile, loading: profileLoading } = useDoc(settingsRef);
 
   const [formData, setFormData] = useState({
+    // Basic
     studioName: '',
     photographerName: '',
     whatsappNumber: '',
+    email: '',
+    city: '',
+    tagline: '',
+    instagramLink: '',
+    facebookLink: '',
+    youtubeLink: '',
+    tiktokLink: '',
+    website: '',
+    // Subdomain & Theme
+    subdomain: '',
+    theme: 'mixed' as ThemeId,
+    // Branding
     studioLogo: '',
     studioBanner: '',
-    website: '',
-    subdomain: '',
-    tagline: '',
-    city: '',
-    instagramLink: '',
+    photographerPhoto: '',
+    // About
+    aboutBio: '',
+    // Portfolio content
+    services: [] as any[],
+    packages: [] as any[],
+    videoUrl: '',
+    stats: { years: 5, clients: 100, appreciations: 0 },
+    // Gallery defaults
     defaultWatermark: true,
     defaultAllowDownloads: false,
     defaultPublicLink: true,
+    // Notification prefs
     notifyNewFavorite: true,
     notifyNewView: false,
     notifyPaymentReceived: true,
@@ -67,13 +88,24 @@ export default function SettingsPage() {
         studioName: profile.studioName || '',
         photographerName: profile.photographerName || '',
         whatsappNumber: profile.whatsappNumber || '',
-        studioLogo: profile.studioLogo || '',
-        studioBanner: profile.studioBanner || '',
+        email: profile.email || user?.email || '',
+        city: profile.city || '',
+        tagline: profile.tagline || '',
+        instagramLink: profile.instagramLink || '',
+        facebookLink: profile.facebookLink || '',
+        youtubeLink: profile.youtubeLink || '',
+        tiktokLink: profile.tiktokLink || '',
         website: profile.website || '',
         subdomain: profile.subdomain || '',
-        tagline: profile.tagline || '',
-        city: profile.city || '',
-        instagramLink: profile.instagramLink || '',
+        theme: (profile.theme || 'mixed') as ThemeId,
+        studioLogo: profile.studioLogo || '',
+        studioBanner: profile.studioBanner || '',
+        photographerPhoto: profile.photographerPhoto || '',
+        aboutBio: profile.aboutBio || '',
+        services: profile.services || [],
+        packages: profile.packages || [],
+        videoUrl: profile.videoUrl || '',
+        stats: profile.stats || { years: 5, clients: 100, appreciations: 0 },
         defaultWatermark: profile.defaultWatermark ?? true,
         defaultAllowDownloads: profile.defaultAllowDownloads ?? false,
         defaultPublicLink: profile.defaultPublicLink ?? true,
@@ -83,7 +115,7 @@ export default function SettingsPage() {
       });
       setIsDirty(false);
     }
-  }, [profile]);
+  }, [profile, user?.email]);
 
   const isCustomBrandingActive = useMemo(() => {
     return profile?.planId && profile.planId !== 'starter';
@@ -109,17 +141,17 @@ export default function SettingsPage() {
     setIsDirty(true);
   };
 
-  const validateWhatsApp = (number: string) => {
-    const regex = /^03\d{9}$/;
-    return regex.test(number.replace(/\s+/g, ''));
-  };
-
   const handleCopyUrl = () => {
     const url = `https://${formData.subdomain || 'yourstudio'}.hafash.pk`;
     navigator.clipboard.writeText(url);
     setCopiedUrl(true);
     toast({ title: "URL Copied!" });
     setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  const validateWhatsApp = (number: string) => {
+    const regex = /^03\d{9}$/;
+    return regex.test(number.replace(/\s+/g, ''));
   };
 
   const handleSave = async () => {
@@ -162,14 +194,14 @@ export default function SettingsPage() {
         }
       }
 
-      // ✅ Update private user document
+      // Update private user doc
       await setDoc(doc(firestore, 'users', user.uid), {
         ...formData,
         userId: user.uid,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
-      // ✅ Update public profile document
+      // Update public profile doc
       await setDoc(doc(firestore, 'publicProfiles', user.uid), {
         userId: user.uid,
         studioName: formData.studioName.trim(),
@@ -178,8 +210,18 @@ export default function SettingsPage() {
         city: formData.city?.trim() || '',
         whatsappNumber: formData.whatsappNumber.replace(/\s+/g, ''),
         instagramLink: formData.instagramLink?.trim() || '',
+        facebookLink: formData.facebookLink?.trim() || '',
+        youtubeLink: formData.youtubeLink?.trim() || '',
+        tiktokLink: formData.tiktokLink?.trim() || '',
         studioLogo: formData.studioLogo || '',
         studioBanner: formData.studioBanner || '',
+        photographerPhoto: formData.photographerPhoto || '',
+        aboutBio: formData.aboutBio || '',
+        services: formData.services || [],
+        packages: formData.packages || [],
+        videoUrl: formData.videoUrl || '',
+        stats: formData.stats || { years: 5, clients: 100, appreciations: 0 },
+        theme: formData.theme || 'mixed',
         subdomain: formData.subdomain || '',
         planId: profile?.planId || 'starter',
         updatedAt: new Date().toISOString(),
@@ -203,458 +245,442 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 pb-20">
+      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-10 border-b border-border/50 pb-12">
         <div className="flex items-center gap-6">
-          <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-primary/10 transition-all" onClick={() => router.back()}>
+          <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 hover:bg-primary/10" onClick={() => router.back()}>
             <ArrowLeft className="w-6 h-6" />
           </Button>
           <div className="space-y-2">
             <h1 className="text-4xl lg:text-5xl font-headline font-bold tracking-tight">Studio Control Center</h1>
             <div className="flex flex-wrap items-center gap-4 text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground">
-              <span className="flex items-center gap-2"><Settings className="w-4 h-4 text-primary" /> Production Environment Active</span>
+              <span className="flex items-center gap-2"><Settings className="w-4 h-4 text-primary" /> Production Active</span>
               {isDirty && (
                 <span className="flex items-center gap-2 text-amber-500 animate-pulse">
-                  <AlertTriangle className="w-4 h-4" /> Unsaved Configuration Changes
+                  <AlertTriangle className="w-4 h-4" /> Unsaved Changes
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div className="w-full md:w-auto">
-          <Button 
-            className={cn(
-              "w-full md:w-auto rounded-2xl gap-3 px-10 h-14 font-bold shadow-2xl transition-all",
-              isDirty ? "bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20 scale-105" : "bg-muted text-muted-foreground cursor-not-allowed"
-            )} 
-            onClick={handleSave}
-            disabled={saving || !isDirty}
-          >
-            {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-            Synchronize Profile
-          </Button>
-        </div>
+        <Button 
+          className={cn(
+            "w-full md:w-auto rounded-2xl gap-3 px-10 h-14 font-bold shadow-2xl transition-all",
+            isDirty ? "bg-primary text-primary-foreground scale-105" : "bg-muted text-muted-foreground cursor-not-allowed"
+          )} 
+          onClick={handleSave}
+          disabled={saving || !isDirty}
+        >
+          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+          Synchronize Profile
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-12">
-        <TabsList className="bg-card/40 backdrop-blur-md border border-border/30 p-1.5 rounded-[2rem] h-auto flex flex-wrap lg:inline-flex w-full lg:w-auto shadow-xl">
-          <TabsTrigger value="studio" className="flex-1 lg:flex-none rounded-[1.5rem] px-8 py-3.5 font-bold text-[10px] uppercase tracking-[0.2em] transition-all">
-            <Briefcase className="w-4 h-4 mr-3 text-primary" /> Studio Identity
+        <TabsList className="bg-card/40 backdrop-blur-md border border-border/30 p-1.5 rounded-[2rem] h-auto flex flex-wrap w-full lg:w-auto">
+          <TabsTrigger value="studio" className="rounded-[1.5rem] px-6 py-3 font-bold text-[10px] uppercase">
+            <Briefcase className="w-4 h-4 mr-2" /> Studio
           </TabsTrigger>
-          <TabsTrigger value="account" className="flex-1 lg:flex-none rounded-[1.5rem] px-8 py-3.5 font-bold text-[10px] uppercase tracking-[0.2em] transition-all">
-            <User className="w-4 h-4 mr-3 text-primary" /> Security & Plan
+          <TabsTrigger value="portfolio" className="rounded-[1.5rem] px-6 py-3 font-bold text-[10px] uppercase">
+            <Palette className="w-4 h-4 mr-2" /> Portfolio
           </TabsTrigger>
-          <TabsTrigger value="gallery" className="flex-1 lg:flex-none rounded-[1.5rem] px-8 py-3.5 font-bold text-[10px] uppercase tracking-[0.2em] transition-all">
-            <Camera className="w-4 h-4 mr-3 text-primary" /> Gallery Rules
+          <TabsTrigger value="account" className="rounded-[1.5rem] px-6 py-3 font-bold text-[10px] uppercase">
+            <User className="w-4 h-4 mr-2" /> Account
           </TabsTrigger>
-          <TabsTrigger value="notifications" className="flex-1 lg:flex-none rounded-[1.5rem] px-8 py-3.5 font-bold text-[10px] uppercase tracking-[0.2em] transition-all">
-            <Bell className="w-4 h-4 mr-3 text-primary" /> Telemetry alerts
+          <TabsTrigger value="gallery" className="rounded-[1.5rem] px-6 py-3 font-bold text-[10px] uppercase">
+            <Camera className="w-4 h-4 mr-2" /> Gallery
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="studio" className="animate-in fade-in slide-in-from-left-6 duration-500">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            <div className="lg:col-span-2 space-y-10">
-              <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
-                <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
-                    <div>
-                      <CardTitle className="text-3xl font-headline font-bold">Professional Identity</CardTitle>
-                      <CardDescription className="text-sm font-medium italic mt-1">Refine your studio branding used across all luxury galleries.</CardDescription>
+        {/* STUDIO TAB */}
+        <TabsContent value="studio" className="space-y-8">
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10">
+              <CardTitle className="text-3xl font-headline font-bold">Professional Identity</CardTitle>
+              <CardDescription>Refine your studio branding used across all galleries.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-10 space-y-8">
+              {profileLoading ? (
+                <Skeleton className="h-14 w-full" />
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-3">
+                      <Label>Studio Name *</Label>
+                      <Input value={formData.studioName} onChange={(e) => updateField('studioName', e.target.value)} placeholder="Cinematic Memories" className="h-14 rounded-xl" />
                     </div>
-                    {isCustomBrandingActive ? (
-                      <Badge className="bg-primary/20 text-primary border border-primary/30 gap-2.5 py-2 px-5 rounded-xl shadow-lg shadow-primary/10">
-                        <Sparkles className="w-4 h-4" /> Custom Branding Active
-                      </Badge>
-                    ) : (
-                      <Link href="/storage">
-                        <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground hover:text-primary hover:border-primary/50 transition-all cursor-pointer py-2 px-5 rounded-xl">
-                          Upgrade for Custom Branding
-                        </Badge>
-                      </Link>
-                    )}
+                    <div className="space-y-3">
+                      <Label>WhatsApp Number *</Label>
+                      <Input value={formData.whatsappNumber} onChange={(e) => updateField('whatsappNumber', e.target.value)} placeholder="03001234567" className="h-14 rounded-xl" />
+                    </div>
                   </div>
-                </CardHeader>
-                <CardContent className="p-10 space-y-8">
-                  {profileLoading ? (
-                    <div className="space-y-4">
-                      <Skeleton className="h-14 w-full rounded-xl" />
-                      <Skeleton className="h-14 w-full rounded-xl" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div className="space-y-3">
+                      <Label>Photographer Name</Label>
+                      <Input value={formData.photographerName} onChange={(e) => updateField('photographerName', e.target.value)} placeholder="Your Name" className="h-14 rounded-xl" />
                     </div>
-                  ) : (
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-3">
-                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Legal Name *</Label>
-                          <Input 
-                            value={formData.studioName} 
-                            onChange={(e) => updateField('studioName', e.target.value)}
-                            placeholder="e.g. Cinematic Memories" 
-                            className="rounded-xl h-14 bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
-                          />
-                        </div>
-                        <div className="space-y-3">
-                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">WhatsApp Studio Number *</Label>
-                          <div className="relative">
-                            <Phone className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
-                            <Input 
-                              value={formData.whatsappNumber} 
-                              onChange={(e) => updateField('whatsappNumber', e.target.value)}
-                              placeholder="03001234567" 
-                              className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-3">
-                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Master Photographer Tagline</Label>
-                          <div className="relative">
-                            <User className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
-                            <Input 
-                              value={formData.photographerName} 
-                              onChange={(e) => updateField('photographerName', e.target.value)}
-                              placeholder="Principal Photographer" 
-                              className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-3">
-                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Official Website</Label>
-                          <div className="relative">
-                            <Globe className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
-                            <Input 
-                              value={formData.website} 
-                              onChange={(e) => updateField('website', e.target.value)}
-                              placeholder="https://yourstudio.com" 
-                              className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 text-base font-bold shadow-inner" 
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                  
-                  <div className="space-y-10 pt-10 border-t border-border/20">
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                         <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Studio Signature Logo URL</Label>
-                         {!isCustomBrandingActive && <Badge variant="secondary" className="text-[10px] font-bold px-3 uppercase tracking-tighter bg-muted/50 border border-border/50">Professional Tier Benefit</Badge>}
-                      </div>
-                      <div className={cn("relative transition-all duration-700", !isCustomBrandingActive && "opacity-40 grayscale pointer-events-none")}>
-                        <ImageIcon className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
-                        <Input 
-                          value={formData.studioLogo} 
-                          onChange={(e) => updateField('studioLogo', e.target.value)}
-                          placeholder="https://your-domain.com/studio-signature.png" 
-                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 font-mono text-sm" 
-                          disabled={!isCustomBrandingActive}
-                        />
-                      </div>
+                    <div className="space-y-3">
+                      <Label>City</Label>
+                      <Input value={formData.city} onChange={(e) => updateField('city', e.target.value)} placeholder="Karachi" className="h-14 rounded-xl" />
                     </div>
+                  </div>
+                  <div className="space-y-3">
+                    <Label>Tagline</Label>
+                    <Input value={formData.tagline} onChange={(e) => updateField('tagline', e.target.value)} placeholder="Capturing Emotions, Creating Memories" className="h-14 rounded-xl" />
+                  </div>
 
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                         <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground ml-1">Global Studio Banner URL</Label>
-                         {!isCustomBrandingActive && <Badge variant="secondary" className="text-[10px] font-bold px-3 uppercase tracking-tighter bg-muted/50 border border-border/50">Professional Tier Benefit</Badge>}
+                  {/* Social Links */}
+                  <div className="pt-6 border-t border-border/20 space-y-4">
+                    <Label className="text-lg font-bold">Social Media</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="relative">
+                        <Instagram className="absolute left-4 top-4.5 w-5 h-5 text-pink-400" />
+                        <Input value={formData.instagramLink} onChange={(e) => updateField('instagramLink', e.target.value)} placeholder="Instagram" className="pl-14 h-14 rounded-xl" />
                       </div>
-                      <div className={cn("relative transition-all duration-700", !isCustomBrandingActive && "opacity-40 grayscale pointer-events-none")}>
-                        <ImageIcon className="absolute left-4 top-4.5 w-5 h-5 text-primary" />
-                        <Input 
-                          value={formData.studioBanner} 
-                          onChange={(e) => updateField('studioBanner', e.target.value)}
-                          placeholder="https://your-domain.com/studio-banner.jpg" 
-                          className="pl-14 h-14 rounded-xl bg-background/50 border-border/50 focus:border-primary/50 font-mono text-sm" 
-                          disabled={!isCustomBrandingActive}
-                        />
+                      <div className="relative">
+                        <Facebook className="absolute left-4 top-4.5 w-5 h-5 text-blue-400" />
+                        <Input value={formData.facebookLink} onChange={(e) => updateField('facebookLink', e.target.value)} placeholder="Facebook" className="pl-14 h-14 rounded-xl" />
+                      </div>
+                      <div className="relative">
+                        <Youtube className="absolute left-4 top-4.5 w-5 h-5 text-red-400" />
+                        <Input value={formData.youtubeLink} onChange={(e) => updateField('youtubeLink', e.target.value)} placeholder="YouTube" className="pl-14 h-14 rounded-xl" />
+                      </div>
+                      <div className="relative">
+                        <Music2 className="absolute left-4 top-4.5 w-5 h-5 text-cyan-400" />
+                        <Input value={formData.tiktokLink} onChange={(e) => updateField('tiktokLink', e.target.value)} placeholder="TikTok" className="pl-14 h-14 rounded-xl" />
                       </div>
                     </div>
                   </div>
 
+                  {/* Branding URLs */}
+                  <div className="pt-6 border-t border-border/20 space-y-4">
+                    <Label className="text-lg font-bold">Branding Images (URLs)</Label>
+                    <div className="space-y-3">
+                      <Input value={formData.studioLogo} onChange={(e) => updateField('studioLogo', e.target.value)} placeholder="Logo URL (https://...)" className="h-14 rounded-xl font-mono text-sm" />
+                      <Input value={formData.studioBanner} onChange={(e) => updateField('studioBanner', e.target.value)} placeholder="Banner URL (https://...)" className="h-14 rounded-xl font-mono text-sm" />
+                      <Input value={formData.photographerPhoto} onChange={(e) => updateField('photographerPhoto', e.target.value)} placeholder="Your Photo URL (https://...)" className="h-14 rounded-xl font-mono text-sm" />
+                    </div>
+                  </div>
+
+                  {/* Subdomain */}
                   {isEnterprise ? (
-                    <div className="space-y-6 pt-10 border-t-2 border-primary/20">
-                      <div className="flex items-center justify-between flex-wrap gap-4">
+                    <div className="pt-10 border-t-2 border-primary/20 space-y-6">
+                      <div className="flex items-center justify-between">
                         <div>
-                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary ml-1">
-                            🌐 Your Personal Subdomain
-                          </Label>
-                          <p className="text-xs text-muted-foreground mt-2 ml-1 italic">
-                            Apka portfolio URL — jo clients ko bhejenge
-                          </p>
+                          <Label className="text-primary">🌐 Your Subdomain</Label>
+                          <p className="text-xs text-muted-foreground mt-2">Your portfolio URL</p>
                         </div>
-                        <Badge className="bg-green-500/20 text-green-500 border border-green-500/30 text-[10px] font-bold uppercase tracking-widest gap-1.5">
-                          <CheckCircle2 className="w-3 h-3" /> Enterprise Active
-                        </Badge>
+                        <Badge className="bg-green-500/20 text-green-500">Enterprise Active</Badge>
                       </div>
-
                       <div className="relative">
                         <Globe className="absolute left-4 top-4 w-5 h-5 text-primary z-10" />
                         <Input
-                          value={formData.subdomain || ''}
+                          value={formData.subdomain}
                           onChange={(e) => updateField('subdomain', e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
                           placeholder="yourstudio"
-                          className="pl-14 pr-36 h-14 rounded-xl bg-background/50 border-primary/30 focus:border-primary text-base font-mono font-bold shadow-inner"
+                          className="pl-14 pr-36 h-14 rounded-xl font-mono"
                           maxLength={30}
                         />
                         <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-primary pointer-events-none">
                           .hafash.pk
                         </span>
                       </div>
-
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center shrink-0">
-                            <Sparkles className="w-5 h-5 text-primary" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Live URL Preview</p>
-                            <p className="text-sm font-mono font-bold text-white mt-0.5 truncate">
-                              https://{formData.subdomain || 'yourstudio'}.hafash.pk
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-lg gap-2 border-primary/30 hover:bg-primary/10"
-                            onClick={handleCopyUrl}
-                          >
-                            {copiedUrl ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                            {copiedUrl ? 'Copied' : 'Copy'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-lg gap-2 border-primary/30 hover:bg-primary/10"
-                            onClick={() => window.open(`https://${formData.subdomain || 'yourstudio'}.hafash.pk`, '_blank')}
-                            disabled={!formData.subdomain}
-                          >
-                            <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
-                            Visit
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
-                        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                        <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                          <strong>Note:</strong> Subdomain change karne ke liye 30 din ka wait karna hoga. Purana subdomain 90 din tak reserved rahega.
-                        </p>
+                      <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/5 border border-primary/20">
+                        <p className="flex-1 text-sm font-mono truncate">https://{formData.subdomain || 'yourstudio'}.hafash.pk</p>
+                        <Button size="sm" variant="outline" onClick={handleCopyUrl} className="rounded-lg gap-2">
+                          {copiedUrl ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          {copiedUrl ? 'Copied' : 'Copy'}
+                        </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-6 pt-10 border-t-2 border-primary/20">
-                      <div className="flex items-center justify-between flex-wrap gap-4">
-                        <div>
-                          <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-primary ml-1">
-                            🌐 Personal Subdomain
-                          </Label>
-                          <p className="text-xs text-muted-foreground mt-2 ml-1 italic">
-                            Enterprise plan mein aapko apna personal portfolio URL milega
-                          </p>
-                        </div>
-                        <Badge className="bg-amber-500/20 text-amber-500 border border-amber-500/30 text-[10px] font-bold uppercase tracking-widest gap-1.5">
-                          <Lock className="w-3 h-3" /> Enterprise Only
-                        </Badge>
+                    <div className="pt-10 border-t-2 border-primary/20 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-primary">🌐 Personal Subdomain</Label>
+                        <Badge className="bg-amber-500/20 text-amber-500">Enterprise Only</Badge>
                       </div>
-
-                      <div className="p-8 rounded-2xl bg-gradient-to-br from-primary/10 via-card/60 to-background border border-primary/30 text-center space-y-4">
-                        <div className="bg-primary/15 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">
-                          <Globe className="w-8 h-8 text-primary" />
-                        </div>
+                      <div className="p-6 rounded-2xl bg-gradient-to-br from-primary/10 to-background border border-primary/30 text-center space-y-4">
+                        <Globe className="w-12 h-12 text-primary mx-auto" />
                         <div>
-                          <p className="font-headline font-bold text-xl">Upgrade to Enterprise</p>
-                          <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
-                            Rs. 3,500/month mein apna personal subdomain <strong className="text-primary">yourname.hafash.pk</strong> aur full custom domain milega
-                          </p>
+                          <p className="font-headline font-bold">Upgrade to Enterprise</p>
+                          <p className="text-xs text-muted-foreground mt-2">Rs. 3,500/month for subdomain + custom domain</p>
                         </div>
                         <Link href="/storage">
-                          <Button className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 h-12 px-8">
-                            <Sparkles className="w-4 h-4" />
-                            View Enterprise Plan
-                          </Button>
+                          <Button className="rounded-xl gap-2"><Sparkles className="w-4 h-4" /> View Plan</Button>
                         </Link>
                       </div>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-10">
-              <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl border-t-4 border-t-primary luxury-card-hover">
-                <CardHeader className="pb-4 pt-10 px-8">
-                  <CardTitle className="text-[11px] font-bold uppercase tracking-[0.5em] text-primary text-center">Live Identity Preview</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="relative h-64 w-full bg-muted overflow-hidden flex items-center justify-center group">
-                    {formData.studioBanner && isCustomBrandingActive ? (
-                      <img src={formData.studioBanner} className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:scale-110 transition-transform duration-500" alt="Banner Preview" />
-                    ) : (
-                      <div className="absolute inset-0 bg-primary/5 flex items-center justify-center">
-                        <ImageIcon className="w-16 h-16 text-primary opacity-10 animate-pulse" />
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                    <div className="relative z-10 text-center p-8 space-y-4">
-                      {formData.studioLogo && isCustomBrandingActive ? (
-                        <img src={formData.studioLogo} className="h-12 w-auto mb-2 mx-auto object-contain drop-shadow-2xl" alt="Logo Preview" />
-                      ) : (
-                        <h3 className="text-2xl font-headline font-bold text-white uppercase tracking-tight drop-shadow-2xl">{formData.studioName || "Untitled Studio"}</h3>
-                      )}
-                      <p className="text-[10px] text-primary italic font-headline uppercase tracking-[0.4em] drop-shadow-xl">{formData.photographerName || "Principal Photographer"}</p>
-                    </div>
-                  </div>
-                  <div className="p-10 text-center space-y-6">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Studio Header Preview</p>
-                    {!isCustomBrandingActive && (
-                       <div className="flex flex-col items-center gap-3 opacity-30 animate-pulse">
-                          <img src="/hafash-logo.png" className="h-10 w-auto grayscale brightness-200" alt="Hafash" />
-                          <span className="font-headline font-bold text-2xl italic tracking-tighter">Hafash.pk Standard</span>
-                       </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="account" className="animate-in fade-in slide-in-from-left-6 duration-500">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
-              <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
-                <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
-                  <Shield className="w-8 h-8 text-primary" /> Security & Access
-                </CardTitle>
-                <CardDescription className="text-sm font-medium italic mt-1">Manage the vault credentials and primary authentication rules.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-10 space-y-10">
-                <div className="space-y-6">
-                  <div>
-                    <Label className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground ml-1">Primary Studio Email</Label>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-3 p-6 bg-background/60 rounded-3xl border border-border/40 gap-6 shadow-inner group">
-                      <span className="font-mono text-base truncate max-w-full text-primary/90">{user?.email}</span>
-                      {user?.emailVerified ? (
-                        <Badge className="w-fit bg-green-500/20 text-green-500 border border-green-500/30 gap-2.5 text-[10px] font-bold py-1.5 px-4 rounded-xl shadow-lg shadow-green-500/10">
-                          <CheckCircle2 className="w-4 h-4" /> Verified Identity
-                        </Badge>
-                      ) : (
-                        <Badge variant="destructive" className="w-fit bg-destructive/20 text-destructive border border-destructive/30 text-[10px] font-bold py-1.5 px-4 rounded-xl animate-pulse">
-                          Unverified Access
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-card/40 backdrop-blur-md border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl luxury-card-hover">
-              <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
-                <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
-                  <HardDrive className="w-8 h-8 text-primary" /> Cloud Subscription
-                </CardTitle>
-                <CardDescription className="text-sm font-medium italic mt-1">Overview of your enterprise-grade cloud storage and active tier.</CardDescription>
-              </CardHeader>
-              <CardContent className="p-10 flex flex-col justify-between h-full min-h-[350px]">
-                <div className="space-y-10">
-                  <div className="flex justify-between items-center bg-primary/5 p-8 rounded-[2rem] border border-primary/20 shadow-xl group">
-                    <div className="space-y-2">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.4em] text-muted-foreground group-hover:text-primary transition-colors">Active Subscription</p>
-                      <h4 className="text-4xl font-headline font-bold text-primary tracking-tighter">
-                        {profileLoading ? <Skeleton className="h-10 w-24" /> : `${profile?.planId?.toUpperCase() || 'STARTER'} TIER`}
-                      </h4>
-                    </div>
-                    <Badge variant="outline" className="border-primary/50 text-primary px-5 py-2 text-[10px] font-bold uppercase tracking-[0.2em] shadow-lg shadow-primary/10">STUDIO ACTIVE</Badge>
-                  </div>
-                </div>
-                <div className="mt-10">
-                  <Link href="/storage" className="block">
-                    <Button className="w-full h-16 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-2xl shadow-primary/20 text-base uppercase tracking-widest transition-all hover:scale-105">
-                      Upgrade Studio Thresholds
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="gallery" className="animate-in fade-in slide-in-from-left-6 duration-500">
-          <Card className="max-w-5xl bg-card/40 backdrop-blur-md border-border/50 rounded-[3rem] overflow-hidden shadow-2xl mx-auto lg:mx-0 luxury-card-hover">
-            <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
-              <CardTitle className="text-3xl font-headline font-bold">Smart Event Defaults</CardTitle>
-              <CardDescription className="text-sm font-medium italic mt-1">Configure automated logic for every new luxury event created in your studio.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-10 grid grid-cols-1 md:grid-cols-2 gap-12 lg:gap-16">
-               <div className="space-y-10">
-                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2rem] border border-border/30 group transition-all hover:border-primary/40 shadow-xl">
-                    <div className="space-y-2">
-                      <Label className="text-lg font-bold flex items-center gap-3">
-                        <Zap className="w-5 h-5 text-primary animate-pulse" />
-                        Dynamic Watermark
-                      </Label>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Always protect preview assets.</p>
-                    </div>
-                    <Switch 
-                      checked={formData.defaultWatermark} 
-                      onCheckedChange={(val) => updateField('defaultWatermark', val)}
-                      className="data-[state=checked]:bg-primary"
-                    />
-                  </div>
-
-                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2rem] border border-border/30 group transition-all hover:border-primary/40 shadow-xl">
-                    <div className="space-y-2">
-                      <Label className="text-lg font-bold flex items-center gap-3">
-                        <HardDrive className="w-5 h-5 text-primary" />
-                        Universal Downloads
-                      </Label>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Enable high-res retrieval by default.</p>
-                    </div>
-                    <Switch 
-                      checked={formData.defaultAllowDownloads} 
-                      onCheckedChange={(val) => updateField('defaultAllowDownloads', val)}
-                      className="data-[state=checked]:bg-primary"
-                    />
-                  </div>
-               </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="notifications" className="animate-in fade-in slide-in-from-left-6 duration-500">
-           <Card className="max-w-5xl bg-card/40 backdrop-blur-md border-border/50 rounded-[3rem] overflow-hidden shadow-2xl mx-auto lg:mx-0 luxury-card-hover">
-            <CardHeader className="border-b border-border/30 bg-background/40 px-10 py-10">
-              <CardTitle className="text-3xl font-headline font-bold">Studio Flow Telemetry</CardTitle>
-              <CardDescription className="text-sm font-medium italic mt-1">Configure how you receive real-time updates regarding client engagement and vault access.</CardDescription>
-            </CardHeader>
-            <CardContent className="p-10 space-y-10">
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2.5rem] border border-border/30 hover:border-primary/40 transition-all shadow-xl">
-                    <div className="space-y-2 pr-6">
-                      <Label className="text-lg font-bold">Asset Selections</Label>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Notify when a client hearts a masterpiece.</p>
-                    </div>
-                    <Switch 
-                      checked={formData.notifyNewFavorite} 
-                      onCheckedChange={(val) => updateField('notifyNewFavorite', val)}
-                      className="data-[state=checked]:bg-primary"
-                    />
-                  </div>
+        {/* PORTFOLIO TAB */}
+        <TabsContent value="portfolio" className="space-y-8">
 
-                  <div className="flex items-center justify-between p-8 bg-background/50 rounded-[2.5rem] border border-border/30 hover:border-primary/40 transition-all shadow-xl">
-                    <div className="space-y-2 pr-6">
-                      <Label className="text-lg font-bold">Engagement Access</Label>
-                      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-widest">Notify on initial gallery penetration.</p>
+          {/* THEME SELECTOR */}
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10">
+              <CardTitle className="text-3xl font-headline font-bold flex items-center gap-3">
+                <Palette className="w-8 h-8 text-primary" /> Portfolio Theme
+              </CardTitle>
+              <CardDescription>Choose the look of your portfolio page.</CardDescription>
+            </CardHeader>
+            <CardContent className="p-10">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {THEME_LIST.map((theme) => (
+                  <button
+                    key={theme.id}
+                    onClick={() => updateField('theme', theme.id)}
+                    className={cn(
+                      "p-4 rounded-2xl border-2 transition-all text-left space-y-3 group",
+                      formData.theme === theme.id
+                        ? "border-primary bg-primary/5 scale-105 shadow-xl"
+                        : "border-border/30 hover:border-primary/50"
+                    )}
+                  >
+                    <div className="text-4xl">{theme.preview}</div>
+                    <div>
+                      <p className="font-bold text-sm">{theme.name}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{theme.description}</p>
                     </div>
-                    <Switch 
-                      checked={formData.notifyNewView} 
-                      onCheckedChange={(val) => updateField('notifyNewView', val)}
-                      className="data-[state=checked]:bg-primary"
+                    {formData.theme === theme.id && (
+                      <CheckCircle2 className="w-5 h-5 text-primary absolute top-3 right-3" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ABOUT */}
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10">
+              <CardTitle className="text-2xl font-headline font-bold">About Section</CardTitle>
+            </CardHeader>
+            <CardContent className="p-10 space-y-6">
+              <div className="space-y-3">
+                <Label>Bio / About Me</Label>
+                <Textarea
+                  value={formData.aboutBio}
+                  onChange={(e) => updateField('aboutBio', e.target.value)}
+                  placeholder="Hi, I'm a professional wedding photographer based in Karachi..."
+                  className="min-h-[150px] rounded-xl"
+                  maxLength={500}
+                />
+                <p className="text-[10px] text-muted-foreground text-right">{formData.aboutBio.length}/500</p>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Years Experience</Label>
+                  <Input type="number" value={formData.stats.years} onChange={(e) => updateField('stats', { ...formData.stats, years: Number(e.target.value) })} className="h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Happy Clients</Label>
+                  <Input type="number" value={formData.stats.clients} onChange={(e) => updateField('stats', { ...formData.stats, clients: Number(e.target.value) })} className="h-12 rounded-xl" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Appreciations</Label>
+                  <Input type="number" value={formData.stats.appreciations} onChange={(e) => updateField('stats', { ...formData.stats, appreciations: Number(e.target.value) })} className="h-12 rounded-xl" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SERVICES */}
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between">
+              <CardTitle className="text-2xl font-headline font-bold">Services</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl gap-2"
+                onClick={() => updateField('services', [...formData.services, { title: '' }])}
+              >
+                <Plus className="w-4 h-4" /> Add Service
+              </Button>
+            </CardHeader>
+            <CardContent className="p-10 space-y-4">
+              {formData.services.length === 0 ? (
+                <p className="text-center text-muted-foreground italic py-8">No services added yet.</p>
+              ) : (
+                formData.services.map((service: any, idx: number) => (
+                  <div key={idx} className="flex gap-3">
+                    <Input
+                      value={service.title}
+                      onChange={(e) => {
+                        const newServices = [...formData.services];
+                        newServices[idx] = { ...service, title: e.target.value };
+                        updateField('services', newServices);
+                      }}
+                      placeholder="e.g., Wedding Photography"
+                      className="h-12 rounded-xl flex-1"
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-12 w-12 text-destructive rounded-xl"
+                      onClick={() => updateField('services', formData.services.filter((_: any, i: number) => i !== idx))}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* PACKAGES */}
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between">
+              <CardTitle className="text-2xl font-headline font-bold">Pricing Packages</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl gap-2"
+                onClick={() => updateField('packages', [...formData.packages, { name: '', price: 0, features: [] }])}
+              >
+                <Plus className="w-4 h-4" /> Add Package
+              </Button>
+            </CardHeader>
+            <CardContent className="p-10 space-y-6">
+              {formData.packages.length === 0 ? (
+                <p className="text-center text-muted-foreground italic py-8">No packages added yet.</p>
+              ) : (
+                formData.packages.map((pkg: any, idx: number) => (
+                  <div key={idx} className="p-6 rounded-2xl bg-background/40 border border-border/30 space-y-4">
+                    <div className="flex gap-3 items-start">
+                      <Input
+                        value={pkg.name}
+                        onChange={(e) => {
+                          const newPkgs = [...formData.packages];
+                          newPkgs[idx] = { ...pkg, name: e.target.value };
+                          updateField('packages', newPkgs);
+                        }}
+                        placeholder="Package Name (e.g., Gold)"
+                        className="h-12 rounded-xl flex-1"
+                      />
+                      <Input
+                        type="number"
+                        value={pkg.price}
+                        onChange={(e) => {
+                          const newPkgs = [...formData.packages];
+                          newPkgs[idx] = { ...pkg, price: Number(e.target.value) };
+                          updateField('packages', newPkgs);
+                        }}
+                        placeholder="Price"
+                        className="h-12 rounded-xl w-32"
+                      />
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-12 w-12 text-destructive rounded-xl"
+                        onClick={() => updateField('packages', formData.packages.filter((_: any, i: number) => i !== idx))}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <Textarea
+                      value={(pkg.features || []).join('\n')}
+                      onChange={(e) => {
+                        const newPkgs = [...formData.packages];
+                        newPkgs[idx] = { ...pkg, features: e.target.value.split('\n').filter(f => f.trim()) };
+                        updateField('packages', newPkgs);
+                      }}
+                      placeholder="Features (one per line)"
+                      className="rounded-xl min-h-[80px] text-sm"
                     />
                   </div>
-               </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* VIDEO */}
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10">
+              <CardTitle className="text-2xl font-headline font-bold flex items-center gap-3">
+                <Play className="w-6 h-6 text-primary" /> Featured Video
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-10">
+              <div className="space-y-3">
+                <Label>YouTube Embed URL</Label>
+                <Input
+                  value={formData.videoUrl}
+                  onChange={(e) => updateField('videoUrl', e.target.value)}
+                  placeholder="https://www.youtube.com/embed/VIDEO_ID"
+                  className="h-14 rounded-xl font-mono text-sm"
+                />
+                <p className="text-[10px] text-muted-foreground">Use embed URL format (not watch URL)</p>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ACCOUNT TAB */}
+        <TabsContent value="account" className="space-y-8">
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10">
+              <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
+                <Shield className="w-8 h-8 text-primary" /> Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-10 space-y-6">
+              <div>
+                <Label>Primary Email</Label>
+                <div className="flex items-center justify-between mt-3 p-6 bg-background/60 rounded-3xl border border-border/40">
+                  <span className="font-mono text-sm">{user?.email}</span>
+                  {user?.emailVerified && <Badge className="bg-green-500/20 text-green-500">Verified</Badge>}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10">
+              <CardTitle className="text-3xl font-headline font-bold flex items-center gap-4">
+                <HardDrive className="w-8 h-8 text-primary" /> Subscription
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-10 space-y-6">
+              <div className="flex items-center justify-between bg-primary/5 p-8 rounded-2xl border border-primary/20">
+                <div>
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground">Active Plan</p>
+                  <p className="text-3xl font-headline font-bold text-primary mt-1">{profile?.planId?.toUpperCase() || 'STARTER'}</p>
+                </div>
+                <Link href="/storage">
+                  <Button className="rounded-xl">Upgrade</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* GALLERY TAB */}
+        <TabsContent value="gallery" className="space-y-8">
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10">
+              <CardTitle className="text-3xl font-headline font-bold">Gallery Defaults</CardTitle>
+            </CardHeader>
+            <CardContent className="p-10 space-y-8">
+              <div className="flex items-center justify-between p-6 bg-background/50 rounded-2xl border border-border/30">
+                <div>
+                  <Label className="text-lg font-bold">Watermark</Label>
+                  <p className="text-xs text-muted-foreground">Protect preview assets</p>
+                </div>
+                <Switch checked={formData.defaultWatermark} onCheckedChange={(v) => updateField('defaultWatermark', v)} />
+              </div>
+              <div className="flex items-center justify-between p-6 bg-background/50 rounded-2xl border border-border/30">
+                <div>
+                  <Label className="text-lg font-bold">Allow Downloads</Label>
+                  <p className="text-xs text-muted-foreground">Enable by default</p>
+                </div>
+                <Switch checked={formData.defaultAllowDownloads} onCheckedChange={(v) => updateField('defaultAllowDownloads', v)} />
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
