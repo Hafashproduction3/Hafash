@@ -240,7 +240,7 @@ export default function SettingsPage() {
       // Save to publicProfiles
       const result = await addPortfolioPhoto(user.uid, {
         id: photoId,
-        url: uploadResult.uploadUrl.split('?')[0],
+        url: '',
         storageKey: uploadResult.key!,
         caption: '',
       });
@@ -254,7 +254,7 @@ export default function SettingsPage() {
         ...prev,
         {
           id: photoId,
-          url: uploadResult.uploadUrl.split('?')[0],
+          url: '',
           storageKey: uploadResult.key!,
           caption: '',
           order: prev.length,

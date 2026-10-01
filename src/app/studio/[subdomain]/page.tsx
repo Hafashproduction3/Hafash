@@ -20,6 +20,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { HafashLoader } from "@/components/ui/hafash-loader";
 import { getTheme } from "@/lib/portfolio-themes";
 import { createBooking } from "@/app/actions/portfolio";
+import { refreshPhotoUrls } from "@/app/actions/storage";
 import { EVENT_TYPES, PAKISTAN_CITIES } from "@/lib/portfolio-types";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,6 +32,7 @@ export default function StudioPortfolioPage() {
 
   const [photographer, setPhotographer] = useState<any>(null);
   const [reviews, setReviews] = useState<any[]>([]);
+  const [portfolioPhotos, setPortfolioPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
@@ -107,6 +109,44 @@ export default function StudioPortfolioPage() {
           return;
         }
 
+        // ✅ Portfolio photos — FRESH URLs generate karo
+        const rawPhotos: any[] = photographerData.portfolioPhotos || [];
+        
+        if (rawPhotos.length > 0) {
+          // Collect all storage keys
+          const keysToRefresh: string[] = [];
+          rawPhotos.forEach((p: any) => {
+            if (p.storageKey) keysToRefresh.push(p.storageKey);
+            if (p.thumbKey) keysToRefresh.push(p.thumbKey);
+          });
+
+          // Generate fresh URLs
+          let urlMap: Record<string, string> = {};
+          if (keysToRefresh.length > 0) {
+            try {
+              const result = await refreshPhotoUrls(keysToRefresh);
+              if (result.success) {
+                urlMap = result.urls;
+              }
+            } catch (err) {
+              console.error('[PORTFOLIO_REFRESH]', err);
+            }
+          }
+
+          // Map fresh URLs to photos
+          const refreshed = rawPhotos
+            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+            .map((p: any) => ({
+              ...p,
+              url: urlMap[p.storageKey] || p.url || '',
+              thumbUrl: p.thumbKey
+                ? (urlMap[p.thumbKey] || p.thumbUrl || p.url)
+                : (urlMap[p.storageKey] || p.url || ''),
+            }));
+
+          if (!cancelled) setPortfolioPhotos(refreshed);
+        }
+
         // Load reviews
         try {
           const reviewsQuery = query(
@@ -133,11 +173,6 @@ export default function StudioPortfolioPage() {
 
   const theme = useMemo(() => getTheme(photographer?.theme), [photographer?.theme]);
 
-  const portfolioPhotos = useMemo(() => {
-    const photos = photographer?.portfolioPhotos || [];
-    return photos.sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
-  }, [photographer?.portfolioPhotos]);
-
   const stats = useMemo(() => {
     return {
       totalPhotos: portfolioPhotos.length,
@@ -157,7 +192,6 @@ export default function StudioPortfolioPage() {
     e.preventDefault();
     if (!photographer || isSubmittingBooking) return;
 
-    // Validation
     if (!bookingForm.clientName || !bookingForm.clientPhone || !bookingForm.eventDate || !bookingForm.eventType) {
       toast({
         variant: 'destructive',
