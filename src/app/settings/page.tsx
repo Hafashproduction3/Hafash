@@ -107,12 +107,14 @@ export default function SettingsPage() {
         website: profile.website || '',
         subdomain: profile.subdomain || '',
         theme: (profile.theme || 'mixed') as ThemeId,
-        studioLogo: profile.studioLogo || '',
-        studioLogoKey: profile.studioLogoKey || '',
-        studioBanner: profile.studioBanner || '',
-        studioBannerKey: profile.studioBannerKey || '',
-        photographerPhoto: profile.photographerPhoto || '',
-        photographerPhotoKey: profile.photographerPhotoKey || '',
+        // Branding is loaded from publicProfiles (single source of truth).
+        // Do not restore deleted branding from users/{uid}.
+        studioLogo: '',
+        studioLogoKey: '',
+        studioBanner: '',
+        studioBannerKey: '',
+        photographerPhoto: '',
+        photographerPhotoKey: '',
         aboutBio: profile.aboutBio || '',
         services: profile.services || [],
         packages: profile.packages || [],
@@ -128,6 +130,22 @@ export default function SettingsPage() {
       setIsDirty(false);
     }
   }, [profile, user?.email, isDirty]);
+
+  // Branding is owned by publicProfiles. This prevents old values in
+  // users/{uid} from resurrecting a logo/banner/photo after deletion.
+  useEffect(() => {
+    if (!publicProfile || isDirty) return;
+
+    setFormData(prev => ({
+      ...prev,
+      studioLogo: publicProfile.studioLogo || '',
+      studioLogoKey: publicProfile.studioLogoKey || '',
+      studioBanner: publicProfile.studioBanner || '',
+      studioBannerKey: publicProfile.studioBannerKey || '',
+      photographerPhoto: publicProfile.photographerPhoto || '',
+      photographerPhotoKey: publicProfile.photographerPhotoKey || '',
+    }));
+  }, [publicProfile, isDirty]);
 
   useEffect(() => {
     async function loadPortfolioPhotos() {
@@ -358,15 +376,32 @@ export default function SettingsPage() {
     const fields = fieldMap[type];
 
     try {
-      await setDoc(doc(firestore, 'publicProfiles', user.uid), {
+      const removeData = {
+        [fields.url]: deleteField(),
+        [fields.key]: deleteField(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Remove from both documents so old branding cannot return.
+      await setDoc(
+        doc(firestore, 'publicProfiles', user.uid),
+        removeData,
+        { merge: true }
+      );
+
+      await setDoc(
+        doc(firestore, 'users', user.uid),
+        removeData,
+        { merge: true }
+      );
+
+      // Clear local state immediately.
+      setFormData(prev => ({
+        ...prev,
         [fields.url]: '',
         [fields.key]: '',
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
-
-      // Also update local state
-      updateField(fields.url, '');
-      updateField(fields.key, '');
+      }));
+      setIsDirty(true);
 
       toast({ title: `${type} removed` });
     } catch (err: any) {
@@ -422,11 +457,25 @@ export default function SettingsPage() {
         }
       }
 
-      await setDoc(doc(firestore, 'users', user.uid), {
+      // Branding belongs to publicProfiles. Do not persist branding in users/{uid};
+      // otherwise deleted images can be restored on a later Settings save.
+      const userUpdateData: any = {
         ...formData,
         userId: user.uid,
         updatedAt: new Date().toISOString(),
-      }, { merge: true });
+        studioLogo: deleteField(),
+        studioLogoKey: deleteField(),
+        studioBanner: deleteField(),
+        studioBannerKey: deleteField(),
+        photographerPhoto: deleteField(),
+        photographerPhotoKey: deleteField(),
+      };
+
+      await setDoc(
+        doc(firestore, 'users', user.uid),
+        userUpdateData,
+        { merge: true }
+      );
 
             // Build update object — only include branding keys if they have values
             const updateData: any = {
