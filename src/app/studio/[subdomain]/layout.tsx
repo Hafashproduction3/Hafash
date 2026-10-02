@@ -136,19 +136,19 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
   const city = photographer?.city;
   const email = photographer?.email;
 
-  // Navigation links
+  // Navigation links — RELATIVE paths (subdomain pe khulenge)
   const navLinks = [
-    { href: `/studio/${subdomain}`, label: 'Home' },
-    { href: `/studio/${subdomain}/portfolio`, label: 'Portfolio' },
-    { href: `/studio/${subdomain}/pricing`, label: 'Pricing' },
-    { href: `/studio/${subdomain}/about`, label: 'About' },
-    { href: `/studio/${subdomain}/reviews`, label: 'Reviews' },
-    { href: `/studio/${subdomain}/contact`, label: 'Contact' },
+    { href: '/', label: 'Home' },
+    { href: '/portfolio', label: 'Portfolio' },
+    { href: '/pricing', label: 'Pricing' },
+    { href: '/about', label: 'About' },
+    { href: '/reviews', label: 'Reviews' },
+    { href: '/contact', label: 'Contact' },
   ];
 
   const isActive = (href: string) => {
-    if (href === `/studio/${subdomain}`) {
-      return pathname === href;
+    if (href === '/') {
+      return pathname === '/' || pathname === '';
     }
     return pathname.startsWith(href);
   };
@@ -193,7 +193,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
 
             {/* Logo + Studio Name */}
             <Link
-              href={`/studio/${subdomain}`}
+              href="/"
               className="flex items-center gap-3 group"
               style={{ color: 'var(--portfolio-header-text)' }}
             >
@@ -283,7 +283,7 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
                   <MessageCircle className="w-4 h-4" />
                 </a>
               )}
-              <Link href={`/studio/${subdomain}/book`}>
+              <Link href="/book">
                 <Button
                   className="rounded-full px-6 h-11 font-bold gap-2 transition-all hover:scale-105"
                   style={{
@@ -332,16 +332,15 @@ export default function StudioLayout({ children }: { children: React.ReactNode }
                     isActive(link.href) ? "opacity-100" : "opacity-70"
                   )}
                   style={{
-                    color: 'var(--portfolio-header-text)',
+                    color: isActive(link.href) ? 'var(--portfolio-primary-text)' : 'var(--portfolio-header-text)',
                     background: isActive(link.href) ? 'var(--portfolio-primary)' : 'transparent',
-                    ...(isActive(link.href) && { color: 'var(--portfolio-primary-text)' }),
                   }}
                 >
                   {link.label}
                 </Link>
               ))}
               <Link
-                href={`/studio/${subdomain}/book`}
+                href="/book"
                 onClick={() => setMobileMenuOpen(false)}
                 className="block"
               >

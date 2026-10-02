@@ -337,7 +337,7 @@ export default function AboutPage() {
                     </Button>
                   </a>
                 )}
-                <Link href={`/studio/${subdomain}/portfolio`}>
+                <Link href="/portfolio">
                   <Button
                     variant="outline"
                     className="rounded-full px-6 h-12 font-bold gap-2 transition-all hover:scale-105"
@@ -689,7 +689,7 @@ export default function AboutPage() {
               </a>
             )}
 
-            <Link href={`/studio/${subdomain}/contact`}>
+            <Link href="/contact">
               <Button
                 size="lg"
                 variant="outline"

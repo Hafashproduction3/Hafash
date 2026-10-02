@@ -414,7 +414,7 @@ export default function ReviewsPage() {
               </a>
             )}
 
-            <Link href={`/studio/${subdomain}/book`}>
+            <Link href="/book">
               <Button
                 size="lg"
                 variant="outline"

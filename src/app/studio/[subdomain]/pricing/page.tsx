@@ -504,7 +504,7 @@ export default function PricingPage() {
               </a>
             )}
 
-            <Link href={`/studio/${subdomain}/contact`}>
+            <Link href="/contact">
               <Button
                 size="lg"
                 variant="outline"

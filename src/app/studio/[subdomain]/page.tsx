@@ -240,7 +240,7 @@ export default function StudioHomePage() {
 
               {/* CTAs */}
               <div className="flex flex-wrap items-center gap-4 pt-4">
-                <Link href={`/studio/${subdomain}/portfolio`}>
+              <Link href="/portfolio">
                   <Button
                     size="lg"
                     className="rounded-full px-8 h-14 font-bold gap-2 shadow-2xl transition-all hover:scale-105"
@@ -398,7 +398,7 @@ export default function StudioHomePage() {
 
                 {/* CTA */}
                 <div className="pt-4">
-                  <Link href={`/studio/${subdomain}/about`}>
+                  <Link href="/about">
                     <Button
                       variant="outline"
                       className="rounded-full px-8 h-12 font-bold gap-2"
@@ -466,7 +466,7 @@ export default function StudioHomePage() {
             </div>
 
             <div className="text-center mt-12">
-              <Link href={`/studio/${subdomain}/portfolio`}>
+              <Link href="/portfolio">
                 <Button
                   size="lg"
                   className="rounded-full px-10 h-14 font-bold gap-2 shadow-xl transition-all hover:scale-105"
@@ -645,7 +645,7 @@ export default function StudioHomePage() {
             </div>
 
             <div className="text-center mt-12">
-              <Link href={`/studio/${subdomain}/reviews`}>
+              <Link href="/reviews">
                 <Button
                   variant="outline"
                   className="rounded-full px-8 h-12 font-bold gap-2"
@@ -709,7 +709,7 @@ export default function StudioHomePage() {
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href={`/studio/${subdomain}/book`}>
+            <Link href="/book">
               <Button
                 size="lg"
                 className="rounded-full px-10 h-14 font-bold gap-2 shadow-2xl transition-all hover:scale-105"
