@@ -19,7 +19,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
-import { doc, setDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,6 +28,7 @@ import { isOwnerEmail } from '@/lib/plans';
 import { THEME_LIST, type ThemeId } from '@/lib/portfolio-themes';
 import { requestUploadUrl, refreshPhotoUrls } from '@/app/actions/storage';
 import { ImageUploader } from '@/components/ImageUploader';
+import { doc, setDoc, deleteField } from 'firebase/firestore';
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -428,35 +428,64 @@ export default function SettingsPage() {
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
-      await setDoc(doc(firestore, 'publicProfiles', user.uid), {
-        userId: user.uid,
-        studioName: formData.studioName.trim(),
-        photographerName: formData.photographerName.trim(),
-        tagline: formData.tagline?.trim() || '',
-        city: formData.city?.trim() || '',
-        whatsappNumber: formData.whatsappNumber.replace(/\s+/g, ''),
-        instagramLink: formData.instagramLink?.trim() || '',
-        facebookLink: formData.facebookLink?.trim() || '',
-        youtubeLink: formData.youtubeLink?.trim() || '',
-        tiktokLink: formData.tiktokLink?.trim() || '',
-        studioLogo: formData.studioLogo || '',
-        studioLogoKey: formData.studioLogoKey || '',
-        studioBanner: formData.studioBanner || '',
-        studioBannerKey: formData.studioBannerKey || '',
-        photographerPhoto: formData.photographerPhoto || '',
-        photographerPhotoKey: formData.photographerPhotoKey || '',
-        aboutBio: formData.aboutBio || '',
-        services: formData.services || [],
-        packages: formData.packages || [],
-        videoUrl: formData.videoUrl || '',
-        stats: formData.stats || { years: 5, clients: 100, appreciations: 0 },
-        theme: formData.theme || 'mixed',
-        subdomain: formData.subdomain || '',
-        planId: profile?.planId || 'starter',
-        isOwner: isOwnerEmail(user?.email),
-        bookingEnabled: true,
-        updatedAt: new Date().toISOString(),
-      }, { merge: true });
+            // Build update object — only include branding keys if they have values
+            const updateData: any = {
+              userId: user.uid,
+              studioName: formData.studioName.trim(),
+              photographerName: formData.photographerName.trim(),
+              tagline: formData.tagline?.trim() || '',
+              city: formData.city?.trim() || '',
+              whatsappNumber: formData.whatsappNumber.replace(/\s+/g, ''),
+              instagramLink: formData.instagramLink?.trim() || '',
+              facebookLink: formData.facebookLink?.trim() || '',
+              youtubeLink: formData.youtubeLink?.trim() || '',
+              tiktokLink: formData.tiktokLink?.trim() || '',
+              aboutBio: formData.aboutBio || '',
+              services: formData.services || [],
+              packages: formData.packages || [],
+              videoUrl: formData.videoUrl || '',
+              stats: formData.stats || { years: 5, clients: 100, appreciations: 0 },
+              theme: formData.theme || 'mixed',
+              subdomain: formData.subdomain || '',
+              planId: profile?.planId || 'starter',
+              isOwner: isOwnerEmail(user?.email),
+              bookingEnabled: true,
+              updatedAt: new Date().toISOString(),
+            };
+      
+            // ✅ Branding — set if has value, DELETE if empty
+if (formData.studioLogo) {
+  updateData.studioLogo = formData.studioLogo;
+} else {
+  updateData.studioLogo = deleteField();
+}
+if (formData.studioLogoKey) {
+  updateData.studioLogoKey = formData.studioLogoKey;
+} else {
+  updateData.studioLogoKey = deleteField();
+}
+if (formData.studioBanner) {
+  updateData.studioBanner = formData.studioBanner;
+} else {
+  updateData.studioBanner = deleteField();
+}
+if (formData.studioBannerKey) {
+  updateData.studioBannerKey = formData.studioBannerKey;
+} else {
+  updateData.studioBannerKey = deleteField();
+}
+if (formData.photographerPhoto) {
+  updateData.photographerPhoto = formData.photographerPhoto;
+} else {
+  updateData.photographerPhoto = deleteField();
+}
+if (formData.photographerPhotoKey) {
+  updateData.photographerPhotoKey = formData.photographerPhotoKey;
+} else {
+  updateData.photographerPhotoKey = deleteField();
+}
+      
+            await setDoc(doc(firestore, 'publicProfiles', user.uid), updateData, { merge: true });
       
       toast({
         title: "Configuration Synchronized",
