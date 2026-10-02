@@ -92,7 +92,7 @@ export default function SettingsPage() {
   const [portfolioPhotos, setPortfolioPhotos] = useState<any[]>([]);
 
   useEffect(() => {
-    if (profile) {
+    if (profile && !isDirty) {
       setFormData({
         studioName: profile.studioName || '',
         photographerName: profile.photographerName || '',
@@ -127,7 +127,7 @@ export default function SettingsPage() {
       });
       setIsDirty(false);
     }
-  }, [profile, user?.email]);
+  }, [profile, user?.email, isDirty]);
 
   // ✅ Fresh URLs generate karo jab portfolio photos load hon
   useEffect(() => {
