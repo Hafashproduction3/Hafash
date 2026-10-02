@@ -129,7 +129,6 @@ export default function SettingsPage() {
     }
   }, [profile, user?.email, isDirty]);
 
-  // ✅ Fresh URLs generate karo jab portfolio photos load hon
   useEffect(() => {
     async function loadPortfolioPhotos() {
       if (!publicProfile?.portfolioPhotos || publicProfile.portfolioPhotos.length === 0) {
@@ -339,6 +338,42 @@ export default function SettingsPage() {
         variant: 'destructive',
         title: 'Failed to remove',
         description: error.message,
+      });
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // BRANDING REMOVE (Direct Firestore)
+  // ═══════════════════════════════════════════════════════════════
+
+  const handleBrandingRemove = async (type: 'logo' | 'banner' | 'photo') => {
+    if (!firestore || !user) return;
+
+    const fieldMap = {
+      logo: { url: 'studioLogo', key: 'studioLogoKey' },
+      banner: { url: 'studioBanner', key: 'studioBannerKey' },
+      photo: { url: 'photographerPhoto', key: 'photographerPhotoKey' },
+    };
+
+    const fields = fieldMap[type];
+
+    try {
+      await setDoc(doc(firestore, 'publicProfiles', user.uid), {
+        [fields.url]: '',
+        [fields.key]: '',
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      // Also update local state
+      updateField(fields.url, '');
+      updateField(fields.key, '');
+
+      toast({ title: `${type} removed` });
+    } catch (err: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Remove failed',
+        description: err.message,
       });
     }
   };
@@ -554,40 +589,86 @@ export default function SettingsPage() {
                       </p>
                     </div>
 
-                    <ImageUploader
-                      label="Studio Logo"
-                      value={formData.studioLogo}
-                      onChange={(url, key) => {
-                        updateField('studioLogo', url);
-                          updateField('studioLogoKey', key || '');                      }}
-                      userId={user?.uid || ''}
-                      type="logo"
-                      maxSizeMB={2}
-                    />
+                    {/* Studio Logo */}
+                    <div className="space-y-2">
+                      <ImageUploader
+                        label="Studio Logo"
+                        value={formData.studioLogo}
+                        onChange={(url, key) => {
+                          updateField('studioLogo', url);
+                          updateField('studioLogoKey', key || '');
+                        }}
+                        userId={user?.uid || ''}
+                        type="logo"
+                        maxSizeMB={2}
+                      />
+                      {formData.studioLogoKey && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleBrandingRemove('logo')}
+                          className="rounded-xl gap-2 border-destructive/30 text-destructive"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Remove Logo
+                        </Button>
+                      )}
+                    </div>
 
-                    <ImageUploader
-                      label="Studio Banner"
-                      value={formData.studioBanner}
-                      onChange={(url, key) => {
-                        updateField('studioBanner', url);
-                        updateField('studioBannerKey', key || '');
-                      }}
-                      userId={user?.uid || ''}
-                      type="banner"
-                      maxSizeMB={5}
-                    />
+                    {/* Studio Banner */}
+                    <div className="space-y-2">
+                      <ImageUploader
+                        label="Studio Banner"
+                        value={formData.studioBanner}
+                        onChange={(url, key) => {
+                          updateField('studioBanner', url);
+                          updateField('studioBannerKey', key || '');
+                        }}
+                        userId={user?.uid || ''}
+                        type="banner"
+                        maxSizeMB={5}
+                      />
+                      {formData.studioBannerKey && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleBrandingRemove('banner')}
+                          className="rounded-xl gap-2 border-destructive/30 text-destructive"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Remove Banner
+                        </Button>
+                      )}
+                    </div>
 
-                    <ImageUploader
-                      label="Your Photo"
-                      value={formData.photographerPhoto}
-                      onChange={(url, key) => {
-                        updateField('photographerPhoto', url);
-                        updateField('photographerPhotoKey', key || '');
-                      }}
-                      userId={user?.uid || ''}
-                      type="photo"
-                      maxSizeMB={3}
-                    />
+                    {/* Your Photo */}
+                    <div className="space-y-2">
+                      <ImageUploader
+                        label="Your Photo"
+                        value={formData.photographerPhoto}
+                        onChange={(url, key) => {
+                          updateField('photographerPhoto', url);
+                          updateField('photographerPhotoKey', key || '');
+                        }}
+                        userId={user?.uid || ''}
+                        type="photo"
+                        maxSizeMB={3}
+                      />
+                      {formData.photographerPhotoKey && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleBrandingRemove('photo')}
+                          className="rounded-xl gap-2 border-destructive/30 text-destructive"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Remove Photo
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {isEnterprise ? (
