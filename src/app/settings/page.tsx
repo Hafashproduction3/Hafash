@@ -559,8 +559,7 @@ export default function SettingsPage() {
                       value={formData.studioLogo}
                       onChange={(url, key) => {
                         updateField('studioLogo', url);
-                        if (key) updateField('studioLogoKey', key);
-                      }}
+                          updateField('studioLogoKey', key || '');                      }}
                       userId={user?.uid || ''}
                       type="logo"
                       maxSizeMB={2}
@@ -571,7 +570,7 @@ export default function SettingsPage() {
                       value={formData.studioBanner}
                       onChange={(url, key) => {
                         updateField('studioBanner', url);
-                        if (key) updateField('studioBannerKey', key);
+                        updateField('studioBannerKey', key || '');
                       }}
                       userId={user?.uid || ''}
                       type="banner"
@@ -583,7 +582,7 @@ export default function SettingsPage() {
                       value={formData.photographerPhoto}
                       onChange={(url, key) => {
                         updateField('photographerPhoto', url);
-                        if (key) updateField('photographerPhotoKey', key);
+                        updateField('photographerPhotoKey', key || '');
                       }}
                       userId={user?.uid || ''}
                       type="photo"

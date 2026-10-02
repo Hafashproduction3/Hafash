@@ -148,7 +148,8 @@ export function ImageUploader({
   };
 
   const handleRemove = () => {
-    onChange("");
+    // Clear both URL and storageKey
+    onChange("", "");
     if (fileInputRef.current) fileInputRef.current.value = "";
     toast({ title: "Removed" });
   };
