@@ -51,10 +51,8 @@ export default function StudioPortfolioPage() {
     packageSelected: '',
   });
 
-  // ✅ Validation errors state
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
 
@@ -87,7 +85,6 @@ export default function StudioPortfolioPage() {
           userId: userSnap.docs[0].id,
           ...userSnap.docs[0].data(),
         };
-        setPhotographer(photographerData);
 
         // Owner check
         const isOwner = photographerData.isOwner === true;
@@ -114,6 +111,37 @@ export default function StudioPortfolioPage() {
           setLoading(false);
           return;
         }
+
+        // ✅ Branding Images — FRESH URLs generate karo
+        const brandingKeys: string[] = [];
+        if (photographerData.studioLogoKey) brandingKeys.push(photographerData.studioLogoKey);
+        if (photographerData.studioBannerKey) brandingKeys.push(photographerData.studioBannerKey);
+        if (photographerData.photographerPhotoKey) brandingKeys.push(photographerData.photographerPhotoKey);
+
+        let brandingUrlMap: Record<string, string> = {};
+        if (brandingKeys.length > 0) {
+          try {
+            const result = await refreshPhotoUrls(brandingKeys);
+            if (result.success) {
+              brandingUrlMap = result.urls;
+            }
+          } catch (err) {
+            console.error('[BRANDING_REFRESH]', err);
+          }
+        }
+
+        // Update photographer data with fresh branding URLs
+        if (photographerData.studioLogoKey && brandingUrlMap[photographerData.studioLogoKey]) {
+          photographerData.studioLogo = brandingUrlMap[photographerData.studioLogoKey];
+        }
+        if (photographerData.studioBannerKey && brandingUrlMap[photographerData.studioBannerKey]) {
+          photographerData.studioBanner = brandingUrlMap[photographerData.studioBannerKey];
+        }
+        if (photographerData.photographerPhotoKey && brandingUrlMap[photographerData.photographerPhotoKey]) {
+          photographerData.photographerPhoto = brandingUrlMap[photographerData.photographerPhotoKey];
+        }
+
+        setPhotographer(photographerData);
 
         // ✅ Portfolio photos — FRESH URLs generate karo
         const rawPhotos: any[] = photographerData.portfolioPhotos || [];
@@ -191,10 +219,7 @@ export default function StudioPortfolioPage() {
     return (sum / reviews.length).toFixed(1);
   }, [reviews]);
 
-  // ═══════════════════════════════════════════════════════════════
-  // VALIDATION FUNCTIONS
-  // ═══════════════════════════════════════════════════════════════
-
+  // Validation functions
   const validateName = (name: string): string => {
     const trimmed = name.trim();
     if (!trimmed) return 'Naam zaroori hai';
@@ -218,7 +243,7 @@ export default function StudioPortfolioPage() {
   };
 
   const validateEmail = (email: string): string => {
-    if (!email.trim()) return ''; // Optional
+    if (!email.trim()) return '';
     const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!regex.test(email)) {
       return 'Sahi email address likhein';
@@ -249,7 +274,6 @@ export default function StudioPortfolioPage() {
     return '';
   };
 
-  // ✅ Validate all fields
   const validateAll = (): boolean => {
     const newErrors: Record<string, string> = {
       clientName: validateName(bookingForm.clientName),
@@ -260,7 +284,6 @@ export default function StudioPortfolioPage() {
       message: validateMessage(bookingForm.message),
     };
 
-    // Remove empty errors
     Object.keys(newErrors).forEach(key => {
       if (!newErrors[key]) delete newErrors[key];
     });
@@ -278,7 +301,6 @@ export default function StudioPortfolioPage() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Check if form is valid (for submit button)
   const isFormValid = useMemo(() => {
     return (
       validateName(bookingForm.clientName) === '' &&
@@ -290,11 +312,9 @@ export default function StudioPortfolioPage() {
     );
   }, [bookingForm]);
 
-  // ✅ Field change handler
   const handleFieldChange = (field: string, value: string) => {
     setBookingForm(prev => ({ ...prev, [field]: value }));
 
-    // Re-validate this field if it was touched
     if (touched[field]) {
       let error = '';
       if (field === 'clientName') error = validateName(value);
@@ -313,7 +333,6 @@ export default function StudioPortfolioPage() {
     }
   };
 
-  // ✅ Field blur handler
   const handleFieldBlur = (field: string) => {
     setTouched(prev => ({ ...prev, [field]: true }));
 
@@ -338,7 +357,6 @@ export default function StudioPortfolioPage() {
     e.preventDefault();
     if (!photographer || isSubmittingBooking) return;
 
-    // ✅ Full validation
     if (!validateAll()) {
       toast({
         variant: 'destructive',
@@ -383,7 +401,6 @@ export default function StudioPortfolioPage() {
     }
   };
 
-  // ✅ Reset form
   const resetForm = () => {
     setBookingForm({
       clientName: '', clientEmail: '', clientPhone: '',
@@ -454,7 +471,6 @@ export default function StudioPortfolioPage() {
   const packages = photographer.packages || [];
   const videoUrl = photographer.videoUrl;
 
-  // Today's date for min attribute
   const todayDate = new Date().toISOString().split('T')[0];
 
   return (
@@ -786,18 +802,12 @@ export default function StudioPortfolioPage() {
                 <p className="text-sm" style={{ color: theme.colors.mutedText }}>
                   Photographer aapse jald rabta karega. Shukriya!
                 </p>
-                <Button
-                  variant="outline"
-                  onClick={resetForm}
-                  className="rounded-xl"
-                >
+                <Button variant="outline" onClick={resetForm} className="rounded-xl">
                   Send Another Request
                 </Button>
               </div>
             ) : (
               <form onSubmit={handleBookingSubmit} className="space-y-5" noValidate>
-
-                {/* NAME + PHONE */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <Label style={{ color: theme.colors.headingText }}>
@@ -810,10 +820,7 @@ export default function StudioPortfolioPage() {
                         onChange={(e) => handleFieldChange('clientName', e.target.value)}
                         onBlur={() => handleFieldBlur('clientName')}
                         placeholder="Full name"
-                        className={cn(
-                          "pl-10 h-12 rounded-xl",
-                          touched.clientName && errors.clientName && "border-red-500 focus:border-red-500"
-                        )}
+                        className={cn("pl-10 h-12 rounded-xl", touched.clientName && errors.clientName && "border-red-500")}
                       />
                     </div>
                     {touched.clientName && errors.clientName && (
@@ -835,10 +842,7 @@ export default function StudioPortfolioPage() {
                         onChange={(e) => handleFieldChange('clientPhone', e.target.value)}
                         onBlur={() => handleFieldBlur('clientPhone')}
                         placeholder="03001234567"
-                        className={cn(
-                          "pl-10 h-12 rounded-xl",
-                          touched.clientPhone && errors.clientPhone && "border-red-500 focus:border-red-500"
-                        )}
+                        className={cn("pl-10 h-12 rounded-xl", touched.clientPhone && errors.clientPhone && "border-red-500")}
                       />
                     </div>
                     {touched.clientPhone && errors.clientPhone && (
@@ -850,7 +854,6 @@ export default function StudioPortfolioPage() {
                   </div>
                 </div>
 
-                {/* EMAIL */}
                 <div className="space-y-2">
                   <Label style={{ color: theme.colors.headingText }}>Email (Optional)</Label>
                   <div className="relative">
@@ -861,10 +864,7 @@ export default function StudioPortfolioPage() {
                       onChange={(e) => handleFieldChange('clientEmail', e.target.value)}
                       onBlur={() => handleFieldBlur('clientEmail')}
                       placeholder="your@email.com"
-                      className={cn(
-                        "pl-10 h-12 rounded-xl",
-                        touched.clientEmail && errors.clientEmail && "border-red-500 focus:border-red-500"
-                      )}
+                      className={cn("pl-10 h-12 rounded-xl", touched.clientEmail && errors.clientEmail && "border-red-500")}
                     />
                   </div>
                   {touched.clientEmail && errors.clientEmail && (
@@ -875,9 +875,8 @@ export default function StudioPortfolioPage() {
                   )}
                 </div>
 
-                {/* DATE + TYPE */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-2">
+                  <div className="space-y-2">
                     <Label style={{ color: theme.colors.headingText }}>
                       Event Date <span style={{ color: '#ef4444' }}>*</span>
                     </Label>
@@ -894,10 +893,7 @@ export default function StudioPortfolioPage() {
                             (e.target as HTMLInputElement).showPicker?.();
                           } catch (err) {}
                         }}
-                        className={cn(
-                          "pl-10 h-12 rounded-xl cursor-pointer",
-                          touched.eventDate && errors.eventDate && "border-red-500 focus:border-red-500"
-                        )}
+                        className={cn("pl-10 h-12 rounded-xl cursor-pointer", touched.eventDate && errors.eventDate && "border-red-500")}
                       />
                     </div>
                     {touched.eventDate && errors.eventDate && (
@@ -916,10 +912,7 @@ export default function StudioPortfolioPage() {
                       value={bookingForm.eventType}
                       onChange={(e) => handleFieldChange('eventType', e.target.value)}
                       onBlur={() => handleFieldBlur('eventType')}
-                      className={cn(
-                        "w-full h-12 rounded-xl px-4 border",
-                        touched.eventType && errors.eventType && "border-red-500"
-                      )}
+                      className={cn("w-full h-12 rounded-xl px-4 border", touched.eventType && errors.eventType && "border-red-500")}
                       style={{ background: theme.colors.cardBg, borderColor: touched.eventType && errors.eventType ? '#ef4444' : theme.colors.border, color: theme.colors.bodyText }}
                     >
                       <option value="">Select type</option>
@@ -934,7 +927,6 @@ export default function StudioPortfolioPage() {
                   </div>
                 </div>
 
-                {/* CITY + BUDGET */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <Label style={{ color: theme.colors.headingText }}>City</Label>
@@ -959,7 +951,6 @@ export default function StudioPortfolioPage() {
                   </div>
                 </div>
 
-                {/* PACKAGE SELECTED */}
                 {bookingForm.packageSelected && (
                   <div className="p-4 rounded-xl flex items-center justify-between"
                     style={{ background: `${theme.colors.primary}10`, border: `1px solid ${theme.colors.primary}30` }}>
@@ -969,17 +960,12 @@ export default function StudioPortfolioPage() {
                         Package: {bookingForm.packageSelected}
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setBookingForm(prev => ({ ...prev, packageSelected: '' }))}
-                      className="opacity-50 hover:opacity-100"
-                    >
+                    <button type="button" onClick={() => setBookingForm(prev => ({ ...prev, packageSelected: '' }))} className="opacity-50 hover:opacity-100">
                       <X className="w-4 h-4" />
                     </button>
                   </div>
                 )}
 
-                {/* MESSAGE */}
                 <div className="space-y-2">
                   <Label style={{ color: theme.colors.headingText }}>Message (Optional)</Label>
                   <Textarea
@@ -987,10 +973,7 @@ export default function StudioPortfolioPage() {
                     onChange={(e) => handleFieldChange('message', e.target.value)}
                     onBlur={() => handleFieldBlur('message')}
                     placeholder="Apne event ke baare mein kuch batayein..."
-                    className={cn(
-                      "rounded-xl min-h-[100px]",
-                      touched.message && errors.message && "border-red-500 focus:border-red-500"
-                    )}
+                    className={cn("rounded-xl min-h-[100px]", touched.message && errors.message && "border-red-500")}
                     maxLength={500}
                   />
                   <div className="flex justify-between items-center">
@@ -1000,20 +983,14 @@ export default function StudioPortfolioPage() {
                         {errors.message}
                       </p>
                     ) : <span />}
-                    <p className="text-[10px] text-muted-foreground">
-                      {bookingForm.message.length}/500
-                    </p>
+                    <p className="text-[10px] text-muted-foreground">{bookingForm.message.length}/500</p>
                   </div>
                 </div>
 
-                {/* SUBMIT */}
                 <Button
                   type="submit"
                   disabled={isSubmittingBooking || !isFormValid}
-                  className={cn(
-                    "w-full h-14 rounded-xl font-bold text-base gap-2 transition-all",
-                    !isFormValid && "opacity-50 cursor-not-allowed"
-                  )}
+                  className={cn("w-full h-14 rounded-xl font-bold text-base gap-2", !isFormValid && "opacity-50 cursor-not-allowed")}
                   style={{ background: theme.colors.primary, color: theme.colors.primaryText }}
                 >
                   {isSubmittingBooking ? (

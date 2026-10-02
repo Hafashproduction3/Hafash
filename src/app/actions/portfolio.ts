@@ -107,6 +107,86 @@ export async function removePortfolioPhoto(
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// BRANDING IMAGES (Logo, Banner, Photographer Photo)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Save branding image metadata (after R2 upload)
+ */
+export async function saveBrandingImage(
+  userId: string,
+  type: 'logo' | 'banner' | 'photo',
+  url: string,
+  storageKey: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: 'DB offline' };
+
+  try {
+    const fieldMap = {
+      logo: { url: 'studioLogo', key: 'studioLogoKey' },
+      banner: { url: 'studioBanner', key: 'studioBannerKey' },
+      photo: { url: 'photographerPhoto', key: 'photographerPhotoKey' },
+    };
+
+    const fields = fieldMap[type];
+    if (!fields) {
+      return { success: false, error: 'Invalid branding type' };
+    }
+
+    await adminDb.collection('publicProfiles').doc(userId).set(
+      {
+        [fields.url]: url,
+        [fields.key]: storageKey,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[SAVE_BRANDING]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Remove branding image
+ */
+export async function removeBrandingImage(
+  userId: string,
+  type: 'logo' | 'banner' | 'photo'
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) return { success: false, error: 'DB offline' };
+
+  try {
+    const fieldMap = {
+      logo: { url: 'studioLogo', key: 'studioLogoKey' },
+      banner: { url: 'studioBanner', key: 'studioBannerKey' },
+      photo: { url: 'photographerPhoto', key: 'photographerPhotoKey' },
+    };
+
+    const fields = fieldMap[type];
+    if (!fields) {
+      return { success: false, error: 'Invalid branding type' };
+    }
+
+    await adminDb.collection('publicProfiles').doc(userId).set(
+      {
+        [fields.url]: '',
+        [fields.key]: '',
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[REMOVE_BRANDING]', error);
+    return { success: false, error: error.message };
+  }
+}
+
 /**
  * Update portfolio photo caption
  */

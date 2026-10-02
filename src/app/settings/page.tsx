@@ -24,13 +24,11 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { updateSubdomain } from '@/app/actions/subdomain';
-import { 
-  addPortfolioPhoto, 
-  removePortfolioPhoto 
-} from '@/app/actions/portfolio';
+import { addPortfolioPhoto, removePortfolioPhoto } from '@/app/actions/portfolio';
 import { isOwnerEmail } from '@/lib/plans';
 import { THEME_LIST, type ThemeId } from '@/lib/portfolio-themes';
 import { requestUploadUrl, refreshPhotoUrls } from '@/app/actions/storage';
+import { ImageUploader } from '@/components/ImageUploader';
 
 export default function SettingsPage() {
   const { user } = useUser();
@@ -73,8 +71,11 @@ export default function SettingsPage() {
     subdomain: '',
     theme: 'mixed' as ThemeId,
     studioLogo: '',
+    studioLogoKey: '',
     studioBanner: '',
+    studioBannerKey: '',
     photographerPhoto: '',
+    photographerPhotoKey: '',
     aboutBio: '',
     services: [] as any[],
     packages: [] as any[],
@@ -107,8 +108,11 @@ export default function SettingsPage() {
         subdomain: profile.subdomain || '',
         theme: (profile.theme || 'mixed') as ThemeId,
         studioLogo: profile.studioLogo || '',
+        studioLogoKey: profile.studioLogoKey || '',
         studioBanner: profile.studioBanner || '',
+        studioBannerKey: profile.studioBannerKey || '',
         photographerPhoto: profile.photographerPhoto || '',
+        photographerPhotoKey: profile.photographerPhotoKey || '',
         aboutBio: profile.aboutBio || '',
         services: profile.services || [],
         packages: profile.packages || [],
@@ -135,14 +139,12 @@ export default function SettingsPage() {
 
       const rawPhotos: any[] = publicProfile.portfolioPhotos;
       
-      // Collect storage keys
       const keysToRefresh: string[] = [];
       rawPhotos.forEach((p: any) => {
         if (p.storageKey) keysToRefresh.push(p.storageKey);
         if (p.thumbKey) keysToRefresh.push(p.thumbKey);
       });
 
-      // Generate fresh URLs
       let urlMap: Record<string, string> = {};
       if (keysToRefresh.length > 0) {
         try {
@@ -155,7 +157,6 @@ export default function SettingsPage() {
         }
       }
 
-      // Map fresh URLs
       const refreshed = rawPhotos
         .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
         .map((p: any) => ({
@@ -286,7 +287,6 @@ export default function SettingsPage() {
         throw new Error(result.error);
       }
 
-      // Generate fresh URL for immediate preview
       try {
         const urlResult = await refreshPhotoUrls([uploadResult.key!]);
         if (urlResult.success && urlResult.urls[uploadResult.key!]) {
@@ -405,8 +405,11 @@ export default function SettingsPage() {
         youtubeLink: formData.youtubeLink?.trim() || '',
         tiktokLink: formData.tiktokLink?.trim() || '',
         studioLogo: formData.studioLogo || '',
+        studioLogoKey: formData.studioLogoKey || '',
         studioBanner: formData.studioBanner || '',
+        studioBannerKey: formData.studioBannerKey || '',
         photographerPhoto: formData.photographerPhoto || '',
+        photographerPhotoKey: formData.photographerPhotoKey || '',
         aboutBio: formData.aboutBio || '',
         services: formData.services || [],
         packages: formData.packages || [],
@@ -543,13 +546,49 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  <div className="pt-6 border-t border-border/20 space-y-4">
-                    <Label className="text-lg font-bold">Branding Images (URLs)</Label>
-                    <div className="space-y-3">
-                      <Input value={formData.studioLogo} onChange={(e) => updateField('studioLogo', e.target.value)} placeholder="Logo URL (https://...)" className="h-14 rounded-xl font-mono text-sm" />
-                      <Input value={formData.studioBanner} onChange={(e) => updateField('studioBanner', e.target.value)} placeholder="Banner URL (https://...)" className="h-14 rounded-xl font-mono text-sm" />
-                      <Input value={formData.photographerPhoto} onChange={(e) => updateField('photographerPhoto', e.target.value)} placeholder="Your Photo URL (https://...)" className="h-14 rounded-xl font-mono text-sm" />
+                  <div className="pt-6 border-t border-border/20 space-y-6">
+                    <div>
+                      <Label className="text-lg font-bold">Branding Images</Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Upload karein ya URL paste karein
+                      </p>
                     </div>
+
+                    <ImageUploader
+                      label="Studio Logo"
+                      value={formData.studioLogo}
+                      onChange={(url, key) => {
+                        updateField('studioLogo', url);
+                        if (key) updateField('studioLogoKey', key);
+                      }}
+                      userId={user?.uid || ''}
+                      type="logo"
+                      maxSizeMB={2}
+                    />
+
+                    <ImageUploader
+                      label="Studio Banner"
+                      value={formData.studioBanner}
+                      onChange={(url, key) => {
+                        updateField('studioBanner', url);
+                        if (key) updateField('studioBannerKey', key);
+                      }}
+                      userId={user?.uid || ''}
+                      type="banner"
+                      maxSizeMB={5}
+                    />
+
+                    <ImageUploader
+                      label="Your Photo"
+                      value={formData.photographerPhoto}
+                      onChange={(url, key) => {
+                        updateField('photographerPhoto', url);
+                        if (key) updateField('photographerPhotoKey', key);
+                      }}
+                      userId={user?.uid || ''}
+                      type="photo"
+                      maxSizeMB={3}
+                    />
                   </div>
 
                   {isEnterprise ? (
