@@ -246,6 +246,11 @@ export async function acceptBooking(
     const invoice: Invoice = {
       invoiceNumber,
       ...invoiceData,
+      paymentSchedule: [],
+      dataDeliveryDate: '',
+      dataDeliveryMethod: '',
+      termsAndConditions: '',
+      cancellationPolicy: '',
       status: 'draft',
     };
 

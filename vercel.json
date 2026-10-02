@@ -2,15 +2,19 @@
   "crons": [
     {
       "path": "/api/cron/check-expiry",
-      "schedule": "0 4 * * *"
-    },
-    {
-      "path": "/api/cron/expiry-warnings",
-      "schedule": "0 4 * * *"
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/cleanup-expired-galleries",
-      "schedule": "0 19 * * *"
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/expiry-warnings",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/auto-cancel-bookings",
+      "schedule": "0 3 * * *"
     }
   ]
 }
