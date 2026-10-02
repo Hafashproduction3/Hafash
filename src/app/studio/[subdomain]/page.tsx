@@ -877,20 +877,25 @@ export default function StudioPortfolioPage() {
 
                 {/* DATE + TYPE */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-2">
+                <div className="space-y-2">
                     <Label style={{ color: theme.colors.headingText }}>
                       Event Date <span style={{ color: '#ef4444' }}>*</span>
                     </Label>
                     <div className="relative">
-                      <Calendar className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
+                      <Calendar className="absolute left-3 top-3.5 w-4 h-4 opacity-50 pointer-events-none z-10" />
                       <Input
                         type="date"
                         value={bookingForm.eventDate}
                         min={todayDate}
                         onChange={(e) => handleFieldChange('eventDate', e.target.value)}
                         onBlur={() => handleFieldBlur('eventDate')}
+                        onClick={(e) => {
+                          try {
+                            (e.target as HTMLInputElement).showPicker?.();
+                          } catch (err) {}
+                        }}
                         className={cn(
-                          "pl-10 h-12 rounded-xl",
+                          "pl-10 h-12 rounded-xl cursor-pointer",
                           touched.eventDate && errors.eventDate && "border-red-500 focus:border-red-500"
                         )}
                       />
