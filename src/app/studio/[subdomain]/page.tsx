@@ -9,7 +9,7 @@ import {
   Camera, MapPin, MessageCircle, Instagram, Sparkles, Award,
   Crown, AlertTriangle, Star, Heart, Eye,
   Phone, ArrowRight, Quote, CheckCircle2, Share2, Video,
-  Calendar, Mail, User, Send, Loader2, X
+  Calendar, Mail, User, Send, Loader2, X, AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,6 +23,7 @@ import { createBooking } from "@/app/actions/portfolio";
 import { refreshPhotoUrls } from "@/app/actions/storage";
 import { EVENT_TYPES, PAKISTAN_CITIES } from "@/lib/portfolio-types";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 export default function StudioPortfolioPage() {
   const params = useParams();
@@ -49,6 +50,11 @@ export default function StudioPortfolioPage() {
     message: '',
     packageSelected: '',
   });
+
+  // ✅ Validation errors state
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
   const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
   const [bookingSubmitted, setBookingSubmitted] = useState(false);
 
@@ -113,14 +119,12 @@ export default function StudioPortfolioPage() {
         const rawPhotos: any[] = photographerData.portfolioPhotos || [];
         
         if (rawPhotos.length > 0) {
-          // Collect all storage keys
           const keysToRefresh: string[] = [];
           rawPhotos.forEach((p: any) => {
             if (p.storageKey) keysToRefresh.push(p.storageKey);
             if (p.thumbKey) keysToRefresh.push(p.thumbKey);
           });
 
-          // Generate fresh URLs
           let urlMap: Record<string, string> = {};
           if (keysToRefresh.length > 0) {
             try {
@@ -133,7 +137,6 @@ export default function StudioPortfolioPage() {
             }
           }
 
-          // Map fresh URLs to photos
           const refreshed = rawPhotos
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
             .map((p: any) => ({
@@ -188,15 +191,159 @@ export default function StudioPortfolioPage() {
     return (sum / reviews.length).toFixed(1);
   }, [reviews]);
 
+  // ═══════════════════════════════════════════════════════════════
+  // VALIDATION FUNCTIONS
+  // ═══════════════════════════════════════════════════════════════
+
+  const validateName = (name: string): string => {
+    const trimmed = name.trim();
+    if (!trimmed) return 'Naam zaroori hai';
+    if (trimmed.length < 3) return 'Naam kam az kam 3 characters ka hona chahiye';
+    if (!/^[a-zA-Z\s\u0600-\u06FF]+$/.test(trimmed)) {
+      return 'Naam mein sirf letters aur spaces allowed hain';
+    }
+    return '';
+  };
+
+  const validatePhone = (phone: string): string => {
+    const cleaned = phone.replace(/\D/g, '');
+    if (!cleaned) return 'Phone number zaroori hai';
+    if (cleaned.length !== 11) {
+      return 'Phone number 11 digits ka hona chahiye (03XXXXXXXXX)';
+    }
+    if (!/^03\d{9}$/.test(cleaned)) {
+      return 'Sahi Pakistani number likhein (jaise 03001234567)';
+    }
+    return '';
+  };
+
+  const validateEmail = (email: string): string => {
+    if (!email.trim()) return ''; // Optional
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!regex.test(email)) {
+      return 'Sahi email address likhein';
+    }
+    return '';
+  };
+
+  const validateEventDate = (date: string): string => {
+    if (!date) return 'Event date zaroori hai';
+    const selected = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selected < today) {
+      return 'Event date aaj ya future mein honi chahiye';
+    }
+    return '';
+  };
+
+  const validateEventType = (type: string): string => {
+    if (!type) return 'Event type zaroori hai';
+    return '';
+  };
+
+  const validateMessage = (message: string): string => {
+    if (message.length > 500) {
+      return 'Message 500 characters se zyada nahi ho sakta';
+    }
+    return '';
+  };
+
+  // ✅ Validate all fields
+  const validateAll = (): boolean => {
+    const newErrors: Record<string, string> = {
+      clientName: validateName(bookingForm.clientName),
+      clientPhone: validatePhone(bookingForm.clientPhone),
+      clientEmail: validateEmail(bookingForm.clientEmail),
+      eventDate: validateEventDate(bookingForm.eventDate),
+      eventType: validateEventType(bookingForm.eventType),
+      message: validateMessage(bookingForm.message),
+    };
+
+    // Remove empty errors
+    Object.keys(newErrors).forEach(key => {
+      if (!newErrors[key]) delete newErrors[key];
+    });
+
+    setErrors(newErrors);
+    setTouched({
+      clientName: true,
+      clientPhone: true,
+      clientEmail: true,
+      eventDate: true,
+      eventType: true,
+      message: true,
+    });
+
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // ✅ Check if form is valid (for submit button)
+  const isFormValid = useMemo(() => {
+    return (
+      validateName(bookingForm.clientName) === '' &&
+      validatePhone(bookingForm.clientPhone) === '' &&
+      validateEmail(bookingForm.clientEmail) === '' &&
+      validateEventDate(bookingForm.eventDate) === '' &&
+      validateEventType(bookingForm.eventType) === '' &&
+      validateMessage(bookingForm.message) === ''
+    );
+  }, [bookingForm]);
+
+  // ✅ Field change handler
+  const handleFieldChange = (field: string, value: string) => {
+    setBookingForm(prev => ({ ...prev, [field]: value }));
+
+    // Re-validate this field if it was touched
+    if (touched[field]) {
+      let error = '';
+      if (field === 'clientName') error = validateName(value);
+      if (field === 'clientPhone') error = validatePhone(value);
+      if (field === 'clientEmail') error = validateEmail(value);
+      if (field === 'eventDate') error = validateEventDate(value);
+      if (field === 'eventType') error = validateEventType(value);
+      if (field === 'message') error = validateMessage(value);
+
+      setErrors(prev => {
+        const next = { ...prev };
+        if (error) next[field] = error;
+        else delete next[field];
+        return next;
+      });
+    }
+  };
+
+  // ✅ Field blur handler
+  const handleFieldBlur = (field: string) => {
+    setTouched(prev => ({ ...prev, [field]: true }));
+
+    let error = '';
+    const value = (bookingForm as any)[field];
+    if (field === 'clientName') error = validateName(value);
+    if (field === 'clientPhone') error = validatePhone(value);
+    if (field === 'clientEmail') error = validateEmail(value);
+    if (field === 'eventDate') error = validateEventDate(value);
+    if (field === 'eventType') error = validateEventType(value);
+    if (field === 'message') error = validateMessage(value);
+
+    setErrors(prev => {
+      const next = { ...prev };
+      if (error) next[field] = error;
+      else delete next[field];
+      return next;
+    });
+  };
+
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!photographer || isSubmittingBooking) return;
 
-    if (!bookingForm.clientName || !bookingForm.clientPhone || !bookingForm.eventDate || !bookingForm.eventType) {
+    // ✅ Full validation
+    if (!validateAll()) {
       toast({
         variant: 'destructive',
-        title: 'Required fields missing',
-        description: 'Name, phone, event date, aur event type zaroori hain',
+        title: 'Form mein errors hain',
+        description: 'Please sahi information fill karein',
       });
       return;
     }
@@ -206,9 +353,9 @@ export default function StudioPortfolioPage() {
       const result = await createBooking({
         photographerId: photographer.userId,
         photographerSubdomain: subdomain,
-        clientName: bookingForm.clientName,
-        clientEmail: bookingForm.clientEmail,
-        clientPhone: bookingForm.clientPhone,
+        clientName: bookingForm.clientName.trim(),
+        clientEmail: bookingForm.clientEmail.trim(),
+        clientPhone: bookingForm.clientPhone.replace(/\D/g, ''),
         eventDate: bookingForm.eventDate,
         eventType: bookingForm.eventType,
         city: bookingForm.city,
@@ -234,6 +381,18 @@ export default function StudioPortfolioPage() {
     } finally {
       setIsSubmittingBooking(false);
     }
+  };
+
+  // ✅ Reset form
+  const resetForm = () => {
+    setBookingForm({
+      clientName: '', clientEmail: '', clientPhone: '',
+      eventDate: '', eventType: '', city: '', budget: '',
+      message: '', packageSelected: '',
+    });
+    setErrors({});
+    setTouched({});
+    setBookingSubmitted(false);
   };
 
   if (loading) return <HafashLoader text="Loading studio..." />;
@@ -294,6 +453,9 @@ export default function StudioPortfolioPage() {
   const services = photographer.services || [];
   const packages = photographer.packages || [];
   const videoUrl = photographer.videoUrl;
+
+  // Today's date for min attribute
+  const todayDate = new Date().toISOString().split('T')[0];
 
   return (
     <div className="min-h-screen" style={{ background: theme.colors.pageBg, color: theme.colors.bodyText }}>
@@ -626,93 +788,148 @@ export default function StudioPortfolioPage() {
                 </p>
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setBookingSubmitted(false);
-                    setBookingForm({
-                      clientName: '', clientEmail: '', clientPhone: '',
-                      eventDate: '', eventType: '', city: '', budget: '',
-                      message: '', packageSelected: '',
-                    });
-                  }}
+                  onClick={resetForm}
                   className="rounded-xl"
                 >
                   Send Another Request
                 </Button>
               </div>
             ) : (
-              <form onSubmit={handleBookingSubmit} className="space-y-5">
+              <form onSubmit={handleBookingSubmit} className="space-y-5" noValidate>
+
+                {/* NAME + PHONE */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <Label style={{ color: theme.colors.headingText }}>Your Name *</Label>
+                    <Label style={{ color: theme.colors.headingText }}>
+                      Your Name <span style={{ color: '#ef4444' }}>*</span>
+                    </Label>
                     <div className="relative">
                       <User className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
                       <Input
                         value={bookingForm.clientName}
-                        onChange={(e) => setBookingForm(prev => ({ ...prev, clientName: e.target.value }))}
+                        onChange={(e) => handleFieldChange('clientName', e.target.value)}
+                        onBlur={() => handleFieldBlur('clientName')}
                         placeholder="Full name"
-                        className="pl-10 h-12 rounded-xl"
-                        required
+                        className={cn(
+                          "pl-10 h-12 rounded-xl",
+                          touched.clientName && errors.clientName && "border-red-500 focus:border-red-500"
+                        )}
                       />
                     </div>
+                    {touched.clientName && errors.clientName && (
+                      <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.clientName}
+                      </p>
+                    )}
                   </div>
+
                   <div className="space-y-2">
-                    <Label style={{ color: theme.colors.headingText }}>Phone *</Label>
+                    <Label style={{ color: theme.colors.headingText }}>
+                      Phone <span style={{ color: '#ef4444' }}>*</span>
+                    </Label>
                     <div className="relative">
                       <Phone className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
                       <Input
                         value={bookingForm.clientPhone}
-                        onChange={(e) => setBookingForm(prev => ({ ...prev, clientPhone: e.target.value }))}
+                        onChange={(e) => handleFieldChange('clientPhone', e.target.value)}
+                        onBlur={() => handleFieldBlur('clientPhone')}
                         placeholder="03001234567"
-                        className="pl-10 h-12 rounded-xl"
-                        required
+                        className={cn(
+                          "pl-10 h-12 rounded-xl",
+                          touched.clientPhone && errors.clientPhone && "border-red-500 focus:border-red-500"
+                        )}
                       />
                     </div>
+                    {touched.clientPhone && errors.clientPhone && (
+                      <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.clientPhone}
+                      </p>
+                    )}
                   </div>
                 </div>
 
+                {/* EMAIL */}
                 <div className="space-y-2">
-                  <Label style={{ color: theme.colors.headingText }}>Email</Label>
+                  <Label style={{ color: theme.colors.headingText }}>Email (Optional)</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
                     <Input
                       type="email"
                       value={bookingForm.clientEmail}
-                      onChange={(e) => setBookingForm(prev => ({ ...prev, clientEmail: e.target.value }))}
+                      onChange={(e) => handleFieldChange('clientEmail', e.target.value)}
+                      onBlur={() => handleFieldBlur('clientEmail')}
                       placeholder="your@email.com"
-                      className="pl-10 h-12 rounded-xl"
+                      className={cn(
+                        "pl-10 h-12 rounded-xl",
+                        touched.clientEmail && errors.clientEmail && "border-red-500 focus:border-red-500"
+                      )}
                     />
                   </div>
+                  {touched.clientEmail && errors.clientEmail && (
+                    <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {errors.clientEmail}
+                    </p>
+                  )}
                 </div>
 
+                {/* DATE + TYPE */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
-                    <Label style={{ color: theme.colors.headingText }}>Event Date *</Label>
+                    <Label style={{ color: theme.colors.headingText }}>
+                      Event Date <span style={{ color: '#ef4444' }}>*</span>
+                    </Label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-3.5 w-4 h-4 opacity-50" />
                       <Input
                         type="date"
                         value={bookingForm.eventDate}
-                        onChange={(e) => setBookingForm(prev => ({ ...prev, eventDate: e.target.value }))}
-                        className="pl-10 h-12 rounded-xl"
-                        required
+                        min={todayDate}
+                        onChange={(e) => handleFieldChange('eventDate', e.target.value)}
+                        onBlur={() => handleFieldBlur('eventDate')}
+                        className={cn(
+                          "pl-10 h-12 rounded-xl",
+                          touched.eventDate && errors.eventDate && "border-red-500 focus:border-red-500"
+                        )}
                       />
                     </div>
+                    {touched.eventDate && errors.eventDate && (
+                      <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.eventDate}
+                      </p>
+                    )}
                   </div>
+
                   <div className="space-y-2">
-                    <Label style={{ color: theme.colors.headingText }}>Event Type *</Label>
+                    <Label style={{ color: theme.colors.headingText }}>
+                      Event Type <span style={{ color: '#ef4444' }}>*</span>
+                    </Label>
                     <select
                       value={bookingForm.eventType}
-                      onChange={(e) => setBookingForm(prev => ({ ...prev, eventType: e.target.value }))}
-                      className="w-full h-12 rounded-xl px-4 border"
-                      style={{ background: theme.colors.cardBg, borderColor: theme.colors.border, color: theme.colors.bodyText }}
-                      required
+                      onChange={(e) => handleFieldChange('eventType', e.target.value)}
+                      onBlur={() => handleFieldBlur('eventType')}
+                      className={cn(
+                        "w-full h-12 rounded-xl px-4 border",
+                        touched.eventType && errors.eventType && "border-red-500"
+                      )}
+                      style={{ background: theme.colors.cardBg, borderColor: touched.eventType && errors.eventType ? '#ef4444' : theme.colors.border, color: theme.colors.bodyText }}
                     >
                       <option value="">Select type</option>
                       {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
+                    {touched.eventType && errors.eventType && (
+                      <p className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.eventType}
+                      </p>
+                    )}
                   </div>
                 </div>
 
+                {/* CITY + BUDGET */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div className="space-y-2">
                     <Label style={{ color: theme.colors.headingText }}>City</Label>
@@ -737,6 +954,7 @@ export default function StudioPortfolioPage() {
                   </div>
                 </div>
 
+                {/* PACKAGE SELECTED */}
                 {bookingForm.packageSelected && (
                   <div className="p-4 rounded-xl flex items-center justify-between"
                     style={{ background: `${theme.colors.primary}10`, border: `1px solid ${theme.colors.primary}30` }}>
@@ -756,20 +974,41 @@ export default function StudioPortfolioPage() {
                   </div>
                 )}
 
+                {/* MESSAGE */}
                 <div className="space-y-2">
                   <Label style={{ color: theme.colors.headingText }}>Message (Optional)</Label>
                   <Textarea
                     value={bookingForm.message}
-                    onChange={(e) => setBookingForm(prev => ({ ...prev, message: e.target.value }))}
+                    onChange={(e) => handleFieldChange('message', e.target.value)}
+                    onBlur={() => handleFieldBlur('message')}
                     placeholder="Apne event ke baare mein kuch batayein..."
-                    className="rounded-xl min-h-[100px]"
+                    className={cn(
+                      "rounded-xl min-h-[100px]",
+                      touched.message && errors.message && "border-red-500 focus:border-red-500"
+                    )}
+                    maxLength={500}
                   />
+                  <div className="flex justify-between items-center">
+                    {touched.message && errors.message ? (
+                      <p className="text-xs text-red-500 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        {errors.message}
+                      </p>
+                    ) : <span />}
+                    <p className="text-[10px] text-muted-foreground">
+                      {bookingForm.message.length}/500
+                    </p>
+                  </div>
                 </div>
 
+                {/* SUBMIT */}
                 <Button
                   type="submit"
-                  disabled={isSubmittingBooking}
-                  className="w-full h-14 rounded-xl font-bold text-base gap-2"
+                  disabled={isSubmittingBooking || !isFormValid}
+                  className={cn(
+                    "w-full h-14 rounded-xl font-bold text-base gap-2 transition-all",
+                    !isFormValid && "opacity-50 cursor-not-allowed"
+                  )}
                   style={{ background: theme.colors.primary, color: theme.colors.primaryText }}
                 >
                   {isSubmittingBooking ? (
@@ -778,6 +1017,12 @@ export default function StudioPortfolioPage() {
                     <><Send className="w-5 h-5" /> Send Booking Request</>
                   )}
                 </Button>
+
+                {!isFormValid && (
+                  <p className="text-xs text-center text-muted-foreground italic">
+                    Please sahi information fill karein — submit button enable hoga
+                  </p>
+                )}
               </form>
             )}
           </Card>
