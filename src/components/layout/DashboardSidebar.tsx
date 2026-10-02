@@ -21,6 +21,8 @@ import {
   Send,
   Inbox,
   Sparkles,
+  CalendarCheck,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -34,6 +36,7 @@ const MENU_SECTIONS = [
     label: 'Main',
     items: [
       { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard', priority: true },
+      { icon: CalendarCheck, label: 'Bookings', href: '/dashboard/bookings', priority: true, showBadge: true },
       { icon: Users, label: 'Clients', href: '/clients', priority: true },
     ],
   },
@@ -48,7 +51,7 @@ const MENU_SECTIONS = [
   {
     label: 'Billing',
     items: [
-      { icon: CreditCard, label: 'Payments', href: '/payments', priority: true },
+      { icon: Wallet, label: 'Payments', href: '/dashboard/payments', priority: true, showPaymentBadge: true },
       { icon: HardDrive, label: 'Storage', href: '/storage', priority: true },
       { icon: Settings, label: 'Settings', href: '/settings', priority: false },
     ],
@@ -106,6 +109,45 @@ export function DashboardSidebar() {
 
   const { data: profile } = useDoc(profileRef);
 
+  // ✅ Pending bookings count
+  const pendingBookingsQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'bookings'),
+      where('photographerId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+  }, [firestore, user?.uid]);
+
+  const { data: pendingBookings } = useCollection(pendingBookingsQuery);
+  const pendingBookingsCount = pendingBookings?.length || 0;
+
+  // ✅ Overdue payments count
+  const allBookingsQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'bookings'),
+      where('photographerId', '==', user.uid)
+    );
+  }, [firestore, user?.uid]);
+
+  const { data: allBookings } = useCollection(allBookingsQuery);
+
+  const overduePaymentsCount = useMemo(() => {
+    if (!allBookings) return 0;
+    const now = new Date();
+    let count = 0;
+    allBookings.forEach((b: any) => {
+      if (b.status === 'auto_cancelled' || b.status === 'manually_cancelled') return;
+      (b.invoice?.paymentSchedule || []).forEach((p: any) => {
+        if (p.status !== 'paid' && p.dueDate && new Date(p.dueDate) < now) {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [allBookings]);
+
   const incomingQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(
@@ -126,7 +168,6 @@ export function DashboardSidebar() {
   const { data: myNetworkProfile } = useDoc(networkProfileRef);
   const hasNetworkProfile = !!myNetworkProfile;
 
-  // Saved profiles count
   const savedCount = profile?.savedNetworkProfiles?.length || 0;
 
   const currentPlan = useMemo(() => {
@@ -195,8 +236,10 @@ export function DashboardSidebar() {
               {section.label}
             </p>
 
-            {section.items.map((item) => {
+            {section.items.map((item: any) => {
               const isActive = pathname === item.href;
+              const showBookingBadge = item.showBadge && pendingBookingsCount > 0;
+              const showPaymentBadge = item.showPaymentBadge && overduePaymentsCount > 0;
               return (
                 <Link key={item.href} href={item.href} prefetch={item.priority}>
                   <Button
@@ -206,8 +249,18 @@ export function DashboardSidebar() {
                       isActive && "bg-primary/10 text-primary font-bold"
                     )}
                   >
-                    <item.icon className="w-4 h-4" />
-                    <span>{item.label}</span>
+                    <item.icon className="w-4 h-4 shrink-0" />
+                    <span className="flex-1 text-left">{item.label}</span>
+                    {showBookingBadge && (
+                      <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                        {pendingBookingsCount > 9 ? '9+' : pendingBookingsCount}
+                      </span>
+                    )}
+                    {showPaymentBadge && (
+                      <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-white text-[10px] font-bold flex items-center justify-center animate-pulse">
+                        {overduePaymentsCount > 9 ? '9+' : overduePaymentsCount}
+                      </span>
+                    )}
                   </Button>
                 </Link>
               );

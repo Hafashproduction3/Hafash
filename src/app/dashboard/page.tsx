@@ -33,6 +33,7 @@ import {
   Eye,
   Building2,
 } from 'lucide-react';
+import { PaymentWidget } from '@/components/dashboard/PaymentWidget';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -59,6 +60,7 @@ import { deleteGalleryFiles } from '@/app/actions/storage';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserPlan, calculateUsageGb, isOwnerEmail } from '@/lib/plans';
+import type { Booking } from '@/lib/portfolio-types';
 
 export default function DashboardPage() {
   const firestore = useFirestore();
@@ -108,6 +110,16 @@ export default function DashboardPage() {
   }, [firestore, user?.uid]);
   const { data: pendingBookings } = useCollection(pendingBookingsQuery);
   const pendingBookingsCount = pendingBookings?.length || 0;
+
+  // ─── Bookings (for Payment Widget) ───
+  const bookingsQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'bookings'),
+      where('photographerId', '==', user.uid)
+    );
+  }, [firestore, user?.uid]);
+  const { data: bookingsForWidget } = useCollection(bookingsQuery);
 
   // ─── Network: Outgoing accepted ───
   const outgoingQuery = useMemo(() => {
@@ -487,6 +499,11 @@ export default function DashboardPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ═══ PAYMENT WIDGET ═══ */}
+      {!dataLoading && bookingsForWidget && bookingsForWidget.length > 0 && (
+        <PaymentWidget bookings={bookingsForWidget as unknown as Booking[]} />
       )}
 
       {/* ═══ NETWORK WIDGET ═══ */}
@@ -957,9 +974,9 @@ export default function DashboardPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // Network Stat Card
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 
 function NetworkStatCard({
   icon,
@@ -1050,9 +1067,9 @@ function NetworkStatCard({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // Location Stat Card
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 
 function LocationStatCard({
   icon,
@@ -1115,9 +1132,9 @@ function LocationStatCard({
   );
 }
 
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 // Stat Card (Gallery stats)
-// ─────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
 
 function StatCard({
   label,
