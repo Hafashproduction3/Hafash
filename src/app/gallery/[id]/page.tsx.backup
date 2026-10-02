@@ -735,9 +735,11 @@ export default function ClientGalleryPage() {
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
   const isCustomBrandingActive = photographerPlan !== 'starter';
   const studioName = gallery.studioName || profile?.studioName || 'Professional Studio';
-  const studioLogo = gallery.studioLogo || profile?.studioLogo;
+  const studioLogo = freshBranding.studioLogo || gallery.studioLogo || profile?.studioLogo;
   const whatsappNumber = gallery.whatsappNumber || profile?.whatsappNumber;
-  const effectiveHeroImage = (isCustomBrandingActive && profile?.studioBanner) ? profile.studioBanner : (gallery.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
+  const effectiveHeroImage = (isCustomBrandingActive && (freshBranding.studioBanner || profile?.studioBanner)) 
+    ? (freshBranding.studioBanner || profile?.studioBanner)
+    : (gallery.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
   const hasNoteContent = !!(gallery.photographerNote || gallery.welcomeTitle || gallery.welcomeMessage);
 
   // 🎬 Cinematic Intro
