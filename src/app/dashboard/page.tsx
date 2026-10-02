@@ -13,6 +13,7 @@ import {
   MoreVertical,
   Camera,
   Calendar as CalendarIcon,
+  CalendarDays,
   User as UserIcon,
   Heart,
   ArrowRight,
@@ -95,6 +96,18 @@ export default function DashboardPage() {
   }, [firestore, user?.uid]);
   const { data: incomingRequests } = useCollection(incomingQuery);
   const pendingCount = incomingRequests?.length || 0;
+
+  // ─── Pending Bookings ───
+  const pendingBookingsQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, 'bookings'),
+      where('photographerId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+  }, [firestore, user?.uid]);
+  const { data: pendingBookings } = useCollection(pendingBookingsQuery);
+  const pendingBookingsCount = pendingBookings?.length || 0;
 
   // ─── Network: Outgoing accepted ───
   const outgoingQuery = useMemo(() => {
@@ -222,7 +235,6 @@ export default function DashboardPage() {
     return typeof raw?.toDate === 'function' ? raw.toDate() : new Date(raw);
   }, [profile?.planExpiryDate]);
   const hasActivePlan = useMemo(() => {
-    // 👑 Owner bypass
     if (isOwnerEmail(user?.email)) return true;
     
     if (!profile?.planId || currentPlan.id === 'none') return false;
@@ -230,7 +242,6 @@ export default function DashboardPage() {
     return planExpiryDate.getTime() > Date.now();
   }, [profile?.planId, currentPlan.id, planExpiryDate, user?.email]);
 
-  // ✅ Days left calculation
   const daysUntilExpiry = useMemo(() => {
     if (!planExpiryDate) return null;
     return Math.ceil((planExpiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -369,16 +380,33 @@ export default function DashboardPage() {
                 <ArrowRight className="w-3.5 h-3.5 text-emerald-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
               </Button>
             </Link>
+
             <Link href="/drive">
-  <Button
-    variant="outline"
-    className="rounded-2xl h-12 px-6 border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 hover:border-blue-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
-  >
-    <HardDrive className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
-    <span className="text-[13px]">Hafash Drive</span>
-    <ArrowRight className="w-3.5 h-3.5 text-blue-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
-  </Button>
-</Link>
+              <Button
+                variant="outline"
+                className="rounded-2xl h-12 px-6 border-blue-500/30 bg-blue-500/5 hover:bg-blue-500/10 hover:border-blue-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
+              >
+                <HardDrive className="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" />
+                <span className="text-[13px]">Hafash Drive</span>
+                <ArrowRight className="w-3.5 h-3.5 text-blue-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+              </Button>
+            </Link>
+
+            <Link href="/dashboard/bookings">
+              <Button
+                variant="outline"
+                className="rounded-2xl h-12 px-6 border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 hover:border-amber-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
+              >
+                <CalendarDays className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+                <span className="text-[13px]">Bookings</span>
+                {pendingBookingsCount > 0 && (
+                  <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-black text-[10px] font-bold flex items-center justify-center">
+                    {pendingBookingsCount}
+                  </span>
+                )}
+                <ArrowRight className="w-3.5 h-3.5 text-amber-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -386,7 +414,6 @@ export default function DashboardPage() {
       {/* ═══ PLAN EXPIRY WARNING BANNER ═══ */}
       {!profileLoading && daysUntilExpiry !== null && !isOwnerEmail(user?.email) && (
         <>
-          {/* ❌ Plan Expired */}
           {daysUntilExpiry < 0 && (
             <div className="relative overflow-hidden rounded-2xl border border-red-500/40 bg-red-500/10 p-5 shadow-lg">
               <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-red-500/10 blur-3xl pointer-events-none" />
@@ -412,7 +439,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* 🟠 3 din ya kam */}
           {daysUntilExpiry >= 0 && daysUntilExpiry <= 3 && (
             <div className="relative overflow-hidden rounded-2xl border border-orange-500/40 bg-orange-500/10 p-5 shadow-lg animate-pulse">
               <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-orange-500/10 blur-3xl pointer-events-none" />
@@ -438,7 +464,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* 🟡 7 din ya kam */}
           {daysUntilExpiry > 3 && daysUntilExpiry <= 7 && (
             <div className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
               <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
