@@ -1,13 +1,34 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useUser, useFirestore, useCollection } from "@/firebase";
-import { collection, query, where, deleteDoc, doc } from "firebase/firestore";
 import {
-  Home, Plus, Eye, Star, MapPin, Edit, Trash2, ArrowRight,
-  Sparkles, Camera, BadgeCheck, Clock, DollarSign, Loader2,
-  AlertCircle, LayoutGrid, Building2
+  collection,
+  query,
+  where,
+  deleteDoc,
+  doc,
+  getDoc,
+} from "firebase/firestore";
+import {
+  Home,
+  Plus,
+  Eye,
+  Star,
+  MapPin,
+  Edit,
+  Trash2,
+  ArrowRight,
+  Sparkles,
+  Camera,
+  BadgeCheck,
+  Clock,
+  DollarSign,
+  Loader2,
+  AlertCircle,
+  LayoutGrid,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,7 +37,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { getCategoryInfo, formatTime12h } from "@/lib/locations";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 
 export default function LocationDashboardLocationsPage() {
   const { user } = useUser();
@@ -42,16 +62,54 @@ export default function LocationDashboardLocationsPage() {
     });
   }, [locations]);
 
+  // ═══════════════════════════════════════════════════════════════
+  // DELETE — Firestore doc + R2 photos
+  // ═══════════════════════════════════════════════════════════════
   const handleDelete = async (locationId: string, name: string) => {
     if (!firestore) return;
     if (!confirm(`"${name}" delete karein? Yeh action undo nahi ho sakti.`)) return;
 
     setDeletingId(locationId);
     try {
+      // ─── Step 1: Location doc fetch karein (photos nikalne ke liye) ───
+      const locationRef = doc(firestore, "shootLocations", locationId);
+      const locationSnap = await getDoc(locationRef);
+
+      if (locationSnap.exists()) {
+        const locationData = locationSnap.data();
+        const photos = locationData.photos || [];
+
+        // ─── Step 2: R2 se photos delete karein (agar storageKey hai) ───
+        if (photos.length > 0) {
+          const keys = photos
+            .map((p: any) => p.storageKey)
+            .filter((k: string) => k && k.trim());
+
+          if (keys.length > 0) {
+            try {
+              const response = await fetch("/api/delete-photos", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ keys }),
+              });
+
+              if (!response.ok) {
+                console.warn("R2 delete failed, but continuing with Firestore...");
+              }
+            } catch (r2Err) {
+              console.warn("R2 delete error:", r2Err);
+              // R2 fail ho to bhi Firestore doc delete karein
+            }
+          }
+        }
+      }
+
+      // ─── Step 3: Firestore doc delete karein ───
       await deleteDoc(doc(firestore, "shootLocations", locationId));
+
       toast({
-        title: "Location deleted",
-        description: `"${name}" remove ho gayi.`,
+        title: "✅ Location deleted",
+        description: `"${name}" aur uski photos remove ho gayi.`,
       });
     } catch (err: any) {
       toast({
@@ -66,7 +124,6 @@ export default function LocationDashboardLocationsPage() {
 
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-700">
-
       {/* ═══ HEADER ═══ */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 border-b border-border/30 pb-8">
         <div className="space-y-3">
@@ -129,7 +186,6 @@ export default function LocationDashboardLocationsPage() {
           ))}
         </div>
       )}
-
     </div>
   );
 }
@@ -156,7 +212,6 @@ function LocationManageCard({
     <Card className="bg-card/60 border-border/40 rounded-2xl overflow-hidden hover:border-primary/40 transition-all group">
       <CardContent className="p-0">
         <div className="flex gap-4">
-
           {/* Cover Photo */}
           <div className="w-32 h-32 lg:w-40 lg:h-40 relative shrink-0 bg-muted overflow-hidden">
             {cover ? (
@@ -182,17 +237,20 @@ function LocationManageCard({
 
           {/* Info */}
           <div className="flex-1 p-4 min-w-0 flex flex-col">
-
             <div className="flex-1 space-y-2">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="font-headline font-bold text-base truncate">{location.name}</h3>
-                <Badge className={cn(
-                  "text-[9px] font-bold uppercase tracking-widest shrink-0",
-                  location.isActive
-                    ? "bg-green-500/20 text-green-400 border-green-500/30"
-                    : "bg-muted text-muted-foreground border-border/30"
-                )}>
-                  {location.isActive ? 'Active' : 'Inactive'}
+                <h3 className="font-headline font-bold text-base truncate">
+                  {location.name}
+                </h3>
+                <Badge
+                  className={cn(
+                    "text-[9px] font-bold uppercase tracking-widest shrink-0",
+                    location.isActive
+                      ? "bg-green-500/20 text-green-400 border-green-500/30"
+                      : "bg-muted text-muted-foreground border-border/30"
+                  )}
+                >
+                  {location.isActive ? "Active" : "Inactive"}
                 </Badge>
               </div>
 
@@ -242,7 +300,11 @@ function LocationManageCard({
                 </Button>
               </Link>
 
-              <Link href="/locations/join" className="flex-1">
+              {/* ✅ EDIT — ab dedicated edit page pe jayega */}
+              <Link
+                href={`/location-dashboard/locations/${location.id}/edit`}
+                className="flex-1"
+              >
                 <Button
                   size="sm"
                   variant="ghost"
@@ -268,7 +330,6 @@ function LocationManageCard({
               </Button>
             </div>
           </div>
-
         </div>
       </CardContent>
     </Card>
