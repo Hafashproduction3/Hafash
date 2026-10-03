@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useFirestore, useDoc } from '@/firebase';
 import { sendEmailVerification, signOut } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
 import { Mail, Loader2, RefreshCw, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -12,20 +13,37 @@ import { HafashLoader } from '@/components/ui/hafash-loader';
 export default function VerifyEmailPage() {
   const { user, loading } = useUser();
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [resending, setResending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // ─── Profile fetch (role check ke liye) ───
+  const profileRef = useMemo(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user?.uid]);
+  const { data: profile, loading: profileLoading } = useDoc(profileRef);
+
+  // ─── Redirect role ke hisaab se ───
+  const redirectByRole = () => {
+    if (profile?.role === 'location-owner') {
+      router.push('/location-dashboard');
+    } else {
+      router.push('/dashboard');
+    }
+  };
+
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !profileLoading) {
       if (!user) {
         router.push('/login');
-      } else if (user.emailVerified) {
-        router.push('/dashboard');
+      } else if (user.emailVerified && profile) {
+        redirectByRole();
       }
     }
-  }, [user, loading, router]);
+  }, [user, loading, profile, profileLoading, router]);
 
   const handleResend = async () => {
     if (!user) return;
@@ -57,7 +75,10 @@ export default function VerifyEmailPage() {
           title: "Verified",
           description: "Your email has been successfully verified.",
         });
-        router.push('/dashboard');
+        // Profile load hone ka intezar karein, phir redirect
+        setTimeout(() => {
+          redirectByRole();
+        }, 500);
       } else {
         toast({
           description: "Email not yet verified. Please check your inbox.",
@@ -79,7 +100,7 @@ export default function VerifyEmailPage() {
     router.push('/login');
   };
 
-  if (loading) return (
+  if (loading || profileLoading) return (
     <HafashLoader text="Securing Studio Access..." />
   );
 

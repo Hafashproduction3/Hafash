@@ -44,6 +44,8 @@ import {
 import { requestUploadUrl, getMusicSignedUrl } from "@/app/actions/storage";
 
 const MAX_PHOTOS = 10;
+const MAX_FILE_SIZE_MB = 20;                                    // ← NAYA
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;     // ← NAYA
 
 interface UploadedPhoto {
   url: string;
@@ -163,6 +165,23 @@ export default function LocationJoinPage() {
       return;
     }
 
+    // ═══ 20MB CHECK — Upload se pehle ═══
+    const oversizedFiles = files.filter(
+      (f) => f.size > MAX_FILE_SIZE_BYTES
+    );
+
+    if (oversizedFiles.length > 0) {
+      const names = oversizedFiles
+        .map((f) => `${f.name} (${(f.size / 1024 / 1024).toFixed(1)}MB)`)
+        .join(", ");
+      toast({
+        variant: "destructive",
+        title: "File 20MB se zyada hai",
+        description: `${names} — 20MB tak allowed hai.`,
+      });
+      return;
+    }
+
     setUploading(true);
     setUploadProgress(0);
 
@@ -178,6 +197,16 @@ export default function LocationJoinPage() {
 
         // Compress
         const compressed = await compressImage(file, 1200, 0.8);
+
+        // Double-check after compression
+        if (compressed.size > MAX_FILE_SIZE_BYTES) {
+          toast({
+            variant: "destructive",
+            title: `${file.name} compress ke baad bhi 20MB se zyada hai`,
+            description: "Chhoti image try karein.",
+          });
+          continue;
+        }
 
         // Get signed URL
         const { success, uploadUrl, key, error } = await requestUploadUrl({
@@ -232,8 +261,6 @@ export default function LocationJoinPage() {
     const photo = photos[idx];
     if (!photo) return;
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
-    // Optionally delete from R2 (silent)
-    // Skip for now to avoid complexity
   };
 
   // ─── Save ───
@@ -644,6 +671,9 @@ export default function LocationJoinPage() {
             <p className="text-xs text-muted-foreground mt-1">
               Location ki khoobsurat tasveerein upload karein. Auto-compressed hongi.
             </p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400 mt-1">
+              ⚠️ Max 20MB per photo
+            </p>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
 
@@ -675,7 +705,7 @@ export default function LocationJoinPage() {
                     <Upload className="w-8 h-8 text-primary mb-2" />
                     <p className="text-sm font-bold">Click to upload photos</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      JPG / PNG • Auto-compressed to 1200px
+                      JPG / PNG • Max 20MB • Auto-compressed to 1200px
                     </p>
                   </>
                 )}

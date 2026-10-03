@@ -87,6 +87,13 @@ export default function DashboardPage() {
   }, [firestore, user?.uid]);
   const { data: profile, loading: profileLoading } = useDoc(profileRef);
 
+  // ═══ ROLE CHECK — Location owner ko redirect karein ═══
+  useEffect(() => {
+    if (profile && profile.role === 'location-owner') {
+      router.replace('/location-dashboard');
+    }
+  }, [profile, router]);
+
   // ─── Network: Incoming requests ───
   const incomingQuery = useMemo(() => {
     if (!firestore || !user) return null;
