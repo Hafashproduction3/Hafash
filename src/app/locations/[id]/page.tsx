@@ -4,7 +4,7 @@ import { useMemo, useState, useCallback, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useUser, useFirestore, useDoc } from "@/firebase";
-import { doc, setDoc, serverTimestamp, addDoc, collection, getDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp, addDoc, collection } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -125,7 +125,6 @@ export default function LocationDetailPage() {
     toast({ title: "Link copied!" });
   }, [toast]);
 
-  // Increment views counter
   useEffect(() => {
     if (!firestore || !locationId || !location) return;
 
@@ -159,9 +158,6 @@ export default function LocationDetailPage() {
     setShowChat(true);
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // OPEN BOOKING MODAL
-  // ═══════════════════════════════════════════════════════════════
   const handleOpenBooking = () => {
     if (!user) {
       toast({
@@ -223,7 +219,6 @@ export default function LocationDetailPage() {
     <div className="min-h-screen bg-background pb-20">
       <div className="max-w-5xl mx-auto p-5 lg:p-10 space-y-6">
 
-        {/* Back */}
         <Button
           variant="ghost"
           className="rounded-xl gap-2 text-muted-foreground hover:text-foreground"
@@ -252,7 +247,6 @@ export default function LocationDetailPage() {
                   <h1 className="text-3xl lg:text-4xl font-headline font-bold tracking-tight">
                     {location.name}
                   </h1>
-
                   {categoryInfo && (
                     <div className="flex items-center gap-2 mt-2">
                       <Badge className="rounded-lg bg-primary/10 text-primary border-primary/30 gap-1.5 px-3 py-1 text-xs font-bold">
@@ -380,10 +374,7 @@ export default function LocationDetailPage() {
 
         {/* MAIN GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-6">
-
-          {/* LEFT COLUMN */}
           <div className="space-y-6">
-
             {location.description && (
               <SectionCard title="About" icon={<Info className="w-4 h-4" />}>
                 <p className="text-sm leading-7 text-muted-foreground whitespace-pre-wrap">
@@ -430,7 +421,6 @@ export default function LocationDetailPage() {
                     <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
                       Time slots for {format(selectedDate, "EEE, dd MMM yyyy")}
                     </p>
-
                     {availableSlots.length === 0 ? (
                       <p className="text-sm text-muted-foreground italic py-4 text-center">
                         No slots available
@@ -482,12 +472,10 @@ export default function LocationDetailPage() {
                 </li>
               </ul>
             </SectionCard>
-
           </div>
 
           {/* RIGHT SIDEBAR */}
           <div className="space-y-6">
-
             <Card className="rounded-[2rem] border-primary/30 bg-gradient-to-br from-primary/10 via-card/80 to-background shadow-xl overflow-hidden sticky top-6">
               <div className="h-1 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
 
@@ -526,7 +514,6 @@ export default function LocationDetailPage() {
                         <CalendarCheck className="w-4 h-4" />
                         Book Now
                       </Button>
-
                       <Button
                         variant="outline"
                         className="w-full rounded-xl h-12 font-bold gap-2 border-primary/30 hover:bg-primary/5"
@@ -535,7 +522,6 @@ export default function LocationDetailPage() {
                         <MessageSquare className="w-4 h-4" />
                         Chat with Owner
                       </Button>
-
                       <Button
                         variant="outline"
                         className="w-full rounded-xl h-12 font-bold gap-2 border-primary/30 hover:bg-primary/5"
@@ -544,7 +530,6 @@ export default function LocationDetailPage() {
                         <Wallet className="w-4 h-4" />
                         View Payment Details
                       </Button>
-
                       {location.whatsappNumber && (
                         <Button
                           variant="outline"
@@ -593,10 +578,7 @@ export default function LocationDetailPage() {
                     rel="noopener noreferrer"
                     className="block"
                   >
-                    <Button
-                      variant="outline"
-                      className="w-full rounded-xl h-10 gap-2 text-xs"
-                    >
+                    <Button variant="outline" className="w-full rounded-xl h-10 gap-2 text-xs">
                       <MapPin className="w-3.5 h-3.5" />
                       Open in Google Maps
                     </Button>
@@ -618,7 +600,6 @@ export default function LocationDetailPage() {
                 )}
               </div>
             </SectionCard>
-
           </div>
         </div>
       </div>
@@ -637,11 +618,9 @@ export default function LocationDetailPage() {
           >
             <X className="w-6 h-6" />
           </Button>
-
           <div className="absolute top-6 left-6 z-30 px-4 py-2 rounded-full bg-black/60 backdrop-blur-xl text-white text-xs font-bold">
             {selectedPhotoIdx + 1} / {photos.length}
           </div>
-
           {photos.length > 1 && (
             <>
               <Button
@@ -672,7 +651,6 @@ export default function LocationDetailPage() {
               </Button>
             </>
           )}
-
           <img
             src={photos[selectedPhotoIdx].url}
             alt="Fullscreen"
@@ -700,65 +678,36 @@ export default function LocationDetailPage() {
                   </div>
                   <div>
                     <h2 className="font-headline font-bold text-lg">Payment Details</h2>
-                    <p className="text-xs text-muted-foreground">
-                      Direct owner ko payment karein
-                    </p>
+                    <p className="text-xs text-muted-foreground">Direct owner ko payment karein</p>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full"
-                  onClick={() => setShowPayment(false)}
-                >
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setShowPayment(false)}>
                   <X className="w-5 h-5" />
                 </Button>
               </div>
-
               <div className="space-y-3">
                 {payment.easypaisa && (
-                  <PaymentRow
-                    label="EasyPaisa"
-                    value={payment.easypaisa}
-                    copied={copiedField === "easypaisa"}
-                    onCopy={() => handleCopy(payment.easypaisa!, "easypaisa")}
-                    emoji="💚"
-                  />
+                  <PaymentRow label="EasyPaisa" value={payment.easypaisa} copied={copiedField === "easypaisa"} onCopy={() => handleCopy(payment.easypaisa!, "easypaisa")} emoji="💚" />
                 )}
                 {payment.jazzcash && (
-                  <PaymentRow
-                    label="JazzCash"
-                    value={payment.jazzcash}
-                    copied={copiedField === "jazzcash"}
-                    onCopy={() => handleCopy(payment.jazzcash!, "jazzcash")}
-                    emoji="❤️"
-                  />
+                  <PaymentRow label="JazzCash" value={payment.jazzcash} copied={copiedField === "jazzcash"} onCopy={() => handleCopy(payment.jazzcash!, "jazzcash")} emoji="❤️" />
                 )}
                 {payment.bankAccount && (
-                  <PaymentRow
-                    label={`${payment.bankName || "Bank"} - ${payment.bankAccountName || ""}`}
-                    value={payment.bankAccount}
-                    copied={copiedField === "bank"}
-                    onCopy={() => handleCopy(payment.bankAccount!, "bank")}
-                    emoji="🏦"
-                  />
+                  <PaymentRow label={`${payment.bankName || "Bank"} - ${payment.bankAccountName || ""}`} value={payment.bankAccount} copied={copiedField === "bank"} onCopy={() => handleCopy(payment.bankAccount!, "bank")} emoji="🏦" />
                 )}
               </div>
-
               {payment.additionalNote && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
                   <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <p className="text-xs text-amber-200">{payment.additionalNote}</p>
                 </div>
               )}
-
               <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20">
                 <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
                   Payment complete karne ke baad owner ko chat mein batayein. Owner booking confirm karega.
                 </p>
               </div>
-
               <Button
                 className="w-full rounded-xl h-12 font-bold gap-2 bg-primary text-primary-foreground"
                 onClick={() => {
@@ -774,9 +723,7 @@ export default function LocationDetailPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════════ */}
       {/* BOOKING MODAL */}
-      {/* ═══════════════════════════════════════════════════════════ */}
       {showBooking && (
         <BookingModal
           location={location}
@@ -798,13 +745,12 @@ export default function LocationDetailPage() {
           firestore={firestore}
         />
       )}
-
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────
-// BOOKING MODAL — NAYA COMPONENT
+// BOOKING MODAL
 // ─────────────────────────────────────────────────────────────
 
 function BookingModal({
@@ -825,7 +771,6 @@ function BookingModal({
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
 
-  // Form fields
   const [clientName, setClientName] = useState(user?.displayName || "");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState(user?.email || "");
@@ -835,20 +780,11 @@ function BookingModal({
   const [message, setMessage] = useState("");
 
   const EVENT_TYPES = [
-    "Wedding",
-    "Barat",
-    "Walima",
-    "Mehndi",
-    "Nikah",
-    "Engagement",
-    "Birthday",
-    "Corporate Event",
-    "Portrait Session",
-    "Other",
+    "Wedding", "Barat", "Walima", "Mehndi", "Nikah",
+    "Engagement", "Birthday", "Corporate Event", "Portrait Session", "Other",
   ];
 
   const handleSubmit = async () => {
-    // Validation
     if (!clientName.trim()) {
       toast({ variant: "destructive", title: "Client name required" });
       return;
@@ -868,13 +804,13 @@ function BookingModal({
 
     setSubmitting(true);
     try {
-      // Calculate hours from slot
       const startIdx = OPENING_HOURS.indexOf(selectedSlot.start);
       const endIdx = OPENING_HOURS.indexOf(selectedSlot.end);
       const hours = Math.max(1, endIdx - startIdx);
       const totalAmount = hours * (location.hourlyRate || 0);
 
-      // Create booking
+      const now = new Date().toISOString();
+
       const bookingData = {
         ownerId: location.ownerId,
         locationId: locationId,
@@ -898,8 +834,8 @@ function BookingModal({
         message: message.trim(),
 
         status: "pending",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: now,
+        updatedAt: now,
       };
 
       const bookingRef = await addDoc(
@@ -907,17 +843,16 @@ function BookingModal({
         bookingData
       );
 
-      // ═══ NOTIFICATION TO OWNER ═══
       try {
         await addDoc(collection(firestore, "notifications"), {
           userId: location.ownerId,
           recipientId: location.ownerId,
           type: "new_booking",
           title: "🎉 Nayi Booking Request",
-          message: `${clientName} ne ${location.name} book ki — Rs. ${totalAmount.toLocaleString()} (${formatTime12h(selectedSlot.start)} - ${formatTime12h(selectedSlot.end)})`,
+          message: `${clientName} ne ${location.name} book ki — Rs. ${totalAmount.toLocaleString()}`,
           link: "/location-dashboard/bookings",
           read: false,
-          createdAt: serverTimestamp(),
+          createdAt: now,
           metadata: {
             bookingId: bookingRef.id,
             locationId,
@@ -937,6 +872,7 @@ function BookingModal({
 
       onClose();
     } catch (err: any) {
+      console.error("[BOOKING] Error:", err);
       toast({
         variant: "destructive",
         title: "Booking failed",
@@ -947,7 +883,6 @@ function BookingModal({
     }
   };
 
-  // Filter available (non-booked) slots
   const bookableSlots = availableSlots.filter((s) => !s.isBooked);
 
   return (
@@ -960,8 +895,6 @@ function BookingModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-7 space-y-5">
-
-          {/* Header */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
@@ -977,10 +910,7 @@ function BookingModal({
             </Button>
           </div>
 
-          {/* Form */}
           <div className="space-y-4">
-
-            {/* Name */}
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
                 Aapka Naam *
@@ -996,7 +926,6 @@ function BookingModal({
               </div>
             </div>
 
-            {/* Phone + Email */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
@@ -1012,7 +941,6 @@ function BookingModal({
                   />
                 </div>
               </div>
-
               <div className="space-y-2">
                 <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
                   Email
@@ -1030,7 +958,6 @@ function BookingModal({
               </div>
             </div>
 
-            {/* Date */}
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
                 Event Date *
@@ -1044,7 +971,6 @@ function BookingModal({
               />
             </div>
 
-            {/* Time Slot */}
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
                 Time Slot *
@@ -1074,7 +1000,6 @@ function BookingModal({
               )}
             </div>
 
-            {/* Event Type */}
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
                 Event Type
@@ -1085,14 +1010,11 @@ function BookingModal({
                 className="w-full h-11 px-3 rounded-xl border border-input bg-background/50 text-sm"
               >
                 {EVENT_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
+                  <option key={type} value={type}>{type}</option>
                 ))}
               </select>
             </div>
 
-            {/* Message */}
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
                 Message (Optional)
@@ -1106,7 +1028,6 @@ function BookingModal({
               />
             </div>
 
-            {/* Amount preview */}
             {selectedSlot && (
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-1">
                 <div className="flex items-center justify-between text-xs">
@@ -1131,7 +1052,6 @@ function BookingModal({
               </div>
             )}
 
-            {/* Submit */}
             <Button
               onClick={handleSubmit}
               disabled={submitting}
@@ -1239,7 +1159,6 @@ function ChatModal({
         { merge: true }
       );
 
-      // ═══ NOTIFICATION ═══
       try {
         await addDoc(collection(firestore, "notifications"), {
           userId: location.ownerId,
@@ -1289,7 +1208,6 @@ function ChatModal({
         { merge: true }
       );
 
-      // ═══ NOTIFICATION ═══
       try {
         await addDoc(collection(firestore, "notifications"), {
           userId: location.ownerId,
@@ -1329,7 +1247,6 @@ function ChatModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-7 space-y-4">
-
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
@@ -1404,7 +1321,6 @@ function ChatModal({
               </Button>
             </div>
           </div>
-
         </div>
       </Card>
     </div>
@@ -1478,12 +1394,7 @@ function PaymentRow({
         <span className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground flex items-center gap-1.5">
           <span>{emoji}</span> {label}
         </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-7 gap-1.5 rounded-lg text-xs"
-          onClick={onCopy}
-        >
+        <Button size="sm" variant="ghost" className="h-7 gap-1.5 rounded-lg text-xs" onClick={onCopy}>
           {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
           {copied ? "Copied" : "Copy"}
         </Button>
