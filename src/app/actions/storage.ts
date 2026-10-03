@@ -79,7 +79,15 @@ export async function requestUploadUrl({
     const subscription = getSubscriptionInfo(userData);
     console.log(`[DEBUG] Subscription: ${subscription.state} | ${subscription.planName}`);
 
-    if (subscription.state !== "active") {
+    // ═══════════════════════════════════════════════════════════════
+    // ✅ ROLE CHECK — Location Owner ko FREE upload
+    // Location Owner ke liye subscription check SKIP karein
+    // ═══════════════════════════════════════════════════════════════
+    const isLocationOwner = rawData.role === 'location-owner';
+
+    console.log(`[DEBUG] Role: ${rawData.role || 'unknown'} | isLocationOwner: ${isLocationOwner}`);
+
+    if (!isLocationOwner && subscription.state !== "active") {
       return {
         success: false,
         error: subscription.state === "grace"
@@ -88,14 +96,17 @@ export async function requestUploadUrl({
       };
     }
 
-    const stats = await getStorageStats(userId);
-    const incomingSizeGb = fileSize / (1024 * 1024 * 1024);
-    
-    if ((stats.usedGb + incomingSizeGb) > stats.totalGb) {
-      return { 
-        success: false, 
-        error: `Storage quota exceeded. Your ${stats.planName} plan limit is ${stats.totalGb}GB.` 
-      };
+    // ═══ STORAGE QUOTA CHECK — Sirf Photographer ke liye ═══
+    if (!isLocationOwner) {
+      const stats = await getStorageStats(userId);
+      const incomingSizeGb = fileSize / (1024 * 1024 * 1024);
+      
+      if ((stats.usedGb + incomingSizeGb) > stats.totalGb) {
+        return { 
+          success: false, 
+          error: `Storage quota exceeded. Your ${stats.planName} plan limit is ${stats.totalGb}GB.` 
+        };
+      }
     }
 
     const fileId = crypto.randomUUID();
