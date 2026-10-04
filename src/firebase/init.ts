@@ -11,41 +11,6 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { firebaseConfig } from './config';
 
-/**
- * ⚠️ FIX: Firestore mutations localStorage save karta hai.
- * Agar localStorage full ho jaye → QuotaExceededError.
- * 
- * Solution: localStorage ko override karke in-memory store use karein.
- * Firestore ko lagega localStorage available hai — lekin actual mein
- * memory use hogi (NO quota limit).
- */
-if (typeof window !== 'undefined') {
-  try {
-    // Test: kya localStorage kaam kar raha hai?
-    localStorage.setItem('__test__', '1');
-    localStorage.removeItem('__test__');
-  } catch {
-    // ❌ localStorage full hai — memory store use karein
-    const memoryStore: Record<string, string> = {};
-    const memoryStorage = {
-      getItem: (key: string) => memoryStore[key] ?? null,
-      setItem: (key: string, value: string) => { memoryStore[key] = value; },
-      removeItem: (key: string) => { delete memoryStore[key]; },
-      clear: () => { Object.keys(memoryStore).forEach(k => delete memoryStore[k]); },
-      key: (i: number) => Object.keys(memoryStore)[i] ?? null,
-      get length() { return Object.keys(memoryStore).length; },
-    };
-
-    Object.defineProperty(window, 'localStorage', {
-      value: memoryStorage,
-      writable: false,
-      configurable: true,
-    });
-
-    console.warn('[FIREBASE] localStorage full → memory store use ho raha hai');
-  }
-}
-
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
@@ -56,21 +21,16 @@ export function initializeFirebase(): {
   
   const auth = getAuth(firebaseApp);
 
-  const isDevEnv = 
-    typeof window !== 'undefined' && 
-    (window.location.hostname.includes('cloudworkstations.dev') ||
-     window.location.hostname.includes('firebase-studio'));
-
   let firestore: Firestore;
   try {
     firestore = initializeFirestore(firebaseApp, {
+      // ✅ Memory cache — NO localStorage quota issues
       localCache: memoryLocalCache(),
-      ...(isDevEnv ? { experimentalForceLongPolling: true } : {}),
+      // ✅ Force long-polling — WebSocket 400 error fix
+      experimentalForceLongPolling: true,
     });
     
-    console.info(
-      `[FIREBASE] Firestore initialized: ${isDevEnv ? 'long-polling (dev)' : 'WebSocket + Memory Cache'}`
-    );
+    console.info('[FIREBASE] Firestore initialized: long-polling + memory cache');
   } catch (e: any) {
     console.warn('[FIREBASE] Firestore fallback:', e.message);
     firestore = getFirestore(firebaseApp);
