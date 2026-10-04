@@ -46,16 +46,22 @@ import {
   CalendarCheck,
   User as UserIcon,
   Mail,
+  Send,
 } from "lucide-react";
 import {
   getCategoryInfo,
   AMENITIES,
   formatTime12h,
-  getSlotsForDate,
-  isTimeSlotBooked,
   OPENING_HOURS,
   type PaymentDetails,
 } from "@/lib/locations";
+import {
+  generateSlots,
+  getSlotsForDate,
+  getLocalDateKey,
+  DEFAULT_SLOT_CONFIG,
+  type Slot,
+} from "@/lib/slots";
 import { format } from "date-fns";
 
 export default function LocationDetailPage() {
@@ -78,7 +84,6 @@ export default function LocationDetailPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showChat, setShowChat] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
-  const [showBooking, setShowBooking] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   const isOwnLocation = useMemo(() => {
@@ -86,27 +91,23 @@ export default function LocationDetailPage() {
     return user.uid === location.ownerId;
   }, [user, location]);
 
-  const dateKey = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
-  const bookedSlots = useMemo(() => {
-    if (!location?.bookedSlots) return [];
-    return getSlotsForDate(location.bookedSlots, dateKey);
-  }, [location?.bookedSlots, dateKey]);
+  // ═══ SLOT AVAILABILITY ═══
+  const dateKey = selectedDate ? getLocalDateKey(selectedDate) : "";
 
-  const availableSlots = useMemo(() => {
+  const bookingConfig = useMemo(() => {
+    return location?.bookingConfig || DEFAULT_SLOT_CONFIG;
+  }, [location?.bookingConfig]);
+
+  const availableSlots: Slot[] = useMemo(() => {
     if (!location) return [];
-    const openIdx = OPENING_HOURS.indexOf(location.openTime);
-    const closeIdx = OPENING_HOURS.indexOf(location.closeTime);
-    if (openIdx === -1 || closeIdx === -1 || closeIdx <= openIdx) return [];
-
-    const slots: { start: string; end: string; isBooked: boolean }[] = [];
-    for (let i = openIdx; i < closeIdx; i++) {
-      const start = OPENING_HOURS[i];
-      const end = OPENING_HOURS[i + 1];
-      const isBooked = isTimeSlotBooked(bookedSlots, start, end);
-      slots.push({ start, end, isBooked });
-    }
-    return slots;
-  }, [location, bookedSlots]);
+    return getSlotsForDate(
+      bookingConfig,
+      location.openTime || "09:00",
+      location.closeTime || "21:00",
+      dateKey,
+      location.slotAvailability || {}
+    );
+  }, [location, bookingConfig, dateKey]);
 
   const categoryInfo = useMemo(() => {
     if (!location?.category) return null;
@@ -158,7 +159,42 @@ export default function LocationDetailPage() {
     setShowChat(true);
   };
 
-  const handleOpenBooking = () => {
+  // ═══ WHATSAPP BOOKING MESSAGE — WITH NULL CHECK ═══
+  const buildWhatsAppBookingMessage = (slot: Slot): string => {
+    // ✅ Null check
+    if (!location) return "";
+
+    const ownerName = location.ownerName || "Owner";
+    const photographerName = user?.displayName || "Photographer";
+    const photographerPhone = user?.phoneNumber || "";
+
+    const msg =
+      `Salam ${ownerName},\n\n` +
+      `Mujhe *${location.name}* book karna hai.\n\n` +
+      `📅 *Date:* ${selectedDate ? format(selectedDate, "EEE, dd MMM yyyy") : "-"}\n` +
+      `⏰ *Time Slot:* ${slot.label}\n` +
+      `📸 *Shoot Type:* ${bookingConfig.shootTypes?.[0] || "Photoshoot"}\n` +
+      `👤 *Name:* ${photographerName}\n` +
+      (photographerPhone ? `📞 *Phone:* ${photographerPhone}\n` : "") +
+      `\nKya yeh slot available hai?\n` +
+      `Agar haan, to advance payment details bhejein.\n\n` +
+      `Shukriya,\nHafash.pk`;
+
+    return msg;
+  };
+
+  // ═══ WHATSAPP BOOKING — WITH NULL CHECK ═══
+  const handleBookViaWhatsApp = (slot: Slot) => {
+    // ✅ Null check FIRST
+    if (!location) {
+      toast({
+        variant: "destructive",
+        title: "Location not loaded",
+        description: "Please wait aur dubara try karein.",
+      });
+      return;
+    }
+
     if (!user) {
       toast({
         variant: "destructive",
@@ -168,6 +204,7 @@ export default function LocationDetailPage() {
       router.push("/login");
       return;
     }
+
     if (isOwnLocation) {
       toast({
         variant: "destructive",
@@ -175,7 +212,26 @@ export default function LocationDetailPage() {
       });
       return;
     }
-    setShowBooking(true);
+
+    const whatsappNumber = location.whatsappNumber?.replace(/\D/g, "");
+    if (!whatsappNumber) {
+      toast({
+        variant: "destructive",
+        title: "WhatsApp number nahi hai",
+        description: "Owner ne WhatsApp number set nahi kiya.",
+      });
+      return;
+    }
+
+    const message = buildWhatsAppBookingMessage(slot);
+    const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+
+    window.open(url, "_blank");
+
+    toast({
+      title: "📱 WhatsApp khul raha hai...",
+      description: "Message bhejein aur owner se baat karein.",
+    });
   };
 
   if (loading) {
@@ -307,11 +363,22 @@ export default function LocationDetailPage() {
                 {!isOwnLocation && (
                   <>
                     <Button
-                      className="rounded-2xl h-12 font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20"
-                      onClick={handleOpenBooking}
+                      className="rounded-2xl h-12 font-bold gap-2 bg-green-500 text-white hover:bg-green-600 shadow-lg shadow-green-500/20"
+                      onClick={() => {
+                        const firstAvailable = availableSlots.find((s) => !s.isFull);
+                        if (firstAvailable) {
+                          handleBookViaWhatsApp(firstAvailable);
+                        } else {
+                          toast({
+                            variant: "destructive",
+                            title: "Koi slot available nahi",
+                            description: "Doosri date try karein.",
+                          });
+                        }
+                      }}
                     >
-                      <CalendarCheck className="w-4 h-4" />
-                      Book Now
+                      <Send className="w-4 h-4" />
+                      Book via WhatsApp
                     </Button>
                     <Button
                       variant="outline"
@@ -404,6 +471,7 @@ export default function LocationDetailPage() {
               </SectionCard>
             )}
 
+            {/* ═══ AVAILABILITY ═══ */}
             <SectionCard title="Availability" icon={<CalendarDays className="w-4 h-4" />}>
               <div className="space-y-5">
                 <div className="rounded-2xl border border-border/40 bg-background/30 p-2 flex justify-center">
@@ -417,32 +485,54 @@ export default function LocationDetailPage() {
                 </div>
 
                 {selectedDate && (
-                  <div className="space-y-2">
-                    <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
-                      Time slots for {format(selectedDate, "EEE, dd MMM yyyy")}
-                    </p>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground">
+                        Slots for {format(selectedDate, "EEE, dd MMM yyyy")}
+                      </p>
+                      <Badge className="text-[9px] font-bold bg-primary/10 text-primary border-primary/30">
+                        {bookingConfig.slotDuration}h · {bookingConfig.capacityPerSlot} capacity
+                      </Badge>
+                    </div>
+
                     {availableSlots.length === 0 ? (
                       <p className="text-sm text-muted-foreground italic py-4 text-center">
                         No slots available
                       </p>
                     ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      <div className="space-y-2">
                         {availableSlots.map((slot, idx) => (
                           <div
                             key={idx}
                             className={cn(
-                              "p-3 rounded-xl border-2 text-center transition-all",
-                              slot.isBooked
-                                ? "border-red-500/30 bg-red-500/5 text-red-400"
-                                : "border-green-500/30 bg-green-500/5 text-green-400"
+                              "p-3 rounded-xl border-2 transition-all",
+                              slot.isFull
+                                ? "border-red-500/30 bg-red-500/5"
+                                : "border-green-500/30 bg-green-500/5 hover:border-green-500/50"
                             )}
                           >
-                            <p className="text-[11px] font-bold">
-                              {formatTime12h(slot.start)} - {formatTime12h(slot.end)}
-                            </p>
-                            <p className="text-[9px] uppercase tracking-widest mt-1 font-bold">
-                              {slot.isBooked ? "Booked" : "Available"}
-                            </p>
+                            <div className="flex items-center justify-between gap-3 flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-bold text-foreground">
+                                  {slot.label}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground mt-0.5">
+                                  {slot.isFull
+                                    ? "❌ Full"
+                                    : `✅ ${slot.available}/${slot.capacity} available`}
+                                </p>
+                              </div>
+                              {!slot.isFull && !isOwnLocation && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleBookViaWhatsApp(slot)}
+                                  className="rounded-xl gap-1.5 bg-green-500 hover:bg-green-600 text-white font-bold text-[10px] uppercase tracking-wider h-8 shrink-0"
+                                >
+                                  <Send className="w-3 h-3" />
+                                  Book
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -497,10 +587,12 @@ export default function LocationDetailPage() {
                     <span className="font-bold">{location.maxPeople || 10}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Shooting hours</span>
-                    <span className="font-bold text-[10px]">
-                      {formatTime12h(location.openTime)} - {formatTime12h(location.closeTime)}
-                    </span>
+                    <span className="text-muted-foreground">Slot duration</span>
+                    <span className="font-bold">{bookingConfig.slotDuration} hours</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Capacity</span>
+                    <span className="font-bold">{bookingConfig.capacityPerSlot} per slot</span>
                   </div>
                 </div>
 
@@ -508,11 +600,22 @@ export default function LocationDetailPage() {
                   {!isOwnLocation ? (
                     <>
                       <Button
-                        className="w-full rounded-xl h-12 font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
-                        onClick={handleOpenBooking}
+                        className="w-full rounded-xl h-12 font-bold gap-2 bg-green-500 text-white hover:bg-green-600"
+                        onClick={() => {
+                          const firstAvailable = availableSlots.find((s) => !s.isFull);
+                          if (firstAvailable) {
+                            handleBookViaWhatsApp(firstAvailable);
+                          } else {
+                            toast({
+                              variant: "destructive",
+                              title: "Koi slot available nahi",
+                              description: "Doosri date try karein.",
+                            });
+                          }
+                        }}
                       >
-                        <CalendarCheck className="w-4 h-4" />
-                        Book Now
+                        <Send className="w-4 h-4" />
+                        Book via WhatsApp
                       </Button>
                       <Button
                         variant="outline"
@@ -530,21 +633,6 @@ export default function LocationDetailPage() {
                         <Wallet className="w-4 h-4" />
                         View Payment Details
                       </Button>
-                      {location.whatsappNumber && (
-                        <Button
-                          variant="outline"
-                          className="w-full rounded-xl h-12 font-bold gap-2 border-green-500/30 text-green-400 hover:bg-green-500/5"
-                          onClick={() =>
-                            window.open(
-                              `https://wa.me/${location.whatsappNumber.replace(/\D/g, "")}`,
-                              "_blank"
-                            )
-                          }
-                        >
-                          <Phone className="w-4 h-4" />
-                          WhatsApp
-                        </Button>
-                      )}
                     </>
                   ) : (
                     <Link href={`/location-dashboard/locations/${locationId}/edit`}>
@@ -705,34 +793,12 @@ export default function LocationDetailPage() {
               <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20">
                 <ShieldCheck className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Payment complete karne ke baad owner ko chat mein batayein. Owner booking confirm karega.
+                  Payment complete karne ke baad owner ko WhatsApp par batayein. Owner booking confirm karega.
                 </p>
               </div>
-              <Button
-                className="w-full rounded-xl h-12 font-bold gap-2 bg-primary text-primary-foreground"
-                onClick={() => {
-                  setShowPayment(false);
-                  handleOpenChat();
-                }}
-              >
-                <MessageSquare className="w-4 h-4" />
-                Chat with Owner
-              </Button>
             </div>
           </Card>
         </div>
-      )}
-
-      {/* BOOKING MODAL */}
-      {showBooking && (
-        <BookingModal
-          location={location}
-          locationId={locationId}
-          onClose={() => setShowBooking(false)}
-          user={user}
-          firestore={firestore}
-          availableSlots={availableSlots}
-        />
       )}
 
       {/* CHAT MODAL */}
@@ -745,334 +811,6 @@ export default function LocationDetailPage() {
           firestore={firestore}
         />
       )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-// BOOKING MODAL — OPTIMISTIC + PARALLEL WRITES
-// ─────────────────────────────────────────────────────────────
-
-function BookingModal({
-  location,
-  locationId,
-  onClose,
-  user,
-  firestore,
-  availableSlots,
-}: {
-  location: any;
-  locationId: string;
-  onClose: () => void;
-  user: any;
-  firestore: any;
-  availableSlots: { start: string; end: string; isBooked: boolean }[];
-}) {
-  const { toast } = useToast();
-  const [submitting, setSubmitting] = useState(false);
-
-  const [clientName, setClientName] = useState(user?.displayName || "");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientEmail, setClientEmail] = useState(user?.email || "");
-  const [eventDate, setEventDate] = useState("");
-  const [selectedSlot, setSelectedSlot] = useState<{ start: string; end: string } | null>(null);
-  const [eventType, setEventType] = useState("Wedding");
-  const [message, setMessage] = useState("");
-
-  const EVENT_TYPES = [
-    "Wedding", "Barat", "Walima", "Mehndi", "Nikah",
-    "Engagement", "Birthday", "Corporate Event", "Portrait Session", "Other",
-  ];
-
-  const handleSubmit = async () => {
-    if (!clientName.trim()) {
-      toast({ variant: "destructive", title: "Client name required" });
-      return;
-    }
-    if (!clientPhone.trim() || !/^03\d{9}$/.test(clientPhone.replace(/\s+/g, ""))) {
-      toast({ variant: "destructive", title: "Valid Pakistani phone number dein (03001234567)" });
-      return;
-    }
-    if (!eventDate) {
-      toast({ variant: "destructive", title: "Event date select karein" });
-      return;
-    }
-    if (!selectedSlot) {
-      toast({ variant: "destructive", title: "Time slot select karein" });
-      return;
-    }
-
-    const startIdx = OPENING_HOURS.indexOf(selectedSlot.start);
-    const endIdx = OPENING_HOURS.indexOf(selectedSlot.end);
-    const hours = Math.max(1, endIdx - startIdx);
-    const totalAmount = hours * (location.hourlyRate || 0);
-
-    const now = new Date().toISOString();
-
-    const bookingData = {
-      ownerId: location.ownerId,
-      locationId: locationId,
-      locationName: location.name,
-      locationCity: location.city,
-
-      clientId: user.uid,
-      clientName: clientName.trim(),
-      clientPhone: clientPhone.replace(/\s+/g, ""),
-      clientEmail: clientEmail.trim(),
-
-      date: eventDate,
-      time: `${formatTime12h(selectedSlot.start)} - ${formatTime12h(selectedSlot.end)}`,
-      startTime: selectedSlot.start,
-      endTime: selectedSlot.end,
-      hours,
-      hourlyRate: location.hourlyRate || 0,
-      totalAmount,
-
-      eventType,
-      message: message.trim(),
-
-      status: "pending",
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    // ═══ OPTIMISTIC UI — Instant feedback ═══
-    toast({
-      title: "✅ Booking request bhej di!",
-      description: "Owner confirm karega, aapko notify karenge.",
-    });
-    onClose();
-
-    // ═══ BACKGROUND WRITE — Parallel ═══
-    try {
-      console.log("[BOOKING] Starting parallel writes...");
-      const startTime = Date.now();
-
-      await Promise.all([
-        addDoc(collection(firestore, "locationBookings"), bookingData),
-        addDoc(collection(firestore, "notifications"), {
-          userId: location.ownerId,
-          recipientId: location.ownerId,
-          type: "new_booking",
-          title: "🎉 Nayi Booking Request",
-          message: `${clientName} ne ${location.name} book ki — Rs. ${totalAmount.toLocaleString()}`,
-          link: "/location-dashboard/bookings",
-          read: false,
-          createdAt: now,
-          metadata: {
-            locationId,
-            locationName: location.name,
-            clientName: clientName,
-            totalAmount,
-          },
-        }),
-      ]);
-
-      const elapsed = Date.now() - startTime;
-      console.log(`[BOOKING] ✅ Both created in ${elapsed}ms`);
-    } catch (err: any) {
-      console.error("[BOOKING] ❌ Background write failed:", err);
-      toast({
-        variant: "destructive",
-        title: "Booking failed",
-        description: "Dubara try karein.",
-      });
-    }
-  };
-
-  const bookableSlots = availableSlots.filter((s) => !s.isBooked);
-
-  return (
-    <div
-      className="fixed inset-0 z-[95] bg-background/80 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto"
-      onClick={onClose}
-    >
-      <Card
-        className="w-full max-w-lg rounded-[2rem] border-border/40 bg-card/95 shadow-2xl my-8"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="p-7 space-y-5">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
-                <CalendarCheck className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="font-headline font-bold text-lg">Book This Location</h2>
-                <p className="text-xs text-muted-foreground">{location.name}</p>
-              </div>
-            </div>
-            <Button variant="ghost" size="icon" className="rounded-full" onClick={onClose}>
-              <X className="w-5 h-5" />
-            </Button>
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                Aapka Naam *
-              </Label>
-              <div className="relative">
-                <UserIcon className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                <Input
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  placeholder="Ahmed Khan"
-                  className="pl-10 h-11 rounded-xl bg-background/50"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                  WhatsApp *
-                </Label>
-                <div className="relative">
-                  <Phone className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                  <Input
-                    value={clientPhone}
-                    onChange={(e) => setClientPhone(e.target.value)}
-                    placeholder="03001234567"
-                    className="pl-10 h-11 rounded-xl bg-background/50"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                  Email
-                </Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 w-4 h-4 text-primary" />
-                  <Input
-                    type="email"
-                    value={clientEmail}
-                    onChange={(e) => setClientEmail(e.target.value)}
-                    placeholder="name@email.com"
-                    className="pl-10 h-11 rounded-xl bg-background/50"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                Event Date *
-              </Label>
-              <Input
-                type="date"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-                min={new Date().toISOString().split("T")[0]}
-                className="h-11 rounded-xl bg-background/50"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                Time Slot *
-              </Label>
-              {bookableSlots.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic py-2">
-                  Is date pe koi slot available nahi hai.
-                </p>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  {bookableSlots.map((slot, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => setSelectedSlot(slot)}
-                      className={cn(
-                        "p-2.5 rounded-xl border-2 text-center transition-all text-[11px] font-bold",
-                        selectedSlot?.start === slot.start
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border/30 hover:border-primary/50"
-                      )}
-                    >
-                      {formatTime12h(slot.start)} - {formatTime12h(slot.end)}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                Event Type
-              </Label>
-              <select
-                value={eventType}
-                onChange={(e) => setEventType(e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-input bg-background/50 text-sm"
-              >
-                {EVENT_TYPES.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                Message (Optional)
-              </Label>
-              <Textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Koi khaas requirement?"
-                rows={3}
-                className="rounded-xl bg-background/50 resize-none"
-              />
-            </div>
-
-            {selectedSlot && (
-              <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-1">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Hourly Rate</span>
-                  <span className="font-bold">Rs. {location.hourlyRate?.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Duration</span>
-                  <span className="font-bold">
-                    {Math.max(1, OPENING_HOURS.indexOf(selectedSlot.end) - OPENING_HOURS.indexOf(selectedSlot.start))} hours
-                  </span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t border-primary/20">
-                  <span className="font-bold text-sm">Total</span>
-                  <span className="font-bold text-lg text-primary">
-                    Rs. {(
-                      Math.max(1, OPENING_HOURS.indexOf(selectedSlot.end) - OPENING_HOURS.indexOf(selectedSlot.start)) *
-                      (location.hourlyRate || 0)
-                    ).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            <Button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold gap-2"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <CalendarCheck className="w-4 h-4" />
-                  Send Booking Request
-                </>
-              )}
-            </Button>
-
-            <p className="text-[10px] text-center text-muted-foreground italic">
-              Booking owner ke confirm karne ke baad final hogi.
-            </p>
-          </div>
-        </div>
-      </Card>
     </div>
   );
 }
@@ -1123,60 +861,6 @@ function ChatModal({
 
     initChat();
   }, [user, firestore, locationId, location]);
-
-  const handleSendPaymentDetails = async () => {
-    if (!user || !firestore || !locationId) return;
-    try {
-      const { addDoc, collection } = await import("firebase/firestore");
-      const chatId = `loc_${locationId}_${user.uid}`;
-      const p = location.paymentDetails || {};
-
-      let text = "💳 *Payment Details*\n\n";
-      if (p.easypaisa) text += `EasyPaisa: ${p.easypaisa}\n`;
-      if (p.jazzcash) text += `JazzCash: ${p.jazzcash}\n`;
-      if (p.bankAccount) text += `Bank: ${p.bankName} - ${p.bankAccount} (${p.bankAccountName})\n`;
-      if (p.additionalNote) text += `\nNote: ${p.additionalNote}`;
-
-      await addDoc(collection(firestore, "locationChats", chatId, "messages"), {
-        senderId: user.uid,
-        senderName: user.displayName || "Hafash User",
-        text,
-        type: "payment",
-        createdAt: serverTimestamp(),
-        read: false,
-      });
-
-      await setDoc(
-        doc(firestore, "locationChats", chatId),
-        {
-          lastMessage: "Payment details shared",
-          lastMessageAt: serverTimestamp(),
-          lastMessageBy: user.uid,
-        },
-        { merge: true }
-      );
-
-      try {
-        await addDoc(collection(firestore, "notifications"), {
-          userId: location.ownerId,
-          recipientId: location.ownerId,
-          type: "payment_details",
-          title: "💳 Payment Details",
-          message: `${user.displayName || "Photographer"} ne payment details share ki`,
-          link: "/location-dashboard",
-          read: false,
-          createdAt: serverTimestamp(),
-          metadata: { locationId, chatId },
-        });
-      } catch (notifErr) {
-        console.warn("Notification failed:", notifErr);
-      }
-
-      toast({ title: "Payment details sent in chat" });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Failed to send" });
-    }
-  };
 
   const handleSend = async () => {
     if (!messageText.trim() || !user || !firestore || !locationId || isSending) return;
@@ -1263,7 +947,7 @@ function ChatModal({
             <div className="flex items-start gap-2 p-3 rounded-xl bg-primary/5 border border-primary/20">
               <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Chat features abhi development mein hain. Filhal aap <strong>owner ke WhatsApp</strong> par directly message kar sakte hain.
+                Booking ke liye <strong>WhatsApp</strong> use karein — fast aur easy.
               </p>
             </div>
 
@@ -1283,15 +967,6 @@ function ChatModal({
                 Open WhatsApp
               </Button>
             )}
-
-            <Button
-              variant="outline"
-              className="w-full rounded-xl h-12 font-bold gap-2 border-primary/30"
-              onClick={handleSendPaymentDetails}
-            >
-              <Wallet className="w-4 h-4" />
-              Send Payment Details to Owner
-            </Button>
           </div>
 
           <div className="pt-3 border-t border-border/20 space-y-2">

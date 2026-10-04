@@ -33,6 +33,7 @@ import {
   FileText,
   Wallet,
   Send,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -256,6 +257,14 @@ export default function LocationDashboardBookingsPage() {
             Photographers ki booking requests dekhein, confirm karein, aur track karein.
           </p>
         </div>
+
+        {/* ✅ ADD BOOKING BUTTON */}
+        <Link href="/location-dashboard/bookings/add">
+          <Button className="rounded-2xl h-12 px-6 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 shadow-lg shadow-primary/20">
+            <Plus className="w-4 h-4" />
+            Add Booking
+          </Button>
+        </Link>
       </div>
 
       {/* ═══ STATS ═══ */}
@@ -359,11 +368,19 @@ export default function LocationDashboardBookingsPage() {
                 ? "Koi booking nahi mili"
                 : "Abhi koi booking nahi"}
             </h2>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
               {searchTerm || activeTab !== "all"
                 ? "Filters change karein ya search term clear karein."
-                : "Jab koi photographer aapki location book karega, woh yahan dikhega."}
+                : "WhatsApp pe booking aayi? Usko yahan add karein."}
             </p>
+            {!searchTerm && activeTab === "all" && (
+              <Link href="/location-dashboard/bookings/add">
+                <Button className="rounded-xl gap-2 bg-primary text-primary-foreground font-bold h-12 px-6">
+                  <Plus className="w-4 h-4" />
+                  Add Your First Booking
+                </Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -655,7 +672,6 @@ function BookingCard({
                 </Button>
               )}
 
-              {/* Mark Advance Received */}
               {canMarkAdvance && (
                 <Button
                   size="sm"
@@ -674,7 +690,6 @@ function BookingCard({
                 </Button>
               )}
 
-              {/* WhatsApp Invoice — only after advance */}
               {canSendWhatsApp && booking.clientPhone && (
                 <a
                   href={whatsappUrl}

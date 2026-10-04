@@ -31,6 +31,9 @@ import {
   Plus,
   Trash2,
   AlertCircle,
+  CalendarClock,
+  Package,
+  Timer,
 } from "lucide-react";
 import {
   LOCATION_CATEGORIES,
@@ -41,11 +44,16 @@ import {
   type PaymentDetails,
   formatTime12h,
 } from "@/lib/locations";
+import {
+  SLOT_DURATION_OPTIONS,
+  SHOOT_TYPES,
+  DEFAULT_SLOT_CONFIG,
+} from "@/lib/slots";
 import { requestUploadUrl, getMusicSignedUrl } from "@/app/actions/storage";
 
 const MAX_PHOTOS = 10;
-const MAX_FILE_SIZE_MB = 20;                                    // ← NAYA
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;     // ← NAYA
+const MAX_FILE_SIZE_MB = 20;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface UploadedPhoto {
   url: string;
@@ -59,14 +67,12 @@ export default function LocationJoinPage() {
   const firestore = useFirestore();
   const { toast } = useToast();
 
-  // Load existing profile
   const profileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, "users", user.uid);
   }, [firestore, user?.uid]);
   const { data: userProfile } = useDoc(profileRef);
 
-  // Existing location data
   const locationRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, "shootLocations", user.uid);
@@ -89,6 +95,14 @@ export default function LocationJoinPage() {
   const [openTime, setOpenTime] = useState("09:00");
   const [closeTime, setCloseTime] = useState("21:00");
   const [maxPeople, setMaxPeople] = useState("10");
+
+  // ═══ BOOKING CONFIG (NAYA) ═══
+  const [slotDuration, setSlotDuration] = useState<number>(2);
+  const [capacityPerSlot, setCapacityPerSlot] = useState<string>("5");
+  const [bufferMinutes, setBufferMinutes] = useState<string>("0");
+  const [selectedShootTypes, setSelectedShootTypes] = useState<string[]>([
+    "couple",
+  ]);
 
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
 
@@ -131,6 +145,13 @@ export default function LocationJoinPage() {
       setWhatsappNumber(existingLocation.whatsappNumber || "");
       setInstagramLink(existingLocation.instagramLink || "");
 
+      // Booking config
+      const bc = existingLocation.bookingConfig || DEFAULT_SLOT_CONFIG;
+      setSlotDuration(bc.slotDuration || 2);
+      setCapacityPerSlot(String(bc.capacityPerSlot || 5));
+      setBufferMinutes(String(bc.bufferMinutes || 0));
+      setSelectedShootTypes(bc.shootTypes || ["couple"]);
+
       const pd = existingLocation.paymentDetails || {};
       setEasypaisa(pd.easypaisa || "");
       setJazzcash(pd.jazzcash || "");
@@ -142,10 +163,15 @@ export default function LocationJoinPage() {
     }
   }, [existingLocation]);
 
-  // ─── Toggle amenity ───
   const toggleAmenity = useCallback((id: string) => {
     setSelectedAmenities((prev) =>
       prev.includes(id) ? prev.filter((a) => a !== id) : [...prev, id]
+    );
+  }, []);
+
+  const toggleShootType = useCallback((id: string) => {
+    setSelectedShootTypes((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]
     );
   }, []);
 
@@ -165,11 +191,7 @@ export default function LocationJoinPage() {
       return;
     }
 
-    // ═══ 20MB CHECK — Upload se pehle ═══
-    const oversizedFiles = files.filter(
-      (f) => f.size > MAX_FILE_SIZE_BYTES
-    );
-
+    const oversizedFiles = files.filter((f) => f.size > MAX_FILE_SIZE_BYTES);
     if (oversizedFiles.length > 0) {
       const names = oversizedFiles
         .map((f) => `${f.name} (${(f.size / 1024 / 1024).toFixed(1)}MB)`)
@@ -189,16 +211,13 @@ export default function LocationJoinPage() {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
 
-        // Validate image
         if (!file.type.startsWith("image/")) {
           toast({ variant: "destructive", title: `${file.name} image nahi hai` });
           continue;
         }
 
-        // Compress
         const compressed = await compressImage(file, 1200, 0.8);
 
-        // Double-check after compression
         if (compressed.size > MAX_FILE_SIZE_BYTES) {
           toast({
             variant: "destructive",
@@ -208,7 +227,6 @@ export default function LocationJoinPage() {
           continue;
         }
 
-        // Get signed URL
         const { success, uploadUrl, key, error } = await requestUploadUrl({
           userId: user.uid,
           galleryId: `location-${user.uid}`,
@@ -221,7 +239,6 @@ export default function LocationJoinPage() {
           throw new Error(error || "Upload authorization failed");
         }
 
-        // Upload to R2
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
           xhr.addEventListener("load", () => {
@@ -234,7 +251,6 @@ export default function LocationJoinPage() {
           xhr.send(compressed);
         });
 
-        // Get public URL
         const urlResult = await getMusicSignedUrl(key);
         if (urlResult.success && urlResult.url) {
           setPhotos((prev) => [
@@ -267,7 +283,6 @@ export default function LocationJoinPage() {
   const handleSave = async () => {
     if (!user || !firestore) return;
 
-    // Validations
     if (!name.trim()) {
       toast({ variant: "destructive", title: "Location name required" });
       return;
@@ -296,6 +311,22 @@ export default function LocationJoinPage() {
       });
       return;
     }
+    if (selectedShootTypes.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Shoot type required",
+        description: "Kam az kam ek shoot type select karein.",
+      });
+      return;
+    }
+    if (!capacityPerSlot || Number(capacityPerSlot) <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Capacity required",
+        description: "Capacity per slot set karein.",
+      });
+      return;
+    }
 
     setIsSaving(true);
 
@@ -308,6 +339,13 @@ export default function LocationJoinPage() {
         bankAccountName: bankAccountName.trim(),
         preferredMethod,
         additionalNote: paymentNote.trim(),
+      };
+
+      const bookingConfig = {
+        slotDuration: Number(slotDuration) || 2,
+        capacityPerSlot: Number(capacityPerSlot) || 5,
+        bufferMinutes: Number(bufferMinutes) || 0,
+        shootTypes: selectedShootTypes,
       };
 
       await setDoc(
@@ -337,7 +375,9 @@ export default function LocationJoinPage() {
           whatsappNumber: whatsappNumber.trim(),
           instagramLink: instagramLink.trim(),
           paymentDetails,
+          bookingConfig,
           bookedSlots: existingLocation?.bookedSlots || {},
+          slotAvailability: existingLocation?.slotAvailability || {},
           rating: existingLocation?.rating || { average: 0, count: 0 },
           isActive: true,
           createdAt: existingLocation?.createdAt || serverTimestamp(),
@@ -416,7 +456,6 @@ export default function LocationJoinPage() {
           </CardHeader>
           <CardContent className="p-6 space-y-5">
 
-            {/* Name */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Location Name *
@@ -430,7 +469,6 @@ export default function LocationJoinPage() {
               />
             </div>
 
-            {/* Category */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Category *
@@ -455,7 +493,6 @@ export default function LocationJoinPage() {
               </div>
             </div>
 
-            {/* City + Area */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
@@ -481,7 +518,6 @@ export default function LocationJoinPage() {
               </div>
             </div>
 
-            {/* Full Address */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Full Address
@@ -498,7 +534,6 @@ export default function LocationJoinPage() {
               </p>
             </div>
 
-            {/* Google Maps */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Google Maps Link (optional)
@@ -511,7 +546,6 @@ export default function LocationJoinPage() {
               />
             </div>
 
-            {/* Description */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Description
@@ -540,7 +574,6 @@ export default function LocationJoinPage() {
           </CardHeader>
           <CardContent className="p-6 space-y-5">
 
-            {/* Rate */}
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-3 md:col-span-1 space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
@@ -580,7 +613,6 @@ export default function LocationJoinPage() {
               </div>
             </div>
 
-            {/* Hours */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
@@ -612,7 +644,6 @@ export default function LocationJoinPage() {
               </div>
             </div>
 
-            {/* Max People */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                 <Users className="w-3 h-3" /> Max People Allowed
@@ -624,6 +655,135 @@ export default function LocationJoinPage() {
                 value={maxPeople}
                 onChange={(e) => setMaxPeople(e.target.value)}
               />
+            </div>
+
+          </CardContent>
+        </Card>
+
+        {/* ═══ BOOKING CONFIG (NAYA) ═══ */}
+        <Card className="bg-card border-border/50 rounded-3xl overflow-hidden border-primary/30">
+          <CardHeader className="bg-primary/5 border-b border-primary/20">
+            <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
+              <CalendarClock className="w-5 h-5 text-primary" /> Booking Configuration
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Photographers ko dikhane ke liye slot system set karein.
+            </p>
+          </CardHeader>
+          <CardContent className="p-6 space-y-5">
+
+            {/* Slot Duration + Capacity */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Timer className="w-3 h-3 text-primary" /> Slot Duration *
+                </label>
+                <select
+                  className="w-full h-12 rounded-xl border border-input bg-background px-3 text-sm"
+                  value={slotDuration}
+                  onChange={(e) => setSlotDuration(Number(e.target.value))}
+                >
+                  {SLOT_DURATION_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-muted-foreground">
+                  Ek slot mein kitna time — e.g., 2 hours
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Users className="w-3 h-3 text-primary" /> Capacity per Slot *
+                </label>
+                <Input
+                  type="number"
+                  placeholder="5"
+                  className="h-12 rounded-xl"
+                  value={capacityPerSlot}
+                  onChange={(e) => setCapacityPerSlot(e.target.value)}
+                  min={1}
+                  max={50}
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Ek slot mein kitne couples/shoots — e.g., 5
+                </p>
+              </div>
+            </div>
+
+            {/* Buffer Time */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <Clock className="w-3 h-3 text-primary" /> Buffer Time (minutes)
+              </label>
+              <Input
+                type="number"
+                placeholder="0"
+                className="h-12 rounded-xl"
+                value={bufferMinutes}
+                onChange={(e) => setBufferMinutes(e.target.value)}
+                min={0}
+                max={60}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Slots ke darmiyan gap — e.g., 15 min (optional)
+              </p>
+            </div>
+
+            {/* Shoot Types */}
+            <div className="space-y-3">
+              <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                <Package className="w-3 h-3 text-primary" /> Shoot Types Allowed *
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {SHOOT_TYPES.map((type) => {
+                  const selected = selectedShootTypes.includes(type.id);
+                  return (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={() => toggleShootType(type.id)}
+                      className={cn(
+                        "px-3 py-2 rounded-xl border-2 transition-all text-xs font-bold flex items-center gap-2",
+                        selected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/30 text-muted-foreground hover:border-primary/30"
+                      )}
+                    >
+                      <span className="text-base">{type.emoji}</span>
+                      {type.label}
+                      {selected && <Check className="w-3 h-3" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20 space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                📅 Preview — Aapke Slots
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <strong className="text-foreground">
+                  {slotDuration}h slots
+                </strong>{" "}
+                · Capacity{" "}
+                <strong className="text-foreground">{capacityPerSlot} couples</strong>
+                {Number(bufferMinutes) > 0 && (
+                  <> · {bufferMinutes} min buffer</>
+                )}
+              </p>
+              <p className="text-[11px] text-muted-foreground italic">
+                Example: {formatTime12h(openTime)} - {formatTime12h(closeTime)} mein{" "}
+                {Math.floor((((Number(closeTime.split(":")[0]) * 60 + Number(closeTime.split(":")[1])) -
+                  (Number(openTime.split(":")[0]) * 60 + Number(openTime.split(":")[1]))) /
+                  (slotDuration * 60 + Number(bufferMinutes) || slotDuration * 60)))}{" "}
+                slots banenge
+              </p>
             </div>
 
           </CardContent>
@@ -677,7 +837,6 @@ export default function LocationJoinPage() {
           </CardHeader>
           <CardContent className="p-6 space-y-4">
 
-            {/* Upload Box */}
             {photos.length < MAX_PHOTOS && (
               <label
                 className={cn(
@@ -712,7 +871,6 @@ export default function LocationJoinPage() {
               </label>
             )}
 
-            {/* Photos Grid */}
             {photos.length > 0 && (
               <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
                 {photos.map((p, idx) => (
@@ -792,7 +950,6 @@ export default function LocationJoinPage() {
           </CardHeader>
           <CardContent className="p-6 space-y-5">
 
-            {/* Preferred Method */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Preferred Method
@@ -816,7 +973,6 @@ export default function LocationJoinPage() {
               </div>
             </div>
 
-            {/* EasyPaisa */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                 <span className="text-emerald-400">💚</span> EasyPaisa Number
@@ -829,7 +985,6 @@ export default function LocationJoinPage() {
               />
             </div>
 
-            {/* JazzCash */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                 <span className="text-red-400">❤️</span> JazzCash Number
@@ -842,7 +997,6 @@ export default function LocationJoinPage() {
               />
             </div>
 
-            {/* Bank */}
             <div className="space-y-3 pt-3 border-t border-border/20">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                 🏦 Bank Account (optional)
@@ -867,7 +1021,6 @@ export default function LocationJoinPage() {
               />
             </div>
 
-            {/* Additional Note */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                 Additional Note (optional)
