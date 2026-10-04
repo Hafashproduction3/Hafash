@@ -750,7 +750,7 @@ export default function LocationDetailPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// BOOKING MODAL
+// BOOKING MODAL — DEBUG LOGS ADDED
 // ─────────────────────────────────────────────────────────────
 
 function BookingModal({
@@ -838,12 +838,23 @@ function BookingModal({
         updatedAt: now,
       };
 
+      // ═══ DEBUG LOGS ═══
+      console.log("[BOOKING DEBUG] User:", user?.uid);
+      console.log("[BOOKING DEBUG] Location ownerId:", location?.ownerId);
+      console.log("[BOOKING DEBUG] Firestore:", firestore ? "✅" : "❌");
+      console.log("[BOOKING DEBUG] Booking data:", bookingData);
+      console.log("[BOOKING DEBUG] Attempting addDoc to locationBookings...");
+
       const bookingRef = await addDoc(
         collection(firestore, "locationBookings"),
         bookingData
       );
 
+      console.log("[BOOKING DEBUG] ✅ Booking created:", bookingRef.id);
+
+      // Notification
       try {
+        console.log("[BOOKING DEBUG] Sending notification...");
         await addDoc(collection(firestore, "notifications"), {
           userId: location.ownerId,
           recipientId: location.ownerId,
@@ -861,8 +872,9 @@ function BookingModal({
             totalAmount,
           },
         });
+        console.log("[BOOKING DEBUG] ✅ Notification sent");
       } catch (notifErr) {
-        console.warn("Notification failed:", notifErr);
+        console.warn("[BOOKING DEBUG] ⚠️ Notification failed:", notifErr);
       }
 
       toast({
@@ -872,11 +884,14 @@ function BookingModal({
 
       onClose();
     } catch (err: any) {
-      console.error("[BOOKING] Error:", err);
+      console.error("[BOOKING DEBUG] ❌ Error:", err);
+      console.error("[BOOKING DEBUG] Error code:", err.code);
+      console.error("[BOOKING DEBUG] Error message:", err.message);
+      
       toast({
         variant: "destructive",
         title: "Booking failed",
-        description: err.message,
+        description: `${err.code || "unknown"}: ${err.message}`,
       });
     } finally {
       setSubmitting(false);
