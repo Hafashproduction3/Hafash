@@ -1,9 +1,9 @@
 'use client';
 
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app'; 
-import { 
-  initializeFirestore, 
-  getFirestore, 
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import {
+  initializeFirestore,
+  getFirestore,
   Firestore,
   memoryLocalCache,
 } from 'firebase/firestore';
@@ -17,20 +17,25 @@ export function initializeFirebase(): {
   auth: Auth;
   storage: FirebaseStorage;
 } {
-  const firebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-  
+  const firebaseApp =
+    getApps().length === 0
+      ? initializeApp(firebaseConfig)
+      : getApp();
+
   const auth = getAuth(firebaseApp);
 
   let firestore: Firestore;
+
   try {
     firestore = initializeFirestore(firebaseApp, {
-      // ✅ Memory cache — NO localStorage quota issues
+      // Memory cache — avoids persistent browser storage issues
+      // and lets Firestore use its normal automatic network transport.
       localCache: memoryLocalCache(),
-      // ✅ Force long-polling — WebSocket 400 error fix
-      experimentalForceLongPolling: true,
     });
-    
-    console.info('[FIREBASE] Firestore initialized: long-polling + memory cache');
+
+    console.info(
+      '[FIREBASE] Firestore initialized: memory cache + automatic network transport'
+    );
   } catch (e: any) {
     console.warn('[FIREBASE] Firestore fallback:', e.message);
     firestore = getFirestore(firebaseApp);
@@ -38,5 +43,10 @@ export function initializeFirebase(): {
 
   const storage = getStorage(firebaseApp);
 
-  return { firebaseApp, firestore, auth, storage };
+  return {
+    firebaseApp,
+    firestore,
+    auth,
+    storage,
+  };
 }
