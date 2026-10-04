@@ -750,7 +750,7 @@ export default function LocationDetailPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-// BOOKING MODAL — DEBUG LOGS ADDED
+// BOOKING MODAL — OPTIMISTIC + PARALLEL WRITES
 // ─────────────────────────────────────────────────────────────
 
 function BookingModal({
@@ -802,60 +802,55 @@ function BookingModal({
       return;
     }
 
-    setSubmitting(true);
+    const startIdx = OPENING_HOURS.indexOf(selectedSlot.start);
+    const endIdx = OPENING_HOURS.indexOf(selectedSlot.end);
+    const hours = Math.max(1, endIdx - startIdx);
+    const totalAmount = hours * (location.hourlyRate || 0);
+
+    const now = new Date().toISOString();
+
+    const bookingData = {
+      ownerId: location.ownerId,
+      locationId: locationId,
+      locationName: location.name,
+      locationCity: location.city,
+
+      clientId: user.uid,
+      clientName: clientName.trim(),
+      clientPhone: clientPhone.replace(/\s+/g, ""),
+      clientEmail: clientEmail.trim(),
+
+      date: eventDate,
+      time: `${formatTime12h(selectedSlot.start)} - ${formatTime12h(selectedSlot.end)}`,
+      startTime: selectedSlot.start,
+      endTime: selectedSlot.end,
+      hours,
+      hourlyRate: location.hourlyRate || 0,
+      totalAmount,
+
+      eventType,
+      message: message.trim(),
+
+      status: "pending",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    // ═══ OPTIMISTIC UI — Instant feedback ═══
+    toast({
+      title: "✅ Booking request bhej di!",
+      description: "Owner confirm karega, aapko notify karenge.",
+    });
+    onClose();
+
+    // ═══ BACKGROUND WRITE — Parallel ═══
     try {
-      const startIdx = OPENING_HOURS.indexOf(selectedSlot.start);
-      const endIdx = OPENING_HOURS.indexOf(selectedSlot.end);
-      const hours = Math.max(1, endIdx - startIdx);
-      const totalAmount = hours * (location.hourlyRate || 0);
+      console.log("[BOOKING] Starting parallel writes...");
+      const startTime = Date.now();
 
-      const now = new Date().toISOString();
-
-      const bookingData = {
-        ownerId: location.ownerId,
-        locationId: locationId,
-        locationName: location.name,
-        locationCity: location.city,
-
-        clientId: user.uid,
-        clientName: clientName.trim(),
-        clientPhone: clientPhone.replace(/\s+/g, ""),
-        clientEmail: clientEmail.trim(),
-
-        date: eventDate,
-        time: `${formatTime12h(selectedSlot.start)} - ${formatTime12h(selectedSlot.end)}`,
-        startTime: selectedSlot.start,
-        endTime: selectedSlot.end,
-        hours,
-        hourlyRate: location.hourlyRate || 0,
-        totalAmount,
-
-        eventType,
-        message: message.trim(),
-
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      // ═══ DEBUG LOGS ═══
-      console.log("[BOOKING DEBUG] User:", user?.uid);
-      console.log("[BOOKING DEBUG] Location ownerId:", location?.ownerId);
-      console.log("[BOOKING DEBUG] Firestore:", firestore ? "✅" : "❌");
-      console.log("[BOOKING DEBUG] Booking data:", bookingData);
-      console.log("[BOOKING DEBUG] Attempting addDoc to locationBookings...");
-
-      const bookingRef = await addDoc(
-        collection(firestore, "locationBookings"),
-        bookingData
-      );
-
-      console.log("[BOOKING DEBUG] ✅ Booking created:", bookingRef.id);
-
-      // Notification
-      try {
-        console.log("[BOOKING DEBUG] Sending notification...");
-        await addDoc(collection(firestore, "notifications"), {
+      await Promise.all([
+        addDoc(collection(firestore, "locationBookings"), bookingData),
+        addDoc(collection(firestore, "notifications"), {
           userId: location.ownerId,
           recipientId: location.ownerId,
           type: "new_booking",
@@ -865,36 +860,23 @@ function BookingModal({
           read: false,
           createdAt: now,
           metadata: {
-            bookingId: bookingRef.id,
             locationId,
             locationName: location.name,
             clientName: clientName,
             totalAmount,
           },
-        });
-        console.log("[BOOKING DEBUG] ✅ Notification sent");
-      } catch (notifErr) {
-        console.warn("[BOOKING DEBUG] ⚠️ Notification failed:", notifErr);
-      }
+        }),
+      ]);
 
-      toast({
-        title: "✅ Booking request bhej di!",
-        description: "Owner confirm karega, aapko notify karenge.",
-      });
-
-      onClose();
+      const elapsed = Date.now() - startTime;
+      console.log(`[BOOKING] ✅ Both created in ${elapsed}ms`);
     } catch (err: any) {
-      console.error("[BOOKING DEBUG] ❌ Error:", err);
-      console.error("[BOOKING DEBUG] Error code:", err.code);
-      console.error("[BOOKING DEBUG] Error message:", err.message);
-      
+      console.error("[BOOKING] ❌ Background write failed:", err);
       toast({
         variant: "destructive",
         title: "Booking failed",
-        description: `${err.code || "unknown"}: ${err.message}`,
+        description: "Dubara try karein.",
       });
-    } finally {
-      setSubmitting(false);
     }
   };
 
