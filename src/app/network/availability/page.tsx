@@ -31,6 +31,16 @@ type AvailabilityStatus = "available" | "busy" | "partial";
 
 const REMOTE_ROLES = ['video_editor', 'photo_editor', 'album_designer'];
 
+// ═══════════════════════════════════════════════════════════════
+// ✅ LOCAL DATE KEY — Timezone-safe
+// ═══════════════════════════════════════════════════════════════
+const getLocalDateKey = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 export default function AvailabilityPage() {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -50,7 +60,6 @@ export default function AvailabilityPage() {
   const [quickRangeEnd, setQuickRangeEnd] = useState<Date | undefined>();
   const [showRangeMode, setShowRangeMode] = useState(false);
 
-  // Role analysis
   const roles: string[] = profile?.roles || [];
   const onSiteRoles = roles.filter(r => !REMOTE_ROLES.includes(r));
   const remoteRoles = roles.filter(r => REMOTE_ROLES.includes(r));
@@ -71,7 +80,8 @@ export default function AvailabilityPage() {
     return result;
   }, [profile?.availability]);
 
-  const dateKey = selectedDate ? selectedDate.toISOString().split("T")[0] : "";
+  // ✅ FIXED: Local date key
+  const dateKey = selectedDate ? getLocalDateKey(selectedDate) : "";
   const currentStatus: AvailabilityStatus | null = dateKey && availability[dateKey] ? availability[dateKey] : null;
   const effectiveStatus: AvailabilityStatus = currentStatus || "available";
 
@@ -84,7 +94,7 @@ export default function AvailabilityPage() {
     let available = 0, busy = 0, partial = 0;
     for (let day = 1; day <= daysInMonth; day++) {
       const d = new Date(currentYear, currentMonth, day);
-      const key = d.toISOString().split("T")[0];
+      const key = getLocalDateKey(d);  // ✅ FIXED
       const status = availability[key] || "available";
       if (status === "available") available++;
       else if (status === "busy") busy++;
@@ -123,7 +133,7 @@ export default function AvailabilityPage() {
       const updatePayload: any = {};
       const current = new Date(start);
       while (current <= end) {
-        const key = current.toISOString().split("T")[0];
+        const key = getLocalDateKey(current);  // ✅ FIXED
         if (status === "available") {
           updatePayload[`availability.${key}`] = deleteField();
         } else {
@@ -177,7 +187,6 @@ export default function AvailabilityPage() {
     );
   }
 
-  // Loading
   if (loading) {
     return (
       <div className="min-h-screen bg-background p-6 lg:p-12 flex items-center justify-center">
@@ -189,7 +198,6 @@ export default function AvailabilityPage() {
     );
   }
 
-  // No profile
   if (!profile) {
     return (
       <div className="min-h-screen bg-background p-6 lg:p-12 animate-in fade-in duration-500">
@@ -210,9 +218,6 @@ export default function AvailabilityPage() {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // REMOTE-ONLY USER — No calendar needed
-  // ═══════════════════════════════════════════════════════════════
   if (isRemoteOnly) {
     const turnarounds = profile?.turnarounds || {};
 
@@ -229,7 +234,6 @@ export default function AvailabilityPage() {
             Back
           </Button>
 
-          {/* Info Card */}
           <Card className="relative overflow-hidden rounded-[2rem] border-purple-500/30 bg-gradient-to-br from-purple-500/10 via-card/60 to-background shadow-xl">
             <div className="absolute -top-32 -right-32 h-64 w-64 rounded-full bg-purple-500/20 blur-3xl pointer-events-none" />
             <div className="absolute -bottom-32 -left-32 h-64 w-64 rounded-full bg-purple-500/10 blur-3xl pointer-events-none" />
@@ -254,7 +258,6 @@ export default function AvailabilityPage() {
                 Aapka <span className="font-bold text-foreground">delivery time</span> hi clients ko dikhta hai.
               </p>
 
-              {/* Show current turnarounds */}
               <div className="space-y-3 pt-2">
                 <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
                   Aapka Delivery Time
@@ -291,7 +294,6 @@ export default function AvailabilityPage() {
                 })}
               </div>
 
-              {/* Info note */}
               <div className="flex items-start gap-3 p-4 rounded-2xl bg-primary/5 border border-primary/20">
                 <Info className="w-4 h-4 text-primary shrink-0 mt-0.5" />
                 <p className="text-xs text-muted-foreground leading-relaxed">
@@ -315,9 +317,6 @@ export default function AvailabilityPage() {
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // ON-SITE USER (or both) — Show calendar
-  // ═══════════════════════════════════════════════════════════════
   return (
     <div className="min-h-screen bg-background p-6 lg:p-12 animate-in fade-in duration-500">
       <div className="max-w-6xl mx-auto space-y-8">
