@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -74,8 +73,6 @@
 }
 
 /* Global Animations */
-/* Note: breathing animation is now defined in tailwind.config.ts to avoid plugin conflicts */
-
 .animate-breathing {
   will-change: transform, filter, opacity;
 }
@@ -101,29 +98,44 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
-/* CALENDAR — Weekend days colorful (Fri, Sat, Sun)               */
+/* CALENDAR — v9 (react-day-picker)                               */
+/* Weekend days colorful (Fri, Sat, Sun)                          */
 /* ═══════════════════════════════════════════════════════════════ */
 
 /* Weekday headers — Friday, Saturday, Sunday colorful */
-.rdp-head_cell:nth-child(1),  /* Sunday */
-.rdp-head_cell:nth-child(6),  /* Friday */
-.rdp-head_cell:nth-child(7) { /* Saturday */
+.rdp-weekday:nth-child(1),  /* Sunday */
+.rdp-weekday:nth-child(6),  /* Friday */
+.rdp-weekday:nth-child(7) { /* Saturday */
   color: hsl(var(--primary));
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
-/* Weekend dates — colorful */
-.rdp-cell:nth-child(1) .rdp-day:not([aria-selected="true"]),  /* Sunday */
-.rdp-cell:nth-child(6) .rdp-day:not([aria-selected="true"]),  /* Friday */
-.rdp-cell:nth-child(7) .rdp-day:not([aria-selected="true"]) { /* Saturday */
+/* Weekend dates — colorful (v9: .rdp-week me .rdp-day) */
+.rdp-week .rdp-day:nth-child(1):not([aria-selected="true"]),  /* Sunday */
+.rdp-week .rdp-day:nth-child(6):not([aria-selected="true"]),  /* Friday */
+.rdp-week .rdp-day:nth-child(7):not([aria-selected="true"]) { /* Saturday */
   color: hsl(var(--primary));
   font-weight: 700;
 }
 
 /* Today — highlighted */
-.rdp-day_today {
+.rdp-today:not([aria-selected="true"]) {
   border: 2px solid hsl(var(--primary));
   font-weight: 800;
+}
+
+/* v9 — Ensure grid layout (headers upar) */
+.rdp-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+}
+
+.rdp-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+  margin-top: 0.5rem;
 }
