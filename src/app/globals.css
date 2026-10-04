@@ -99,3 +99,31 @@
     @apply transition-all duration-500 hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/5 hover:translate-y-[-2px];
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════ */
+/* CALENDAR — Weekend days colorful (Fri, Sat, Sun)               */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* Weekday headers — Friday, Saturday, Sunday colorful */
+.rdp-head_cell:nth-child(1),  /* Sunday */
+.rdp-head_cell:nth-child(6),  /* Friday */
+.rdp-head_cell:nth-child(7) { /* Saturday */
+  color: hsl(var(--primary));
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Weekend dates — colorful */
+.rdp-cell:nth-child(1) .rdp-day:not([aria-selected="true"]),  /* Sunday */
+.rdp-cell:nth-child(6) .rdp-day:not([aria-selected="true"]),  /* Friday */
+.rdp-cell:nth-child(7) .rdp-day:not([aria-selected="true"]) { /* Saturday */
+  color: hsl(var(--primary));
+  font-weight: 700;
+}
+
+/* Today — highlighted */
+.rdp-day_today {
+  border: 2px solid hsl(var(--primary));
+  font-weight: 800;
+}
