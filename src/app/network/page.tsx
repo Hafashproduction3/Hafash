@@ -840,19 +840,29 @@ export default function NetworkSearchPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProfiles.map((profile: any) => (
-              <ProfessionalCard
-                key={profile.userId}
-                profile={profile}
-                isSaved={savedIds.includes(profile.userId)}
-                onToggleSave={() =>
-                  toggleSave(profile.userId, savedIds.includes(profile.userId))
-                }
-                canSave={!!user}
-                onSendRequest={() => {
-                  router.push(`/network/professional/${profile.userId}?request=1`);
-                }}
-              />
-            ))}
+  <ProfessionalCard
+    key={profile.userId}
+    profile={profile}
+    dateFilterKey={dateFilterKey}
+    eventLocation={eventLocation}
+    requiredCameras={requiredCameras}
+    gimbalRequired={gimbalRequired}
+    isSaved={savedIds.includes(profile.userId)}
+    onToggleSave={() =>
+      toggleSave(profile.userId, savedIds.includes(profile.userId))
+    }
+    canSave={!!user}
+    onSendRequest={() => {
+      const params = new URLSearchParams();
+      params.set('request', '1');
+      if (dateFilterKey) params.set('date', dateFilterKey);
+      if (eventLocation) params.set('location', eventLocation);
+      if (requiredCameras.length > 0) params.set('cameras', requiredCameras.join(','));
+      if (gimbalRequired !== 'any') params.set('gimbal', gimbalRequired);
+      router.push(`/network/professional/${profile.userId}?${params.toString()}`);
+    }}
+  />
+))}
           </div>
         )}
 
@@ -913,12 +923,20 @@ function EmptyState({ icon, title, description, onAction, actionLabel }: {
 
 function ProfessionalCard({
   profile,
+  dateFilterKey,
+  eventLocation,
+  requiredCameras,
+  gimbalRequired,
   isSaved,
   onToggleSave,
   canSave,
   onSendRequest,
 }: {
   profile: any;
+  dateFilterKey?: string;
+  eventLocation?: string;
+  requiredCameras?: string[];
+  gimbalRequired?: string;
   isSaved: boolean;
   onToggleSave: () => void;
   canSave: boolean;

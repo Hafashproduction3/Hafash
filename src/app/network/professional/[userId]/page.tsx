@@ -155,9 +155,9 @@ export default function ProfessionalProfilePage() {
 
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [requestOpen, setRequestOpen] = useState(searchParams.get('request') === '1');
-  const [eventDate, setEventDate] = useState("");
-  const [eventType, setEventType] = useState("");
-  const [eventLocation, setEventLocation] = useState("");
+  const [eventDate, setEventDate] = useState(searchParams.get('date') || "");
+const [eventType, setEventType] = useState("");
+const [eventLocation, setEventLocation] = useState(searchParams.get('location') || "");
   const [budget, setBudget] = useState("");
   const [requestMessage, setRequestMessage] = useState("");
   const [isSendingRequest, setIsSendingRequest] = useState(false);
