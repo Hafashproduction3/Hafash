@@ -1,12 +1,10 @@
 'use client';
 
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app'; 
 import { 
   initializeFirestore, 
   getFirestore, 
   Firestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
   memoryLocalCache,
 } from 'firebase/firestore';
 import { getAuth, Auth } from 'firebase/auth';
@@ -14,14 +12,40 @@ import { getStorage, FirebaseStorage } from 'firebase/storage';
 import { firebaseConfig } from './config';
 
 /**
- * Initializes Firebase services and returns the instances.
+ * ⚠️ FIX: Firestore mutations localStorage save karta hai.
+ * Agar localStorage full ho jaye → QuotaExceededError.
  * 
- * ⚡ Performance optimizations:
- * - ✅ Persistent cache (IndexedDB) — 2nd visit instant
- * - ✅ Multi-tab manager — multiple tabs share cache
- * - ✅ NO long-polling in production — WebSocket is faster
- * - ⚠️ Fallback to long-polling only in Firebase Studio dev env
+ * Solution: localStorage ko override karke in-memory store use karein.
+ * Firestore ko lagega localStorage available hai — lekin actual mein
+ * memory use hogi (NO quota limit).
  */
+if (typeof window !== 'undefined') {
+  try {
+    // Test: kya localStorage kaam kar raha hai?
+    localStorage.setItem('__test__', '1');
+    localStorage.removeItem('__test__');
+  } catch {
+    // ❌ localStorage full hai — memory store use karein
+    const memoryStore: Record<string, string> = {};
+    const memoryStorage = {
+      getItem: (key: string) => memoryStore[key] ?? null,
+      setItem: (key: string, value: string) => { memoryStore[key] = value; },
+      removeItem: (key: string) => { delete memoryStore[key]; },
+      clear: () => { Object.keys(memoryStore).forEach(k => delete memoryStore[k]); },
+      key: (i: number) => Object.keys(memoryStore)[i] ?? null,
+      get length() { return Object.keys(memoryStore).length; },
+    };
+
+    Object.defineProperty(window, 'localStorage', {
+      value: memoryStorage,
+      writable: false,
+      configurable: true,
+    });
+
+    console.warn('[FIREBASE] localStorage full → memory store use ho raha hai');
+  }
+}
+
 export function initializeFirebase(): {
   firebaseApp: FirebaseApp;
   firestore: Firestore;
@@ -32,7 +56,6 @@ export function initializeFirebase(): {
   
   const auth = getAuth(firebaseApp);
 
-  // ⚡ Detect if we're in a development workstation
   const isDevEnv = 
     typeof window !== 'undefined' && 
     (window.location.hostname.includes('cloudworkstations.dev') ||
@@ -40,22 +63,15 @@ export function initializeFirebase(): {
 
   let firestore: Firestore;
   try {
-    // ⚡ Production: Fast WebSocket + Persistent Cache
-    // Dev: Long-polling (needed for Firebase Studio)
     firestore = initializeFirestore(firebaseApp, {
-      // ✅ Cache: Data survives page reload — 2nd visit instant
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-      // ⚠️ Only force long-polling in dev workstation
+      localCache: memoryLocalCache(),
       ...(isDevEnv ? { experimentalForceLongPolling: true } : {}),
     });
     
     console.info(
-      `[FIREBASE] Firestore initialized: ${isDevEnv ? 'long-polling (dev)' : 'WebSocket + Cache (fast)'}`
+      `[FIREBASE] Firestore initialized: ${isDevEnv ? 'long-polling (dev)' : 'WebSocket + Memory Cache'}`
     );
   } catch (e: any) {
-    // Already initialized — fallback
     console.warn('[FIREBASE] Firestore fallback:', e.message);
     firestore = getFirestore(firebaseApp);
   }
