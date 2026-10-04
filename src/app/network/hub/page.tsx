@@ -39,6 +39,8 @@ import {
   Flame,
   Award,
   ShieldCheck,
+  Briefcase,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateTrustScore } from "@/lib/trust-score";
@@ -120,6 +122,26 @@ const NETWORK_ACTIONS = [
     cta: "Open Inbox",
   },
   {
+    id: "my-hires",
+    icon: UserCheck,
+    title: "My Hires",
+    description: "Professionals jinko aap ne hire kiya — unki details aur history yahan.",
+    href: "/network/my-hires",
+    color: "from-cyan-500/15 to-cyan-600/5 border-cyan-500/30",
+    iconBg: "bg-cyan-500/15 text-cyan-400",
+    cta: "View Hires",
+  },
+  {
+    id: "my-jobs",
+    icon: Briefcase,
+    title: "My Jobs",
+    description: "Jobs jinko aap ne kiya — earnings, reviews, aur history yahan.",
+    href: "/network/my-jobs",
+    color: "from-emerald-500/15 to-emerald-600/5 border-emerald-500/30",
+    iconBg: "bg-emerald-500/15 text-emerald-400",
+    cta: "View Jobs",
+  },
+  {
     id: "messages",
     icon: MessageSquare,
     title: "Messages",
@@ -174,10 +196,11 @@ export default function NetworkHubPage() {
   const { data: incoming } = useCollection(incomingQuery);
   const pendingCount = incoming?.length || 0;
 
+  // ⭐ Completed jobs (professional side)
   const completedQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(
-      collection(firestore, "networkRequests"),
+      collection(firestore, "networkHires"),
       where("professionalId", "==", user.uid),
       where("status", "==", "completed")
     );
@@ -185,6 +208,30 @@ export default function NetworkHubPage() {
 
   const { data: completed } = useCollection(completedQuery);
   const completedCount = completed?.length || 0;
+
+  // ⭐ My Hires count (hirer side)
+  const hiresQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "networkHires"),
+      where("hirerId", "==", user.uid)
+    );
+  }, [firestore, user?.uid]);
+
+  const { data: myHires } = useCollection(hiresQuery);
+  const hiresCount = myHires?.length || 0;
+
+  // ⭐ My Jobs count (professional side)
+  const jobsQuery = useMemo(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "networkHires"),
+      where("professionalId", "==", user.uid)
+    );
+  }, [firestore, user?.uid]);
+
+  const { data: myJobs } = useCollection(jobsQuery);
+  const jobsCount = myJobs?.length || 0;
 
   const allProfilesQuery = useMemo(() => {
     if (!firestore) return null;
@@ -336,6 +383,8 @@ export default function NetworkHubPage() {
               const isProfileMissing = action.id === "profile" && !hasProfile;
               const isPrimary = action.highlight;
               const hasSaved = action.id === "saved" && savedCount > 0;
+              const hasHires = action.id === "my-hires" && hiresCount > 0;
+              const hasJobs = action.id === "my-jobs" && jobsCount > 0;
 
               return (
                 <Link key={action.id} href={action.href} className="group">
@@ -387,6 +436,18 @@ export default function NetworkHubPage() {
                         {hasSaved && (
                           <Badge className="bg-red-500/15 text-red-400 border border-red-500/30 text-[10px] font-bold uppercase tracking-widest">
                             {savedCount} saved
+                          </Badge>
+                        )}
+
+                        {hasHires && (
+                          <Badge className="bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 text-[10px] font-bold uppercase tracking-widest">
+                            {hiresCount} hires
+                          </Badge>
+                        )}
+
+                        {hasJobs && (
+                          <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold uppercase tracking-widest">
+                            {jobsCount} jobs
                           </Badge>
                         )}
                       </div>

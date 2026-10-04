@@ -26,6 +26,18 @@ import {
   type RateUnit,
   type Gender,
 } from '@/lib/equipment';
+import {
+  CAMERAS,
+  GIMBALS,
+  DRONES,
+  ACTION_CAMS,
+  searchCameras,
+  searchGimbals,
+  searchDrones,
+  getCameraLabel,
+  getGimbalLabel,
+  getDroneLabel,
+} from '@/lib/cameras';
 import { EventTypePicker } from '@/components/event-type-picker';
 import {
   Camera,
@@ -120,6 +132,13 @@ export default function JoinNetworkPage() {
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([]);
   const [equipmentQuery, setEquipmentQuery] = useState('');
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentItem[]>([]);
+  
+  // ⭐ NEW: Specific equipment IDs
+  const [cameraIds, setCameraIds] = useState<string[]>([]);
+  const [gimbalIds, setGimbalIds] = useState<string[]>([]);
+  const [droneIds, setDroneIds] = useState<string[]>([]);
+  const [actionCamIds, setActionCamIds] = useState<string[]>([]);
+  
   const [bio, setBio] = useState('');
   const [baseCity, setBaseCity] = useState('');
   const [serviceAreas, setServiceAreas] = useState<string[]>([]);
@@ -141,6 +160,10 @@ export default function JoinNetworkPage() {
       setGender(existingProfile.gender || '');
       setSelectedRoles(existingProfile.roles || []);
       setSelectedEquipment(existingProfile.equipment || []);
+      setCameraIds(existingProfile.cameras || []);
+      setGimbalIds(existingProfile.gimbals || []);
+      setDroneIds(existingProfile.drones || []);
+      setActionCamIds(existingProfile.actionCams || []);
       setBio(existingProfile.bio || '');
       setBaseCity(existingProfile.baseCity || existingProfile.baseLocation || '');
       setServiceAreas(existingProfile.serviceAreas || []);
@@ -213,6 +236,23 @@ export default function JoinNetworkPage() {
 
   const removeEquipment = useCallback((id: string) => {
     setSelectedEquipment(prev => prev.filter(item => item.id !== id));
+  }, []);
+
+  // ⭐ NEW: Toggle functions for cameras/gimbals/drones
+  const toggleCamera = useCallback((id: string) => {
+    setCameraIds(prev => prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]);
+  }, []);
+
+  const toggleGimbal = useCallback((id: string) => {
+    setGimbalIds(prev => prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]);
+  }, []);
+
+  const toggleDrone = useCallback((id: string) => {
+    setDroneIds(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id]);
+  }, []);
+
+  const toggleActionCam = useCallback((id: string) => {
+    setActionCamIds(prev => prev.includes(id) ? prev.filter(a => a !== id) : [...prev, id]);
   }, []);
 
   const toggleArea = useCallback((area: string) => {
@@ -349,6 +389,12 @@ export default function JoinNetworkPage() {
             name: e.name,
             brand: e.brand || '',
           })),
+          // ⭐ NEW: Specific equipment
+          cameras: cameraIds,
+          gimbals: gimbalIds,
+          drones: droneIds,
+          actionCams: actionCamIds,
+          
           rate: {
             amount: primaryRate.amount,
             unit: primaryRate.unit,
@@ -385,7 +431,8 @@ export default function JoinNetworkPage() {
     user, firestore, gender, selectedRoles, baseCity, serviceAreas, travelRange,
     selectedEquipment, bio, rates, hasActivePlan, instagramLink, facebookLink,
     youtubeLink, selectedGalleryIds, profile, existingProfile, toast, router,
-    rolesRequirePortfolio, selectedRemoteRoles, turnarounds, services, isOnSite
+    rolesRequirePortfolio, selectedRemoteRoles, turnarounds, services, isOnSite,
+    cameraIds, gimbalIds, droneIds, actionCamIds,
   ]);
 
   return (
@@ -521,66 +568,155 @@ export default function JoinNetworkPage() {
           </CardContent>
         </Card>
 
-        {/* EQUIPMENT */}
+        {/* ═══ EQUIPMENT ═══ */}
         {rolesRequireEquipment && (
           <Card className="bg-card border-border/50 rounded-3xl overflow-hidden">
             <CardHeader className="bg-background/30 border-b border-border/30">
               <CardTitle className="text-lg font-headline font-bold flex items-center gap-2">
                 <Camera className="w-5 h-5 text-primary" /> Your Equipment
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">List your gear so others know what you work with.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                List your gear so clients can find you by specific camera.
+              </p>
             </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="relative">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search camera, lens, gimbal, drone..."
-                  className="pl-12 h-12 rounded-xl"
-                  value={equipmentQuery}
-                  onChange={(e) => setEquipmentQuery(e.target.value)}
-                />
+            <CardContent className="p-6 space-y-6">
+              
+              {/* Camera */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  📸 Cameras
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-2 border border-border/30 rounded-xl bg-background/30">
+                  {CAMERAS.slice(0, 30).map((camera) => {
+                    const selected = cameraIds.includes(camera.id);
+                    return (
+                      <button
+                        key={camera.id}
+                        type="button"
+                        onClick={() => toggleCamera(camera.id)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all flex items-center gap-1.5",
+                          selected
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/30 text-muted-foreground hover:border-primary/30"
+                        )}
+                      >
+                        <span>{camera.emoji}</span>
+                        {camera.brand} {camera.model}
+                        {selected && <Check className="w-3 h-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {cameraIds.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {cameraIds.length} camera{cameraIds.length > 1 ? "s" : ""} selected
+                  </p>
+                )}
               </div>
 
-              {equipmentQuery.trim() && (
-                <div className="border border-border/30 rounded-2xl overflow-hidden max-h-72 overflow-y-auto">
-                  {equipmentResults.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => addEquipment(item)}
-                      className="w-full text-left px-4 py-3 hover:bg-primary/10 flex items-center justify-between text-sm border-b border-border/20 last:border-0"
-                    >
-                      <span>{item.name}</span>
-                      <span className="text-[10px] uppercase text-muted-foreground">
-                        {EQUIPMENT_CATEGORY_LABELS[item.category]}
-                      </span>
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={addCustomEquipment}
-                    className="w-full text-left px-4 py-3 hover:bg-primary/10 flex items-center gap-2 text-sm text-primary font-bold"
-                  >
-                    <Plus className="w-4 h-4" /> Add &quot;{equipmentQuery.trim()}&quot; as custom
-                  </button>
-                </div>
-              )}
-
-              {selectedEquipment.length > 0 && (
-                <div className="flex flex-wrap gap-2 pt-2">
-                  {selectedEquipment.map((item) => (
-                    <Badge
-                      key={item.id}
-                      className="bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-1.5 gap-2 text-xs font-bold"
-                    >
-                      {item.name}
-                      <button type="button" onClick={() => removeEquipment(item.id)}>
-                        <X className="w-3 h-3" />
+              {/* Gimbal */}
+              <div className="space-y-3 pt-4 border-t border-border/20">
+                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  🎬 Gimbals
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-2 border border-border/30 rounded-xl bg-background/30">
+                  {GIMBALS.map((gimbal) => {
+                    const selected = gimbalIds.includes(gimbal.id);
+                    return (
+                      <button
+                        key={gimbal.id}
+                        type="button"
+                        onClick={() => toggleGimbal(gimbal.id)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all flex items-center gap-1.5",
+                          selected
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/30 text-muted-foreground hover:border-primary/30"
+                        )}
+                      >
+                        <span>{gimbal.emoji}</span>
+                        {gimbal.brand} {gimbal.model}
+                        {selected && <Check className="w-3 h-3" />}
                       </button>
-                    </Badge>
-                  ))}
+                    );
+                  })}
                 </div>
-              )}
+                {gimbalIds.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {gimbalIds.length} gimbal{gimbalIds.length > 1 ? "s" : ""} selected
+                  </p>
+                )}
+              </div>
+
+              {/* Drone */}
+              <div className="space-y-3 pt-4 border-t border-border/20">
+                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  🚁 Drones
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-2 border border-border/30 rounded-xl bg-background/30">
+                  {DRONES.map((drone) => {
+                    const selected = droneIds.includes(drone.id);
+                    return (
+                      <button
+                        key={drone.id}
+                        type="button"
+                        onClick={() => toggleDrone(drone.id)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all flex items-center gap-1.5",
+                          selected
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/30 text-muted-foreground hover:border-primary/30"
+                        )}
+                      >
+                        <span>{drone.emoji}</span>
+                        {drone.brand} {drone.model}
+                        {selected && <Check className="w-3 h-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {droneIds.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {droneIds.length} drone{droneIds.length > 1 ? "s" : ""} selected
+                  </p>
+                )}
+              </div>
+
+              {/* Action Cam */}
+              <div className="space-y-3 pt-4 border-t border-border/20">
+                <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  🏃 Action Cameras
+                </label>
+                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto custom-scrollbar p-2 border border-border/30 rounded-xl bg-background/30">
+                  {ACTION_CAMS.map((cam) => {
+                    const selected = actionCamIds.includes(cam.id);
+                    return (
+                      <button
+                        key={cam.id}
+                        type="button"
+                        onClick={() => toggleActionCam(cam.id)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-xl border text-[11px] font-bold transition-all flex items-center gap-1.5",
+                          selected
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/30 text-muted-foreground hover:border-primary/30"
+                        )}
+                      >
+                        <span>{cam.emoji}</span>
+                        {cam.brand} {cam.model}
+                        {selected && <Check className="w-3 h-3" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                {actionCamIds.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    {actionCamIds.length} action cam{actionCamIds.length > 1 ? "s" : ""} selected
+                  </p>
+                )}
+              </div>
+
             </CardContent>
           </Card>
         )}

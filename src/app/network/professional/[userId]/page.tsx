@@ -65,6 +65,15 @@ import {
   ROLE_DEFINITIONS,
   TURNAROUND_OPTIONS,
 } from "@/lib/equipment";
+import {
+  CAMERAS,
+  GIMBALS,
+  DRONES,
+  ACTION_CAMS,
+  getCameraLabel,
+  getGimbalLabel,
+  getDroneLabel,
+} from "@/lib/cameras";
 import { EventTypePicker } from "@/components/event-type-picker";
 import {
   calculateTrustScore,
@@ -190,7 +199,6 @@ export default function ProfessionalProfilePage() {
     fetchReviews();
   }, [firestore, userId]);
 
-  // Fetch requests for response time
   const allRequestsQuery = useMemo(() => {
     if (!firestore || !userId) return null;
     return query(
@@ -231,7 +239,6 @@ export default function ProfessionalProfilePage() {
     try {
       const hirerName = currentUserProfile?.studioName || currentUserProfile?.photographerName || "Hafash User";
 
-      // 1. Create the request
       const docRef = await addDoc(collection(firestore, "networkRequests"), {
         hirerId: user.uid,
         hirerName,
@@ -247,7 +254,6 @@ export default function ProfessionalProfilePage() {
         updatedAt: serverTimestamp(),
       });
 
-      // 2. Create notification for the professional
       await notifyNewRequest(firestore, {
         professionalId: userId,
         hirerId: user.uid,
@@ -408,6 +414,12 @@ export default function ProfessionalProfilePage() {
   const rates = profile?.rates || (profile?.rate ? [{ eventType: "Standard", amount: profile.rate.amount, unit: profile.rate.unit }] : []);
   const turnarounds = profile?.turnarounds || {};
   const services = profile?.services || {};
+
+  // ⭐ Equipment arrays
+  const cameraIds = profile?.cameras || [];
+  const gimbalIds = profile?.gimbals || [];
+  const droneIds = profile?.drones || [];
+  const actionCamIds = profile?.actionCams || [];
 
   const next7Days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
@@ -573,7 +585,7 @@ export default function ProfessionalProfilePage() {
           </div>
         </Card>
 
-        {/* PROFILE COMPLETION (only for own profile) */}
+        {/* PROFILE COMPLETION */}
         {isOwnProfile && completion && completion.percent < 100 && (
           <Card className="relative overflow-hidden rounded-[2rem] border-border/40 bg-gradient-to-br from-card/80 to-background shadow-xl">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary/60 via-primary/20 to-transparent" />
@@ -812,6 +824,126 @@ export default function ProfessionalProfilePage() {
               </SectionCard>
             )}
 
+            {/* ⭐ CAMERAS */}
+            {cameraIds.length > 0 && (
+              <SectionCard title={`Cameras (${cameraIds.length})`} icon={<Camera className="w-4 h-4" />}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {cameraIds.map((camId: string) => {
+                    const camera = CAMERAS.find((c) => c.id === camId);
+                    if (!camera) return null;
+                    return (
+                      <div
+                        key={camId}
+                        className="flex items-center gap-3 p-3 rounded-2xl bg-background/40 border border-border/30 hover:border-primary/30 transition-all"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-lg">
+                          {camera.emoji}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm truncate">
+                            {camera.brand} {camera.model}
+                          </p>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                            {camera.type} • {camera.category}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+            )}
+
+            {/* ⭐ GIMBALS */}
+            {gimbalIds.length > 0 && (
+              <SectionCard title={`Gimbals (${gimbalIds.length})`} icon={<Video className="w-4 h-4" />}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {gimbalIds.map((gimId: string) => {
+                    const gimbal = GIMBALS.find((g) => g.id === gimId);
+                    if (!gimbal) return null;
+                    return (
+                      <div
+                        key={gimId}
+                        className="flex items-center gap-3 p-3 rounded-2xl bg-background/40 border border-border/30 hover:border-primary/30 transition-all"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-lg">
+                          {gimbal.emoji}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm truncate">
+                            {gimbal.brand} {gimbal.model}
+                          </p>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                            {gimbal.type} • {gimbal.payload}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+            )}
+
+            {/* ⭐ DRONES */}
+            {droneIds.length > 0 && (
+              <SectionCard title={`Drones (${droneIds.length})`} icon={<Plane className="w-4 h-4" />}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {droneIds.map((droneId: string) => {
+                    const drone = DRONES.find((d) => d.id === droneId);
+                    if (!drone) return null;
+                    return (
+                      <div
+                        key={droneId}
+                        className="flex items-center gap-3 p-3 rounded-2xl bg-background/40 border border-border/30 hover:border-primary/30 transition-all"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-lg">
+                          {drone.emoji}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm truncate">
+                            {drone.brand} {drone.model}
+                          </p>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                            {drone.type}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+            )}
+
+            {/* ⭐ ACTION CAMS */}
+            {actionCamIds.length > 0 && (
+              <SectionCard title={`Action Cameras (${actionCamIds.length})`} icon={<Zap className="w-4 h-4" />}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {actionCamIds.map((camId: string) => {
+                    const cam = ACTION_CAMS.find((c) => c.id === camId);
+                    if (!cam) return null;
+                    return (
+                      <div
+                        key={camId}
+                        className="flex items-center gap-3 p-3 rounded-2xl bg-background/40 border border-border/30 hover:border-primary/30 transition-all"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-lg">
+                          {cam.emoji}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-sm truncate">
+                            {cam.brand} {cam.model}
+                          </p>
+                          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                            Action Camera
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SectionCard>
+            )}
+
             {rates.length > 0 && (
               <SectionCard title="Rate Card" icon={<Briefcase className="w-4 h-4" />}>
                 <div className="space-y-2">
@@ -833,7 +965,7 @@ export default function ProfessionalProfilePage() {
             )}
 
             {(profile.equipment || []).length > 0 && (
-              <SectionCard title="Equipment" icon={<Camera className="w-4 h-4" />}>
+              <SectionCard title="Other Equipment" icon={<Sparkles className="w-4 h-4" />}>
                 <div className="flex flex-wrap gap-2">
                   {profile.equipment.map((eq: any) => (
                     <Badge key={eq.id} variant="outline" className="rounded-xl bg-background/40 border-border/40 px-3 py-2 text-xs font-medium">

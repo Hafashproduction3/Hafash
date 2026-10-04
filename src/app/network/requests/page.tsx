@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useUser, useFirestore, useCollection } from "@/firebase";
-import { collection, query, where, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { collection, query, where, doc, updateDoc, serverTimestamp, getDoc, getDocs, addDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

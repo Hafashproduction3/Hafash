@@ -13,6 +13,17 @@ import {
 } from 'firebase/firestore';
 import { searchEquipment, type EquipmentItem, type Role } from '@/lib/equipment';
 import {
+  CAMERAS,
+  GIMBALS,
+  DRONES,
+  searchCameras,
+  searchGimbals,
+  searchDrones,
+  getCameraLabel,
+  getGimbalLabel,
+  getDroneLabel,
+} from '@/lib/cameras';
+import {
   Search,
   Camera,
   Video,
@@ -43,6 +54,8 @@ import {
   Check,
   Sliders,
   Send,
+  Camera as CameraIcon,
+  Video as VideoIcon,
 } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Button } from '@/components/ui/button';
@@ -57,6 +70,7 @@ import { format } from 'date-fns';
 type RoleKey = Role;
 type GenderFilter = 'any' | 'male' | 'female';
 type SortOption = 'best_match' | 'top_rated' | 'lowest_price' | 'newest';
+type GimbalFilter = 'any' | 'yes' | 'no';
 
 const REMOTE_ROLES = ['video_editor', 'photo_editor', 'album_designer'];
 
@@ -94,6 +108,14 @@ export default function NetworkSearchPage() {
   const [budgetMax, setBudgetMax] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // ⭐ NEW: Camera + Gimbal + Event Location
+  const [eventLocation, setEventLocation] = useState('');
+  const [requiredCameras, setRequiredCameras] = useState<string[]>([]);
+  const [cameraQuery, setCameraQuery] = useState('');
+  const [gimbalRequired, setGimbalRequired] = useState<GimbalFilter>('any');
+  const [requiredGimbals, setRequiredGimbals] = useState<string[]>([]);
+  const [gimbalQuery, setGimbalQuery] = useState('');
+
   const myProfileRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, 'users', user.uid);
@@ -114,6 +136,22 @@ export default function NetworkSearchPage() {
 
   const dateFilterKey = dateFilter ? format(dateFilter, 'yyyy-MM-dd') : '';
 
+  // ⭐ Camera search results
+  const cameraResults = useMemo(() => {
+    if (!cameraQuery.trim()) return [];
+    return searchCameras(cameraQuery)
+      .filter((c) => !requiredCameras.includes(c.id))
+      .slice(0, 8);
+  }, [cameraQuery, requiredCameras]);
+
+  // ⭐ Gimbal search results
+  const gimbalResults = useMemo(() => {
+    if (!gimbalQuery.trim()) return [];
+    return searchGimbals(gimbalQuery)
+      .filter((g) => !requiredGimbals.includes(g.id))
+      .slice(0, 8);
+  }, [gimbalQuery, requiredGimbals]);
+
   const filteredProfiles = useMemo(() => {
     if (!profiles || !dateFilterKey) return [];
 
@@ -131,6 +169,36 @@ export default function NetworkSearchPage() {
         const city = (p.baseCity || p.baseLocation || '').toLowerCase();
         const areas = (p.serviceAreas || []).map((a: string) => a.toLowerCase());
         if (!city.includes(q) && !areas.some((a: string) => a.includes(q))) return false;
+      }
+
+      // ⭐ Event Location filter
+      if (eventLocation.trim()) {
+        const loc = eventLocation.toLowerCase();
+        const city = (p.baseCity || p.baseLocation || '').toLowerCase();
+        const areas = (p.serviceAreas || []).map((a: string) => a.toLowerCase());
+        if (!city.includes(loc) && !areas.some((a: string) => a.includes(loc))) return false;
+      }
+
+      // ⭐ Camera filter
+      if (requiredCameras.length > 0) {
+        const professionalCameras = p.cameras || [];
+        const hasRequired = requiredCameras.some((camId) =>
+          professionalCameras.includes(camId)
+        );
+        if (!hasRequired) return false;
+      }
+
+      // ⭐ Gimbal filter
+      if (gimbalRequired === 'yes') {
+        if (!p.gimbals || p.gimbals.length === 0) return false;
+        if (requiredGimbals.length > 0) {
+          const hasRequired = requiredGimbals.some((gimId) =>
+            p.gimbals.includes(gimId)
+          );
+          if (!hasRequired) return false;
+        }
+      } else if (gimbalRequired === 'no') {
+        if (p.gimbals && p.gimbals.length > 0) return false;
       }
 
       if (dateFilterKey) {
@@ -180,7 +248,11 @@ export default function NetworkSearchPage() {
           return bTrust - aTrust;
       }
     });
-  }, [profiles, genderFilter, roleFilter, locationQuery, dateFilterKey, verifiedOnly, budgetMin, budgetMax, user, sortBy]);
+  }, [
+    profiles, genderFilter, roleFilter, locationQuery, dateFilterKey,
+    verifiedOnly, budgetMin, budgetMax, user, sortBy,
+    eventLocation, requiredCameras, gimbalRequired, requiredGimbals,
+  ]);
 
   const toggleSave = useCallback(
     async (professionalUserId: string, isSaved: boolean) => {
@@ -208,6 +280,12 @@ export default function NetworkSearchPage() {
     setBudgetMin('');
     setBudgetMax('');
     setSortBy('best_match');
+    setEventLocation('');
+    setRequiredCameras([]);
+    setCameraQuery('');
+    setGimbalRequired('any');
+    setRequiredGimbals([]);
+    setGimbalQuery('');
   }, []);
 
   const hasActiveFilters =
@@ -216,7 +294,11 @@ export default function NetworkSearchPage() {
     !!roleFilter ||
     verifiedOnly ||
     !!budgetMin ||
-    !!budgetMax;
+    !!budgetMax ||
+    !!eventLocation.trim() ||
+    requiredCameras.length > 0 ||
+    gimbalRequired !== 'any' ||
+    requiredGimbals.length > 0;
 
   const getRoleLabel = (roleId: string) => {
     return ROLE_FILTERS.find(r => r.id === roleId)?.label || roleId;
@@ -242,7 +324,7 @@ export default function NetworkSearchPage() {
                 Apna <span className="text-primary italic">Cross</span> Dhundein
               </h1>
               <p className="text-sm text-muted-foreground max-w-xl">
-                Gender, date, aur location select karein — hamari smart search aapko perfect professional dikhayegi.
+                Gender, date, location aur camera — sab select karein, hum perfect professional dikhayenge.
               </p>
             </div>
 
@@ -328,6 +410,199 @@ export default function NetworkSearchPage() {
                   className="rounded-xl"
                 />
               </div>
+            </div>
+
+            {/* STEP 2B: EVENT LOCATION ⭐ */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">Step 2B</span>
+                <div className="h-px flex-1 bg-border/30" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                  Kahan shoot hai? (optional)
+                </span>
+              </div>
+
+              <div className="relative">
+                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-primary" />
+                <Input
+                  placeholder="e.g., Noori House, DHA Phase 5"
+                  className="pl-12 h-12 rounded-xl bg-background/60 border-border/40"
+                  value={eventLocation}
+                  onChange={(e) => setEventLocation(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* STEP 2C: CAMERA REQUIREMENT ⭐ */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">Step 2C</span>
+                <div className="h-px flex-1 bg-border/30" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                  Camera chahiye? (optional)
+                </span>
+              </div>
+
+              {/* Selected Cameras */}
+              {requiredCameras.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {requiredCameras.map((camId) => (
+                    <Badge
+                      key={camId}
+                      className="bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-1.5 gap-2 text-xs font-bold"
+                    >
+                      📸 {getCameraLabel(camId)}
+                      <button
+                        type="button"
+                        onClick={() => setRequiredCameras(prev => prev.filter(c => c !== camId))}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search camera... (e.g., Sony A7 III)"
+                  className="pl-12 h-12 rounded-xl bg-background/60 border-border/40"
+                  value={cameraQuery}
+                  onChange={(e) => setCameraQuery(e.target.value)}
+                />
+              </div>
+
+              {cameraQuery.trim() && cameraResults.length > 0 && (
+                <div className="border border-border/30 rounded-2xl overflow-hidden max-h-64 overflow-y-auto">
+                  {cameraResults.map((camera) => (
+                    <button
+                      key={camera.id}
+                      type="button"
+                      onClick={() => {
+                        setRequiredCameras(prev => [...prev, camera.id]);
+                        setCameraQuery('');
+                      }}
+                      className="w-full text-left px-4 py-3 hover:bg-primary/10 flex items-center justify-between text-sm border-b border-border/20 last:border-0"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span>{camera.emoji}</span>
+                        <span>{camera.brand} {camera.model}</span>
+                      </span>
+                      <span className="text-[10px] uppercase text-muted-foreground">
+                        {camera.type}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* STEP 2D: GIMBAL REQUIREMENT ⭐ */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-primary/80">Step 2D</span>
+                <div className="h-px flex-1 bg-border/30" />
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
+                  Gimbal chahiye?
+                </span>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGimbalRequired('any')}
+                  className={cn(
+                    "px-3 py-2.5 rounded-xl text-xs font-bold border-2 transition-all",
+                    gimbalRequired === 'any'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                  )}
+                >
+                  Any
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGimbalRequired('yes')}
+                  className={cn(
+                    "px-3 py-2.5 rounded-xl text-xs font-bold border-2 transition-all",
+                    gimbalRequired === 'yes'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                  )}
+                >
+                  Haan, chahiye
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGimbalRequired('no')}
+                  className={cn(
+                    "px-3 py-2.5 rounded-xl text-xs font-bold border-2 transition-all",
+                    gimbalRequired === 'no'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border/30 text-muted-foreground hover:border-primary/30'
+                  )}
+                >
+                  Nahi
+                </button>
+              </div>
+
+              {gimbalRequired === 'yes' && (
+                <>
+                  {requiredGimbals.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {requiredGimbals.map((gimId) => (
+                        <Badge
+                          key={gimId}
+                          className="bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-1.5 gap-2 text-xs font-bold"
+                        >
+                          🎬 {getGimbalLabel(gimId)}
+                          <button
+                            type="button"
+                            onClick={() => setRequiredGimbals(prev => prev.filter(g => g !== gimId))}
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search gimbal... (e.g., DJI RS 3)"
+                      className="pl-12 h-12 rounded-xl bg-background/60 border-border/40"
+                      value={gimbalQuery}
+                      onChange={(e) => setGimbalQuery(e.target.value)}
+                    />
+                  </div>
+
+                  {gimbalQuery.trim() && gimbalResults.length > 0 && (
+                    <div className="border border-border/30 rounded-2xl overflow-hidden max-h-64 overflow-y-auto">
+                      {gimbalResults.map((gimbal) => (
+                        <button
+                          key={gimbal.id}
+                          type="button"
+                          onClick={() => {
+                            setRequiredGimbals(prev => [...prev, gimbal.id]);
+                            setGimbalQuery('');
+                          }}
+                          className="w-full text-left px-4 py-3 hover:bg-primary/10 flex items-center justify-between text-sm border-b border-border/20 last:border-0"
+                        >
+                          <span className="flex items-center gap-2">
+                            <span>{gimbal.emoji}</span>
+                            <span>{gimbal.brand} {gimbal.model}</span>
+                          </span>
+                          <span className="text-[10px] uppercase text-muted-foreground">
+                            {gimbal.payload}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             {/* STEP 3: LOCATION */}
@@ -509,10 +784,24 @@ export default function NetworkSearchPage() {
                 </Badge>
               )}
 
-              {locationQuery.trim() && (
+              {eventLocation.trim() && (
                 <Badge className="rounded-lg bg-background border border-border/40 text-[10px] font-bold uppercase tracking-widest gap-1">
                   <MapPin className="w-2.5 h-2.5" />
-                  {locationQuery}
+                  {eventLocation}
+                </Badge>
+              )}
+
+              {requiredCameras.length > 0 && (
+                <Badge className="rounded-lg bg-primary/15 text-primary border-primary/30 text-[10px] font-bold uppercase tracking-widest gap-1">
+                  <CameraIcon className="w-2.5 h-2.5" />
+                  {requiredCameras.length} camera
+                </Badge>
+              )}
+
+              {gimbalRequired === 'yes' && (
+                <Badge className="rounded-lg bg-primary/15 text-primary border-primary/30 text-[10px] font-bold uppercase tracking-widest gap-1">
+                  <VideoIcon className="w-2.5 h-2.5" />
+                  Gimbal
                 </Badge>
               )}
             </div>
@@ -673,6 +962,10 @@ function ProfessionalCard({
   const isFemale = gender === 'female';
   const isMale = gender === 'male';
 
+  // ⭐ Cameras + Gimbals
+  const cameras = profile?.cameras || [];
+  const gimbals = profile?.gimbals || [];
+
   return (
     <Card
       className={cn(
@@ -787,19 +1080,51 @@ function ProfessionalCard({
           <p className="text-sm leading-6 text-muted-foreground line-clamp-2">{profile.bio}</p>
         )}
 
-        {/* Equipment */}
-        {(profile.equipment || []).length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {profile.equipment.slice(0, 3).map((eq: any) => (
-              <Badge key={eq.id} className="bg-background/60 text-muted-foreground border-border/30 rounded-lg text-[10px] px-2 py-0.5 font-normal">
-                {eq.name}
-              </Badge>
-            ))}
-            {profile.equipment.length > 3 && (
-              <Badge className="bg-background/50 text-muted-foreground border border-border/30 text-[10px] font-normal">
-                +{profile.equipment.length - 3} more
-              </Badge>
-            )}
+        {/* ⭐ CAMERAS */}
+        {cameras.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[9px] uppercase font-bold tracking-widest text-muted-foreground flex items-center gap-1">
+              <CameraIcon className="w-3 h-3" /> Cameras
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {cameras.slice(0, 3).map((camId: string) => (
+                <Badge
+                  key={camId}
+                  className="bg-primary/10 text-primary border-primary/20 rounded-lg text-[10px] px-2 py-0.5 font-medium"
+                >
+                  📸 {getCameraLabel(camId)}
+                </Badge>
+              ))}
+              {cameras.length > 3 && (
+                <Badge className="bg-background/50 text-muted-foreground border border-border/30 text-[10px]">
+                  +{cameras.length - 3} more
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ⭐ GIMBALS */}
+        {gimbals.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-[9px] uppercase font-bold tracking-widest text-muted-foreground flex items-center gap-1">
+              <VideoIcon className="w-3 h-3" /> Gimbals
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {gimbals.slice(0, 3).map((gimId: string) => (
+                <Badge
+                  key={gimId}
+                  className="bg-primary/10 text-primary border-primary/20 rounded-lg text-[10px] px-2 py-0.5 font-medium"
+                >
+                  🎬 {getGimbalLabel(gimId)}
+                </Badge>
+              ))}
+              {gimbals.length > 3 && (
+                <Badge className="bg-background/50 text-muted-foreground border border-border/30 text-[10px]">
+                  +{gimbals.length - 3} more
+                </Badge>
+              )}
+            </div>
           </div>
         )}
 
@@ -834,7 +1159,7 @@ function ProfessionalCard({
           </div>
         </div>
 
-        {/* ═══ SEND REQUEST BUTTON ═══ */}
+        {/* Send Request */}
         {canSave && (
           <Button
             className="w-full rounded-xl h-11 font-bold gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 group/btn"

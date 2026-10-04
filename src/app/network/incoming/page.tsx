@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useUser, useFirestore, useCollection } from "@/firebase";
-import { collection, query, where, doc, updateDoc, serverTimestamp, getDoc } from "firebase/firestore";
+import { useUser, useFirestore, useCollection, useDoc } from "@/firebase";
+import { collection, query, where, doc, updateDoc, serverTimestamp, getDoc, getDocs, addDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +101,13 @@ export default function IncomingRequestsPage() {
   const [completeTarget, setCompleteTarget] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState(false);
 
+  // ⭐ Fetch my network profile for professionalName
+  const myProfileRef = useMemo(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, "networkProfiles", user.uid);
+  }, [firestore, user?.uid]);
+  const { data: myProfile } = useDoc(myProfileRef);
+
   const requestsQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(
@@ -134,6 +141,9 @@ export default function IncomingRequestsPage() {
     return c;
   }, [sortedRequests]);
 
+  // ═══════════════════════════════════════════════════════════════
+  // ACCEPT / DECLINE — WITH AUTO-CREATE HIRE
+  // ═══════════════════════════════════════════════════════════════
   const handleAction = useCallback(async () => {
     if (!firestore || !actionTarget || isProcessing || !user) return;
     setIsProcessing(true);
@@ -142,6 +152,7 @@ export default function IncomingRequestsPage() {
       if (!targetRequest) throw new Error("Request not found");
 
       const newStatus = actionTarget.action === "accept" ? "accepted" : "declined";
+      const professionalName = myProfile?.studioName || myProfile?.photographerName || targetRequest.professionalName || user.displayName || "Professional";
 
       // 1. Update request status
       await updateDoc(doc(firestore, "networkRequests", actionTarget.id), {
@@ -150,8 +161,43 @@ export default function IncomingRequestsPage() {
         updatedAt: serverTimestamp(),
       });
 
-      // 2. Notify the hirer
-      const professionalName = targetRequest.professionalName || user.displayName || "Professional";
+      // 2. If accepted → Create networkHire entry
+      if (actionTarget.action === "accept") {
+        await addDoc(collection(firestore, "networkHires"), {
+          // Parties
+          hirerId: targetRequest.hirerId,
+          hirerName: targetRequest.hirerName || "Hafash User",
+          professionalId: user.uid,
+          professionalName,
+
+          // Event details
+          eventDate: targetRequest.eventDate || "",
+          eventType: targetRequest.eventType || "",
+          eventLocation: targetRequest.eventLocation || "",
+          message: targetRequest.message || "",
+
+          // Status
+          status: "confirmed",
+          source: "network_request",
+          requestId: actionTarget.id,
+
+          // Amount
+          amount: targetRequest.budget || 0,
+          advanceReceived: false,
+          advanceAmount: 0,
+
+          // Completion tracking
+          completedByHirer: false,
+          completedByProfessional: false,
+
+          // Timestamps
+          createdAt: serverTimestamp(),
+          confirmedAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      // 3. Notify the hirer
       if (actionTarget.action === "accept") {
         await notifyRequestAccepted(firestore, {
           hirerId: targetRequest.hirerId,
@@ -173,18 +219,21 @@ export default function IncomingRequestsPage() {
         title: actionTarget.action === "accept" ? "Request Accepted" : "Request Declined",
         description:
           actionTarget.action === "accept"
-            ? "The hirer will be notified."
+            ? "Hire created! Check My Jobs to track it."
             : "The hirer has been informed.",
       });
       setActionTarget(null);
     } catch (err: any) {
       console.error("[INCOMING_ACTION] Error:", err);
-      toast({ variant: "destructive", title: "Action failed" });
+      toast({ variant: "destructive", title: "Action failed", description: err.message });
     } finally {
       setIsProcessing(false);
     }
-  }, [firestore, actionTarget, isProcessing, toast, user, sortedRequests]);
+  }, [firestore, actionTarget, isProcessing, toast, user, sortedRequests, myProfile]);
 
+  // ═══════════════════════════════════════════════════════════════
+  // MARK COMPLETE — SYNC WITH NETWORKHIRES
+  // ═══════════════════════════════════════════════════════════════
   const handleMarkComplete = useCallback(async () => {
     if (!firestore || !completeTarget || isCompleting) return;
     setIsCompleting(true);
@@ -195,13 +244,32 @@ export default function IncomingRequestsPage() {
 
       const data = snap.data();
       const bothComplete = !!data.completedByHirer;
+      const newStatus = bothComplete ? "completed" : "accepted";
 
+      // 1. Update request
       await updateDoc(ref, {
         completedByProfessional: true,
         completedAt: serverTimestamp(),
-        status: bothComplete ? "completed" : "accepted",
+        status: newStatus,
         updatedAt: serverTimestamp(),
       });
+
+      // 2. Find + update networkHires entry
+      const hiresQuery = query(
+        collection(firestore, "networkHires"),
+        where("requestId", "==", completeTarget)
+      );
+      const hiresSnap = await getDocs(hiresQuery);
+
+      if (!hiresSnap.empty) {
+        const hireDoc = hiresSnap.docs[0];
+        await updateDoc(hireDoc.ref, {
+          completedByProfessional: true,
+          status: bothComplete ? "completed" : "confirmed",
+          ...(bothComplete ? { completedAt: serverTimestamp() } : {}),
+          updatedAt: serverTimestamp(),
+        });
+      }
 
       toast({
         title: "Marked as Complete",
@@ -315,7 +383,7 @@ export default function IncomingRequestsPage() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {actionTarget?.action === "accept"
-                ? "The hirer will be notified, and your contact details will be shared with them."
+                ? "The hirer will be notified, and your contact details will be shared with them. A hire record will be created."
                 : "The hirer will be notified that you've declined. This cannot be undone."}
             </AlertDialogDescription>
           </AlertDialogHeader>
