@@ -31,6 +31,8 @@ import {
   MessageSquare,
   AlertCircle,
   FileText,
+  Wallet,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -67,14 +69,12 @@ export default function LocationDashboardBookingsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Get owner's profile (for invoice settings)
   const userRef = useMemo(() => {
     if (!firestore || !user) return null;
     return doc(firestore, "users", user.uid);
   }, [firestore, user?.uid]);
   const { data: profile } = useDoc(userRef);
 
-  // Get owner's bookings
   const bookingsQuery = useMemo(() => {
     if (!firestore || !user) return null;
     return query(
@@ -85,10 +85,8 @@ export default function LocationDashboardBookingsPage() {
 
   const { data: bookings, loading } = useCollection(bookingsQuery);
 
-  // Filter + sort
   const filteredBookings = useMemo(() => {
     if (!bookings) return [];
-
     let list = [...bookings];
 
     if (activeTab !== "all") {
@@ -112,7 +110,6 @@ export default function LocationDashboardBookingsPage() {
     });
   }, [bookings, activeTab, searchTerm]);
 
-  // Stats
   const stats = useMemo(() => {
     const list = bookings || [];
     return {
@@ -151,7 +148,6 @@ export default function LocationDashboardBookingsPage() {
         updatedAt: new Date().toISOString(),
       };
 
-      // ═══ AUTO-INVOICE ON CONFIRM ═══
       if (newStatus === "confirmed") {
         const bookingRef = doc(firestore, "locationBookings", bookingId);
         const bookingSnap = await getDoc(bookingRef);
@@ -159,7 +155,6 @@ export default function LocationDashboardBookingsPage() {
         if (bookingSnap.exists()) {
           const booking = bookingSnap.data();
 
-          // Invoice settings (profile se ya default)
           const invoiceSettings = {
             advancePercent: profile?.invoiceSettings?.advancePercent ?? 30,
             dueDays: profile?.invoiceSettings?.dueDays ?? 7,
@@ -167,11 +162,8 @@ export default function LocationDashboardBookingsPage() {
           };
 
           const paymentDetails = profile?.paymentDetails || {};
-
-          // Invoice number sequence — owner ki counter se
           const currentSequence = (profile?.invoiceCounter || 0) + 1;
 
-          // Calculate invoice
           const invoice = calculateLocationInvoice(
             booking.locationName || "Location Booking",
             booking.date || new Date().toISOString().split("T")[0],
@@ -182,11 +174,10 @@ export default function LocationDashboardBookingsPage() {
             currentSequence
           );
 
-          // Attach invoice to booking
           updateData.invoice = invoice;
           updateData.invoiceStatus = "sent";
+          updateData.advanceReceived = false;
 
-          // Increment owner's invoice counter
           await updateDoc(doc(firestore, "users", user!.uid), {
             invoiceCounter: increment(1),
           });
@@ -198,7 +189,7 @@ export default function LocationDashboardBookingsPage() {
       if (newStatus === "confirmed") {
         toast({
           title: "✅ Booking confirmed",
-          description: "Invoice auto-generate ho gaya.",
+          description: "Invoice auto-generate ho gaya. Advance receive hone par WhatsApp invoice bhejein.",
         });
       } else {
         toast({
@@ -206,6 +197,36 @@ export default function LocationDashboardBookingsPage() {
           description: `Status: ${newStatus}`,
         });
       }
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: err.message,
+      });
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // MARK ADVANCE RECEIVED
+  // ═══════════════════════════════════════════════════════════════
+  const handleMarkAdvanceReceived = async (bookingId: string) => {
+    if (!firestore) return;
+    if (!confirm("Confirm karein ke client ne advance bhej diya hai?")) return;
+
+    setUpdatingId(bookingId);
+    try {
+      await updateDoc(doc(firestore, "locationBookings", bookingId), {
+        advanceReceived: true,
+        advanceReceivedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      toast({
+        title: "✅ Advance received",
+        description: "Ab aap WhatsApp par client ko invoice bhej sakte hain.",
+      });
     } catch (err: any) {
       toast({
         variant: "destructive",
@@ -352,6 +373,7 @@ export default function LocationDashboardBookingsPage() {
               key={booking.id}
               booking={booking}
               onStatusUpdate={handleStatusUpdate}
+              onMarkAdvanceReceived={handleMarkAdvanceReceived}
               updating={updatingId === booking.id}
             />
           ))}
@@ -432,10 +454,12 @@ function MiniStat({
 function BookingCard({
   booking,
   onStatusUpdate,
+  onMarkAdvanceReceived,
   updating,
 }: {
   booking: any;
   onStatusUpdate: (id: string, status: "confirmed" | "cancelled" | "completed") => void;
+  onMarkAdvanceReceived: (id: string) => void;
   updating: boolean;
 }) {
   const status: string = booking.status || "pending";
@@ -444,6 +468,52 @@ function BookingCard({
   const canComplete = status === "confirmed";
   const canCancel = status === "pending" || status === "confirmed";
   const hasInvoice = !!booking.invoice;
+  const advanceReceived = booking.advanceReceived === true;
+  const canMarkAdvance = status === "confirmed" && hasInvoice && !advanceReceived;
+  const canSendWhatsApp = status === "confirmed" && hasInvoice && advanceReceived;
+
+  // ═══ WhatsApp Message Builder ═══
+  const buildWhatsAppMessage = () => {
+    const inv = booking.invoice || {};
+    const pd = inv.paymentDetails || {};
+
+    let msg = `Salam ${booking.clientName || "Client"},\n\n`;
+    msg += `✅ Aapki booking *confirm* ho gayi hai!\n\n`;
+    msg += `📍 *Location:* ${booking.locationName || "-"}\n`;
+    msg += `📅 *Date:* ${booking.date || "-"}\n`;
+    if (booking.time) msg += `⏰ *Time:* ${booking.time}\n`;
+    msg += `🎉 *Event:* ${booking.eventType || "-"}\n\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `💰 *Total Amount:* Rs. ${booking.totalAmount?.toLocaleString() || 0}\n`;
+    msg += `💵 *Advance (${inv.advanceAmount ? Math.round((inv.advanceAmount / (inv.subtotal || 1)) * 100) : 30}%):* Rs. ${inv.advanceAmount?.toLocaleString() || 0}\n`;
+    msg += `💳 *Balance:* Rs. ${inv.balanceAmount?.toLocaleString() || 0}\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━\n\n`;
+    msg += `📄 *Invoice #:* ${inv.invoiceNumber || "-"}\n`;
+    if (inv.dueDate) {
+      msg += `⏰ *Due Date:* ${new Date(inv.dueDate).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" })}\n`;
+    }
+    msg += `\n━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `💳 *Payment Details:*\n`;
+
+    if (pd.easypaisaNumber) msg += `💚 EasyPaisa: ${pd.easypaisaNumber}\n`;
+    if (pd.jazzcashNumber) msg += `❤️ JazzCash: ${pd.jazzcashNumber}\n`;
+    if (pd.bankName) msg += `🏦 Bank: ${pd.bankName}\n`;
+    if (pd.accountTitle) msg += `👤 Title: ${pd.accountTitle}\n`;
+    if (pd.accountNumber) msg += `🔢 Account: ${pd.accountNumber}\n`;
+
+    if (inv.notes) {
+      msg += `\n📝 *Note:* ${inv.notes}\n`;
+    }
+
+    msg += `\n━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `Shukriya,\n*Hafash.pk* 🎬`;
+
+    return msg;
+  };
+
+  const whatsappUrl = canSendWhatsApp && booking.clientPhone
+    ? `https://wa.me/${booking.clientPhone.replace(/\D/g, "")}?text=${encodeURIComponent(buildWhatsAppMessage())}`
+    : "#";
 
   return (
     <Card className="bg-card/60 border-border/40 rounded-2xl overflow-hidden hover:border-primary/30 transition-all">
@@ -469,14 +539,22 @@ function BookingCard({
                 )}
               </div>
 
-              <Badge
-                className={cn(
-                  "text-[10px] font-bold uppercase tracking-widest shrink-0",
-                  statusColor
+              <div className="flex items-center gap-2 shrink-0">
+                {advanceReceived && (
+                  <Badge className="text-[9px] font-bold uppercase tracking-widest bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1">
+                    <Wallet className="w-2.5 h-2.5" />
+                    Advance Received
+                  </Badge>
                 )}
-              >
-                {status}
-              </Badge>
+                <Badge
+                  className={cn(
+                    "text-[10px] font-bold uppercase tracking-widest",
+                    statusColor
+                  )}
+                >
+                  {status}
+                </Badge>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px]">
@@ -531,6 +609,11 @@ function BookingCard({
                 <p className="text-[10px] font-bold uppercase tracking-widest text-primary">
                   Invoice: {booking.invoice.invoiceNumber}
                 </p>
+                {advanceReceived && (
+                  <Badge className="ml-auto text-[9px] bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
+                    ✓ Advance Paid
+                  </Badge>
+                )}
               </div>
             )}
           </div>
@@ -553,7 +636,7 @@ function BookingCard({
               </div>
             )}
 
-            <div className="flex lg:flex-col gap-2">
+            <div className="flex lg:flex-col gap-2 flex-wrap">
               {canConfirm && (
                 <Button
                   size="sm"
@@ -571,6 +654,39 @@ function BookingCard({
                   )}
                 </Button>
               )}
+
+              {/* Mark Advance Received */}
+              {canMarkAdvance && (
+                <Button
+                  size="sm"
+                  onClick={() => onMarkAdvanceReceived(booking.id)}
+                  disabled={updating}
+                  className="flex-1 rounded-xl gap-1.5 bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 border border-amber-500/30 font-bold text-[10px] uppercase tracking-widest h-9"
+                >
+                  {updating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <>
+                      <Wallet className="w-3.5 h-3.5" />
+                      Mark Advance
+                    </>
+                  )}
+                </Button>
+              )}
+
+              {/* WhatsApp Invoice — only after advance */}
+              {canSendWhatsApp && booking.clientPhone && (
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 rounded-xl gap-1.5 bg-green-500 text-white hover:bg-green-600 font-bold text-[10px] uppercase tracking-widest h-9 flex items-center justify-center"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  WhatsApp Invoice
+                </a>
+              )}
+
               {canComplete && (
                 <Button
                   size="sm"
@@ -588,6 +704,7 @@ function BookingCard({
                   )}
                 </Button>
               )}
+
               {canCancel && (
                 <Button
                   size="sm"
