@@ -26,6 +26,7 @@ import {
   Sparkles,
   Plus,
   ArrowRight,
+  ArrowLeft,
   X,
   Check,
   Camera,
@@ -85,7 +86,6 @@ export default function LocationsListingPage() {
     const cityQ = cityFilter.trim().toLowerCase();
 
     const filtered = locations.filter((loc: any) => {
-      // Search (name + area + city + description)
       if (q) {
         const haystack = [
           loc.name,
@@ -100,17 +100,14 @@ export default function LocationsListingPage() {
         if (!haystack.includes(q)) return false;
       }
 
-      // Category
       if (categoryFilter && loc.category !== categoryFilter) return false;
 
-      // City
       if (cityQ) {
         const locCity = (loc.city || "").toLowerCase();
         const locArea = (loc.area || "").toLowerCase();
         if (!locCity.includes(cityQ) && !locArea.includes(cityQ)) return false;
       }
 
-      // Budget
       const rate = loc.hourlyRate || 0;
       if (budgetMin && rate < Number(budgetMin)) return false;
       if (budgetMax && rate > Number(budgetMax)) return false;
@@ -118,7 +115,6 @@ export default function LocationsListingPage() {
       return true;
     });
 
-    // Sort
     return [...filtered].sort((a: any, b: any) => {
       const aRate = a.hourlyRate || 0;
       const bRate = b.hourlyRate || 0;
@@ -192,6 +188,16 @@ export default function LocationsListingPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 shrink-0">
+              {/* ✅ BACK BUTTON */}
+              <Button
+                variant="outline"
+                className="rounded-2xl h-12 px-6 border-border/40 hover:border-primary/40 gap-2"
+                onClick={() => router.back()}
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span className="text-sm font-bold">Back</span>
+              </Button>
+
               {user && (
                 <Link href="/locations/join">
                   <Button className="rounded-2xl h-12 px-6 bg-gradient-to-br from-primary via-primary to-primary/90 text-primary-foreground font-bold gap-2.5 shadow-lg shadow-primary/25 hover:-translate-y-0.5 transition-all">
@@ -200,15 +206,6 @@ export default function LocationsListingPage() {
                   </Button>
                 </Link>
               )}
-
-              <Button
-                variant="outline"
-                className="rounded-2xl h-12 px-6 border-border/40 hover:border-primary/40"
-                onClick={() => router.push("/network/hub")}
-              >
-                <ArrowRight className="w-4 h-4 rotate-180" />
-                <span className="text-sm font-bold">Hub</span>
-              </Button>
             </div>
           </div>
         </div>
@@ -475,10 +472,8 @@ function LocationCard({ location }: { location: any }) {
             </div>
           )}
 
-          {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-          {/* Category Badge — top left */}
           {categoryInfo && (
             <div className="absolute top-4 left-4">
               <Badge className="rounded-lg bg-black/60 backdrop-blur-md text-white border border-white/20 gap-1.5 px-3 py-1 text-[10px] font-bold uppercase tracking-widest">
@@ -488,7 +483,6 @@ function LocationCard({ location }: { location: any }) {
             </div>
           )}
 
-          {/* Rating — top right */}
           {rating.count > 0 && (
             <div className="absolute top-4 right-4">
               <Badge className="rounded-lg bg-black/60 backdrop-blur-md text-white border border-white/20 gap-1 px-2.5 py-1 text-[11px] font-bold">
@@ -498,7 +492,6 @@ function LocationCard({ location }: { location: any }) {
             </div>
           )}
 
-          {/* Photos count */}
           {photos.length > 1 && (
             <div className="absolute bottom-4 right-4">
               <Badge className="rounded-lg bg-black/60 backdrop-blur-md text-white border border-white/20 gap-1 px-2 py-0.5 text-[10px] font-bold">
@@ -508,7 +501,6 @@ function LocationCard({ location }: { location: any }) {
             </div>
           )}
 
-          {/* Name + City — bottom */}
           <div className="absolute bottom-4 left-4 right-4">
             <h3 className="text-2xl font-headline font-bold text-white tracking-tight line-clamp-1 drop-shadow-2xl">
               {location.name}
@@ -523,7 +515,6 @@ function LocationCard({ location }: { location: any }) {
         {/* Content */}
         <CardContent className="p-5 space-y-4">
 
-          {/* Rating + hours */}
           <div className="flex items-center justify-between gap-3 text-xs">
             {rating.count > 0 ? (
               <div className="flex items-center gap-1.5">
@@ -541,21 +532,14 @@ function LocationCard({ location }: { location: any }) {
             </div>
           </div>
 
-          {/* Description */}
           {location.description && (
             <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
               {location.description}
             </p>
           )}
 
-          {/* Amenities preview */}
           {(location.amenities || []).length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {(location.amenities || []).slice(0, 3).map((aId: string) => {
-                const a = getCategoryInfo(aId); // dummy - will use AMENITIES
-                return null;
-              })}
-              {/* Simple amenity chips */}
               {(location.amenities || []).slice(0, 3).map((aId: string, idx: number) => (
                 <Badge
                   key={idx}
@@ -572,7 +556,6 @@ function LocationCard({ location }: { location: any }) {
             </div>
           )}
 
-          {/* Footer: Price + View */}
           <div className="pt-4 border-t border-border/20 flex items-end justify-between gap-3">
             <div>
               <p className="text-[9px] uppercase font-bold tracking-widest text-muted-foreground">

@@ -277,8 +277,8 @@ export default function DashboardPage() {
     const active = galleries || [];
     return {
       totalDeliveries: active.length,
-      totalPhotos: active.reduce((acc, g) => acc + (g.photoCount || g.items?.length || 0), 0),
-      totalFavorites: active.reduce((acc, g) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
+      totalPhotos: active.reduce((acc: number, g: any) => acc + (g.photoCount || g.items?.length || 0), 0),
+      totalFavorites: active.reduce((acc: number, g: any) => acc + (g.items?.filter((i: any) => i.isFavorite).length || 0), 0)
     };
   }, [galleries]);
 
@@ -286,11 +286,11 @@ export default function DashboardPage() {
     if (!galleries) return [];
     const queryLower = searchQuery.toLowerCase();
     return galleries
-      .filter(g =>
+      .filter((g: any) =>
         g.title?.toLowerCase().includes(queryLower) ||
         g.clientName?.toLowerCase().includes(queryLower)
       )
-      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+      .sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
   }, [galleries, searchQuery]);
 
   useEffect(() => {
@@ -308,7 +308,7 @@ export default function DashboardPage() {
     if (!firestore || !user || !galleryToDelete || isDeleting) return;
 
     const idToDelete = galleryToDelete;
-    const galleryDoc = (galleries || []).find(g => g.id === idToDelete);
+    const galleryDoc = (galleries || []).find((g: any) => g.id === idToDelete);
 
     setIsDeleting(true);
     setGalleryToDelete(null);
@@ -341,7 +341,7 @@ export default function DashboardPage() {
       });
 
     if (storageKeys.length > 0) {
-      void deleteGalleryFiles(storageKeys).catch(e =>
+      void deleteGalleryFiles(storageKeys).catch((e: any) =>
         console.error('[DASHBOARD_DELETE] R2 cleanup error:', e)
       );
     }
@@ -518,38 +518,25 @@ export default function DashboardPage() {
         <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
         <div className="relative space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
-                <Users className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-headline font-bold text-base text-white flex items-center gap-2">
-                  Hafash Network
-                  {(pendingCount > 0 || unreadCount > 0) && (
-                    <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/15 border border-primary/30 px-2 py-0.5 rounded-md animate-pulse">
-                      {pendingCount + unreadCount} new
-                    </span>
-                  )}
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {hasNetworkProfile
-                    ? "Aapka Network profile active hai"
-                    : "Abhi tak Network profile nahi banayi"}
-                </p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
+              <Users className="w-5 h-5 text-primary" />
             </div>
-
-            <Link href="/network/hub">
-              <Button
-                size="sm"
-                variant="outline"
-                className="rounded-xl gap-1.5 border-primary/30 hover:bg-primary/5 hover:border-primary/50"
-              >
-                Open Hub
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Button>
-            </Link>
+            <div>
+              <h3 className="font-headline font-bold text-base text-white flex items-center gap-2">
+                Hafash Network
+                {(pendingCount > 0 || unreadCount > 0) && (
+                  <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/15 border border-primary/30 px-2 py-0.5 rounded-md animate-pulse">
+                    {pendingCount + unreadCount} new
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {hasNetworkProfile
+                  ? "Aapka Network profile active hai"
+                  : "Abhi tak Network profile nahi banayi"}
+              </p>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -834,7 +821,7 @@ export default function DashboardPage() {
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredGalleries.map(gallery => (
+          {filteredGalleries.map((gallery: any) => (
             <Card
               key={gallery.id}
               className="group relative overflow-hidden rounded-[2.5rem] border-white/5 bg-card/30 hover:border-primary/40 transition-all duration-700 shadow-2xl hover:translate-y-[-8px] hover:shadow-primary/5"
@@ -912,7 +899,7 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredGalleries.map(gallery => (
+          {filteredGalleries.map((gallery: any) => (
             <div key={gallery.id} className="flex items-center gap-6 p-5 bg-card/30 backdrop-blur-md border border-white/5 rounded-3xl group hover:border-primary/40 transition-all duration-500 shadow-xl hover:translate-x-2">
               <div className="h-16 w-16 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
                 {gallery.coverImage ? (
