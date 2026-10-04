@@ -389,16 +389,17 @@ export default function DashboardPage() {
               </Button>
             </Link>
 
-            <Link href="/locations">
-              <Button
-                variant="outline"
-                className="rounded-2xl h-12 px-6 border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 hover:border-emerald-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
-              >
-                <MapPin className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
-                <span className="text-[13px]">Shoot Locations</span>
-                <ArrowRight className="w-3.5 h-3.5 text-emerald-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
-              </Button>
-            </Link>
+            <Button
+  variant="outline"
+  disabled
+  className="rounded-2xl h-12 px-6 border-border/30 bg-card/20 font-bold gap-2.5 opacity-60 cursor-not-allowed"
+>
+  <MapPin className="w-4 h-4 text-muted-foreground" />
+  <span className="text-[13px]">Shoot Locations</span>
+  <span className="text-[9px] uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-2 py-0.5 rounded-md">
+    Soon
+  </span>
+</Button>
 
             <Link href="/drive">
               <Button
