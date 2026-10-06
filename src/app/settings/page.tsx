@@ -8,7 +8,8 @@ import {
   Image as ImageIcon, ArrowLeft, Settings, HardDrive,
   CheckCircle2, AlertTriangle, Globe, Lock, Zap, Sparkles,
   Copy, Check, Palette, Plus, Trash2, Instagram,
-  Facebook, Youtube, Music2, Play, Upload, X
+  Facebook, Youtube, Music2, Play, Upload, X, FolderPlus,
+  Info, Pencil, Folder
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +24,14 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { updateSubdomain } from '@/app/actions/subdomain';
-import { addPortfolioPhoto, removePortfolioPhoto } from '@/app/actions/portfolio';
+import { 
+  addPortfolioPhoto, 
+  removePortfolioPhoto,
+  createPortfolioFolder,
+  updatePortfolioFolder,
+  deletePortfolioFolder,
+  assignPhotoToFolder,
+} from '@/app/actions/portfolio';
 import { isOwnerEmail } from '@/lib/plans';
 import { THEME_LIST, type ThemeId } from '@/lib/portfolio-themes';
 import { requestUploadUrl, refreshPhotoUrls } from '@/app/actions/storage';
@@ -42,6 +50,13 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("studio");
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Folders state
+  const [portfolioFolders, setPortfolioFolders] = useState<any[]>([]);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [editingFolder, setEditingFolder] = useState<any>(null);
+  const [folderForm, setFolderForm] = useState({ name: '', description: '', coverImage: '', coverKey: '' });
+  const [savingFolder, setSavingFolder] = useState(false);
 
   const settingsRef = useMemo(() => {
     if (!firestore || !user) return null;
@@ -107,8 +122,6 @@ export default function SettingsPage() {
         website: profile.website || '',
         subdomain: profile.subdomain || '',
         theme: (profile.theme || 'mixed') as ThemeId,
-        // Branding is loaded from publicProfiles (single source of truth).
-        // Do not restore deleted branding from users/{uid}.
         studioLogo: '',
         studioLogoKey: '',
         studioBanner: '',
@@ -131,8 +144,6 @@ export default function SettingsPage() {
     }
   }, [profile, user?.email, isDirty]);
 
-  // Branding is owned by publicProfiles. This prevents old values in
-  // users/{uid} from resurrecting a logo/banner/photo after deletion.
   useEffect(() => {
     if (!publicProfile || isDirty) return;
 
@@ -145,6 +156,9 @@ export default function SettingsPage() {
       photographerPhoto: publicProfile.photographerPhoto || '',
       photographerPhotoKey: publicProfile.photographerPhotoKey || '',
     }));
+
+    // 🆕 Load folders
+    setPortfolioFolders(publicProfile.portfolioFolders || []);
   }, [publicProfile, isDirty]);
 
   useEffect(() => {
@@ -190,10 +204,6 @@ export default function SettingsPage() {
     loadPortfolioPhotos();
   }, [publicProfile]);
 
-  const isCustomBrandingActive = useMemo(() => {
-    return profile?.planId && profile.planId !== 'starter';
-  }, [profile?.planId]);
-
   const isEnterprise = useMemo(() => {
     return profile?.planId === 'enterprise' || isOwnerEmail(user?.email);
   }, [profile?.planId, user?.email]);
@@ -227,6 +237,95 @@ export default function SettingsPage() {
   const validateWhatsApp = (number: string) => {
     const regex = /^03\d{9}$/;
     return regex.test(number.replace(/\s+/g, ''));
+  };
+
+  // ═══════════════════════════════════════════════════════════════
+  // 🆕 FOLDER HANDLERS
+  // ═══════════════════════════════════════════════════════════════
+
+  const openCreateFolderModal = () => {
+    setEditingFolder(null);
+    setFolderForm({ name: '', description: '', coverImage: '', coverKey: '' });
+    setShowFolderModal(true);
+  };
+
+  const openEditFolderModal = (folder: any) => {
+    setEditingFolder(folder);
+    setFolderForm({
+      name: folder.name || '',
+      description: folder.description || '',
+      coverImage: folder.coverImage || '',
+      coverKey: folder.coverKey || '',
+    });
+    setShowFolderModal(true);
+  };
+
+  const handleSaveFolder = async () => {
+    if (!user) return;
+    if (!folderForm.name.trim()) {
+      toast({ variant: 'destructive', title: 'Folder name zaroori hai' });
+      return;
+    }
+
+    setSavingFolder(true);
+    try {
+      if (editingFolder) {
+        const result = await updatePortfolioFolder(user.uid, editingFolder.id, {
+          name: folderForm.name,
+          description: folderForm.description,
+          coverImage: folderForm.coverImage,
+          coverKey: folderForm.coverKey,
+        });
+        if (!result.success) throw new Error(result.error);
+        toast({ title: '✅ Folder update ho gaya' });
+      } else {
+        const result = await createPortfolioFolder(user.uid, {
+          name: folderForm.name,
+          description: folderForm.description,
+          coverImage: folderForm.coverImage,
+          coverKey: folderForm.coverKey,
+        });
+        if (!result.success) throw new Error(result.error);
+        toast({ title: '✅ Folder ban gaya' });
+      }
+
+      setShowFolderModal(false);
+      setEditingFolder(null);
+      setFolderForm({ name: '', description: '', coverImage: '', coverKey: '' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Failed', description: err.message });
+    } finally {
+      setSavingFolder(false);
+    }
+  };
+
+  const handleDeleteFolder = async (folderId: string) => {
+    if (!user) return;
+    if (!confirm('Yeh folder delete karein? Photos "All Photos" mein chali jayengi.')) return;
+
+    try {
+      const result = await deletePortfolioFolder(user.uid, folderId);
+      if (!result.success) throw new Error(result.error);
+      toast({ title: 'Folder delete ho gaya' });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Failed', description: err.message });
+    }
+  };
+
+  const handleAssignPhoto = async (photoId: string, folderId: string | null) => {
+    if (!user) return;
+
+    // Optimistic update
+    setPortfolioPhotos(prev =>
+      prev.map(p => (p.id === photoId ? { ...p, folderId } : p))
+    );
+
+    try {
+      const result = await assignPhotoToFolder(user.uid, photoId, folderId);
+      if (!result.success) throw new Error(result.error);
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Failed', description: err.message });
+    }
   };
 
   // ═══════════════════════════════════════════════════════════════
@@ -315,6 +414,7 @@ export default function SettingsPage() {
               thumbUrl: urlResult.urls[uploadResult.key!],
               storageKey: uploadResult.key!,
               caption: '',
+              folderId: null,
               order: prev.length,
               uploadedAt: new Date().toISOString(),
             },
@@ -360,10 +460,6 @@ export default function SettingsPage() {
     }
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // BRANDING REMOVE (Direct Firestore)
-  // ═══════════════════════════════════════════════════════════════
-
   const handleBrandingRemove = async (type: 'logo' | 'banner' | 'photo') => {
     if (!firestore || !user) return;
 
@@ -382,7 +478,6 @@ export default function SettingsPage() {
         updatedAt: new Date().toISOString(),
       };
 
-      // Remove from both documents so old branding cannot return.
       await setDoc(
         doc(firestore, 'publicProfiles', user.uid),
         removeData,
@@ -395,7 +490,6 @@ export default function SettingsPage() {
         { merge: true }
       );
 
-      // Clear local state immediately.
       setFormData(prev => ({
         ...prev,
         [fields.url]: '',
@@ -457,8 +551,6 @@ export default function SettingsPage() {
         }
       }
 
-      // Branding belongs to publicProfiles. Do not persist branding in users/{uid};
-      // otherwise deleted images can be restored on a later Settings save.
       const userUpdateData: any = {
         ...formData,
         userId: user.uid,
@@ -477,65 +569,63 @@ export default function SettingsPage() {
         { merge: true }
       );
 
-            // Build update object — only include branding keys if they have values
-            const updateData: any = {
-              userId: user.uid,
-              studioName: formData.studioName.trim(),
-              photographerName: formData.photographerName.trim(),
-              tagline: formData.tagline?.trim() || '',
-              city: formData.city?.trim() || '',
-              whatsappNumber: formData.whatsappNumber.replace(/\s+/g, ''),
-              instagramLink: formData.instagramLink?.trim() || '',
-              facebookLink: formData.facebookLink?.trim() || '',
-              youtubeLink: formData.youtubeLink?.trim() || '',
-              tiktokLink: formData.tiktokLink?.trim() || '',
-              aboutBio: formData.aboutBio || '',
-              services: formData.services || [],
-              packages: formData.packages || [],
-              videoUrl: formData.videoUrl || '',
-              stats: formData.stats || { years: 5, clients: 100, appreciations: 0 },
-              theme: formData.theme || 'mixed',
-              subdomain: formData.subdomain || '',
-              planId: profile?.planId || 'starter',
-              isOwner: isOwnerEmail(user?.email),
-              bookingEnabled: true,
-              updatedAt: new Date().toISOString(),
-            };
-      
-            // ✅ Branding — set if has value, DELETE if empty
-if (formData.studioLogo) {
-  updateData.studioLogo = formData.studioLogo;
-} else {
-  updateData.studioLogo = deleteField();
-}
-if (formData.studioLogoKey) {
-  updateData.studioLogoKey = formData.studioLogoKey;
-} else {
-  updateData.studioLogoKey = deleteField();
-}
-if (formData.studioBanner) {
-  updateData.studioBanner = formData.studioBanner;
-} else {
-  updateData.studioBanner = deleteField();
-}
-if (formData.studioBannerKey) {
-  updateData.studioBannerKey = formData.studioBannerKey;
-} else {
-  updateData.studioBannerKey = deleteField();
-}
-if (formData.photographerPhoto) {
-  updateData.photographerPhoto = formData.photographerPhoto;
-} else {
-  updateData.photographerPhoto = deleteField();
-}
-if (formData.photographerPhotoKey) {
-  updateData.photographerPhotoKey = formData.photographerPhotoKey;
-} else {
-  updateData.photographerPhotoKey = deleteField();
-}
-      
-            await setDoc(doc(firestore, 'publicProfiles', user.uid), updateData, { merge: true });
-      
+      const updateData: any = {
+        userId: user.uid,
+        studioName: formData.studioName.trim(),
+        photographerName: formData.photographerName.trim(),
+        tagline: formData.tagline?.trim() || '',
+        city: formData.city?.trim() || '',
+        whatsappNumber: formData.whatsappNumber.replace(/\s+/g, ''),
+        instagramLink: formData.instagramLink?.trim() || '',
+        facebookLink: formData.facebookLink?.trim() || '',
+        youtubeLink: formData.youtubeLink?.trim() || '',
+        tiktokLink: formData.tiktokLink?.trim() || '',
+        aboutBio: formData.aboutBio || '',
+        services: formData.services || [],
+        packages: formData.packages || [],
+        videoUrl: formData.videoUrl || '',
+        stats: formData.stats || { years: 5, clients: 100, appreciations: 0 },
+        theme: formData.theme || 'mixed',
+        subdomain: formData.subdomain || '',
+        planId: profile?.planId || 'starter',
+        isOwner: isOwnerEmail(user?.email),
+        bookingEnabled: true,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (formData.studioLogo) {
+        updateData.studioLogo = formData.studioLogo;
+      } else {
+        updateData.studioLogo = deleteField();
+      }
+      if (formData.studioLogoKey) {
+        updateData.studioLogoKey = formData.studioLogoKey;
+      } else {
+        updateData.studioLogoKey = deleteField();
+      }
+      if (formData.studioBanner) {
+        updateData.studioBanner = formData.studioBanner;
+      } else {
+        updateData.studioBanner = deleteField();
+      }
+      if (formData.studioBannerKey) {
+        updateData.studioBannerKey = formData.studioBannerKey;
+      } else {
+        updateData.studioBannerKey = deleteField();
+      }
+      if (formData.photographerPhoto) {
+        updateData.photographerPhoto = formData.photographerPhoto;
+      } else {
+        updateData.photographerPhoto = deleteField();
+      }
+      if (formData.photographerPhotoKey) {
+        updateData.photographerPhotoKey = formData.photographerPhotoKey;
+      } else {
+        updateData.photographerPhotoKey = deleteField();
+      }
+
+      await setDoc(doc(firestore, 'publicProfiles', user.uid), updateData, { merge: true });
+
       toast({
         title: "Configuration Synchronized",
         description: "Your studio control center has been updated.",
@@ -667,7 +757,6 @@ if (formData.photographerPhotoKey) {
                       </p>
                     </div>
 
-                    {/* Studio Logo */}
                     <div className="space-y-2">
                       <ImageUploader
                         label="Studio Logo"
@@ -694,7 +783,6 @@ if (formData.photographerPhotoKey) {
                       )}
                     </div>
 
-                    {/* Studio Banner */}
                     <div className="space-y-2">
                       <ImageUploader
                         label="Studio Banner"
@@ -721,7 +809,6 @@ if (formData.photographerPhotoKey) {
                       )}
                     </div>
 
-                    {/* Your Photo */}
                     <div className="space-y-2">
                       <ImageUploader
                         label="Your Photo"
@@ -842,6 +929,7 @@ if (formData.photographerPhotoKey) {
 
         {/* PORTFOLIO TAB */}
         <TabsContent value="portfolio" className="space-y-8">
+          {/* Theme Card */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
               <CardTitle className="text-3xl font-headline font-bold flex items-center gap-3">
@@ -873,6 +961,124 @@ if (formData.photographerPhotoKey) {
                   </button>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          {/* 🆕 PORTFOLIO FOLDERS SECTION */}
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between flex-wrap gap-4">
+              <div>
+                <CardTitle className="text-3xl font-headline font-bold flex items-center gap-3">
+                  <Folder className="w-8 h-8 text-primary" /> Portfolio Folders
+                </CardTitle>
+                <CardDescription className="mt-2">
+                  Apne kaam ko categories mein organize karein
+                </CardDescription>
+              </div>
+              <Button
+                onClick={openCreateFolderModal}
+                className="rounded-xl gap-2 bg-primary text-primary-foreground font-bold h-12 px-6"
+              >
+                <FolderPlus className="w-4 h-4" />
+                Create Folder
+              </Button>
+            </CardHeader>
+            <CardContent className="p-10 space-y-8">
+              {/* Guidance Box */}
+              <div className="p-6 rounded-2xl bg-primary/5 border border-primary/20 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                  <div className="space-y-2">
+                    <p className="font-bold text-sm">💡 Folders kya hain?</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Folders aapke kaam ko categories mein organize karte hain. Client jab aapka portfolio kholega,
+                      toh usay <strong>gol circle folders</strong> dikhenge — Instagram highlights jaisa.
+                      Woh folder pe click karke us event ki saari photos dekh sakta hai.
+                    </p>
+                    <div className="pt-2 space-y-1">
+                      <p className="text-xs font-bold text-foreground">Suggested folders:</p>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {['Mehndi', 'Barat', 'Walima', 'Birthday', 'Aqeeqa', 'Nikkah', 'Fashion', 'Product'].map((s) => (
+                          <span key={s} className="text-[10px] px-2 py-1 rounded-full bg-primary/10 border border-primary/20 font-bold">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground italic pt-1">
+                      ⚠️ Folder nahi banaye toh saari photos ek hi "All Photos" grid mein dikhengi.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Folder List */}
+              {portfolioFolders.length === 0 ? (
+                <div className="text-center py-16 border-2 border-dashed border-border/40 rounded-[2rem]">
+                  <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Folder className="w-10 h-10 text-primary" />
+                  </div>
+                  <h3 className="font-headline font-bold text-xl mb-2">Abhi koi folder nahi</h3>
+                  <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+                    "Create Folder" button dabayein aur apne kaam ko organize karna shuru karein.
+                  </p>
+                  <Button onClick={openCreateFolderModal} className="rounded-xl gap-2">
+                    <FolderPlus className="w-4 h-4" /> Create First Folder
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                  {portfolioFolders
+                    .sort((a, b) => (a.order || 0) - (b.order || 0))
+                    .map((folder) => {
+                      const photoCount = portfolioPhotos.filter((p: any) => p.folderId === folder.id).length;
+                      return (
+                        <div key={folder.id} className="flex flex-col items-center gap-3 group">
+                          <div className="relative">
+                            {/* Circle Folder */}
+                            <div
+                              className="w-[100px] h-[100px] rounded-full overflow-hidden border-2 group-hover:scale-105 transition-all"
+                              style={{
+                                borderColor: folder.coverImage ? 'var(--primary)' : 'rgba(212, 175, 55, 0.3)',
+                              }}
+                            >
+                              {folder.coverImage ? (
+                                <img
+                                  src={folder.coverImage}
+                                  alt={folder.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <div className="w-full h-full bg-primary/10 flex items-center justify-center">
+                                  <Folder className="w-10 h-10 text-primary" />
+                                </div>
+                              )}
+                            </div>
+                            {/* Edit/Delete buttons */}
+                            <div className="absolute -top-1 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => openEditFolderModal(folder)}
+                                className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-110 transition-transform"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteFolder(folder.id)}
+                                className="w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center hover:scale-110 transition-transform"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="text-center space-y-0.5">
+                            <p className="font-bold text-sm">{folder.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{photoCount} 📷</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1048,7 +1254,7 @@ if (formData.photographerPhotoKey) {
                     <ImageIcon className="w-8 h-8 text-primary" /> Portfolio Photos
                   </CardTitle>
                   <CardDescription className="mt-2">
-                    Yeh photos aapke subdomain portfolio pe dikhengi. Client galleries yahan NAHI dikhengi.
+                    Yeh photos aapke subdomain portfolio pe dikhengi.
                   </CardDescription>
                 </div>
                 <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-bold uppercase tracking-widest">
@@ -1057,6 +1263,18 @@ if (formData.photographerPhotoKey) {
               </div>
             </CardHeader>
             <CardContent className="p-10 space-y-6">
+              {/* Guidance */}
+              <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 flex items-start gap-3">
+                <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-sm">💡 Photos ko folders mein assign karein</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Har photo ke neeche dropdown hai. Us se folder choose karein (Mehndi, Barat, etc).
+                    Agar folder nahi banaya, toh photo "All Photos" mein dikhegi.
+                  </p>
+                </div>
+              </div>
+
               <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-border/40 rounded-[2rem] hover:border-primary/50 transition-all">
                 <input
                   ref={fileInputRef}
@@ -1077,7 +1295,7 @@ if (formData.photographerPhotoKey) {
                   {uploadingPhoto ? 'Uploading...' : 'Upload Portfolio Photo'}
                 </h3>
                 <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
-                  Apni best work ki photos upload karein. Max 10MB per photo. Total 50 photos allowed.
+                  Apni best work ki photos upload karein. Max 10MB per photo.
                 </p>
                 <Button
                   onClick={() => fileInputRef.current?.click()}
@@ -1092,41 +1310,48 @@ if (formData.photographerPhotoKey) {
               {portfolioPhotos.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-6 border-t border-border/20">
                   {portfolioPhotos.map((photo) => (
-                    <div key={photo.id} className="relative group aspect-square rounded-2xl overflow-hidden border border-border/30">
-                      {photo.thumbUrl || photo.url ? (
-                        <img
-                          src={photo.thumbUrl || photo.url}
-                          alt={photo.caption || 'Portfolio'}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-muted flex items-center justify-center">
-                          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    <div key={photo.id} className="space-y-2">
+                      <div className="relative group aspect-square rounded-2xl overflow-hidden border border-border/30">
+                        {photo.thumbUrl || photo.url ? (
+                          <img
+                            src={photo.thumbUrl || photo.url}
+                            alt={photo.caption || 'Portfolio'}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-muted flex items-center justify-center">
+                            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <Button
+                            size="icon"
+                            variant="destructive"
+                            className="rounded-full h-12 w-12"
+                            onClick={() => handleRemovePortfolioPhoto(photo.id)}
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </Button>
                         </div>
-                      )}
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Button
-                          size="icon"
-                          variant="destructive"
-                          className="rounded-full h-12 w-12"
-                          onClick={() => handleRemovePortfolioPhoto(photo.id)}
+                      </div>
+
+                      {/* 🆕 Folder Dropdown */}
+                      {portfolioFolders.length > 0 && (
+                        <select
+                          value={photo.folderId || ''}
+                          onChange={(e) => handleAssignPhoto(photo.id, e.target.value || null)}
+                          className="w-full h-9 rounded-lg px-2 text-xs font-bold bg-background border border-border/40 focus:border-primary outline-none"
                         >
-                          <Trash2 className="w-5 h-5" />
-                        </Button>
-                      </div>
-                      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md text-white text-[10px] font-bold px-2 py-1 rounded-lg">
-                        #{photo.order + 1}
-                      </div>
+                          <option value="">📁 No Folder</option>
+                          {portfolioFolders.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              📁 {f.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   ))}
-                </div>
-              )}
-
-              {portfolioPhotos.length === 0 && (
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground italic">
-                    Abhi tak koi portfolio photo upload nahi ki.
-                  </p>
                 </div>
               )}
             </CardContent>
@@ -1172,6 +1397,105 @@ if (formData.photographerPhotoKey) {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ═══════════════════════════════════════════════════════ */}
+      {/* FOLDER MODAL */}
+      {/* ═══════════════════════════════════════════════════════ */}
+      {showFolderModal && (
+        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto">
+          <Card className="w-full max-w-lg rounded-[2rem] my-8">
+            <CardContent className="p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
+                    <FolderPlus className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="font-headline font-bold text-2xl">
+                      {editingFolder ? 'Edit Folder' : 'Create New Folder'}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      {editingFolder ? 'Folder details update karein' : 'Client ko yeh folder dikhega'}
+                    </p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={() => setShowFolderModal(false)}>
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label>Folder Name *</Label>
+                  <Input
+                    value={folderForm.name}
+                    onChange={(e) => setFolderForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., Mehndi, Barat, Walima"
+                    className="h-12 rounded-xl"
+                    maxLength={30}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Examples: Mehndi, Barat, Walima, Birthday, Aqeeqa, Fashion
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Description (optional)</Label>
+                  <Textarea
+                    value={folderForm.description}
+                    onChange={(e) => setFolderForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Mehndi ceremonies ki photos..."
+                    className="rounded-xl min-h-[80px]"
+                    maxLength={150}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Client ko yeh description folder ke andar dikhegi
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Cover Image (optional)</Label>
+                  <ImageUploader
+                    label=""
+                    value={folderForm.coverImage}
+                    onChange={(url, key) => {
+                      setFolderForm(prev => ({ ...prev, coverImage: url, coverKey: key || '' }));
+                    }}
+                    userId={user?.uid || ''}
+                    type="logo"
+                    maxSizeMB={3}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Cover nahi doge toh pehli photo automatically cover ban jayegi
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFolderModal(false)}
+                  className="flex-1 rounded-xl h-12"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveFolder}
+                  disabled={savingFolder || !folderForm.name.trim()}
+                  className="flex-1 rounded-xl gap-2 bg-primary hover:bg-primary/90 font-bold h-12"
+                >
+                  {savingFolder ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                  {editingFolder ? 'Update Folder' : 'Create Folder'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

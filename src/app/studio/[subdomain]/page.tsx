@@ -6,9 +6,9 @@ import Link from "next/link";
 import { useFirestore } from "@/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import {
-  Camera, MapPin, MessageCircle, Instagram, Sparkles, Award,
-  Crown, Star, Heart, Eye, ArrowRight, Quote, CheckCircle2,
-  Calendar, Clock, Users, Play
+  Camera, MapPin, MessageCircle, Sparkles, Award,
+  Crown, Star, Heart, ArrowRight, CheckCircle2,
+  Calendar, Clock, Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { refreshPhotoUrls } from "@/app/actions/storage";
@@ -160,23 +160,17 @@ export default function StudioHomePage() {
   const studioName = photographer.studioName || "Studio";
   const banner = photographer.studioBanner;
   const whatsapp = photographer.whatsappNumber;
-  const instagram = photographer.instagramLink;
   const tagline = photographer.tagline;
   const city = photographer.city;
   const aboutBio = photographer.aboutBio;
-  const photographerPhoto = photographer.photographerPhoto;
-  const services = photographer.services || [];
-  const packages = photographer.packages || [];
   const heroImage = banner || portfolioPhotos[0]?.url;
-
-  // Satisfaction % — avg rating se nikaal rahe
   const satisfactionPercent = Math.round(parseFloat(avgRating) * 19.6);
 
   return (
     <div>
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* KEN BURNS ANIMATION STYLES */}
+      {/* KEN BURNS ANIMATION */}
       {/* ═══════════════════════════════════════════════════ */}
       <style jsx global>{`
         @keyframes kenburns {
@@ -186,11 +180,9 @@ export default function StudioHomePage() {
       `}</style>
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* HERO SECTION — LUXURY REDESIGN */}
+      {/* HERO SECTION */}
       {/* ═══════════════════════════════════════════════════ */}
       <section className="relative h-[90vh] min-h-[700px] overflow-hidden">
-
-        {/* Background Image with Ken Burns */}
         {heroImage ? (
           <img
             src={heroImage}
@@ -210,7 +202,6 @@ export default function StudioHomePage() {
           />
         )}
 
-        {/* Dark Gradient Overlays */}
         <div
           className="absolute inset-0"
           style={{
@@ -224,13 +215,11 @@ export default function StudioHomePage() {
           }}
         />
 
-        {/* Content */}
         <div className="relative h-full flex flex-col">
           <div className="flex-1 flex items-center">
             <div className="max-w-7xl mx-auto px-6 lg:px-8 w-full pt-20">
               <div className="max-w-2xl space-y-7">
 
-                {/* Small Badge */}
                 <div
                   className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border backdrop-blur-sm"
                   style={{
@@ -247,7 +236,6 @@ export default function StudioHomePage() {
                   </span>
                 </div>
 
-                {/* Big Serif Heading */}
                 <h1
                   className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-headline font-bold leading-[1.02] tracking-tight text-white"
                   style={{
@@ -257,12 +245,10 @@ export default function StudioHomePage() {
                   {tagline || 'Capturing Emotions, Creating Memories'}
                 </h1>
 
-                {/* Subheading */}
                 <p className="text-base lg:text-lg leading-relaxed text-white/80 max-w-xl">
                   {aboutBio || `Timeless photography that tells your story. Capturing the intimate, the emotional, and the unforgettable moments with artistry and care.`}
                 </p>
 
-                {/* 3 Stat Cards */}
                 <div className="grid grid-cols-3 gap-3 lg:gap-4 pt-2 max-w-xl">
                   <LuxuryStatCard
                     icon={<Camera className="w-5 h-5 lg:w-6 lg:h-6" />}
@@ -281,7 +267,6 @@ export default function StudioHomePage() {
                   />
                 </div>
 
-                {/* CTAs */}
                 <div className="flex flex-wrap items-center gap-4 pt-2">
                   <Link href="/portfolio">
                     <Button
@@ -323,7 +308,6 @@ export default function StudioHomePage() {
             </div>
           </div>
 
-          {/* Bottom Info Bar */}
           <div
             className="relative border-t backdrop-blur-sm"
             style={{
@@ -377,109 +361,12 @@ export default function StudioHomePage() {
       </section>
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* ABOUT THE PHOTOGRAPHER */}
-      {/* ═══════════════════════════════════════════════════ */}
-      {(photographerPhoto || aboutBio) && (
-        <section className="py-20 lg:py-28" style={{ background: 'var(--portfolio-page-bg)' }}>
-          <div className="max-w-7xl mx-auto px-6 lg:px-8">
-
-            <div className="text-center mb-16">
-              <div className="flex items-center justify-center gap-4 mb-4">
-                <div className="h-px w-16" style={{ background: 'var(--portfolio-primary)' }} />
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.4em]"
-                  style={{ color: 'var(--portfolio-primary)' }}
-                >
-                  About The Photographer
-                </span>
-                <div className="h-px w-16" style={{ background: 'var(--portfolio-primary)' }} />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              <div className="relative">
-                <div
-                  className="aspect-[4/5] rounded-[2rem] overflow-hidden shadow-2xl"
-                  style={{ border: `1px solid var(--portfolio-border)` }}
-                >
-                  {photographerPhoto ? (
-                    <img
-                      src={photographerPhoto}
-                      alt={photographer.photographerName || studioName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div
-                      className="w-full h-full flex items-center justify-center"
-                      style={{ background: 'var(--portfolio-card-bg)' }}
-                    >
-                      <Camera className="w-24 h-24" style={{ color: 'var(--portfolio-muted-text)', opacity: 0.2 }} />
-                    </div>
-                  )}
-                </div>
-
-                <div
-                  className="absolute -bottom-6 -right-6 px-6 py-4 rounded-2xl shadow-2xl hidden lg:block"
-                  style={{
-                    background: 'var(--portfolio-primary)',
-                    color: 'var(--portfolio-primary-text)',
-                  }}
-                >
-                  <p className="text-3xl font-headline font-bold">{stats.years}+</p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest">Years Experience</p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <h2
-                  className="text-4xl lg:text-5xl font-headline font-bold leading-tight"
-                  style={{ color: 'var(--portfolio-heading-text)' }}
-                >
-                  Hi, I'm {photographer.photographerName || studioName}
-                </h2>
-
-                <p
-                  className="text-base lg:text-lg leading-relaxed"
-                  style={{ color: 'var(--portfolio-body-text)' }}
-                >
-                  {aboutBio || `Based in ${city || 'Pakistan'}, I'm a professional photographer capturing timeless moments with a refined, cinematic approach.`}
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-                  <FactItem icon={<MapPin />} text={city ? `${city} Based` : 'Pakistan Based'} />
-                  <FactItem icon={<Camera />} text="Cinematic Style" />
-                  <FactItem icon={<Clock />} text="Available for Booking" />
-                  <FactItem icon={<Heart />} text="1:1 Personal Approach" />
-                </div>
-
-                <div className="pt-4">
-                  <Link href="/about">
-                    <Button
-                      variant="outline"
-                      className="rounded-full px-8 h-12 font-bold gap-2"
-                      style={{
-                        borderColor: 'var(--portfolio-primary)',
-                        color: 'var(--portfolio-primary)',
-                      }}
-                    >
-                      Read Full Story
-                      <ArrowRight className="w-4 h-4" />
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* FEATURED PORTFOLIO PREVIEW */}
+      {/* MINI PORTFOLIO PREVIEW */}
       {/* ═══════════════════════════════════════════════════ */}
       {portfolioPhotos.length > 0 && (
         <section
           className="py-20 lg:py-28"
-          style={{ background: 'var(--portfolio-section-bg)' }}
+          style={{ background: 'var(--portfolio-page-bg)' }}
         >
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
             <div className="text-center mb-16">
@@ -497,21 +384,25 @@ export default function StudioHomePage() {
                 className="text-4xl lg:text-5xl font-headline font-bold"
                 style={{ color: 'var(--portfolio-heading-text)' }}
               >
-                My Latest Portfolio
+                A Glimpse of My Work
               </h2>
             </div>
 
-            <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
-              {portfolioPhotos.slice(0, 6).map((photo: any, idx: number) => (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+              {portfolioPhotos.slice(0, 4).map((photo: any, idx: number) => (
                 <div
                   key={photo.id}
-                  className="break-inside-avoid group relative overflow-hidden rounded-[2rem] cursor-pointer"
+                  className={cn(
+                    "group relative overflow-hidden rounded-2xl",
+                    idx === 0 && "lg:col-span-2 lg:row-span-2 lg:aspect-square",
+                    idx !== 0 && "aspect-square"
+                  )}
                   style={{ border: `1px solid var(--portfolio-border)` }}
                 >
                   <img
                     src={photo.thumbUrl || photo.url}
                     alt={`Portfolio ${idx + 1}`}
-                    className="w-full h-auto object-cover transition-transform duration-1000 group-hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -539,188 +430,11 @@ export default function StudioHomePage() {
       )}
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* SERVICES */}
-      {/* ═══════════════════════════════════════════════════ */}
-      {services.length > 0 && (
-        <section className="py-20 lg:py-28" style={{ background: 'var(--portfolio-page-bg)' }}>
-          <div className="max-w-7xl mx-auto px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <div className="flex items-center justify-center gap-4 mb-4">
-                <div className="h-px w-16" style={{ background: 'var(--portfolio-primary)' }} />
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.4em]"
-                  style={{ color: 'var(--portfolio-primary)' }}
-                >
-                  What I Offer
-                </span>
-                <div className="h-px w-16" style={{ background: 'var(--portfolio-primary)' }} />
-              </div>
-              <h2
-                className="text-4xl lg:text-5xl font-headline font-bold"
-                style={{ color: 'var(--portfolio-heading-text)' }}
-              >
-                Featured Services
-              </h2>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {services.slice(0, 6).map((service: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="p-8 rounded-3xl transition-all hover:-translate-y-1"
-                  style={{
-                    background: 'var(--portfolio-card-bg)',
-                    border: `1px solid var(--portfolio-border)`,
-                  }}
-                >
-                  <div
-                    className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
-                    style={{ background: 'var(--portfolio-primary)15' }}
-                  >
-                    <Camera className="w-6 h-6" style={{ color: 'var(--portfolio-primary)' }} />
-                  </div>
-                  <h3
-                    className="text-xl font-headline font-bold mb-3"
-                    style={{ color: 'var(--portfolio-heading-text)' }}
-                  >
-                    {service.title}
-                  </h3>
-                  {service.description && (
-                    <p
-                      className="text-sm leading-relaxed"
-                      style={{ color: 'var(--portfolio-muted-text)' }}
-                    >
-                      {service.description}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* REVIEWS */}
-      {/* ═══════════════════════════════════════════════════ */}
-      {reviews.length > 0 && (
-        <section
-          className="py-20 lg:py-28"
-          style={{ background: 'var(--portfolio-section-bg)' }}
-        >
-          <div className="max-w-7xl mx-auto px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <div className="flex items-center justify-center gap-4 mb-4">
-                <div className="h-px w-16" style={{ background: 'var(--portfolio-primary)' }} />
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.4em]"
-                  style={{ color: 'var(--portfolio-primary)' }}
-                >
-                  Loved By Couples
-                </span>
-                <div className="h-px w-16" style={{ background: 'var(--portfolio-primary)' }} />
-              </div>
-              <h2
-                className="text-4xl lg:text-5xl font-headline font-bold mb-4"
-                style={{ color: 'var(--portfolio-heading-text)' }}
-              >
-                Client Reviews
-              </h2>
-              <div className="flex items-center justify-center gap-3">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map(s => (
-                    <Star
-                      key={s}
-                      className={cn(
-                        "w-5 h-5",
-                        s <= Math.round(parseFloat(avgRating)) ? "fill-current" : ""
-                      )}
-                      style={{ color: 'var(--portfolio-primary)' }}
-                    />
-                  ))}
-                </div>
-                <span
-                  className="font-bold text-xl"
-                  style={{ color: 'var(--portfolio-heading-text)' }}
-                >
-                  {avgRating}
-                </span>
-                <span
-                  className="text-sm"
-                  style={{ color: 'var(--portfolio-muted-text)' }}
-                >
-                  ({reviews.length} reviews)
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {reviews.slice(0, 3).map((review: any, idx: number) => (
-                <div
-                  key={idx}
-                  className="p-8 rounded-3xl"
-                  style={{
-                    background: 'var(--portfolio-card-bg)',
-                    border: `1px solid var(--portfolio-border)`,
-                  }}
-                >
-                  <Quote
-                    className="w-10 h-10 mb-4"
-                    style={{ color: 'var(--portfolio-primary)', opacity: 0.2 }}
-                  />
-                  <div className="flex gap-1 mb-4">
-                    {[1, 2, 3, 4, 5].map(s => (
-                      <Star
-                        key={s}
-                        className={cn(
-                          "w-4 h-4",
-                          s <= (review.rating || 5) ? "fill-current" : ""
-                        )}
-                        style={{ color: 'var(--portfolio-primary)' }}
-                      />
-                    ))}
-                  </div>
-                  <p
-                    className="text-sm leading-relaxed mb-6 italic"
-                    style={{ color: 'var(--portfolio-body-text)' }}
-                  >
-                    "{review.text || review.reviewText}"
-                  </p>
-                  <p
-                    className="text-xs font-bold uppercase tracking-widest"
-                    style={{ color: 'var(--portfolio-primary)' }}
-                  >
-                    — {review.clientName || 'Happy Client'}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="text-center mt-12">
-              <Link href="/reviews">
-                <Button
-                  variant="outline"
-                  className="rounded-full px-8 h-12 font-bold gap-2"
-                  style={{
-                    borderColor: 'var(--portfolio-primary)',
-                    color: 'var(--portfolio-primary)',
-                  }}
-                >
-                  See All Reviews
-                  <ArrowRight className="w-4 h-4" />
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* CTA SECTION */}
+      {/* SIMPLE CTA */}
       {/* ═══════════════════════════════════════════════════ */}
       <section
         className="py-24 lg:py-32 relative overflow-hidden"
-        style={{ background: 'var(--portfolio-page-bg)' }}
+        style={{ background: 'var(--portfolio-section-bg)' }}
       >
         <div
           className="absolute inset-0 opacity-5"
@@ -803,7 +517,7 @@ export default function StudioHomePage() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// LUXURY STAT CARD — Hero section ke liye
+// LUXURY STAT CARD
 // ═══════════════════════════════════════════════════════════════
 
 function LuxuryStatCard({
@@ -823,7 +537,6 @@ function LuxuryStatCard({
         background: 'rgba(0,0,0,0.4)',
       }}
     >
-      {/* Corner decorations */}
       <div
         className="absolute top-1.5 left-1.5 w-2 h-2 border-t border-l"
         style={{ borderColor: 'var(--portfolio-primary)' }}
@@ -861,7 +574,7 @@ function LuxuryStatCard({
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HELPER COMPONENTS
+// STAT ITEM
 // ═══════════════════════════════════════════════════════════════
 
 function StatItem({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
@@ -887,27 +600,6 @@ function StatItem({ icon, value, label }: { icon: React.ReactNode; value: string
       >
         {label}
       </p>
-    </div>
-  );
-}
-
-function FactItem({ icon, text }: { icon: React.ReactNode; text: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div
-        className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-        style={{ background: 'var(--portfolio-primary)15' }}
-      >
-        <div className="w-4 h-4" style={{ color: 'var(--portfolio-primary)' }}>
-          {icon}
-        </div>
-      </div>
-      <span
-        className="text-sm font-bold"
-        style={{ color: 'var(--portfolio-body-text)' }}
-      >
-        {text}
-      </span>
     </div>
   );
 }

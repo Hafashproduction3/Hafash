@@ -7,8 +7,6 @@ import {
   type Booking,
   type Invoice 
 } from '@/lib/portfolio-types';
-
-// 🆕 Tracking system import
 import { DEFAULT_STATUSES } from '@/lib/booking-status';
 
 // ═══════════════════════════════════════════════════════════════
@@ -52,6 +50,7 @@ export async function addPortfolioPhoto(
       storageKey: photo.storageKey,
       thumbKey: photo.thumbKey || '',
       caption: photo.caption || '',
+      folderId: null,           // 🆕 Default no folder
       order: existing.length,
       uploadedAt: new Date().toISOString(),
     };
@@ -98,6 +97,266 @@ export async function removePortfolioPhoto(
     return { success: true };
   } catch (error: any) {
     console.error('[REMOVE_PORTFOLIO_PHOTO]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🆕 PORTFOLIO FOLDERS
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Create a new folder
+ */
+export async function createPortfolioFolder(
+  userId: string,
+  folder: {
+    name: string;
+    description?: string;
+    coverImage?: string;
+    coverKey?: string;
+  }
+): Promise<{ success: boolean; folderId?: string; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const userRef = adminDb.collection('publicProfiles').doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return { success: false, error: 'Profile not found' };
+    }
+
+    const data = userSnap.data() || {};
+    const existing: any[] = data.portfolioFolders || [];
+
+    // Check duplicate name
+    const duplicate = existing.find(
+      (f) => f.name.toLowerCase() === folder.name.trim().toLowerCase()
+    );
+    if (duplicate) {
+      return { success: false, error: 'Yeh naam already exist karta hai' };
+    }
+
+    const folderId = Math.random().toString(36).substring(2, 11);
+    const newFolder = {
+      id: folderId,
+      name: folder.name.trim(),
+      slug: folder.name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+      description: folder.description?.trim() || '',
+      coverImage: folder.coverImage || '',
+      coverKey: folder.coverKey || '',
+      order: existing.length,
+      photoCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    await userRef.update({
+      portfolioFolders: [...existing, newFolder],
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true, folderId };
+  } catch (error: any) {
+    console.error('[CREATE_FOLDER]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update a folder
+ */
+export async function updatePortfolioFolder(
+  userId: string,
+  folderId: string,
+  updates: {
+    name?: string;
+    description?: string;
+    coverImage?: string;
+    coverKey?: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const userRef = adminDb.collection('publicProfiles').doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return { success: false, error: 'Profile not found' };
+    }
+
+    const data = userSnap.data() || {};
+    const existing: any[] = data.portfolioFolders || [];
+
+    const updated = existing.map((f) => {
+      if (f.id !== folderId) return f;
+
+      const name = updates.name?.trim() || f.name;
+      return {
+        ...f,
+        name,
+        slug: name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        description: updates.description !== undefined ? updates.description : f.description,
+        coverImage: updates.coverImage !== undefined ? updates.coverImage : f.coverImage,
+        coverKey: updates.coverKey !== undefined ? updates.coverKey : f.coverKey,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    await userRef.update({
+      portfolioFolders: updated,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[UPDATE_FOLDER]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Delete a folder (photos folderId null ho jayega)
+ */
+export async function deletePortfolioFolder(
+  userId: string,
+  folderId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const userRef = adminDb.collection('publicProfiles').doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return { success: false, error: 'Profile not found' };
+    }
+
+    const data = userSnap.data() || {};
+    const existingFolders: any[] = data.portfolioFolders || [];
+    const existingPhotos: any[] = data.portfolioPhotos || [];
+
+    // Remove folder
+    const updatedFolders = existingFolders
+      .filter((f) => f.id !== folderId)
+      .map((f, idx) => ({ ...f, order: idx }));
+
+    // Unassign photos from this folder
+    const updatedPhotos = existingPhotos.map((p) => {
+      if (p.folderId === folderId) {
+        return { ...p, folderId: null };
+      }
+      return p;
+    });
+
+    await userRef.update({
+      portfolioFolders: updatedFolders,
+      portfolioPhotos: updatedPhotos,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[DELETE_FOLDER]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Assign photo to folder
+ */
+export async function assignPhotoToFolder(
+  userId: string,
+  photoId: string,
+  folderId: string | null
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const userRef = adminDb.collection('publicProfiles').doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return { success: false, error: 'Profile not found' };
+    }
+
+    const data = userSnap.data() || {};
+    const existingPhotos: any[] = data.portfolioPhotos || [];
+    const existingFolders: any[] = data.portfolioFolders || [];
+
+    const updatedPhotos = existingPhotos.map((p) => {
+      if (p.id === photoId) {
+        return { ...p, folderId: folderId || null };
+      }
+      return p;
+    });
+
+    // Update photo counts
+    const updatedFolders = existingFolders.map((f) => {
+      const count = updatedPhotos.filter((p) => p.folderId === f.id).length;
+      return { ...f, photoCount: count };
+    });
+
+    await userRef.update({
+      portfolioPhotos: updatedPhotos,
+      portfolioFolders: updatedFolders,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[ASSIGN_PHOTO]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Reorder folders
+ */
+export async function reorderPortfolioFolders(
+  userId: string,
+  folderIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    const userRef = adminDb.collection('publicProfiles').doc(userId);
+    const userSnap = await userRef.get();
+
+    if (!userSnap.exists) {
+      return { success: false, error: 'Profile not found' };
+    }
+
+    const data = userSnap.data() || {};
+    const existing: any[] = data.portfolioFolders || [];
+
+    const reordered = folderIds
+      .map((id, idx) => {
+        const folder = existing.find((f) => f.id === id);
+        if (!folder) return null;
+        return { ...folder, order: idx };
+      })
+      .filter(Boolean);
+
+    await userRef.update({
+      portfolioFolders: reordered,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[REORDER_FOLDERS]', error);
     return { success: false, error: error.message };
   }
 }
@@ -216,9 +475,6 @@ export async function updatePortfolioPhotoCaption(
 // BOOKING
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * Create a booking request (from client)
- */
 export async function createBooking(
   data: {
     photographerId: string;
@@ -241,7 +497,6 @@ export async function createBooking(
   try {
     const now = new Date().toISOString();
 
-    // ⚠️ Type annotation hata di — takay statuses add kar sakein
     const bookingData = {
       photographerId: data.photographerId,
       photographerSubdomain: data.photographerSubdomain,
@@ -256,7 +511,6 @@ export async function createBooking(
       packageSelected: data.packageSelected || '',
       status: 'pending',
       
-      // 🆕 TRACKING SYSTEM
       statuses: JSON.parse(JSON.stringify(DEFAULT_STATUSES)),
       currentStatus: 'received',
       galleryId: null,
@@ -268,7 +522,6 @@ export async function createBooking(
 
     const ref = await adminDb.collection('bookings').add(bookingData);
 
-    // Create notification for photographer
     await adminDb.collection('notifications').add({
       userId: data.photographerId,
       type: 'new_booking',
@@ -447,7 +700,7 @@ export async function deleteBooking(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 🆕 BOOKING STATUS TRACKING (Photographer Control Panel)
+// BOOKING STATUS TRACKING
 // ═══════════════════════════════════════════════════════════════
 
 export async function updateBookingStatuses(
