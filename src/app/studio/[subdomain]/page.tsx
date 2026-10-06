@@ -176,6 +176,44 @@ export default function StudioHomePage() {
     <div>
 
       {/* ═══════════════════════════════════════════════════ */}
+      {/* 3D ANIMATION STYLES */}
+      {/* ═══════════════════════════════════════════════════ */}
+      <style jsx global>{`
+        @keyframes float3D {
+          0%, 100% {
+            transform: perspective(600px) rotateX(8deg) rotateY(-2deg) translateY(0px) translateZ(0px);
+          }
+          50% {
+            transform: perspective(600px) rotateX(4deg) rotateY(2deg) translateY(-12px) translateZ(20px);
+          }
+        }
+        @keyframes shimmer3D {
+          0%, 100% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+        }
+        @keyframes glowPulse {
+          0%, 100% {
+            filter: drop-shadow(0 0 8px var(--portfolio-primary)) drop-shadow(0 0 20px var(--portfolio-primary));
+          }
+          50% {
+            filter: drop-shadow(0 0 20px var(--portfolio-primary)) drop-shadow(0 0 40px var(--portfolio-primary));
+          }
+        }
+        .tagline-3d {
+          animation: float3D 4s ease-in-out infinite;
+          transform-style: preserve-3d;
+          will-change: transform;
+        }
+        .tagline-3d-glow {
+          animation: float3D 4s ease-in-out infinite, glowPulse 3s ease-in-out infinite;
+        }
+      `}</style>
+
+      {/* ═══════════════════════════════════════════════════ */}
       {/* HERO SECTION */}
       {/* ═══════════════════════════════════════════════════ */}
       <section className="relative h-[90vh] min-h-[600px] overflow-hidden">
@@ -222,13 +260,32 @@ export default function StudioHomePage() {
                 </span>
               </div>
 
-              {/* Heading */}
-              <h1
-                className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-headline font-bold leading-[1.05] tracking-tight"
-                style={{ color: 'var(--portfolio-hero-text)' }}
-              >
-                {tagline || 'Capturing Your Most Beautiful Moments'}
-              </h1>
+              {/* 🎨 3D ANIMATED TAGLINE */}
+              <div style={{ perspective: '800px' }}>
+                <h1
+                  className="tagline-3d text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-headline font-bold leading-[1.05] tracking-tight"
+                  style={{
+                    color: 'var(--portfolio-hero-text)',
+                    textShadow: `
+                      0 1px 0 rgba(0,0,0,0.15),
+                      0 2px 0 rgba(0,0,0,0.12),
+                      0 3px 0 rgba(0,0,0,0.1),
+                      0 4px 0 rgba(0,0,0,0.08),
+                      0 5px 0 rgba(0,0,0,0.06),
+                      0 6px 1px rgba(0,0,0,0.05),
+                      0 0 5px rgba(0,0,0,0.1),
+                      0 1px 3px rgba(0,0,0,0.3),
+                      0 3px 5px rgba(0,0,0,0.2),
+                      0 5px 10px rgba(0,0,0,0.25),
+                      0 10px 10px rgba(0,0,0,0.2),
+                      0 20px 20px rgba(0,0,0,0.15)
+                    `,
+                    transformStyle: 'preserve-3d',
+                  }}
+                >
+                  {tagline || 'Capturing Your Most Beautiful Moments'}
+                </h1>
+              </div>
 
               {/* Subheading */}
               <p
@@ -240,7 +297,7 @@ export default function StudioHomePage() {
 
               {/* CTAs */}
               <div className="flex flex-wrap items-center gap-4 pt-4">
-              <Link href="/portfolio">
+                <Link href="/portfolio">
                   <Button
                     size="lg"
                     className="rounded-full px-8 h-14 font-bold gap-2 shadow-2xl transition-all hover:scale-105"
