@@ -8,13 +8,13 @@ import {
   type Invoice 
 } from '@/lib/portfolio-types';
 
+// 🆕 Tracking system import
+import { DEFAULT_STATUSES } from '@/lib/booking-status';
+
 // ═══════════════════════════════════════════════════════════════
 // PORTFOLIO PHOTOS
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * Save a portfolio photo (after R2 upload)
- */
 export async function addPortfolioPhoto(
   userId: string,
   photo: {
@@ -41,7 +41,6 @@ export async function addPortfolioPhoto(
     const data = userSnap.data() || {};
     const existing: any[] = data.portfolioPhotos || [];
 
-    // Max 50 portfolio photos
     if (existing.length >= 50) {
       return { success: false, error: 'Maximum 50 portfolio photos allowed' };
     }
@@ -69,9 +68,6 @@ export async function addPortfolioPhoto(
   }
 }
 
-/**
- * Remove a portfolio photo
- */
 export async function removePortfolioPhoto(
   userId: string,
   photoId: string
@@ -92,7 +88,6 @@ export async function removePortfolioPhoto(
     const existing: any[] = data.portfolioPhotos || [];
     const filtered = existing.filter((p) => p.id !== photoId);
 
-    // Re-order
     const reordered = filtered.map((p, idx) => ({ ...p, order: idx }));
 
     await userRef.update({
@@ -108,12 +103,9 @@ export async function removePortfolioPhoto(
 }
 
 // ═══════════════════════════════════════════════════════════════
-// BRANDING IMAGES (Logo, Banner, Photographer Photo)
+// BRANDING IMAGES
 // ═══════════════════════════════════════════════════════════════
 
-/**
- * Save branding image metadata (after R2 upload)
- */
 export async function saveBrandingImage(
   userId: string,
   type: 'logo' | 'banner' | 'photo',
@@ -150,9 +142,6 @@ export async function saveBrandingImage(
   }
 }
 
-/**
- * Remove branding image
- */
 export async function removeBrandingImage(
   userId: string,
   type: 'logo' | 'banner' | 'photo'
@@ -187,9 +176,6 @@ export async function removeBrandingImage(
   }
 }
 
-/**
- * Update portfolio photo caption
- */
 export async function updatePortfolioPhotoCaption(
   userId: string,
   photoId: string,
@@ -255,7 +241,8 @@ export async function createBooking(
   try {
     const now = new Date().toISOString();
 
-    const bookingData: Omit<Booking, 'id'> = {
+    // ⚠️ Type annotation hata di — takay statuses add kar sakein
+    const bookingData = {
       photographerId: data.photographerId,
       photographerSubdomain: data.photographerSubdomain,
       clientName: data.clientName.trim(),
@@ -268,6 +255,13 @@ export async function createBooking(
       message: data.message || '',
       packageSelected: data.packageSelected || '',
       status: 'pending',
+      
+      // 🆕 TRACKING SYSTEM
+      statuses: JSON.parse(JSON.stringify(DEFAULT_STATUSES)),
+      currentStatus: 'received',
+      galleryId: null,
+      paymentProof: null,
+      
       createdAt: now,
       updatedAt: now,
     };
@@ -292,9 +286,6 @@ export async function createBooking(
   }
 }
 
-/**
- * Accept booking + auto-generate invoice
- */
 export async function acceptBooking(
   bookingId: string,
   packageName: string,
@@ -313,7 +304,6 @@ export async function acceptBooking(
       return { success: false, error: 'Booking not found' };
     }
 
-    // Count existing invoices for sequence
     const invoiceCount = await adminDb
       .collection('bookings')
       .where('invoice.status', '!=', null)
@@ -347,9 +337,6 @@ export async function acceptBooking(
   }
 }
 
-/**
- * Reject booking
- */
 export async function rejectBooking(
   bookingId: string,
   reason?: string
@@ -372,9 +359,6 @@ export async function rejectBooking(
   }
 }
 
-/**
- * Update invoice (photographer edit)
- */
 export async function updateInvoice(
   bookingId: string,
   invoice: Partial<Invoice>
@@ -405,9 +389,6 @@ export async function updateInvoice(
   }
 }
 
-/**
- * Mark booking as completed
- */
 export async function markBookingCompleted(
   bookingId: string
 ): Promise<{ success: boolean; error?: string }> {
@@ -428,9 +409,6 @@ export async function markBookingCompleted(
   }
 }
 
-/**
- * Update booking status (general)
- */
 export async function updateBookingStatus(
   bookingId: string,
   status: Booking['status']
@@ -452,9 +430,6 @@ export async function updateBookingStatus(
   }
 }
 
-/**
- * Delete booking
- */
 export async function deleteBooking(
   bookingId: string
 ): Promise<{ success: boolean; error?: string }> {
@@ -467,6 +442,37 @@ export async function deleteBooking(
     return { success: true };
   } catch (error: any) {
     console.error('[DELETE_BOOKING]', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 🆕 BOOKING STATUS TRACKING (Photographer Control Panel)
+// ═══════════════════════════════════════════════════════════════
+
+export async function updateBookingStatuses(
+  bookingId: string,
+  statuses: any[],
+  currentStatus: string,
+  galleryId: string | null = null,
+  paymentProof: string | null = null
+): Promise<{ success: boolean; error?: string }> {
+  if (!adminDb) {
+    return { success: false, error: 'DB offline' };
+  }
+
+  try {
+    await adminDb.collection('bookings').doc(bookingId).update({
+      statuses,
+      currentStatus,
+      galleryId,
+      paymentProof,
+      updatedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('[UPDATE_BOOKING_STATUSES]', error);
     return { success: false, error: error.message };
   }
 }

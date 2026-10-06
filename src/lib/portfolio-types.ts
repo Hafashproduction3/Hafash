@@ -2,6 +2,8 @@
  * Hafash Portfolio & Booking Types
  */
 
+import type { TrackingStatus } from './booking-status';
+
 // ═══════════════════════════════════════════════════════════════
 // PORTFOLIO PHOTOS
 // ═══════════════════════════════════════════════════════════════
@@ -18,7 +20,7 @@ export interface PortfolioPhoto {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// BOOKING STATUS
+// BOOKING STATUS (Purana — quote/invoice system)
 // ═══════════════════════════════════════════════════════════════
 
 export type BookingStatus =
@@ -56,8 +58,14 @@ export interface Booking {
   message?: string;
   packageSelected?: string;
 
-  // Status
+  // Status (purana — quote/invoice ke liye)
   status: BookingStatus;
+
+  // 🆕 TRACKING SYSTEM — NAYA
+  statuses?: TrackingStatus[];
+  currentStatus?: string;
+  galleryId?: string | null;
+  paymentProof?: string | null;
 
   // Quote (photographer bheje)
   quote?: Quote;

@@ -169,7 +169,6 @@ export default function BookingsPage() {
   const openQuoteBuilder = (booking: Booking) => {
     setSelectedBooking(booking);
     
-    // Pre-fill from booking
     const initial = getInitialQuote();
     initial.packageName = booking.packageSelected || 'Custom Package';
     initial.dataDeliveryDate = booking.eventDate 
@@ -190,7 +189,6 @@ export default function BookingsPage() {
     const subtotal = packagePrice + extrasTotal;
     const total = subtotal - (quoteForm.discount || 0) + (quoteForm.tax || 0);
 
-    // Update payment schedule amounts
     const updatedSchedule = (quoteForm.paymentSchedule || []).map(p => ({
       ...p,
       amount: Math.round((total * p.percentage) / 100),
@@ -366,28 +364,6 @@ export default function BookingsPage() {
       toast({ variant: 'destructive', title: 'Failed', description: error.message });
     } finally {
       setProcessingId(null);
-    }
-  };
-
-  const handleDownloadPDF = () => {
-    if (!selectedBooking?.invoice) {
-      toast({ variant: 'destructive', title: 'No invoice' });
-      return;
-    }
-    try {
-      generateInvoicePDF({
-        booking: selectedBooking,
-        photographer: {
-          studioName: photographer?.studioName || 'Professional Studio',
-          photographerName: photographer?.photographerName,
-          whatsappNumber: photographer?.whatsappNumber,
-          city: photographer?.city,
-          studioLogo: photographer?.studioLogo,
-        },
-      });
-      toast({ title: '✅ PDF Downloaded' });
-    } catch (err: any) {
-      toast({ variant: 'destructive', title: 'PDF Failed', description: err.message });
     }
   };
 
@@ -986,7 +962,6 @@ function BookingCard({
               </div>
             )}
 
-            {/* Quote info */}
             {booking.quote && (
               <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1007,7 +982,6 @@ function BookingCard({
               </div>
             )}
 
-            {/* Invoice + Payments */}
             {booking.invoice && (
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1047,7 +1021,6 @@ function BookingCard({
                   ))}
                 </div>
 
-                {/* Client Signature (if accepted) */}
                 {booking.clientApproval?.signature && (
                   <div className="pt-2 border-t border-primary/10">
                     <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-1">
@@ -1066,6 +1039,20 @@ function BookingCard({
 
           {/* Actions */}
           <div className="lg:w-52 flex flex-col gap-2 lg:border-l lg:border-border/30 lg:pl-6">
+
+            {/* 🆕 MANAGE BOOKING — SIRF subdomain wale ko */}
+            {booking.photographerSubdomain && (
+              <Link href={`/dashboard/bookings/${booking.id}`}>
+                <Button
+                  variant="default"
+                  className="w-full rounded-xl gap-2 bg-primary hover:bg-primary/90 font-bold h-10"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Manage Booking
+                </Button>
+              </Link>
+            )}
+
             {booking.status === 'pending' && (
               <Button
                 onClick={onCreateQuote}
