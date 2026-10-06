@@ -157,7 +157,6 @@ export default function SettingsPage() {
       photographerPhotoKey: publicProfile.photographerPhotoKey || '',
     }));
 
-    // 🆕 Load folders
     setPortfolioFolders(publicProfile.portfolioFolders || []);
   }, [publicProfile, isDirty]);
 
@@ -240,7 +239,7 @@ export default function SettingsPage() {
   };
 
   // ═══════════════════════════════════════════════════════════════
-  // 🆕 FOLDER HANDLERS
+  // FOLDER HANDLERS
   // ═══════════════════════════════════════════════════════════════
 
   const openCreateFolderModal = () => {
@@ -315,7 +314,6 @@ export default function SettingsPage() {
   const handleAssignPhoto = async (photoId: string, folderId: string | null) => {
     if (!user) return;
 
-    // Optimistic update
     setPortfolioPhotos(prev =>
       prev.map(p => (p.id === photoId ? { ...p, folderId } : p))
     );
@@ -964,7 +962,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* 🆕 PORTFOLIO FOLDERS SECTION */}
+          {/* PORTFOLIO FOLDERS SECTION */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between flex-wrap gap-4">
               <div>
@@ -1008,11 +1006,14 @@ export default function SettingsPage() {
                     <p className="text-[11px] text-muted-foreground italic pt-1">
                       ⚠️ Folder nahi banaye toh saari photos ek hi "All Photos" grid mein dikhengi.
                     </p>
+                    <p className="text-[11px] text-primary font-bold pt-1">
+                      💡 Folder pe click karein → andar photos upload karein
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Folder List */}
+              {/* Folder List — Clickable */}
               {portfolioFolders.length === 0 ? (
                 <div className="text-center py-16 border-2 border-dashed border-border/40 rounded-[2rem]">
                   <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -1033,7 +1034,11 @@ export default function SettingsPage() {
                     .map((folder) => {
                       const photoCount = portfolioPhotos.filter((p: any) => p.folderId === folder.id).length;
                       return (
-                        <div key={folder.id} className="flex flex-col items-center gap-3 group">
+                        <Link
+                          key={folder.id}
+                          href={`/dashboard/settings/portfolio/folders/${folder.id}`}
+                          className="flex flex-col items-center gap-3 group cursor-pointer"
+                        >
                           <div className="relative">
                             {/* Circle Folder */}
                             <div
@@ -1057,14 +1062,24 @@ export default function SettingsPage() {
                             {/* Edit/Delete buttons */}
                             <div className="absolute -top-1 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
-                                onClick={() => openEditFolderModal(folder)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  openEditFolderModal(folder);
+                                }}
                                 className="w-6 h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-110 transition-transform"
+                                title="Edit folder"
                               >
                                 <Pencil className="w-3 h-3" />
                               </button>
                               <button
-                                onClick={() => handleDeleteFolder(folder.id)}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleDeleteFolder(folder.id);
+                                }}
                                 className="w-6 h-6 rounded-full bg-destructive text-white flex items-center justify-center hover:scale-110 transition-transform"
+                                title="Delete folder"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </button>
@@ -1074,7 +1089,7 @@ export default function SettingsPage() {
                             <p className="font-bold text-sm">{folder.name}</p>
                             <p className="text-[10px] text-muted-foreground">{photoCount} 📷</p>
                           </div>
-                        </div>
+                        </Link>
                       );
                     })}
                 </div>
@@ -1263,14 +1278,13 @@ export default function SettingsPage() {
               </div>
             </CardHeader>
             <CardContent className="p-10 space-y-6">
-              {/* Guidance */}
               <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 flex items-start gap-3">
                 <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="font-bold text-sm">💡 Photos ko folders mein assign karein</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Har photo ke neeche dropdown hai. Us se folder choose karein (Mehndi, Barat, etc).
-                    Agar folder nahi banaya, toh photo "All Photos" mein dikhegi.
+                    Ya folder pe click karke andar upload karein.
                   </p>
                 </div>
               </div>
@@ -1335,7 +1349,6 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
-                      {/* 🆕 Folder Dropdown */}
                       {portfolioFolders.length > 0 && (
                         <select
                           value={photo.folderId || ''}
