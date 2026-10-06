@@ -1,4 +1,5 @@
 "use client";
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
@@ -291,10 +292,11 @@ export default function SignupPage() {
         router.push('/verify-email');
       }
     } catch (error: any) {
+      const { title, description } = getFirebaseErrorMessage(error);
       toast({
         variant: "destructive",
-        title: "Signup Failed",
-        description: error.message || "Please check your details and try again.",
+        title,
+        description,
       });
     } finally {
       setLoading(false);

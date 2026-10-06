@@ -9,6 +9,7 @@ import { Mail, Loader2, RefreshCw, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { HafashLoader } from '@/components/ui/hafash-loader';
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 export default function VerifyEmailPage() {
   const { user, loading } = useUser();
@@ -51,14 +52,15 @@ export default function VerifyEmailPage() {
     try {
       await sendEmailVerification(user);
       toast({
-        title: "Verification Sent",
-        description: "A new verification email has been sent to your inbox.",
+        title: "✅ Verification Email Bhej Di",
+        description: "Apna inbox check karein — verification link bhej diya gaya hai.",
       });
     } catch (error: any) {
+      const { title, description } = getFirebaseErrorMessage(error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to resend verification email.",
+        title,
+        description,
       });
     } finally {
       setResending(false);
@@ -72,8 +74,8 @@ export default function VerifyEmailPage() {
       await user.reload();
       if (user.emailVerified) {
         toast({
-          title: "Verified",
-          description: "Your email has been successfully verified.",
+          title: "✅ Email Verified",
+          description: "Aapka email successfully verify ho gaya.",
         });
         // Profile load hone ka intezar karein, phir redirect
         setTimeout(() => {
@@ -81,14 +83,15 @@ export default function VerifyEmailPage() {
         }, 500);
       } else {
         toast({
-          description: "Email not yet verified. Please check your inbox.",
+          description: "Email abhi verify nahi hua. Apna inbox check karein.",
         });
       }
     } catch (error: any) {
+      const { title, description } = getFirebaseErrorMessage(error);
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to refresh status.",
+        title,
+        description,
       });
     } finally {
       setRefreshing(false);

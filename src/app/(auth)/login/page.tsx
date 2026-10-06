@@ -1,4 +1,5 @@
 "use client";
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -11,7 +12,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { HafashLoader } from '@/components/ui/hafash-loader';
-
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
@@ -56,10 +56,11 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     } catch (error: any) {
+      const { title, description } = getFirebaseErrorMessage(error);
       toast({
         variant: "destructive",
-        title: "Login Failed",
-        description: error.message || "Please check your credentials.",
+        title,
+        description,
       });
     } finally {
       setLoading(false);
@@ -86,10 +87,11 @@ export default function LoginPage() {
         description: "Password reset email has been sent. Please check your inbox.",
       });
     } catch (error: any) {
+      const { title, description } = getFirebaseErrorMessage(error);
       toast({
         variant: "destructive",
-        title: "Reset Failed",
-        description: error.message || "Failed to send reset email. Please verify your email address.",
+        title,
+        description,
       });
     } finally {
       setResetLoading(false);

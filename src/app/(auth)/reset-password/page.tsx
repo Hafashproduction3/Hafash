@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
 
 /**
  * RESET PASSWORD ARCHITECTURE (DRAFT)
@@ -95,10 +96,11 @@ function ResetPasswordForm() {
       toast({ title: "Success", description: "Password has been updated securely." });
       setTimeout(() => router.push('/login'), 3000);
     } catch (error: any) {
+      const { title, description } = getFirebaseErrorMessage(error);
       toast({
         variant: "destructive",
-        title: "Update Failed",
-        description: error.message || "Failed to reset password. The link may have expired."
+        title,
+        description,
       });
     } finally {
       setLoading(false);
