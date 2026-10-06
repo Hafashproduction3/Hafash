@@ -41,7 +41,7 @@ const navItems = [
   { icon: Package, label: 'Album Selections', href: '/album-selections' },
   { icon: Heart, label: 'Workflow Portal', href: '/favorites' },
   { icon: HardDrive, label: 'Storage', href: '/storage' },
-  { icon: Settings, label: 'Settings', href: '/settings' },
+  { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
 ];
 
 export function MobileNav() {

@@ -53,7 +53,7 @@ const MENU_SECTIONS = [
     items: [
       { icon: Wallet, label: 'Payments', href: '/dashboard/payments', priority: true, showPaymentBadge: true },
       { icon: HardDrive, label: 'Storage', href: '/storage', priority: true },
-      { icon: Settings, label: 'Settings', href: '/settings', priority: false },
+      { icon: Settings, label: 'Settings', href: '/dashboard/settings', priority: false },
     ],
   },
 ];
