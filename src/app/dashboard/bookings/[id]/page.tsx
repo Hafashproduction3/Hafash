@@ -8,7 +8,8 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import {
   ArrowLeft, Check, Lock, Bell, BellOff, Upload,
   Image as ImageIcon, Save, Loader2, User, Phone,
-  Calendar, CreditCard, Camera, CheckCircle2, Circle
+  Calendar, CreditCard, Camera, CheckCircle2, Circle,
+  Share2, MessageCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,9 +101,6 @@ export default function BookingDetailPage() {
   async function handleUploadProof(statusId: string, file: File) {
     setUploading(statusId);
     try {
-      // TODO: R2 upload — apna existing upload function use karein
-      // const url = await uploadToR2(file);
-      // For now, placeholder:
       const url = URL.createObjectURL(file);
       setStatuses(prev =>
         prev.map(s => (s.id === statusId ? { ...s, proof: url } : s))
@@ -126,15 +124,12 @@ export default function BookingDetailPage() {
     setSaving(true);
 
     try {
-      // Current status nikaalein
       const lastDone = [...statuses].reverse().find(s => s.done);
       const currentStatus = lastDone?.id || "received";
 
-      // Gallery ID nikaalein (ready status se)
       const readyStatus = statuses.find(s => s.id === "ready");
       const galleryId = readyStatus?.galleryId || null;
 
-      // Payment proof nikaalein
       const paidStatus = statuses.find(s => s.id === "paid");
       const paymentProof = paidStatus?.proof || null;
 
@@ -159,7 +154,6 @@ export default function BookingDetailPage() {
               message: status.message,
             }),
           });
-          // Notified mark karein
           setStatuses(prev =>
             prev.map(s => (s.id === status.id ? { ...s, notified: false } : s))
           );
@@ -172,6 +166,28 @@ export default function BookingDetailPage() {
       toast({ variant: "destructive", title: "Save fail" });
     } finally {
       setSaving(false);
+    }
+  }
+
+  // 🆕 Share with Client — WhatsApp pe tracking link bhejein
+  function handleShareWithClient() {
+    if (!booking) return;
+
+    const link = `${window.location.origin}/booking/${bookingId}`;
+    const message = `Salam ${booking.clientName}!\n\nAapki booking ka live status yahan dekhein:\n\n${link}\n\nShukriya!`;
+    const phone = booking.clientPhone?.replace(/\D/g, '') || '';
+
+    if (phone) {
+      // WhatsApp khole with pre-filled message
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(message)}`, '_blank');
+      toast({ title: '📱 WhatsApp khul raha hai...' });
+    } else {
+      // Phone nahi hai → link copy karein
+      navigator.clipboard.writeText(link);
+      toast({ 
+        title: '✅ Link copied!',
+        description: 'Ab client ko manually bhejein'
+      });
     }
   }
 
@@ -188,23 +204,47 @@ export default function BookingDetailPage() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 flex-wrap">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="w-5 h-5" />
         </Button>
-        <div>
+        <div className="flex-1 min-w-[200px]">
           <h1 className="text-2xl font-bold">Booking #{booking.id.slice(0, 6)}</h1>
           <p className="text-sm text-muted-foreground">{booking.studioName}</p>
         </div>
+
+        {/* 🆕 Share with Client Button */}
+        <Button
+          variant="outline"
+          onClick={handleShareWithClient}
+          className="rounded-xl gap-2 border-green-500/30 text-green-600 hover:bg-green-500/10 font-bold"
+        >
+          <Share2 className="w-4 h-4" />
+          Share with Client
+        </Button>
       </div>
 
       {/* Client Info Card */}
       <div className="rounded-2xl border p-6 space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <InfoRow icon={<User />} label="Client" value={booking.clientName} />
-          <InfoRow icon={<Phone />} label="Phone" value={booking.clientPhone} />
-          <InfoRow icon={<Calendar />} label="Shoot Date" value={`${booking.shootDate} ${booking.shootTime || ""}`} />
-          <InfoRow icon={<CreditCard />} label="Amount" value={`Rs. ${booking.amount?.toLocaleString()}`} />
+          <InfoRow icon={<User />} label="Client" value={booking.clientName || 'N/A'} />
+          <InfoRow icon={<Phone />} label="Phone" value={booking.clientPhone || 'N/A'} />
+          <InfoRow 
+            icon={<Calendar />} 
+            label="Shoot Date" 
+            value={booking.eventDate || booking.shootDate || 'N/A'} 
+          />
+          <InfoRow 
+            icon={<CreditCard />} 
+            label="Amount" 
+            value={
+              booking.invoice?.total 
+                ? `Rs. ${booking.invoice.total.toLocaleString()}`
+                : booking.quote?.total
+                  ? `Rs. ${booking.quote.total.toLocaleString()}`
+                  : 'Pending'
+            } 
+          />
         </div>
       </div>
 
@@ -220,7 +260,6 @@ export default function BookingDetailPage() {
               status.done && "bg-green-50 dark:bg-green-950/20 border-green-200"
             )}
           >
-            {/* Status Header */}
             <div className="flex items-center justify-between">
               <button
                 onClick={() => toggleStatus(status.id)}
@@ -262,7 +301,6 @@ export default function BookingDetailPage() {
               )}
             </div>
 
-            {/* Message Input */}
             {status.done && !status.locked && (
               <div className="space-y-2 pl-8">
                 <label className="text-xs font-bold text-muted-foreground">
@@ -278,7 +316,6 @@ export default function BookingDetailPage() {
               </div>
             )}
 
-            {/* Payment Proof Upload */}
             {status.id === "paid" && status.done && (
               <div className="space-y-2 pl-8">
                 <label className="text-xs font-bold text-muted-foreground">
@@ -306,7 +343,6 @@ export default function BookingDetailPage() {
               </div>
             )}
 
-            {/* Gallery Select */}
             {status.id === "ready" && status.done && (
               <div className="space-y-2 pl-8">
                 <label className="text-xs font-bold text-muted-foreground">
