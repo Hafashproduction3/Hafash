@@ -50,7 +50,6 @@ export default function StudioHomePage() {
           ...userSnap.docs[0].data(),
         };
 
-        // Branding keys fresh
         const brandingKeys: string[] = [];
         if (photographerData.studioLogoKey) brandingKeys.push(photographerData.studioLogoKey);
         if (photographerData.studioBannerKey) brandingKeys.push(photographerData.studioBannerKey);
@@ -76,7 +75,6 @@ export default function StudioHomePage() {
 
         setPhotographer(photographerData);
 
-        // Portfolio photos
         const rawPhotos: any[] = photographerData.portfolioPhotos || [];
         if (rawPhotos.length > 0) {
           const keysToRefresh: string[] = [];
@@ -106,7 +104,6 @@ export default function StudioHomePage() {
           if (!cancelled) setPortfolioPhotos(refreshed);
         }
 
-        // Reviews
         try {
           const reviewsQuery = query(
             collection(firestore, "networkReviews"),
@@ -172,56 +169,37 @@ export default function StudioHomePage() {
   const packages = photographer.packages || [];
   const heroImage = banner || portfolioPhotos[0]?.url;
 
+  // Satisfaction % — avg rating se nikaal rahe
+  const satisfactionPercent = Math.round(parseFloat(avgRating) * 19.6);
+
   return (
     <div>
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* 3D ANIMATION STYLES */}
+      {/* KEN BURNS ANIMATION STYLES */}
       {/* ═══════════════════════════════════════════════════ */}
       <style jsx global>{`
-        @keyframes float3D {
-          0%, 100% {
-            transform: perspective(600px) rotateX(8deg) rotateY(-2deg) translateY(0px) translateZ(0px);
-          }
-          50% {
-            transform: perspective(600px) rotateX(4deg) rotateY(2deg) translateY(-12px) translateZ(20px);
-          }
-        }
-        @keyframes shimmer3D {
-          0%, 100% {
-            background-position: 0% 50%;
-          }
-          50% {
-            background-position: 100% 50%;
-          }
-        }
-        @keyframes glowPulse {
-          0%, 100% {
-            filter: drop-shadow(0 0 8px var(--portfolio-primary)) drop-shadow(0 0 20px var(--portfolio-primary));
-          }
-          50% {
-            filter: drop-shadow(0 0 20px var(--portfolio-primary)) drop-shadow(0 0 40px var(--portfolio-primary));
-          }
-        }
-        .tagline-3d {
-          animation: float3D 4s ease-in-out infinite;
-          transform-style: preserve-3d;
-          will-change: transform;
-        }
-        .tagline-3d-glow {
-          animation: float3D 4s ease-in-out infinite, glowPulse 3s ease-in-out infinite;
+        @keyframes kenburns {
+          0% { transform: scale(1); }
+          100% { transform: scale(1.1); }
         }
       `}</style>
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* HERO SECTION */}
+      {/* HERO SECTION — LUXURY REDESIGN */}
       {/* ═══════════════════════════════════════════════════ */}
-      <section className="relative h-[90vh] min-h-[600px] overflow-hidden">
+      <section className="relative h-[90vh] min-h-[700px] overflow-hidden">
+
+        {/* Background Image with Ken Burns */}
         {heroImage ? (
           <img
             src={heroImage}
             alt={studioName}
             className="absolute inset-0 w-full h-full object-cover"
+            style={{
+              animation: 'kenburns 25s ease-in-out infinite alternate',
+              transformOrigin: 'center',
+            }}
           />
         ) : (
           <div
@@ -232,121 +210,148 @@ export default function StudioHomePage() {
           />
         )}
 
-        {/* Overlay */}
+        {/* Dark Gradient Overlays */}
         <div
           className="absolute inset-0"
-          style={{ background: 'var(--portfolio-hero-overlay)' }}
+          style={{
+            background: 'linear-gradient(to right, rgba(0,0,0,0.85), rgba(0,0,0,0.55), rgba(0,0,0,0.25))',
+          }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.15), rgba(0,0,0,0.5))',
+          }}
         />
 
         {/* Content */}
-        <div className="relative h-full flex items-center">
-          <div className="max-w-7xl mx-auto px-6 lg:px-8 w-full">
-            <div className="max-w-3xl space-y-8">
+        <div className="relative h-full flex flex-col">
+          <div className="flex-1 flex items-center">
+            <div className="max-w-7xl mx-auto px-6 lg:px-8 w-full pt-20">
+              <div className="max-w-2xl space-y-7">
 
-              {/* Badge */}
-              <div
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full border backdrop-blur-md"
-                style={{
-                  borderColor: 'var(--portfolio-primary)',
-                  background: 'var(--portfolio-primary)15',
-                }}
-              >
-                <Sparkles className="w-3 h-3" style={{ color: 'var(--portfolio-primary)' }} />
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.3em]"
-                  style={{ color: 'var(--portfolio-primary)' }}
-                >
-                  Welcome to {studioName}
-                </span>
-              </div>
-
-              {/* 🎨 3D ANIMATED TAGLINE */}
-              <div style={{ perspective: '800px' }}>
-                <h1
-                  className="tagline-3d text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-headline font-bold leading-[1.05] tracking-tight"
+                {/* Small Badge */}
+                <div
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border backdrop-blur-sm"
                   style={{
-                    color: 'var(--portfolio-hero-text)',
-                    textShadow: `
-                      0 1px 0 rgba(0,0,0,0.15),
-                      0 2px 0 rgba(0,0,0,0.12),
-                      0 3px 0 rgba(0,0,0,0.1),
-                      0 4px 0 rgba(0,0,0,0.08),
-                      0 5px 0 rgba(0,0,0,0.06),
-                      0 6px 1px rgba(0,0,0,0.05),
-                      0 0 5px rgba(0,0,0,0.1),
-                      0 1px 3px rgba(0,0,0,0.3),
-                      0 3px 5px rgba(0,0,0,0.2),
-                      0 5px 10px rgba(0,0,0,0.25),
-                      0 10px 10px rgba(0,0,0,0.2),
-                      0 20px 20px rgba(0,0,0,0.15)
-                    `,
-                    transformStyle: 'preserve-3d',
+                    borderColor: 'var(--portfolio-primary)80',
+                    background: 'var(--portfolio-primary)10',
                   }}
                 >
-                  {tagline || 'Capturing Your Most Beautiful Moments'}
+                  <Sparkles className="w-3 h-3" style={{ color: 'var(--portfolio-primary)' }} />
+                  <span
+                    className="text-[10px] font-bold uppercase tracking-[0.3em]"
+                    style={{ color: 'var(--portfolio-primary)' }}
+                  >
+                    Welcome to {studioName}
+                  </span>
+                </div>
+
+                {/* Big Serif Heading */}
+                <h1
+                  className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-headline font-bold leading-[1.02] tracking-tight text-white"
+                  style={{
+                    textShadow: '0 4px 20px rgba(0,0,0,0.5)',
+                  }}
+                >
+                  {tagline || 'Capturing Emotions, Creating Memories'}
                 </h1>
-              </div>
 
-              {/* Subheading */}
-              <p
-                className="text-lg lg:text-xl max-w-2xl leading-relaxed"
-                style={{ color: 'var(--portfolio-hero-text)', opacity: 0.85 }}
-              >
-                Wedding · Events · Portraits · Lifestyle
-              </p>
+                {/* Subheading */}
+                <p className="text-base lg:text-lg leading-relaxed text-white/80 max-w-xl">
+                  {aboutBio || `Timeless photography that tells your story. Capturing the intimate, the emotional, and the unforgettable moments with artistry and care.`}
+                </p>
 
-              {/* CTAs */}
-              <div className="flex flex-wrap items-center gap-4 pt-4">
-                <Link href="/portfolio">
-                  <Button
-                    size="lg"
-                    className="rounded-full px-8 h-14 font-bold gap-2 shadow-2xl transition-all hover:scale-105"
-                    style={{
-                      background: 'var(--portfolio-primary)',
-                      color: 'var(--portfolio-primary-text)',
-                    }}
-                  >
-                    View Portfolio
-                    <ArrowRight className="w-4 h-4" />
-                  </Button>
-                </Link>
+                {/* 3 Stat Cards */}
+                <div className="grid grid-cols-3 gap-3 lg:gap-4 pt-2 max-w-xl">
+                  <LuxuryStatCard
+                    icon={<Camera className="w-5 h-5 lg:w-6 lg:h-6" />}
+                    value={`${stats.photos}+`}
+                    label="Photos Captured"
+                  />
+                  <LuxuryStatCard
+                    icon={<Award className="w-5 h-5 lg:w-6 lg:h-6" />}
+                    value={`${stats.years}+`}
+                    label="Years of Expertise"
+                  />
+                  <LuxuryStatCard
+                    icon={<Heart className="w-5 h-5 lg:w-6 lg:h-6" />}
+                    value={`${satisfactionPercent}%`}
+                    label="Client Satisfaction"
+                  />
+                </div>
 
-                {whatsapp && (
-                  <a
-                    href={`https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Salam! Mujhe ${studioName} ke saath booking karni hai.`)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                {/* CTAs */}
+                <div className="flex flex-wrap items-center gap-4 pt-2">
+                  <Link href="/portfolio">
                     <Button
                       size="lg"
                       variant="outline"
-                      className="rounded-full px-8 h-14 font-bold gap-2 backdrop-blur-md transition-all hover:scale-105"
+                      className="rounded-md px-7 h-12 font-bold gap-2 bg-transparent border-2 transition-all duration-300"
                       style={{
-                        background: 'rgba(255,255,255,0.15)',
-                        color: 'var(--portfolio-hero-text)',
-                        borderColor: 'rgba(255,255,255,0.3)',
+                        borderColor: 'var(--portfolio-primary)',
+                        color: 'var(--portfolio-primary)',
                       }}
                     >
-                      <MessageCircle className="w-4 h-4" />
-                      Book on WhatsApp
+                      View Portfolio
+                      <ArrowRight className="w-4 h-4" />
                     </Button>
-                  </a>
-                )}
+                  </Link>
+
+                  {whatsapp && (
+                    <a
+                      href={`https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Salam! Mujhe ${studioName} ke saath booking karni hai.`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <Button
+                        size="lg"
+                        className="rounded-md px-7 h-12 font-bold gap-2 transition-all duration-300"
+                        style={{
+                          background: 'var(--portfolio-primary)',
+                          color: 'var(--portfolio-primary-text)',
+                        }}
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                        Book on WhatsApp
+                      </Button>
+                    </a>
+                  )}
+                </div>
+
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Scroll Indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+          {/* Bottom Info Bar */}
           <div
-            className="w-6 h-10 rounded-full border-2 flex items-start justify-center p-1"
-            style={{ borderColor: 'var(--portfolio-hero-text)', opacity: 0.4 }}
+            className="relative border-t backdrop-blur-sm"
+            style={{
+              borderColor: 'rgba(255,255,255,0.1)',
+              background: 'rgba(0,0,0,0.4)',
+            }}
           >
-            <div
-              className="w-1 h-2 rounded-full"
-              style={{ background: 'var(--portfolio-hero-text)' }}
-            />
+            <div className="max-w-7xl mx-auto px-6 lg:px-8 py-4">
+              <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center">
+                <span className="text-xs lg:text-sm font-medium text-white/70 tracking-wide">
+                  Now booking {new Date().getFullYear()}
+                </span>
+                <span
+                  className="w-1 h-1 rounded-full hidden sm:block"
+                  style={{ background: 'var(--portfolio-primary)' }}
+                />
+                <span className="text-xs lg:text-sm font-medium text-white/70 tracking-wide">
+                  Wedding · Events · Portraits
+                </span>
+                <span
+                  className="w-1 h-1 rounded-full hidden sm:block"
+                  style={{ background: 'var(--portfolio-primary)' }}
+                />
+                <span className="text-xs lg:text-sm font-medium text-white/70 tracking-wide">
+                  {city ? `${city}, Pakistan` : 'Pakistan'} · Worldwide
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -378,7 +383,6 @@ export default function StudioHomePage() {
         <section className="py-20 lg:py-28" style={{ background: 'var(--portfolio-page-bg)' }}>
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
 
-            {/* Section Header */}
             <div className="text-center mb-16">
               <div className="flex items-center justify-center gap-4 mb-4">
                 <div className="h-px w-16" style={{ background: 'var(--portfolio-primary)' }} />
@@ -392,9 +396,7 @@ export default function StudioHomePage() {
               </div>
             </div>
 
-            {/* Split Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-              {/* Photo */}
               <div className="relative">
                 <div
                   className="aspect-[4/5] rounded-[2rem] overflow-hidden shadow-2xl"
@@ -416,7 +418,6 @@ export default function StudioHomePage() {
                   )}
                 </div>
 
-                {/* Floating Badge */}
                 <div
                   className="absolute -bottom-6 -right-6 px-6 py-4 rounded-2xl shadow-2xl hidden lg:block"
                   style={{
@@ -429,7 +430,6 @@ export default function StudioHomePage() {
                 </div>
               </div>
 
-              {/* Text */}
               <div className="space-y-6">
                 <h2
                   className="text-4xl lg:text-5xl font-headline font-bold leading-tight"
@@ -445,7 +445,6 @@ export default function StudioHomePage() {
                   {aboutBio || `Based in ${city || 'Pakistan'}, I'm a professional photographer capturing timeless moments with a refined, cinematic approach.`}
                 </p>
 
-                {/* Quick Facts */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
                   <FactItem icon={<MapPin />} text={city ? `${city} Based` : 'Pakistan Based'} />
                   <FactItem icon={<Camera />} text="Cinematic Style" />
@@ -453,7 +452,6 @@ export default function StudioHomePage() {
                   <FactItem icon={<Heart />} text="1:1 Personal Approach" />
                 </div>
 
-                {/* CTA */}
                 <div className="pt-4">
                   <Link href="/about">
                     <Button
@@ -503,7 +501,6 @@ export default function StudioHomePage() {
               </h2>
             </div>
 
-            {/* Masonry Grid */}
             <div className="columns-1 sm:columns-2 lg:columns-3 gap-6 space-y-6">
               {portfolioPhotos.slice(0, 6).map((photo: any, idx: number) => (
                 <div
@@ -578,9 +575,7 @@ export default function StudioHomePage() {
                 >
                   <div
                     className="w-14 h-14 rounded-2xl flex items-center justify-center mb-6"
-                    style={{
-                      background: 'var(--portfolio-primary)15',
-                    }}
+                    style={{ background: 'var(--portfolio-primary)15' }}
                   >
                     <Camera className="w-6 h-6" style={{ color: 'var(--portfolio-primary)' }} />
                   </div>
@@ -803,6 +798,64 @@ export default function StudioHomePage() {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LUXURY STAT CARD — Hero section ke liye
+// ═══════════════════════════════════════════════════════════════
+
+function LuxuryStatCard({
+  icon,
+  value,
+  label,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+}) {
+  return (
+    <div
+      className="relative p-3 lg:p-5 rounded-md border backdrop-blur-sm text-center transition-all duration-300 hover:bg-black/60 group"
+      style={{
+        borderColor: 'var(--portfolio-primary)50',
+        background: 'rgba(0,0,0,0.4)',
+      }}
+    >
+      {/* Corner decorations */}
+      <div
+        className="absolute top-1.5 left-1.5 w-2 h-2 border-t border-l"
+        style={{ borderColor: 'var(--portfolio-primary)' }}
+      />
+      <div
+        className="absolute top-1.5 right-1.5 w-2 h-2 border-t border-r"
+        style={{ borderColor: 'var(--portfolio-primary)' }}
+      />
+      <div
+        className="absolute bottom-1.5 left-1.5 w-2 h-2 border-b border-l"
+        style={{ borderColor: 'var(--portfolio-primary)' }}
+      />
+      <div
+        className="absolute bottom-1.5 right-1.5 w-2 h-2 border-b border-r"
+        style={{ borderColor: 'var(--portfolio-primary)' }}
+      />
+
+      <div
+        className="flex justify-center mb-2 lg:mb-3 transition-transform group-hover:scale-110"
+        style={{ color: 'var(--portfolio-primary)' }}
+      >
+        {icon}
+      </div>
+      <p
+        className="text-xl lg:text-3xl font-headline font-bold mb-0.5"
+        style={{ color: 'var(--portfolio-primary)' }}
+      >
+        {value}
+      </p>
+      <p className="text-[9px] lg:text-[10px] font-bold uppercase tracking-[0.15em] text-white/60 leading-tight">
+        {label}
+      </p>
     </div>
   );
 }
