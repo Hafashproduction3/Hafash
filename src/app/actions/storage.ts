@@ -6,6 +6,9 @@ import { getStorageStats } from '@/lib/storage/stats';
 
 const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev';
 
+// 🆕 URL Cache — signed URLs memory mein (45 min tak)
+const urlCache: Record<string, { url: string; expiresAt: number }> = {};
+
 function getPublicUrl(key: string | null | undefined): string {
   if (!key) return '';
   if (key.startsWith('http://') || key.startsWith('https://')) return key;
@@ -79,10 +82,6 @@ export async function requestUploadUrl({
     const subscription = getSubscriptionInfo(userData);
     console.log(`[DEBUG] Subscription: ${subscription.state} | ${subscription.planName}`);
 
-    // ═══════════════════════════════════════════════════════════════
-    // ✅ ROLE CHECK — Location Owner ko FREE upload
-    // Location Owner ke liye subscription check SKIP karein
-    // ═══════════════════════════════════════════════════════════════
     const isLocationOwner = rawData.role === 'location-owner';
 
     console.log(`[DEBUG] Role: ${rawData.role || 'unknown'} | isLocationOwner: ${isLocationOwner}`);
@@ -96,7 +95,6 @@ export async function requestUploadUrl({
       };
     }
 
-    // ═══ STORAGE QUOTA CHECK — Sirf Photographer ke liye ═══
     if (!isLocationOwner) {
       const stats = await getStorageStats(userId);
       const incomingSizeGb = fileSize / (1024 * 1024 * 1024);
@@ -126,7 +124,6 @@ export async function requestUploadUrl({
 
 /**
  * Finalize an upload — SUBCOLLECTION VERSION
- * ✅ Signed URLs valid 7 days (R2 maximum)
  */
 export async function completeUpload({
   userId,
@@ -156,7 +153,6 @@ export async function completeUpload({
       return { success: false, error: "Asset missing from storage." };
     }
 
-    // ✅ Signed URLs — 7 days (max allowed by R2)
     const assetUrl = await storage.getSignedUrl(task.key, 604800);
     const thumbUrl = task.thumbKey 
       ? await storage.getSignedUrl(task.thumbKey, 604800) 
@@ -222,8 +218,7 @@ export async function completeUpload({
 }
 
 /**
- * ✅ Refresh photo URLs in batch — called from client on gallery load
- * Generates fresh 7-day signed URLs for a batch of storage keys
+ * ✅ Refresh photo URLs in batch — WITH CACHE (45 min)
  */
 export async function refreshPhotoUrls(keys: string[]): Promise<{ 
   success: boolean; 
@@ -239,22 +234,42 @@ export async function refreshPhotoUrls(keys: string[]): Promise<{
       return { success: false, urls: {}, error: 'Too many keys (max 300)' };
     }
     
-    const results = await Promise.all(
-      keys.map(async (key) => {
-        try {
-          const url = `${R2_PUBLIC_URL}/${key}`;
-          return { key, url };
-        } catch (err) {
-          console.error(`[REFRESH] Failed for ${key}:`, err);
-          return { key, url: '' };
-        }
-      })
-    );
-    
+    const now = Date.now();
     const urlMap: Record<string, string> = {};
-    results.forEach(r => {
-      if (r.url) urlMap[r.key] = r.url;
-    });
+    const keysToFetch: string[] = [];
+
+    // 🆕 Cache check — 45 min tak valid
+    for (const key of keys) {
+      if (!key) continue;
+      const cached = urlCache[key];
+      if (cached && cached.expiresAt > now) {
+        urlMap[key] = cached.url;
+      } else {
+        keysToFetch.push(key);
+      }
+    }
+
+    // Sirf naye keys fetch karo
+    if (keysToFetch.length > 0) {
+      const results = await Promise.all(
+        keysToFetch.map(async (key) => {
+          try {
+            const url = await storage.getSignedUrl(key, 604800);
+            return { key, url };
+          } catch (err) {
+            console.error(`[REFRESH] Failed for ${key}:`, err);
+            return { key, url: '' };
+          }
+        })
+      );
+      
+      results.forEach(r => {
+        if (r.url) {
+          urlMap[r.key] = r.url;
+          urlCache[r.key] = { url: r.url, expiresAt: now + 45 * 60 * 1000 };
+        }
+      });
+    }
     
     return { success: true, urls: urlMap };
   } catch (error: any) {
@@ -350,7 +365,7 @@ export async function deletePhoto({
 export async function getMusicSignedUrl(key: string) {
   try {
     if (!key) return { success: false, error: "Missing key" };
-    const url = `${R2_PUBLIC_URL}/${key}`;
+    const url = await storage.getSignedUrl(key, 604800);
     return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };
