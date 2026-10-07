@@ -176,17 +176,19 @@ export default function FolderDetailPage() {
         });
 
         const photoId = Math.random().toString(36).substring(2, 11);
-        const newPhoto = {
-          id: photoId,
-          url: "",
-          thumbUrl: "",
-          storageKey: uploadResult.key!,
-          thumbKey: "",
-          caption: "",
-          folderId: folder.id,
-          order: existing.length + newlyUploaded.length,
-          uploadedAt: new Date().toISOString(),
-        };
+const publicUrl = `https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev/${uploadResult.key!}`;
+
+const newPhoto = {
+  id: photoId,
+  url: publicUrl,
+  thumbUrl: publicUrl,
+  storageKey: uploadResult.key!,
+  thumbKey: uploadResult.key!,
+  caption: "",
+  folderId: folder.id,
+  order: existing.length + newlyUploaded.length,
+  uploadedAt: new Date().toISOString(),
+};
 
         try {
           const urlResult = await refreshPhotoUrls([uploadResult.key!]);

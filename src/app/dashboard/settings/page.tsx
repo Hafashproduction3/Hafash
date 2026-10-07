@@ -394,12 +394,16 @@ export default function SettingsPage() {
 
       const photoId = Math.random().toString(36).substring(2, 11);
       
-      const result = await addPortfolioPhoto(user.uid, {
-        id: photoId,
-        url: '',
-        storageKey: uploadResult.key!,
-        caption: '',
-      });
+      const publicUrl = `https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev/${uploadResult.key!}`;
+
+const result = await addPortfolioPhoto(user.uid, {
+  id: photoId,
+  url: publicUrl,
+  thumbUrl: publicUrl,
+  storageKey: uploadResult.key!,
+  thumbKey: uploadResult.key!,
+  caption: '',
+});
 
       if (!result.success) {
         throw new Error(result.error);
