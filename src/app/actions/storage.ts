@@ -6,9 +6,6 @@ import { getStorageStats } from '@/lib/storage/stats';
 
 const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev';
 
-// 🆕 URL Cache — signed URLs memory mein (45 min tak)
-const urlCache: Record<string, { url: string; expiresAt: number }> = {};
-
 function getPublicUrl(key: string | null | undefined): string {
   if (!key) return '';
   if (key.startsWith('http://') || key.startsWith('https://')) return key;
@@ -153,12 +150,11 @@ export async function completeUpload({
       return { success: false, error: "Asset missing from storage." };
     }
 
-    const assetUrl = await storage.getSignedUrl(task.key, 604800);
-    const thumbUrl = task.thumbKey 
-      ? await storage.getSignedUrl(task.thumbKey, 604800) 
-      : assetUrl;
+    // 🆕 DIRECT PUBLIC URLS — NO R2 CALL
+    const assetUrl = getPublicUrl(task.key);
+    const thumbUrl = task.thumbKey ? getPublicUrl(task.thumbKey) : assetUrl;
     const originalUrl = task.originalKey && task.originalReady 
-      ? await storage.getSignedUrl(task.originalKey, 604800) 
+      ? getPublicUrl(task.originalKey)
       : null;
 
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
@@ -218,7 +214,7 @@ export async function completeUpload({
 }
 
 /**
- * ✅ Refresh photo URLs in batch — WITH CACHE (45 min)
+ * 🆕 Refresh photo URLs — DIRECT PUBLIC URLS (no R2 call, instant)
  */
 export async function refreshPhotoUrls(keys: string[]): Promise<{ 
   success: boolean; 
@@ -234,41 +230,11 @@ export async function refreshPhotoUrls(keys: string[]): Promise<{
       return { success: false, urls: {}, error: 'Too many keys (max 300)' };
     }
     
-    const now = Date.now();
+    // 🆕 DIRECT PUBLIC URLS — NO R2 CALL, INSTANT
     const urlMap: Record<string, string> = {};
-    const keysToFetch: string[] = [];
-
-    // 🆕 Cache check — 45 min tak valid
     for (const key of keys) {
       if (!key) continue;
-      const cached = urlCache[key];
-      if (cached && cached.expiresAt > now) {
-        urlMap[key] = cached.url;
-      } else {
-        keysToFetch.push(key);
-      }
-    }
-
-    // Sirf naye keys fetch karo
-    if (keysToFetch.length > 0) {
-      const results = await Promise.all(
-        keysToFetch.map(async (key) => {
-          try {
-            const url = await storage.getSignedUrl(key, 604800);
-            return { key, url };
-          } catch (err) {
-            console.error(`[REFRESH] Failed for ${key}:`, err);
-            return { key, url: '' };
-          }
-        })
-      );
-      
-      results.forEach(r => {
-        if (r.url) {
-          urlMap[r.key] = r.url;
-          urlCache[r.key] = { url: r.url, expiresAt: now + 45 * 60 * 1000 };
-        }
-      });
+      urlMap[key] = getPublicUrl(key);
     }
     
     return { success: true, urls: urlMap };
@@ -360,12 +326,12 @@ export async function deletePhoto({
 }
 
 /**
- * ✅ Music URL — signed, valid 7 days
+ * ✅ Music URL — DIRECT PUBLIC URL
  */
 export async function getMusicSignedUrl(key: string) {
   try {
     if (!key) return { success: false, error: "Missing key" };
-    const url = await storage.getSignedUrl(key, 604800);
+    const url = getPublicUrl(key);
     return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -373,12 +339,12 @@ export async function getMusicSignedUrl(key: string) {
 }
 
 /**
- * ✅ Fresh music URL — signed, valid 7 days
+ * ✅ Fresh music URL — DIRECT PUBLIC URL
  */
 export async function getFreshMusicUrl(storageKey: string) {
   try {
     if (!storageKey) return { success: false, error: "Missing key" };
-    const url = await storage.getSignedUrl(storageKey, 604800);
+    const url = getPublicUrl(storageKey);
     return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -386,14 +352,12 @@ export async function getFreshMusicUrl(storageKey: string) {
 }
 
 /**
- * ✅ Original photo download URL (15 min — short lived for security)
+ * ✅ Original photo download URL — DIRECT PUBLIC URL
  */
 export async function getOriginalDownloadUrl(originalKey: string) {
   try {
     if (!originalKey) return { success: false, error: "Missing key" };
-    const exists = await storage.fileExists(originalKey);
-    if (!exists) return { success: false, error: "File not found" };
-    const url = await storage.getSignedUrl(originalKey, 900);
+    const url = getPublicUrl(originalKey);
     return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };

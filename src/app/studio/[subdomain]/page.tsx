@@ -50,55 +50,62 @@ export default function StudioHomePage() {
           ...userSnap.docs[0].data(),
         };
 
+        // Use already-saved public URLs immediately.
+        // Only fall back to refreshPhotoUrls for older records that do not have a URL.
         const brandingKeys: string[] = [];
-        if (photographerData.studioLogoKey) brandingKeys.push(photographerData.studioLogoKey);
-        if (photographerData.studioBannerKey) brandingKeys.push(photographerData.studioBannerKey);
-        if (photographerData.photographerPhotoKey) brandingKeys.push(photographerData.photographerPhotoKey);
+        if (!photographerData.studioLogo && photographerData.studioLogoKey) brandingKeys.push(photographerData.studioLogoKey);
+        if (!photographerData.studioBanner && photographerData.studioBannerKey) brandingKeys.push(photographerData.studioBannerKey);
+        if (!photographerData.photographerPhoto && photographerData.photographerPhotoKey) brandingKeys.push(photographerData.photographerPhotoKey);
 
-        let brandingUrlMap: Record<string, string> = {};
         if (brandingKeys.length > 0) {
           try {
             const result = await refreshPhotoUrls(brandingKeys);
-            if (result.success) brandingUrlMap = result.urls;
+            if (result.success) {
+              if (!photographerData.studioLogo && photographerData.studioLogoKey) {
+                photographerData.studioLogo = result.urls[photographerData.studioLogoKey] || photographerData.studioLogo || '';
+              }
+              if (!photographerData.studioBanner && photographerData.studioBannerKey) {
+                photographerData.studioBanner = result.urls[photographerData.studioBannerKey] || photographerData.studioBanner || '';
+              }
+              if (!photographerData.photographerPhoto && photographerData.photographerPhotoKey) {
+                photographerData.photographerPhoto = result.urls[photographerData.photographerPhotoKey] || photographerData.photographerPhoto || '';
+              }
+            }
           } catch {}
-        }
-
-        if (photographerData.studioLogoKey && brandingUrlMap[photographerData.studioLogoKey]) {
-          photographerData.studioLogo = brandingUrlMap[photographerData.studioLogoKey];
-        }
-        if (photographerData.studioBannerKey && brandingUrlMap[photographerData.studioBannerKey]) {
-          photographerData.studioBanner = brandingUrlMap[photographerData.studioBannerKey];
-        }
-        if (photographerData.photographerPhotoKey && brandingUrlMap[photographerData.photographerPhotoKey]) {
-          photographerData.photographerPhoto = brandingUrlMap[photographerData.photographerPhotoKey];
         }
 
         setPhotographer(photographerData);
 
         const rawPhotos: any[] = photographerData.portfolioPhotos || [];
         if (rawPhotos.length > 0) {
-          const keysToRefresh: string[] = [];
-          rawPhotos.forEach((p: any) => {
-            if (p.storageKey) keysToRefresh.push(p.storageKey);
-            if (p.thumbKey) keysToRefresh.push(p.thumbKey);
-          });
+          // Render immediately from URLs already stored in Firestore.
+          // Only refresh legacy records that are missing URLs.
+          const needsRefresh = rawPhotos.some(
+            (p: any) => !p.url || (p.thumbKey && !p.thumbUrl)
+          );
 
           let urlMap: Record<string, string> = {};
-          if (keysToRefresh.length > 0) {
-            try {
-              const result = await refreshPhotoUrls(keysToRefresh);
-              if (result.success) urlMap = result.urls;
-            } catch {}
+          if (needsRefresh) {
+            const keysToRefresh: string[] = [];
+            rawPhotos.forEach((p: any) => {
+              if (!p.url && p.storageKey) keysToRefresh.push(p.storageKey);
+              if (p.thumbKey && !p.thumbUrl) keysToRefresh.push(p.thumbKey);
+            });
+
+            if (keysToRefresh.length > 0) {
+              try {
+                const result = await refreshPhotoUrls(keysToRefresh);
+                if (result.success) urlMap = result.urls;
+              } catch {}
+            }
           }
 
-          const refreshed = rawPhotos
+          const refreshed = [...rawPhotos]
             .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
             .map((p: any) => ({
               ...p,
-              url: urlMap[p.storageKey] || p.url || '',
-              thumbUrl: p.thumbKey
-                ? (urlMap[p.thumbKey] || p.thumbUrl || p.url)
-                : (urlMap[p.storageKey] || p.url || ''),
+              url: p.url || urlMap[p.storageKey] || '',
+              thumbUrl: p.thumbUrl || (p.thumbKey ? urlMap[p.thumbKey] : '') || p.url || urlMap[p.storageKey] || '',
             }));
 
           if (!cancelled) setPortfolioPhotos(refreshed);
@@ -188,6 +195,9 @@ export default function StudioHomePage() {
             src={heroImage}
             alt={studioName}
             className="absolute inset-0 w-full h-full object-cover"
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
             style={{
               animation: 'kenburns 25s ease-in-out infinite alternate',
               transformOrigin: 'center',
@@ -404,6 +414,7 @@ export default function StudioHomePage() {
                     alt={`Portfolio ${idx + 1}`}
                     className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                     loading="lazy"
+                    decoding="async"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>

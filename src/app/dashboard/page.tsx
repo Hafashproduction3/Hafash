@@ -853,7 +853,7 @@ export default function DashboardPage() {
             >
               <div className="aspect-[4/3] relative overflow-hidden">
                 {gallery.coverImage ? (
-                  <img src={gallery.coverImage} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={gallery.title} />
+                  <img src={gallery.coverImage} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={gallery.title} loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">
                     <ImageIcon className="w-12 h-12 text-white/5" />
@@ -928,7 +928,7 @@ export default function DashboardPage() {
             <div key={gallery.id} className="flex items-center gap-6 p-5 bg-card/30 backdrop-blur-md border border-white/5 rounded-3xl group hover:border-primary/40 transition-all duration-500 shadow-xl hover:translate-x-2">
               <div className="h-16 w-16 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
                 {gallery.coverImage ? (
-                  <img src={gallery.coverImage} className="w-full h-full object-cover" alt="Cover" />
+                  <img src={gallery.coverImage} className="w-full h-full object-cover" alt="Cover" loading="lazy" decoding="async" />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">
                     <ImageIcon className="w-6 h-6 text-white/5" />
