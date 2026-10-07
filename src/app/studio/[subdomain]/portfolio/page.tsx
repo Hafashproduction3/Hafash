@@ -7,14 +7,10 @@ import { useFirestore } from "@/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import {
   Camera, X, ChevronLeft, ChevronRight, Loader2,
-  LayoutGrid, Folder, ArrowRight, Search, Menu,
-  Sparkles
+  Folder, Play, ArrowRight, Sparkles, Image as ImageIcon
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { refreshPhotoUrls } from "@/app/actions/storage";
 import { getTheme } from "@/lib/portfolio-themes";
-import { cn } from "@/lib/utils";
 
 export default function PortfolioPage() {
   const params = useParams();
@@ -26,8 +22,7 @@ export default function PortfolioPage() {
   const [folders, setFolders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhotoIdx, setSelectedPhotoIdx] = useState<number | null>(null);
-  const [displayLimit, setDisplayLimit] = useState(6);
-  const [featuredFolder, setFeaturedFolder] = useState<any>(null);
+  const [displayLimit, setDisplayLimit] = useState(9);
 
   useEffect(() => {
     let cancelled = false;
@@ -104,11 +99,6 @@ export default function PortfolioPage() {
           if (!cancelled) {
             setPhotos(refreshedPhotos);
             setFolders(refreshedFolders);
-            // Featured = sabse zyada photos wala folder
-            const top = [...refreshedFolders].sort(
-              (a, b) => (b.photoCount || 0) - (a.photoCount || 0)
-            )[0];
-            setFeaturedFolder(top || null);
           }
         }
       } catch (err) {
@@ -126,6 +116,11 @@ export default function PortfolioPage() {
     if (!photographer) return getTheme('royal-gold');
     return getTheme(photographer.theme, photographer.customColors);
   }, [photographer?.theme, photographer?.customColors]);
+
+  const heroImage = photographer?.studioBanner || 
+    folders[0]?.coverImage || 
+    photos[0]?.thumbUrl || 
+    photos[0]?.url;
 
   const visiblePhotos = photos.slice(0, displayLimit);
   const hasMore = displayLimit < photos.length;
@@ -172,239 +167,153 @@ export default function PortfolioPage() {
   if (!photographer) return null;
 
   const studioName = photographer.studioName || "Studio";
+  const city = photographer.city;
 
   return (
     <div style={{ background: 'var(--portfolio-page-bg)' }}>
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* TOP NAVIGATION (Minimal) */}
+      {/* HERO SECTION — Stories That Stay */}
       {/* ═══════════════════════════════════════════════════ */}
-      <nav
-        className="border-b"
-        style={{
-          borderColor: 'var(--portfolio-border)',
-          background: 'var(--portfolio-header-bg)',
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-5 flex items-center justify-between">
-          <Link href="/" className="space-y-0.5">
-            <p
-              className="text-xl lg:text-2xl font-headline font-bold tracking-wider"
-              style={{ color: 'var(--portfolio-heading-text)' }}
+      <section className="relative h-[70vh] min-h-[500px] overflow-hidden">
+        {heroImage ? (
+          <img
+            src={heroImage}
+            alt={studioName}
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        ) : (
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `linear-gradient(135deg, var(--portfolio-primary)20, var(--portfolio-page-bg))`,
+            }}
+          />
+        )}
+
+        {/* Dark overlays */}
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0.8) 100%)',
+          }}
+        />
+
+        {/* Content */}
+        <div className="relative h-full flex items-center justify-center">
+          <div className="text-center px-6 max-w-4xl">
+            <h1
+              className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-headline font-bold leading-[1.05] tracking-tight text-white mb-6"
+              style={{
+                textShadow: '0 4px 30px rgba(0,0,0,0.6)',
+              }}
             >
-              {studioName.toUpperCase()}
+              Stories that stay
+            </h1>
+
+            <p className="text-base lg:text-xl text-white/80 tracking-wide font-light">
+              Timeless. Intimate. Real.
             </p>
-            <p
-              className="text-[9px] font-bold uppercase tracking-[0.4em]"
-              style={{ color: 'var(--portfolio-muted-text)' }}
-            >
-              Production
-            </p>
-          </Link>
-
-          <div className="hidden lg:flex items-center gap-10">
-            {[
-              { label: 'Work', href: '/portfolio' },
-              { label: 'Archive', href: '/portfolio' },
-              { label: 'About', href: '/about' },
-              { label: 'Contact', href: '/contact' },
-            ].map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="text-xs font-bold uppercase tracking-[0.2em] transition-opacity hover:opacity-70"
-                style={{ color: 'var(--portfolio-body-text)' }}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button
-              className="w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70"
-              style={{ color: 'var(--portfolio-body-text)' }}
-            >
-              <Search className="w-4 h-4" />
-            </button>
-            <button
-              className="w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70"
-              style={{ color: 'var(--portfolio-body-text)' }}
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* FEATURED + FOLDERS SPLIT */}
-      {/* ═══════════════════════════════════════════════════ */}
-      <section className="py-10 lg:py-16" style={{ background: 'var(--portfolio-page-bg)' }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
-
-            {/* LEFT — Featured Folder */}
-            {featuredFolder && (
-              <div className="lg:col-span-7">
-                <Link href={`/portfolio/${featuredFolder.slug || featuredFolder.id}`}>
-                  <div
-                    className="relative aspect-[4/3] rounded-2xl overflow-hidden group cursor-pointer border"
-                    style={{ borderColor: 'var(--portfolio-border)' }}
-                  >
-                    {featuredFolder.coverImage ? (
-                      <img
-                        src={featuredFolder.coverImage}
-                        alt={featuredFolder.name}
-                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center"
-                        style={{ background: 'var(--portfolio-card-bg)' }}
-                      >
-                        <Folder className="w-20 h-20" style={{ color: 'var(--portfolio-muted-text)', opacity: 0.3 }} />
-                      </div>
-                    )}
-
-                    {/* Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-
-                    {/* Top-left label */}
-                    <div className="absolute top-6 left-6">
-                      <span
-                        className="text-[10px] font-bold uppercase tracking-[0.4em]"
-                        style={{ color: 'var(--portfolio-primary)' }}
-                      >
-                        {featuredFolder.name}
-                      </span>
-                    </div>
-
-                    {/* Bottom content */}
-                    <div className="absolute bottom-0 left-0 right-0 p-6 lg:p-8 space-y-3">
-                      <div className="flex items-center gap-2">
-                        <Folder className="w-4 h-4" style={{ color: 'var(--portfolio-primary)' }} />
-                        <span
-                          className="text-[10px] font-bold uppercase tracking-[0.3em]"
-                          style={{ color: 'var(--portfolio-primary)' }}
-                        >
-                          Folder / {featuredFolder.name}
-                        </span>
-                      </div>
-
-                      <h2 className="text-4xl lg:text-6xl font-headline font-bold text-white uppercase tracking-tight">
-                        {featuredFolder.name}
-                      </h2>
-
-                      <p className="text-xs lg:text-sm text-white/70 tracking-wider">
-                        Featured · {featuredFolder.photoCount} Photos · {new Date().getFullYear()}
-                        {featuredFolder.description ? ` · ${featuredFolder.description}` : ''}
-                      </p>
-
-                      <div className="pt-2">
-                        <span
-                          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-md border-2 text-xs font-bold uppercase tracking-[0.2em] transition-all group-hover:gap-3"
-                          style={{
-                            borderColor: 'var(--portfolio-primary)',
-                            color: 'var(--portfolio-primary)',
-                          }}
-                        >
-                          Open Folder
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            )}
-
-            {/* RIGHT — Folders List */}
-            <div className={cn("lg:col-span-5", !featuredFolder && "lg:col-span-12")}>
-              <div className="space-y-4">
-                <h3
-                  className="text-[10px] font-bold uppercase tracking-[0.4em] pb-3 border-b"
-                  style={{
-                    color: 'var(--portfolio-muted-text)',
-                    borderColor: 'var(--portfolio-border)',
-                  }}
-                >
-                  Folders — {folders.length} {folders.length === 1 ? 'Collection' : 'Collections'}
-                </h3>
-
-                {folders.length === 0 ? (
-                  <p
-                    className="text-sm italic py-8 text-center"
-                    style={{ color: 'var(--portfolio-muted-text)' }}
-                  >
-                    No folders yet
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {folders.map((folder: any) => (
-                      <Link
-                        key={folder.id}
-                        href={`/portfolio/${folder.slug || folder.id}`}
-                        className="flex items-center gap-4 p-3 rounded-xl border transition-all group hover:translate-x-1"
-                        style={{
-                          borderColor: 'var(--portfolio-border)',
-                          background: 'var(--portfolio-card-bg)',
-                        }}
-                      >
-                        {/* Thumbnail */}
-                        <div
-                          className="w-16 h-16 lg:w-20 lg:h-20 rounded-lg overflow-hidden shrink-0"
-                          style={{ background: 'var(--portfolio-page-bg)' }}
-                        >
-                          {folder.coverImage ? (
-                            <img
-                              src={folder.coverImage}
-                              alt={folder.name}
-                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center">
-                              <Folder
-                                className="w-6 h-6"
-                                style={{ color: 'var(--portfolio-muted-text)', opacity: 0.4 }}
-                              />
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <p
-                            className="font-headline font-bold text-lg lg:text-xl truncate"
-                            style={{ color: 'var(--portfolio-heading-text)' }}
-                          >
-                            {folder.name}
-                          </p>
-                          <p
-                            className="text-[10px] font-bold uppercase tracking-widest mt-0.5"
-                            style={{ color: 'var(--portfolio-muted-text)' }}
-                          >
-                            {folder.photoCount || 0} Photos · Updated {new Date().getFullYear()}
-                          </p>
-                        </div>
-
-                        {/* Arrow */}
-                        <ArrowRight
-                          className="w-4 h-4 shrink-0 transition-transform group-hover:translate-x-1"
-                          style={{ color: 'var(--portfolio-primary)' }}
-                        />
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
         </div>
       </section>
 
       {/* ═══════════════════════════════════════════════════ */}
-      {/* ALL PHOTOS GRID */}
+      {/* EXPLORE COLLECTIONS */}
+      {/* ═══════════════════════════════════════════════════ */}
+      {folders.length > 0 && (
+        <section
+          className="py-16 lg:py-24"
+          style={{ background: 'var(--portfolio-page-bg)' }}
+        >
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            {/* Section Title */}
+            <div className="mb-10">
+              <h2
+                className="text-xs lg:text-sm font-bold uppercase tracking-[0.4em]"
+                style={{ color: 'var(--portfolio-muted-text)' }}
+              >
+                Explore Collections
+              </h2>
+            </div>
+
+            {/* Folders Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {folders.map((folder: any) => (
+                <Link
+                  key={folder.id}
+                  href={`/portfolio/${folder.slug || folder.id}`}
+                  className="group"
+                >
+                  <div
+                    className="rounded-2xl border overflow-hidden transition-all duration-500 group-hover:translate-y-[-4px] group-hover:shadow-2xl"
+                    style={{
+                      borderColor: 'var(--portfolio-border)',
+                      background: 'var(--portfolio-card-bg)',
+                    }}
+                  >
+                    <div className="flex items-stretch">
+                      {/* Cover */}
+                      <div className="w-32 lg:w-40 aspect-square shrink-0 overflow-hidden">
+                        {folder.coverImage ? (
+                          <img
+                            src={folder.coverImage}
+                            alt={folder.name}
+                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                          />
+                        ) : (
+                          <div
+                            className="w-full h-full flex items-center justify-center"
+                            style={{ background: 'var(--portfolio-section-bg)' }}
+                          >
+                            <Folder
+                              className="w-8 h-8"
+                              style={{ color: 'var(--portfolio-muted-text)', opacity: 0.4 }}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 p-5 lg:p-6 flex flex-col justify-center min-w-0">
+                        <h3
+                          className="text-xl lg:text-2xl font-headline font-bold mb-2 truncate"
+                          style={{ color: 'var(--portfolio-heading-text)' }}
+                        >
+                          {folder.name}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <ImageIcon
+                            className="w-3.5 h-3.5"
+                            style={{ color: 'var(--portfolio-muted-text)' }}
+                          />
+                          <span
+                            className="text-xs font-bold uppercase tracking-widest"
+                            style={{ color: 'var(--portfolio-muted-text)' }}
+                          >
+                            {folder.photoCount || 0} Photos
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <div className="flex items-center pr-5">
+                        <ChevronRight
+                          className="w-4 h-4 transition-transform group-hover:translate-x-1"
+                          style={{ color: 'var(--portfolio-primary)' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* ALL PHOTOS */}
       {/* ═══════════════════════════════════════════════════ */}
       {photos.length > 0 && (
         <section
@@ -415,12 +324,12 @@ export default function PortfolioPage() {
           }}
         >
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
-            <div className="text-center mb-12">
+            <div className="text-center mb-10">
               <h2
-                className="text-[11px] font-bold uppercase tracking-[0.5em] mb-2"
+                className="text-xs lg:text-sm font-bold uppercase tracking-[0.4em]"
                 style={{ color: 'var(--portfolio-muted-text)' }}
               >
-                All Photos — {photos.length} Items
+                All Photos
               </h2>
             </div>
 
@@ -439,18 +348,31 @@ export default function PortfolioPage() {
                       className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                       loading="lazy"
                     />
+
+                    {/* Video indicator */}
+                    {photo.mediaType === 'video' && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div
+                          className="w-16 h-16 rounded-full flex items-center justify-center backdrop-blur-md border-2"
+                          style={{
+                            background: 'rgba(0,0,0,0.5)',
+                            borderColor: 'var(--portfolio-primary)',
+                          }}
+                        >
+                          <Play
+                            className="w-6 h-6 fill-current ml-1"
+                            style={{ color: 'var(--portfolio-primary)' }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Bottom overlay with caption */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 lg:p-5">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-xs lg:text-sm font-bold text-white uppercase tracking-wider truncate">
-                        {photo.caption || `Photo ${idx + 1}`}
-                      </p>
-                      <p className="text-[10px] font-bold text-white/60 tracking-widest shrink-0">
-                        {String(idx + 1).padStart(2, '0')} / {String(photos.length).padStart(2, '0')}
-                      </p>
-                    </div>
+                  {/* Bottom overlay */}
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
+                    <p className="text-xs lg:text-sm font-bold text-white uppercase tracking-wider truncate">
+                      {photo.caption || `Photo ${idx + 1}`}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -459,7 +381,7 @@ export default function PortfolioPage() {
             {hasMore && (
               <div className="text-center mt-12">
                 <button
-                  onClick={() => setDisplayLimit(prev => prev + 6)}
+                  onClick={() => setDisplayLimit(prev => prev + 9)}
                   className="inline-flex items-center gap-3 px-8 py-4 rounded-full border-2 text-xs font-bold uppercase tracking-[0.3em] transition-all hover:scale-105"
                   style={{
                     borderColor: 'var(--portfolio-primary)',
@@ -481,31 +403,18 @@ export default function PortfolioPage() {
       <footer
         className="border-t py-8"
         style={{
-          background: 'var(--portfolio-header-bg)',
+          background: 'var(--portfolio-page-bg)',
           borderColor: 'var(--portfolio-border)',
         }}
       >
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <p
-              className="text-[10px] font-bold uppercase tracking-[0.3em]"
-              style={{ color: 'var(--portfolio-muted-text)' }}
-            >
-              {studioName} · Private Client Portfolio · {new Date().getFullYear()}
-            </p>
-
-            <div className="flex items-center gap-6 text-[10px] font-bold uppercase tracking-[0.3em]">
-              {['Instagram', 'Email', 'Privacy', 'Credits'].map((item) => (
-                <span
-                  key={item}
-                  className="cursor-pointer transition-opacity hover:opacity-70"
-                  style={{ color: 'var(--portfolio-muted-text)' }}
-                >
-                  {item}
-                </span>
-              ))}
-            </div>
-          </div>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 text-center">
+          <p
+            className="text-[10px] font-bold uppercase tracking-[0.3em]"
+            style={{ color: 'var(--portfolio-muted-text)' }}
+          >
+            © {new Date().getFullYear()} {studioName.toUpperCase()}
+            {city ? ` · ${city.toUpperCase()}` : ''}
+          </p>
         </div>
       </footer>
 
@@ -546,12 +455,23 @@ export default function PortfolioPage() {
             </>
           )}
 
-          <img
-            src={photos[selectedPhotoIdx].url}
-            alt={photos[selectedPhotoIdx].caption || 'Fullscreen'}
-            className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl animate-in fade-in duration-300"
-            onClick={(e) => e.stopPropagation()}
-          />
+          {/* Photo ya Video */}
+          {photos[selectedPhotoIdx].mediaType === 'video' && photos[selectedPhotoIdx].videoUrl ? (
+            <video
+              src={photos[selectedPhotoIdx].videoUrl}
+              controls
+              autoPlay
+              className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={photos[selectedPhotoIdx].url}
+              alt={photos[selectedPhotoIdx].caption || 'Fullscreen'}
+              className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl animate-in fade-in duration-300"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
 
           {photos[selectedPhotoIdx].caption && (
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 px-6 py-3 rounded-full bg-white/10 backdrop-blur-xl text-white text-sm font-bold uppercase tracking-widest">
