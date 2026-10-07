@@ -24,7 +24,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { updateSubdomain } from '@/app/actions/subdomain';
-import { 
+import {  
   addPortfolioPhoto, 
   removePortfolioPhoto,
   createPortfolioFolder,
@@ -37,7 +37,7 @@ import { THEME_LIST, type ThemeId } from '@/lib/portfolio-themes';
 import { requestUploadUrl, refreshPhotoUrls } from '@/app/actions/storage';
 import { ImageUploader } from '@/components/ImageUploader';
 import { doc, setDoc, deleteField } from 'firebase/firestore';
-
+import { convertToWebP } from '@/lib/storage/convert-to-webp';   // 🆕 YEH
 export default function SettingsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -367,12 +367,16 @@ export default function SettingsPage() {
     setUploadingPhoto(true);
 
     try {
+
+      // 🆕 Convert to WebP
+      const webpFile = await convertToWebP(file, 0.85);
+
       const uploadResult = await requestUploadUrl({
         userId: user.uid,
         galleryId: 'portfolio',
-        fileName: file.name,
-        contentType: file.type,
-        fileSize: file.size,
+        fileName: webpFile.name,
+        contentType: webpFile.type,
+        fileSize: webpFile.size,
       });
 
       if (!uploadResult.success || !uploadResult.uploadUrl) {
@@ -382,10 +386,10 @@ export default function SettingsPage() {
       const xhr = new XMLHttpRequest();
       await new Promise<void>((resolve, reject) => {
         xhr.open('PUT', uploadResult.uploadUrl!);
-        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.setRequestHeader('Content-Type', 'image/webp');
         xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`R2: ${xhr.status}`)));
         xhr.onerror = () => reject(new Error('Network error'));
-        xhr.send(file);
+        xhr.send(webpFile);
       });
 
       const photoId = Math.random().toString(36).substring(2, 11);

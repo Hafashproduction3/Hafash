@@ -7,8 +7,7 @@ import { useUser, useFirestore } from "@/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import {
   ArrowLeft, Upload, Loader2, Trash2, Pencil, X,
-  CheckCircle2, Folder, Image as ImageIcon, Plus,
-  Save, Info
+  Folder, Image as ImageIcon, Plus, Save, Info
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { HafashLoader } from "@/components/ui/hafash-loader";
 import { requestUploadUrl, refreshPhotoUrls } from "@/app/actions/storage";
 import { assignPhotoToFolder } from "@/app/actions/portfolio";
+import { convertToWebP } from "@/lib/storage/convert-to-webp";
 
 export default function FolderDetailPage() {
   const params = useParams();
@@ -149,12 +149,15 @@ export default function FolderDetailPage() {
       let failedCount = 0;
 
       const uploadOneFile = async (file: File) => {
+        // 🆕 Convert to WebP
+        const webpFile = await convertToWebP(file, 0.85);
+
         const uploadResult = await requestUploadUrl({
           userId: user.uid,
           galleryId: "portfolio",
-          fileName: file.name,
-          contentType: file.type,
-          fileSize: file.size,
+          fileName: webpFile.name,
+          contentType: webpFile.type,
+          fileSize: webpFile.size,
         });
 
         if (!uploadResult.success || !uploadResult.uploadUrl) {
@@ -164,13 +167,13 @@ export default function FolderDetailPage() {
         const xhr = new XMLHttpRequest();
         await new Promise<void>((resolve, reject) => {
           xhr.open("PUT", uploadResult.uploadUrl!);
-          xhr.setRequestHeader("Content-Type", file.type);
+          xhr.setRequestHeader("Content-Type", "image/webp");
           xhr.onload = () =>
             xhr.status >= 200 && xhr.status < 300
               ? resolve()
               : reject(new Error(`R2: ${xhr.status}`));
           xhr.onerror = () => reject(new Error("Network error"));
-          xhr.send(file);
+          xhr.send(webpFile);
         });
 
         const photoId = Math.random().toString(36).substring(2, 11);
@@ -241,7 +244,7 @@ export default function FolderDetailPage() {
 
         toast({
           title: `✅ ${newlyUploaded.length} photo(s) upload ho gayi`,
-          description: `"${folder.name}" mein add ho gayi`,
+          description: `"${folder.name}" mein add ho gayi (WebP converted)`,
         });
       }
 
@@ -434,7 +437,7 @@ export default function FolderDetailPage() {
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Photos automatically <strong>"{folder.name}"</strong> folder mein assign ho jayengi.
                 Multiple photos ek saath select kar sakte hain (max 50 total, 20MB per photo).
-                <strong> 3 photos parallel upload hongi.</strong>
+                <strong> WebP format mein convert hongi — 70% chhoti.</strong>
               </p>
             </div>
           </div>
@@ -444,7 +447,7 @@ export default function FolderDetailPage() {
               <Loader2 className="w-12 h-12 text-primary animate-spin" />
               <div className="text-center space-y-2">
                 <p className="font-bold text-lg">
-                  Uploading... {uploadProgress.current} / {uploadProgress.total}
+                  Uploading & Converting... {uploadProgress.current} / {uploadProgress.total}
                 </p>
                 <div className="w-64 h-2 rounded-full bg-muted overflow-hidden">
                   <div
@@ -463,7 +466,7 @@ export default function FolderDetailPage() {
               </div>
               <h3 className="font-headline font-bold text-xl mb-2">Upload Photos</h3>
               <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
-                Click karein ya photos drag karein. Multiple photos select kar sakte hain.
+                Click karein ya photos drag karein. WebP convert hongi — fast!
               </p>
               <Button
                 onClick={() => fileInputRef.current?.click()}
