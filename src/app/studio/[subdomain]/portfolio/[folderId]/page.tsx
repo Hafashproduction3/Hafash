@@ -62,8 +62,22 @@ export default function FolderDetailPublicPage() {
           return;
         }
 
-        setFolder(matchedFolder);
+        // ═══ STEP 1: Folder cover image refresh ═══
+        let refreshedFolder = { ...matchedFolder };
+        if (matchedFolder.coverStorageKey) {
+          try {
+            const coverResult = await refreshPhotoUrls([matchedFolder.coverStorageKey]);
+            if (coverResult.success && coverResult.urls[matchedFolder.coverStorageKey]) {
+              refreshedFolder.coverImage = coverResult.urls[matchedFolder.coverStorageKey];
+            }
+          } catch (err) {
+            console.warn("[FOLDER_COVER_REFRESH]", err);
+          }
+        }
 
+        setFolder(refreshedFolder);
+
+        // ═══ STEP 2: Folder photos refresh ═══
         const rawPhotos: any[] = photographerData.portfolioPhotos || [];
         const folderPhotos = rawPhotos.filter(
           (p: any) => p.folderId === matchedFolder.id
@@ -95,6 +109,64 @@ export default function FolderDetailPublicPage() {
             }));
 
           if (!cancelled) setPhotos(refreshed);
+        }
+
+        // ═══ STEP 3: Fallback — agar portfolioPhotos khali hai, galleries se lein ═══
+        if (folderPhotos.length === 0) {
+          try {
+            const galleryQuery = query(
+              collection(firestore, "galleries"),
+              where("userId", "==", photographerData.userId)
+            );
+            const gallerySnap = await getDocs(galleryQuery);
+
+            if (!cancelled && !gallerySnap.empty) {
+              const allPhotos: any[] = [];
+              for (const galleryDoc of gallerySnap.docs) {
+                const galleryData = galleryDoc.data();
+                const items = galleryData.items || [];
+                items.forEach((item: any) => {
+                  allPhotos.push({
+                    id: item.id || `${galleryDoc.id}-${item.storageKey}`,
+                    url: item.url || '',
+                    thumbUrl: item.thumbUrl || item.url || '',
+                    storageKey: item.storageKey,
+                    thumbKey: item.thumbKey,
+                    caption: item.caption || galleryData.title || 'Photo',
+                    folderId: matchedFolder.id,
+                  });
+                });
+              }
+
+              if (allPhotos.length > 0) {
+                const keysToRefresh: string[] = [];
+                allPhotos.forEach((p) => {
+                  if (p.storageKey) keysToRefresh.push(p.storageKey);
+                  if (p.thumbKey) keysToRefresh.push(p.thumbKey);
+                });
+
+                let urlMap: Record<string, string> = {};
+                if (keysToRefresh.length > 0) {
+                  try {
+                    const result = await refreshPhotoUrls(keysToRefresh);
+                    if (result.success) urlMap = result.urls;
+                  } catch {}
+                }
+
+                const refreshed = allPhotos.map((p) => ({
+                  ...p,
+                  url: urlMap[p.storageKey] || p.url || '',
+                  thumbUrl: p.thumbKey
+                    ? (urlMap[p.thumbKey] || p.thumbUrl || p.url)
+                    : (urlMap[p.storageKey] || p.url || ''),
+                }));
+
+                if (!cancelled) setPhotos(refreshed);
+              }
+            }
+          } catch (err) {
+            console.warn("[FOLDER_GALLERY_FALLBACK]", err);
+          }
         }
       } catch (err) {
         console.error("[FOLDER_DETAIL_PUBLIC]", err);
@@ -190,6 +262,7 @@ export default function FolderDetailPublicPage() {
   }
 
   const studioName = photographer?.studioName || "Studio";
+  const coverImage = folder.coverImage || photos[0]?.thumbUrl || photos[0]?.url;
 
   return (
     <div style={{ background: 'var(--portfolio-page-bg)' }}>
@@ -269,9 +342,9 @@ export default function FolderDetailPublicPage() {
                 className="aspect-square rounded-2xl overflow-hidden border"
                 style={{ borderColor: 'var(--portfolio-border)' }}
               >
-                {folder.coverImage || photos[0]?.thumbUrl || photos[0]?.url ? (
+                {coverImage ? (
                   <img
-                    src={folder.coverImage || photos[0]?.thumbUrl || photos[0]?.url}
+                    src={coverImage}
                     alt={folder.name}
                     className="w-full h-full object-cover"
                   />
