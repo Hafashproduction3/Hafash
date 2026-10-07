@@ -242,7 +242,7 @@ export async function refreshPhotoUrls(keys: string[]): Promise<{
     const results = await Promise.all(
       keys.map(async (key) => {
         try {
-          const url = await storage.getSignedUrl(key, 604800);
+          const url = `${R2_PUBLIC_URL}/${key}`;
           return { key, url };
         } catch (err) {
           console.error(`[REFRESH] Failed for ${key}:`, err);
@@ -350,7 +350,7 @@ export async function deletePhoto({
 export async function getMusicSignedUrl(key: string) {
   try {
     if (!key) return { success: false, error: "Missing key" };
-    const url = await storage.getSignedUrl(key, 604800);
+    const url = `${R2_PUBLIC_URL}/${key}`;
     return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };
