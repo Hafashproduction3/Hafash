@@ -6,8 +6,8 @@ import Link from "next/link";
 import { useFirestore } from "@/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import {
-  Camera, X, ChevronLeft, ChevronRight, Loader2,
-  Folder, Play, ArrowRight, Sparkles, Image as ImageIcon
+  X, ChevronLeft, ChevronRight, Folder, Play,
+  Sparkles, Image as ImageIcon
 } from "lucide-react";
 import { refreshPhotoUrls } from "@/app/actions/storage";
 import { getTheme } from "@/lib/portfolio-themes";
@@ -22,7 +22,7 @@ export default function PortfolioPage() {
   const [folders, setFolders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhotoIdx, setSelectedPhotoIdx] = useState<number | null>(null);
-  const [displayLimit, setDisplayLimit] = useState(9);
+  const [displayLimit, setDisplayLimit] = useState(6);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,10 +118,10 @@ export default function PortfolioPage() {
   }, [photographer?.theme, photographer?.customColors]);
 
   const heroImage = photographer?.portfolioHeroImage || 
-  photographer?.studioBanner || 
-  folders[0]?.coverImage || 
-  photos[0]?.thumbUrl || 
-  photos[0]?.url;
+    photographer?.studioBanner || 
+    folders[0]?.coverImage || 
+    photos[0]?.thumbUrl || 
+    photos[0]?.url;
 
   const visiblePhotos = photos.slice(0, displayLimit);
   const hasMore = displayLimit < photos.length;
@@ -173,15 +173,15 @@ export default function PortfolioPage() {
   return (
     <div style={{ background: 'var(--portfolio-page-bg)' }}>
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* HERO SECTION — Stories That Stay */}
-      {/* ═══════════════════════════════════════════════════ */}
+      {/* HERO SECTION */}
       <section className="relative h-[70vh] min-h-[500px] overflow-hidden">
         {heroImage ? (
           <img
             src={heroImage}
             alt={studioName}
             className="absolute inset-0 w-full h-full object-cover"
+            fetchPriority="high"
+            decoding="async"
           />
         ) : (
           <div
@@ -192,7 +192,6 @@ export default function PortfolioPage() {
           />
         )}
 
-        {/* Dark overlays */}
         <div
           className="absolute inset-0"
           style={{
@@ -200,14 +199,11 @@ export default function PortfolioPage() {
           }}
         />
 
-        {/* Content */}
         <div className="relative h-full flex items-center justify-center">
           <div className="text-center px-6 max-w-4xl">
             <h1
               className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl font-headline font-bold leading-[1.05] tracking-tight text-white mb-6"
-              style={{
-                textShadow: '0 4px 30px rgba(0,0,0,0.6)',
-              }}
+              style={{ textShadow: '0 4px 30px rgba(0,0,0,0.6)' }}
             >
               Stories that stay
             </h1>
@@ -219,16 +215,13 @@ export default function PortfolioPage() {
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════ */}
       {/* EXPLORE COLLECTIONS */}
-      {/* ═══════════════════════════════════════════════════ */}
       {folders.length > 0 && (
         <section
           className="py-16 lg:py-24"
           style={{ background: 'var(--portfolio-page-bg)' }}
         >
           <div className="max-w-7xl mx-auto px-6 lg:px-8">
-            {/* Section Title */}
             <div className="mb-10">
               <h2
                 className="text-xs lg:text-sm font-bold uppercase tracking-[0.4em]"
@@ -238,14 +231,9 @@ export default function PortfolioPage() {
               </h2>
             </div>
 
-            {/* Folders Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {folders.map((folder: any) => (
-                <Link
-                  key={folder.id}
-                  href={`/portfolio/${folder.slug || folder.id}`}
-                  className="group"
-                >
+                <Link key={folder.id} href={`/portfolio/${folder.slug || folder.id}`} className="group">
                   <div
                     className="rounded-2xl border overflow-hidden transition-all duration-500 group-hover:translate-y-[-4px] group-hover:shadow-2xl"
                     style={{
@@ -254,13 +242,14 @@ export default function PortfolioPage() {
                     }}
                   >
                     <div className="flex items-stretch">
-                      {/* Cover */}
                       <div className="w-32 lg:w-40 aspect-square shrink-0 overflow-hidden">
                         {folder.coverImage ? (
                           <img
                             src={folder.coverImage}
                             alt={folder.name}
                             className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            loading="lazy"
+                            decoding="async"
                           />
                         ) : (
                           <div
@@ -275,7 +264,6 @@ export default function PortfolioPage() {
                         )}
                       </div>
 
-                      {/* Info */}
                       <div className="flex-1 p-5 lg:p-6 flex flex-col justify-center min-w-0">
                         <h3
                           className="text-xl lg:text-2xl font-headline font-bold mb-2 truncate"
@@ -297,7 +285,6 @@ export default function PortfolioPage() {
                         </div>
                       </div>
 
-                      {/* Arrow */}
                       <div className="flex items-center pr-5">
                         <ChevronRight
                           className="w-4 h-4 transition-transform group-hover:translate-x-1"
@@ -313,9 +300,7 @@ export default function PortfolioPage() {
         </section>
       )}
 
-      {/* ═══════════════════════════════════════════════════ */}
       {/* ALL PHOTOS */}
-      {/* ═══════════════════════════════════════════════════ */}
       {photos.length > 0 && (
         <section
           className="py-16 lg:py-24 border-t"
@@ -342,15 +327,16 @@ export default function PortfolioPage() {
                   className="group relative overflow-hidden rounded-xl cursor-pointer border"
                   style={{ borderColor: 'var(--portfolio-border)' }}
                 >
-                  <div className="aspect-[4/3] overflow-hidden">
+                  <div className="aspect-[4/3] overflow-hidden relative">
                     <img
                       src={photo.thumbUrl || photo.url}
                       alt={photo.caption || `Photo ${idx + 1}`}
                       className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                       loading="lazy"
+                      decoding="async"
+                      style={{ background: 'var(--portfolio-card-bg)' }}
                     />
 
-                    {/* Video indicator */}
                     {photo.mediaType === 'video' && (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <div
@@ -369,7 +355,6 @@ export default function PortfolioPage() {
                     )}
                   </div>
 
-                  {/* Bottom overlay */}
                   <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4">
                     <p className="text-xs lg:text-sm font-bold text-white uppercase tracking-wider truncate">
                       {photo.caption || `Photo ${idx + 1}`}
@@ -382,7 +367,7 @@ export default function PortfolioPage() {
             {hasMore && (
               <div className="text-center mt-12">
                 <button
-                  onClick={() => setDisplayLimit(prev => prev + 9)}
+                  onClick={() => setDisplayLimit(prev => prev + 6)}
                   className="inline-flex items-center gap-3 px-8 py-4 rounded-full border-2 text-xs font-bold uppercase tracking-[0.3em] transition-all hover:scale-105"
                   style={{
                     borderColor: 'var(--portfolio-primary)',
@@ -398,9 +383,7 @@ export default function PortfolioPage() {
         </section>
       )}
 
-      {/* ═══════════════════════════════════════════════════ */}
       {/* FOOTER */}
-      {/* ═══════════════════════════════════════════════════ */}
       <footer
         className="border-t py-8"
         style={{
@@ -419,9 +402,7 @@ export default function PortfolioPage() {
         </div>
       </footer>
 
-      {/* ═══════════════════════════════════════════════════ */}
       {/* LIGHTBOX */}
-      {/* ═══════════════════════════════════════════════════ */}
       {selectedPhotoIdx !== null && photos[selectedPhotoIdx] && (
         <div
           className="fixed inset-0 z-[100] bg-black/98 backdrop-blur-3xl flex items-center justify-center"
@@ -456,7 +437,6 @@ export default function PortfolioPage() {
             </>
           )}
 
-          {/* Photo ya Video */}
           {photos[selectedPhotoIdx].mediaType === 'video' && photos[selectedPhotoIdx].videoUrl ? (
             <video
               src={photos[selectedPhotoIdx].videoUrl}
@@ -469,7 +449,7 @@ export default function PortfolioPage() {
             <img
               src={photos[selectedPhotoIdx].url}
               alt={photos[selectedPhotoIdx].caption || 'Fullscreen'}
-              className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl animate-in fade-in duration-300"
+              className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl"
               onClick={(e) => e.stopPropagation()}
             />
           )}

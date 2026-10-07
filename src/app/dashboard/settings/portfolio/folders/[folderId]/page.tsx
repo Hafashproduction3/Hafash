@@ -149,7 +149,6 @@ export default function FolderDetailPage() {
       let failedCount = 0;
 
       const uploadOneFile = async (file: File) => {
-        // 🆕 Convert to WebP
         const webpFile = await convertToWebP(file, 0.85);
 
         const uploadResult = await requestUploadUrl({
@@ -326,7 +325,13 @@ export default function FolderDetailPage() {
 
   const handleDeleteFolder = async () => {
     if (!user || !firestore || !folder) return;
-    if (!confirm(`"${folder.name}" folder delete karein? Photos "All Photos" mein chali jayengi.`)) return;
+
+    const photosToDelete = allPhotos.filter((p: any) => p.folderId === folder.id);
+    const warningMsg = photosToDelete.length > 0
+      ? `"${folder.name}" folder aur iski ${photosToDelete.length} photo(s) delete hongi. Continue?`
+      : `"${folder.name}" folder delete karein?`;
+
+    if (!confirm(warningMsg)) return;
 
     try {
       const profileRef = doc(firestore, "publicProfiles", user.uid);
@@ -338,9 +343,7 @@ export default function FolderDetailPage() {
         .filter((f: any) => f.id !== folder.id)
         .map((f: any, idx: number) => ({ ...f, order: idx }));
 
-      const updatedPhotos = photos.map((p: any) =>
-        p.folderId === folder.id ? { ...p, folderId: null } : p
-      );
+      const updatedPhotos = photos.filter((p: any) => p.folderId !== folder.id);
 
       await updateDoc(profileRef, {
         portfolioFolders: updatedFolders,
@@ -348,7 +351,12 @@ export default function FolderDetailPage() {
         updatedAt: new Date().toISOString(),
       });
 
-      toast({ title: "Folder delete ho gaya" });
+      toast({
+        title: "Folder delete ho gaya",
+        description: photosToDelete.length > 0
+          ? `${photosToDelete.length} photos bhi delete ho gayi`
+          : undefined,
+      });
       router.push("/dashboard/settings?tab=portfolio");
     } catch (err: any) {
       toast({ variant: "destructive", title: "Failed", description: err.message });
@@ -510,6 +518,8 @@ export default function FolderDetailPage() {
                     alt={photo.caption || "Portfolio"}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     loading="lazy"
+                    decoding="async"
+                    style={{ background: 'var(--portfolio-card-bg)' }}
                   />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">
