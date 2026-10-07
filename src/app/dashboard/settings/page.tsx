@@ -765,7 +765,7 @@ export default function SettingsPage() {
                         }}
                         userId={user?.uid || ''}
                         type="logo"
-                        maxSizeMB={2}
+                        maxSizeMB={20}
                       />
                       {formData.studioLogoKey && (
                         <Button
@@ -791,7 +791,7 @@ export default function SettingsPage() {
                         }}
                         userId={user?.uid || ''}
                         type="banner"
-                        maxSizeMB={5}
+                        maxSizeMB={20}
                       />
                       {formData.studioBannerKey && (
                         <Button
@@ -817,7 +817,7 @@ export default function SettingsPage() {
                         }}
                         userId={user?.uid || ''}
                         type="photo"
-                        maxSizeMB={3}
+                        maxSizeMB={20}
                       />
                       {formData.photographerPhotoKey && (
                         <Button
@@ -1476,7 +1476,7 @@ export default function SettingsPage() {
                     }}
                     userId={user?.uid || ''}
                     type="logo"
-                    maxSizeMB={3}
+                    maxSizeMB={20}
                   />
                   <p className="text-[10px] text-muted-foreground">
                     💡 Cover nahi doge toh pehli photo automatically cover ban jayegi

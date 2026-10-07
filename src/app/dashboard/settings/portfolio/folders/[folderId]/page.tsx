@@ -112,7 +112,7 @@ export default function FolderDetailPage() {
     if (!e.target.files || !e.target.files.length || !user || !firestore || !folder) return;
 
     const files = Array.from(e.target.files);
-    const MAX_SIZE = 10 * 1024 * 1024;
+    const MAX_SIZE = 20 * 1024 * 1024;
 
     for (const file of files) {
       if (!file.type.startsWith("image/")) {
@@ -120,7 +120,7 @@ export default function FolderDetailPage() {
         return;
       }
       if (file.size > MAX_SIZE) {
-        toast({ variant: "destructive", title: `${file.name} — 10MB se bara` });
+        toast({ variant: "destructive", title: `${file.name} — 20MB se bara` });
         return;
       }
     }
@@ -141,68 +141,84 @@ export default function FolderDetailPage() {
       const profileRef = doc(firestore, "publicProfiles", user.uid);
       const snap = await getDoc(profileRef);
       const existing: any[] = snap.data()?.portfolioPhotos || [];
-      const newlyUploaded: any[] = [];
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        setUploadProgress({ current: i + 1, total: files.length });
+      const newlyUploaded: any[] = [];
+      const CONCURRENT = 3;
+      let currentIndex = 0;
+      let completedCount = 0;
+      let failedCount = 0;
+
+      const uploadOneFile = async (file: File) => {
+        const uploadResult = await requestUploadUrl({
+          userId: user.uid,
+          galleryId: "portfolio",
+          fileName: file.name,
+          contentType: file.type,
+          fileSize: file.size,
+        });
+
+        if (!uploadResult.success || !uploadResult.uploadUrl) {
+          throw new Error(uploadResult.error || "Upload URL failed");
+        }
+
+        const xhr = new XMLHttpRequest();
+        await new Promise<void>((resolve, reject) => {
+          xhr.open("PUT", uploadResult.uploadUrl!);
+          xhr.setRequestHeader("Content-Type", file.type);
+          xhr.onload = () =>
+            xhr.status >= 200 && xhr.status < 300
+              ? resolve()
+              : reject(new Error(`R2: ${xhr.status}`));
+          xhr.onerror = () => reject(new Error("Network error"));
+          xhr.send(file);
+        });
+
+        const photoId = Math.random().toString(36).substring(2, 11);
+        const newPhoto = {
+          id: photoId,
+          url: "",
+          thumbUrl: "",
+          storageKey: uploadResult.key!,
+          thumbKey: "",
+          caption: "",
+          folderId: folder.id,
+          order: existing.length + newlyUploaded.length,
+          uploadedAt: new Date().toISOString(),
+        };
 
         try {
-          const uploadResult = await requestUploadUrl({
-            userId: user.uid,
-            galleryId: "portfolio",
-            fileName: file.name,
-            contentType: file.type,
-            fileSize: file.size,
-          });
-
-          if (!uploadResult.success || !uploadResult.uploadUrl) {
-            throw new Error(uploadResult.error || "Upload URL failed");
+          const urlResult = await refreshPhotoUrls([uploadResult.key!]);
+          if (urlResult.success && urlResult.urls[uploadResult.key!]) {
+            newPhoto.url = urlResult.urls[uploadResult.key!];
+            newPhoto.thumbUrl = urlResult.urls[uploadResult.key!];
           }
+        } catch {}
 
-          const xhr = new XMLHttpRequest();
-          await new Promise<void>((resolve, reject) => {
-            xhr.open("PUT", uploadResult.uploadUrl!);
-            xhr.setRequestHeader("Content-Type", file.type);
-            xhr.onload = () =>
-              xhr.status >= 200 && xhr.status < 300
-                ? resolve()
-                : reject(new Error(`R2: ${xhr.status}`));
-            xhr.onerror = () => reject(new Error("Network error"));
-            xhr.send(file);
-          });
+        return newPhoto;
+      };
 
-          const photoId = Math.random().toString(36).substring(2, 11);
-          const newPhoto = {
-            id: photoId,
-            url: "",
-            thumbUrl: "",
-            storageKey: uploadResult.key!,
-            thumbKey: "",
-            caption: "",
-            folderId: folder.id,
-            order: existing.length + newlyUploaded.length,
-            uploadedAt: new Date().toISOString(),
-          };
+      const worker = async () => {
+        while (true) {
+          const idx = currentIndex++;
+          if (idx >= files.length) return;
 
-          newlyUploaded.push(newPhoto);
-
+          const file = files[idx];
           try {
-            const urlResult = await refreshPhotoUrls([uploadResult.key!]);
-            if (urlResult.success && urlResult.urls[uploadResult.key!]) {
-              newPhoto.url = urlResult.urls[uploadResult.key!];
-              newPhoto.thumbUrl = urlResult.urls[uploadResult.key!];
-            }
-          } catch {}
-        } catch (err: any) {
-          console.error(`[UPLOAD ${file.name}]`, err);
-          toast({
-            variant: "destructive",
-            title: `${file.name} fail`,
-            description: err.message,
-          });
+            const photo = await uploadOneFile(file);
+            newlyUploaded.push(photo);
+          } catch (err: any) {
+            console.error(`[UPLOAD ${file.name}]`, err);
+            failedCount++;
+          } finally {
+            completedCount++;
+            setUploadProgress({ current: completedCount, total: files.length });
+          }
         }
-      }
+      };
+
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENT, files.length) }, () => worker())
+      );
 
       if (newlyUploaded.length > 0) {
         const updatedPhotos = [...existing, ...newlyUploaded];
@@ -226,6 +242,14 @@ export default function FolderDetailPage() {
         toast({
           title: `✅ ${newlyUploaded.length} photo(s) upload ho gayi`,
           description: `"${folder.name}" mein add ho gayi`,
+        });
+      }
+
+      if (failedCount > 0) {
+        toast({
+          variant: "destructive",
+          title: `${failedCount} file(s) fail`,
+          description: `${newlyUploaded.length} upload ho gayi`,
         });
       }
     } catch (err: any) {
@@ -409,7 +433,8 @@ export default function FolderDetailPage() {
               <p className="font-bold text-sm">💡 Is folder mein photos upload karein</p>
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Photos automatically <strong>"{folder.name}"</strong> folder mein assign ho jayengi.
-                Multiple photos ek saath select kar sakte hain (max 50 total, 10MB per photo).
+                Multiple photos ek saath select kar sakte hain (max 50 total, 20MB per photo).
+                <strong> 3 photos parallel upload hongi.</strong>
               </p>
             </div>
           </div>
@@ -481,6 +506,7 @@ export default function FolderDetailPage() {
                     src={photo.thumbUrl || photo.url}
                     alt={photo.caption || "Portfolio"}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    loading="lazy"
                   />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">

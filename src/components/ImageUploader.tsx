@@ -27,7 +27,7 @@ export function ImageUploader({
   onChange,
   userId,
   type,
-  maxSizeMB = 2,
+  maxSizeMB = 20,           // 🆕 2 → 20
   aspectRatio = "aspect-square",
   disabled = false,
   showUrlInput = true,
@@ -43,7 +43,6 @@ export function ImageUploader({
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate type
     if (!file.type.startsWith("image/")) {
       toast({
         variant: "destructive",
@@ -53,7 +52,6 @@ export function ImageUploader({
       return;
     }
 
-    // Validate size
     if (file.size > maxSizeMB * 1024 * 1024) {
       toast({
         variant: "destructive",
@@ -67,7 +65,6 @@ export function ImageUploader({
     setUploadProgress(0);
 
     try {
-      // 1. Get signed upload URL
       const uploadResult = await requestUploadUrl({
         userId,
         galleryId: `branding-${type}`,
@@ -80,7 +77,6 @@ export function ImageUploader({
         throw new Error(uploadResult.error || "Upload URL failed");
       }
 
-      // 2. Upload to R2
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.upload.addEventListener("progress", (e) => {
@@ -98,13 +94,11 @@ export function ImageUploader({
         xhr.send(file);
       });
 
-      // 3. Generate fresh URL for immediate preview
       const urlResult = await refreshPhotoUrls([uploadResult.key!]);
       const publicUrl = urlResult.success && urlResult.urls[uploadResult.key!]
         ? urlResult.urls[uploadResult.key!]
         : uploadResult.uploadUrl.split("?")[0];
 
-      // 4. Save URL + storageKey
       onChange(publicUrl, uploadResult.key!);
 
       toast({
@@ -131,7 +125,6 @@ export function ImageUploader({
       return;
     }
 
-    // Basic URL validation
     if (!/^https?:\/\/.+/.test(urlInput.trim())) {
       toast({
         variant: "destructive",
@@ -175,7 +168,6 @@ export function ImageUploader({
       </div>
 
       <div className="flex gap-4 items-start">
-        {/* Preview */}
         <div
           className={cn(
             "relative rounded-2xl overflow-hidden border-2 border-dashed",
@@ -201,7 +193,6 @@ export function ImageUploader({
           )}
         </div>
 
-        {/* Upload Controls */}
         <div className="flex-1 space-y-2 min-w-0">
           <input
             ref={fileInputRef}
@@ -259,13 +250,12 @@ export function ImageUploader({
 
           <p className="text-[10px] text-muted-foreground italic">
             {type === "logo" && `Square image recommended · Max ${maxSizeMB}MB`}
-            {type === "banner" && `Wide image recommended (1200×600) · Max ${maxSizeMB}MB`}
+            {type === "banner" && `Wide image recommended (1920×1080) · Max ${maxSizeMB}MB`}
             {type === "photo" && `Portrait recommended · Max ${maxSizeMB}MB`}
           </p>
         </div>
       </div>
 
-      {/* URL Input (Toggle) */}
       {showUrlField && !isUploading && (
         <div className="flex gap-2 p-3 rounded-xl bg-background/40 border border-border/30">
           <Input

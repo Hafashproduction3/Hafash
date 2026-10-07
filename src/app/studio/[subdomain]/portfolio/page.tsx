@@ -117,10 +117,11 @@ export default function PortfolioPage() {
     return getTheme(photographer.theme, photographer.customColors);
   }, [photographer?.theme, photographer?.customColors]);
 
-  const heroImage = photographer?.studioBanner || 
-    folders[0]?.coverImage || 
-    photos[0]?.thumbUrl || 
-    photos[0]?.url;
+  const heroImage = photographer?.portfolioHeroImage || 
+  photographer?.studioBanner || 
+  folders[0]?.coverImage || 
+  photos[0]?.thumbUrl || 
+  photos[0]?.url;
 
   const visiblePhotos = photos.slice(0, displayLimit);
   const hasMore = displayLimit < photos.length;
