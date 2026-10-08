@@ -2,15 +2,8 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { safepay } from '@/lib/safepay';
 import { admin } from '@/lib/firebase-admin';
-
-// IMPORTANT: The exact shape of Safepay's webhook payload (field names like
-// `type`, `data.state`, `data.tracker.order_id`, etc.) is NOT confirmed from
-// documentation here. Once you trigger a real test payment in the Safepay
-// sandbox, check the Vercel/server logs for the actual JSON this endpoint
-// receives (the console.log below will print it), and adjust the field
-// names in `eventType`, `isPaid`, and `orderId` below to match exactly what
-// Safepay actually sends. Do not assume this works until you've seen a real
-// sandbox webhook payload and confirmed the plan activates correctly.
+import { HAFASH_PLANS, type PlanId } from '@/lib/plans';
+import { sendPaymentReceiptEmail } from '@/lib/email/sendPaymentReceipt';
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +12,7 @@ export async function POST(request: Request) {
 
     const signature = request.headers.get('x-sfpy-signature');
     const data = Buffer.from(JSON.stringify(event.data));
+
     const expectedSignature = crypto
       .createHmac('sha512', process.env.SAFEPAY_WEBHOOK_SECRET!)
       .update(data)
@@ -31,42 +25,65 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: false }, { status: 401 });
     }
 
-    console.log('[SAFEPAY WEBHOOK] Verified event payload:', JSON.stringify(event));
+    console.log(
+      '[SAFEPAY WEBHOOK] Verified event payload:',
+      JSON.stringify(event)
+    );
 
-    console.log('[SAFEPAY WEBHOOK] Verified event payload:', JSON.stringify(event));
+    const eventType: string | undefined =
+      event?.type || event?.event;
 
-    // --- Adjust these three lines after inspecting a real payload ---
-    const eventType: string | undefined = event?.type || event?.event;
     const isPaid =
       eventType === 'payment.succeeded' ||
       eventType === 'charge.succeeded' ||
       event?.data?.state === 'PAID' ||
       event?.data?.status === 'PAID';
+
     const orderId: string | undefined =
       event?.data?.tracker?.order_id ||
       event?.data?.order_id ||
       event?.order_id;
-    // ------------------------------------------------------------------
 
     if (!isPaid || !orderId) {
-      console.log('[SAFEPAY WEBHOOK] Ignoring event (not a paid state or no orderId found):', {
-        eventType,
-        orderId,
-      });
+      console.log(
+        '[SAFEPAY WEBHOOK] Ignoring event:',
+        {
+          eventType,
+          orderId,
+        }
+      );
+
       return NextResponse.json({ received: true });
     }
 
-    // orderId was created as: hafash_{userId}_{planId}_{timestamp}
+    // Order ID:
+    // hafash_{userId}_{planId}_{timestamp}
     const parts = orderId.split('_');
 
     if (parts.length < 4 || parts[0] !== 'hafash') {
-      console.error('[SAFEPAY WEBHOOK] Unrecognized orderId format:', orderId);
+      console.error(
+        '[SAFEPAY WEBHOOK] Unrecognized orderId format:',
+        orderId
+      );
+
       return NextResponse.json({ received: true });
     }
 
     const userId = parts[1];
-    const planId = parts[2];
+    const planId = parts[2] as PlanId;
 
+    const plan = HAFASH_PLANS[planId];
+
+    if (!plan) {
+      console.error(
+        '[SAFEPAY WEBHOOK] Unknown plan:',
+        planId
+      );
+
+      return NextResponse.json({ received: true });
+    }
+
+    // Activate plan
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 30);
 
@@ -77,8 +94,10 @@ export async function POST(request: Request) {
       .set(
         {
           planId,
-          planExpiryDate: admin.firestore.Timestamp.fromDate(expiryDate),
-          planActivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          planExpiryDate:
+            admin.firestore.Timestamp.fromDate(expiryDate),
+          planActivatedAt:
+            admin.firestore.FieldValue.serverTimestamp(),
           planStatus: 'active',
         },
         { merge: true }
@@ -88,10 +107,62 @@ export async function POST(request: Request) {
       `[SAFEPAY WEBHOOK] Activated plan "${planId}" for user ${userId}, expires ${expiryDate.toISOString()}`
     );
 
+    // Send genuine payment receipt email
+    try {
+      const userRecord = await admin.auth().getUser(userId);
+
+      const email = userRecord.email;
+
+      if (!email) {
+        console.error(
+          '[SAFEPAY WEBHOOK] User has no email. Receipt not sent.'
+        );
+      } else {
+        const userName =
+          userRecord.displayName ||
+          email.split('@')[0] ||
+          'Hafash User';
+
+        const paymentDate = new Date().toLocaleString('en-PK', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'Asia/Karachi',
+        });
+
+        const receiptResult = await sendPaymentReceiptEmail({
+          to: email,
+          userName,
+          planName: plan.name,
+          amount: plan.priceAmount,
+          orderId,
+          paymentDate,
+        });
+
+        if (!receiptResult.success) {
+          console.error(
+            '[SAFEPAY WEBHOOK] Receipt email failed:',
+            receiptResult.error
+          );
+        } else {
+          console.log(
+            `[SAFEPAY WEBHOOK] Payment receipt sent to ${email}`
+          );
+        }
+      }
+    } catch (emailError) {
+      console.error(
+        '[SAFEPAY WEBHOOK] Could not send payment receipt:',
+        emailError
+      );
+    }
+
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error('[SAFEPAY WEBHOOK] Error:', error);
 
-    return NextResponse.json({ received: false }, { status: 500 });
+    return NextResponse.json(
+      { received: false },
+      { status: 500 }
+    );
   }
 }
