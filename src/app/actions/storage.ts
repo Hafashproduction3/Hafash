@@ -12,19 +12,6 @@ function getPublicUrl(key: string | null | undefined): string {
   return `${R2_PUBLIC_URL}/${key}`;
 }
 
-function extractKeyFromUrl(url: string): string | null {
-  try {
-    const urlObj = new URL(url);
-    const path = urlObj.pathname.startsWith('/') ? urlObj.pathname.slice(1) : urlObj.pathname;
-    return path || null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Request a signed URL for direct-to-R2 upload.
- */
 export async function requestUploadUrl({
   userId,
   galleryId,
@@ -38,8 +25,6 @@ export async function requestUploadUrl({
   contentType: string;
   fileSize: number;
 }) {
-  console.log(`[DEBUG] requestUploadUrl start: ${fileName} (${fileSize} bytes)`);
-
   if (!adminDb) {
     return { success: false, error: "Database infrastructure offline." };
   }
@@ -77,11 +62,7 @@ export async function requestUploadUrl({
     };
 
     const subscription = getSubscriptionInfo(userData);
-    console.log(`[DEBUG] Subscription: ${subscription.state} | ${subscription.planName}`);
-
     const isLocationOwner = rawData.role === 'location-owner';
-
-    console.log(`[DEBUG] Role: ${rawData.role || 'unknown'} | isLocationOwner: ${isLocationOwner}`);
 
     if (!isLocationOwner && subscription.state !== "active") {
       return {
@@ -95,11 +76,11 @@ export async function requestUploadUrl({
     if (!isLocationOwner) {
       const stats = await getStorageStats(userId);
       const incomingSizeGb = fileSize / (1024 * 1024 * 1024);
-      
+
       if ((stats.usedGb + incomingSizeGb) > stats.totalGb) {
-        return { 
-          success: false, 
-          error: `Storage quota exceeded. Your ${stats.planName} plan limit is ${stats.totalGb}GB.` 
+        return {
+          success: false,
+          error: `Storage quota exceeded. Your ${stats.planName} plan limit is ${stats.totalGb}GB.`
         };
       }
     }
@@ -110,7 +91,6 @@ export async function requestUploadUrl({
 
     const uploadUrl = await storage.getSignedUploadUrl(key, contentType, 300);
 
-    console.log(`[DEBUG] Signed upload URL generated: ${key}`);
     return { success: true, uploadUrl, key };
 
   } catch (error: any) {
@@ -119,9 +99,6 @@ export async function requestUploadUrl({
   }
 }
 
-/**
- * Finalize an upload — SUBCOLLECTION VERSION
- */
 export async function completeUpload({
   userId,
   galleryId,
@@ -129,17 +106,15 @@ export async function completeUpload({
 }: {
   userId: string;
   galleryId: string;
-  task: { 
-    id: string; 
-    key: string; 
+  task: {
+    id: string;
+    key: string;
     thumbKey?: string;
     originalKey?: string | null;
     originalReady?: boolean;
-    file: { name: string; size: number; type: string } 
+    file: { name: string; size: number; type: string }
   };
 }) {
-  console.log(`[DEBUG] completeUpload: ${task.file.name} (original: ${task.originalReady})`);
-
   if (!adminDb || !admin) {
     return { success: false, error: "Database offline." };
   }
@@ -150,10 +125,9 @@ export async function completeUpload({
       return { success: false, error: "Asset missing from storage." };
     }
 
-    // 🆕 DIRECT PUBLIC URLS — NO R2 CALL
     const assetUrl = getPublicUrl(task.key);
     const thumbUrl = task.thumbKey ? getPublicUrl(task.thumbKey) : assetUrl;
-    const originalUrl = task.originalKey && task.originalReady 
+    const originalUrl = task.originalKey && task.originalReady
       ? getPublicUrl(task.originalKey)
       : null;
 
@@ -171,7 +145,6 @@ export async function completeUpload({
         originalSize: task.file.size,
         originalUpdatedAt: new Date().toISOString(),
       });
-      console.log(`[DEBUG] ✅ Original linked: ${task.file.name}`);
     } else if (!photoSnap.exists) {
       await photoDocRef.set({
         id: task.id,
@@ -191,15 +164,12 @@ export async function completeUpload({
         order: Date.now(),
         uploadedAt: new Date().toISOString(),
       });
-      console.log(`[DEBUG] ✅ Photo added: ${task.file.name}`);
-    } else {
-      console.log(`[DEBUG] Skipped: ${task.file.name}`);
     }
 
     const gallerySnap = await galleryRef.get();
     const galleryData = gallerySnap.data() || {};
     const currentCount = galleryData.photoCount || 0;
-    
+
     await galleryRef.update({
       photoCount: photoSnap.exists ? currentCount : currentCount + 1,
       updatedAt: new Date().toISOString(),
@@ -214,52 +184,55 @@ export async function completeUpload({
 }
 
 /**
- * 🆕 Refresh photo URLs — DIRECT PUBLIC URLS (no R2 call, instant)
+ * ✅ Refresh photo URLs — SIGNED URLs (R2 private endpoint, no rate limit)
  */
-export async function refreshPhotoUrls(keys: string[]): Promise<{ 
-  success: boolean; 
-  urls: Record<string, string>; 
-  error?: string 
+export async function refreshPhotoUrls(keys: string[]): Promise<{
+  success: boolean;
+  urls: Record<string, string>;
+  error?: string
 }> {
   try {
     if (!keys || keys.length === 0) {
       return { success: true, urls: {} };
     }
-    
+
     if (keys.length > 300) {
       return { success: false, urls: {}, error: 'Too many keys (max 300)' };
     }
-    
-    // 🆕 DIRECT PUBLIC URLS — NO R2 CALL, INSTANT
+
     const urlMap: Record<string, string> = {};
-    for (const key of keys) {
-      if (!key) continue;
-      urlMap[key] = getPublicUrl(key);
-    }
-    
+    const uniqueKeys = [...new Set(keys.filter(Boolean))];
+
+    await Promise.all(
+      uniqueKeys.map(async (key) => {
+        try {
+          const signedUrl = await storage.getSignedUrl(key, 604800);
+          urlMap[key] = signedUrl;
+        } catch (err: any) {
+          console.warn(`[SIGNED_URL_FAIL] ${key}`, err?.message);
+          urlMap[key] = getPublicUrl(key);
+        }
+      })
+    );
+
     return { success: true, urls: urlMap };
   } catch (error: any) {
     return { success: false, urls: {}, error: error.message };
   }
 }
 
-/**
- * Bulk delete R2 objects.
- */
 export async function deleteGalleryFiles(storageKeys: string[]) {
   try {
     if (!storageKeys || storageKeys.length === 0) {
       return { success: true };
     }
 
-    console.log(`[SERVER_DELETE] Purging ${storageKeys.length} assets`);
-
     const results = await Promise.allSettled(
       storageKeys.map(async key => {
         if (!key) return;
         try {
           const deletePromise = storage.deleteFile(key);
-          const timeoutPromise = new Promise((_, reject) => 
+          const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error("Timeout")), 5000)
           );
           await Promise.race([deletePromise, timeoutPromise]);
@@ -271,20 +244,16 @@ export async function deleteGalleryFiles(storageKeys: string[]) {
     );
 
     const failures = results.filter(r => r.status === 'rejected');
-    
-    return { 
-      success: failures.length === 0, 
-      error: failures.length > 0 ? `${failures.length} assets failed.` : undefined 
+
+    return {
+      success: failures.length === 0,
+      error: failures.length > 0 ? `${failures.length} assets failed.` : undefined
     };
   } catch (error: any) {
-    console.error("[SERVER_DELETE] CRITICAL:", error);
     return { success: false, error: error.message };
   }
 }
 
-/**
- * Delete a single photo from subcollection + R2.
- */
 export async function deletePhoto({
   galleryId,
   photoId,
@@ -325,39 +294,30 @@ export async function deletePhoto({
   }
 }
 
-/**
- * ✅ Music URL — DIRECT PUBLIC URL
- */
 export async function getMusicSignedUrl(key: string) {
   try {
     if (!key) return { success: false, error: "Missing key" };
-    const url = getPublicUrl(key);
+    const url = await storage.getSignedUrl(key, 604800);
     return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
 
-/**
- * ✅ Fresh music URL — DIRECT PUBLIC URL
- */
 export async function getFreshMusicUrl(storageKey: string) {
   try {
     if (!storageKey) return { success: false, error: "Missing key" };
-    const url = getPublicUrl(storageKey);
+    const url = await storage.getSignedUrl(storageKey, 604800);
     return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
 }
 
-/**
- * ✅ Original photo download URL — DIRECT PUBLIC URL
- */
 export async function getOriginalDownloadUrl(originalKey: string) {
   try {
     if (!originalKey) return { success: false, error: "Missing key" };
-    const url = getPublicUrl(originalKey);
+    const url = await storage.getSignedUrl(originalKey, 604800);
     return { success: true, url };
   } catch (error: any) {
     return { success: false, error: error.message };

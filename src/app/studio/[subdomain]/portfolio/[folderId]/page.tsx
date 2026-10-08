@@ -62,7 +62,6 @@ export default function FolderDetailPublicPage() {
           return;
         }
 
-        // ═══ STEP 1: Folder cover image refresh ═══
         let refreshedFolder = { ...matchedFolder };
         if (matchedFolder.coverStorageKey) {
           try {
@@ -77,7 +76,6 @@ export default function FolderDetailPublicPage() {
 
         setFolder(refreshedFolder);
 
-        // ═══ STEP 2: Folder photos refresh ═══
         const rawPhotos: any[] = photographerData.portfolioPhotos || [];
         const folderPhotos = rawPhotos.filter(
           (p: any) => p.folderId === matchedFolder.id
@@ -111,7 +109,6 @@ export default function FolderDetailPublicPage() {
           if (!cancelled) setPhotos(refreshed);
         }
 
-        // ═══ STEP 3: Fallback — agar portfolioPhotos khali hai, galleries se lein ═══
         if (folderPhotos.length === 0) {
           try {
             const galleryQuery = query(

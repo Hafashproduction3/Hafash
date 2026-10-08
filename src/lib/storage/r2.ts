@@ -1,25 +1,21 @@
-import { 
-  S3Client, 
-  PutObjectCommand, 
-  GetObjectCommand, 
-  DeleteObjectCommand, 
-  HeadObjectCommand, 
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   S3ServiceException
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
-import { 
-  StorageProvider, 
-  StorageBody, 
-  StorageError, 
+import {
+  StorageProvider,
+  StorageBody,
+  StorageError,
   StorageConnectionError,
   type ObjectMetadata
 } from './storage';
 
-/**
- * Cloudflare R2 Storage Provider Implementation.
- * Uses the S3-compatible API via AWS SDK v3.
- */
 class R2StorageProvider implements StorageProvider {
   private client: S3Client | null = null;
 
@@ -47,8 +43,6 @@ class R2StorageProvider implements StorageProvider {
 
   private getClient(): S3Client {
     if (this.client) return this.client;
-
-    // Validate only when needed to prevent module-level crashes during build/init
     this.validateConfig();
 
     this.client = new S3Client({
@@ -130,7 +124,7 @@ class R2StorageProvider implements StorageProvider {
 
   async getSignedUrl(key: string, expiresIn?: number): Promise<string> {
     const expiration = expiresIn || Number(process.env.R2_SIGNED_URL_EXPIRATION) || 3600;
-    
+
     try {
       const command = new GetObjectCommand({
         Bucket: this.bucketName,
@@ -145,8 +139,8 @@ class R2StorageProvider implements StorageProvider {
   }
 
   async getSignedUploadUrl(key: string, contentType: string, expiresIn?: number): Promise<string> {
-    const expiration = expiresIn || 300; 
-    
+    const expiration = expiresIn || 300;
+
     try {
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
