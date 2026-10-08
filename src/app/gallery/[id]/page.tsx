@@ -1435,9 +1435,9 @@ export default function ClientGalleryPage() {
   <div className="flex flex-col items-center space-y-6 animate-in fade-in slide-in-from-top-6 duration-1000">
     <div className="flex items-center justify-center gap-4 lg:gap-6">
       {studioLogo && (
-        <img src={studioLogo} className="h-12 lg:h-16 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
+        <img src={studioLogo} className="h-16 lg:h-24 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
       )}
-      <span className="text-4xl lg:text-6xl font-headline font-bold text-white uppercase tracking-tighter drop-shadow-2xl">{studioName}</span>
+      <span className="text-4xl lg:text-6xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
     </div>
     {profile?.photographerName && (
       <div className="flex items-center gap-4">
