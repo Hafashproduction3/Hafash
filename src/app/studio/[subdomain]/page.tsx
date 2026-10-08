@@ -192,17 +192,18 @@ export default function StudioHomePage() {
       <section className="relative h-[90vh] min-h-[700px] overflow-hidden">
         {heroImage ? (
           <img
-            src={heroImage}
-            alt={studioName}
-            className="absolute inset-0 w-full h-full object-cover"
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-            style={{
-              animation: 'kenburns 25s ease-in-out infinite alternate',
-              transformOrigin: 'center',
-            }}
-          />
+          src={heroImage}
+          alt={studioName}
+          className="absolute inset-0 w-full h-full object-cover"
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+          style={{
+            objectPosition: 'center 20%',  // ✅ FACE DIKHEGA
+            animation: 'kenburns 25s ease-in-out infinite alternate',
+            transformOrigin: 'center 20%',  // ✅ Ken Burns bhi face pe focus
+          }}
+        />
         ) : (
           <div
             className="absolute inset-0"

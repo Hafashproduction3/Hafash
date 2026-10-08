@@ -177,12 +177,13 @@ export default function PortfolioPage() {
       <section className="relative h-[70vh] min-h-[500px] overflow-hidden">
         {heroImage ? (
           <img
-            src={heroImage}
-            alt={studioName}
-            className="absolute inset-0 w-full h-full object-cover"
-            fetchPriority="high"
-            decoding="async"
-          />
+          src={heroImage}
+          alt={studioName}
+          className="absolute inset-0 w-full h-full object-cover"
+          fetchPriority="high"
+          decoding="async"
+          style={{ objectPosition: 'center 20%' }}
+        />
         ) : (
           <div
             className="absolute inset-0"
