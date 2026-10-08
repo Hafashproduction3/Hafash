@@ -7,7 +7,7 @@ import { useUser, useFirestore } from "@/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import {
   ArrowLeft, Upload, Loader2, Trash2, Pencil, X,
-  Folder, Image as ImageIcon, Plus, Save, Info
+  Folder, Image as ImageIcon, Plus, Save, Info, CheckSquare, Square
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { HafashLoader } from "@/components/ui/hafash-loader";
-import { requestUploadUrl, refreshPhotoUrls } from "@/app/actions/storage";
+import { requestUploadUrl, refreshPhotoUrls, deleteGalleryFiles } from "@/app/actions/storage";
 import { assignPhotoToFolder } from "@/app/actions/portfolio";
 import { convertToWebP } from "@/lib/storage/convert-to-webp";
 
@@ -39,6 +39,9 @@ export default function FolderDetailPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", description: "" });
   const [savingEdit, setSavingEdit] = useState(false);
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -176,19 +179,19 @@ export default function FolderDetailPage() {
         });
 
         const photoId = Math.random().toString(36).substring(2, 11);
-const publicUrl = `https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev/${uploadResult.key!}`;
+        const publicUrl = `https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev/${uploadResult.key!}`;
 
-const newPhoto = {
-  id: photoId,
-  url: publicUrl,
-  thumbUrl: publicUrl,
-  storageKey: uploadResult.key!,
-  thumbKey: uploadResult.key!,
-  caption: "",
-  folderId: folder.id,
-  order: existing.length + newlyUploaded.length,
-  uploadedAt: new Date().toISOString(),
-};
+        const newPhoto = {
+          id: photoId,
+          url: publicUrl,
+          thumbUrl: publicUrl,
+          storageKey: uploadResult.key!,
+          thumbKey: uploadResult.key!,
+          caption: "",
+          folderId: folder.id,
+          order: existing.length + newlyUploaded.length,
+          uploadedAt: new Date().toISOString(),
+        };
 
         try {
           const urlResult = await refreshPhotoUrls([uploadResult.key!]);
@@ -278,9 +281,90 @@ const newPhoto = {
         prev.map((p) => (p.id === photoId ? { ...p, folderId: null } : p))
       );
       setFolderPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(photoId);
+        return next;
+      });
       toast({ title: "Photo folder se hata di" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Failed", description: err.message });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (!user || !firestore || selectedIds.size === 0) return;
+
+    const count = selectedIds.size;
+    if (!confirm(`${count} photo(s) permanently delete karein? Yeh action undo nahi hoga.`)) return;
+
+    setDeleting(true);
+    try {
+      const profileRef = doc(firestore, "publicProfiles", user.uid);
+      const snap = await getDoc(profileRef);
+      const photos: any[] = snap.data()?.portfolioPhotos || [];
+
+      const photosToDelete = photos.filter((p: any) => selectedIds.has(p.id));
+      const storageKeys: string[] = [];
+      photosToDelete.forEach((p: any) => {
+        if (p.storageKey) storageKeys.push(p.storageKey);
+        if (p.thumbKey && p.thumbKey !== p.storageKey) storageKeys.push(p.thumbKey);
+      });
+
+      const updatedPhotos = photos.filter((p: any) => !selectedIds.has(p.id));
+      await updateDoc(profileRef, {
+        portfolioPhotos: updatedPhotos,
+        updatedAt: new Date().toISOString(),
+      });
+
+      const folders: any[] = snap.data()?.portfolioFolders || [];
+      const updatedFolders = folders.map((f: any) => {
+        if (f.id === folder.id) {
+          return { ...f, photoCount: updatedPhotos.filter((p: any) => p.folderId === f.id).length };
+        }
+        return f;
+      });
+      await updateDoc(profileRef, { portfolioFolders: updatedFolders });
+
+      if (storageKeys.length > 0) {
+        void deleteGalleryFiles(storageKeys).catch((e: any) =>
+          console.error("[BULK_DELETE] R2:", e)
+        );
+      }
+
+      setAllPhotos(updatedPhotos);
+      setFolderPhotos(updatedPhotos.filter((p: any) => p.folderId === folder.id));
+      setSelectedIds(new Set());
+
+      toast({
+        title: `✅ ${count} photo(s) delete ho gayi`,
+        description: "R2 se bhi delete ho rahi hain background mein",
+      });
+    } catch (err: any) {
+      console.error("[BULK_DELETE]", err);
+      toast({ variant: "destructive", title: "Delete failed", description: err.message });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const toggleSelect = (photoId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else {
+        next.add(photoId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === folderPhotos.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(folderPhotos.map((p: any) => p.id)));
     }
   };
 
@@ -352,6 +436,17 @@ const newPhoto = {
         portfolioPhotos: updatedPhotos,
         updatedAt: new Date().toISOString(),
       });
+
+      const storageKeys: string[] = [];
+      photosToDelete.forEach((p: any) => {
+        if (p.storageKey) storageKeys.push(p.storageKey);
+        if (p.thumbKey && p.thumbKey !== p.storageKey) storageKeys.push(p.thumbKey);
+      });
+      if (storageKeys.length > 0) {
+        void deleteGalleryFiles(storageKeys).catch((e: any) =>
+          console.error("[FOLDER_DELETE] R2:", e)
+        );
+      }
 
       toast({
         title: "Folder delete ho gaya",
@@ -491,11 +586,49 @@ const newPhoto = {
       </Card>
 
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <h2 className="text-2xl font-headline font-bold">Photos in "{folder.name}"</h2>
-          <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-bold uppercase tracking-widest">
-            {folderPhotos.length} {folderPhotos.length === 1 ? "Photo" : "Photos"}
-          </Badge>
+          <div className="flex items-center gap-3">
+            {folderPhotos.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAll}
+                className="rounded-xl gap-2 h-10"
+              >
+                {selectedIds.size === folderPhotos.length ? (
+                  <>
+                    <CheckSquare className="w-4 h-4" />
+                    Deselect All
+                  </>
+                ) : (
+                  <>
+                    <Square className="w-4 h-4" />
+                    Select All
+                  </>
+                )}
+              </Button>
+            )}
+            {selectedIds.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                className="rounded-xl gap-2 h-10"
+              >
+                {deleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Delete ({selectedIds.size})
+              </Button>
+            )}
+            <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-bold uppercase tracking-widest">
+              {folderPhotos.length} {folderPhotos.length === 1 ? "Photo" : "Photos"}
+            </Badge>
+          </div>
         </div>
 
         {folderPhotos.length === 0 ? (
@@ -512,36 +645,70 @@ const newPhoto = {
           </Card>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {folderPhotos.map((photo) => (
-              <div key={photo.id} className="relative group aspect-square rounded-2xl overflow-hidden border border-border/30">
-                {photo.thumbUrl || photo.url ? (
-                  <img
-                    src={photo.thumbUrl || photo.url}
-                    alt={photo.caption || "Portfolio"}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                    loading="lazy"
-                    decoding="async"
-                    style={{ background: 'var(--portfolio-card-bg)' }}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-muted flex items-center justify-center">
-                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                  </div>
-                )}
+            {folderPhotos.map((photo) => {
+              const isSelected = selectedIds.has(photo.id);
+              return (
+                <div
+                  key={photo.id}
+                  className={`relative group aspect-square rounded-2xl overflow-hidden border-2 transition-all ${
+                    isSelected ? 'border-primary ring-2 ring-primary/40' : 'border-border/30'
+                  }`}
+                >
+                  {photo.thumbUrl || photo.url ? (
+                    <img
+                      src={photo.thumbUrl || photo.url}
+                      alt={photo.caption || "Portfolio"}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      loading="lazy"
+                      decoding="async"
+                      style={{ background: 'var(--portfolio-card-bg)' }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-muted flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
+                  )}
 
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="destructive"
-                    className="rounded-full h-11 w-11"
-                    onClick={() => handleRemoveFromFolder(photo.id)}
-                    title="Remove from folder"
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelect(photo.id);
+                    }}
+                    className={`absolute top-2 left-2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-black/50 text-white opacity-0 group-hover:opacity-100'
+                    }`}
                   >
-                    <X className="w-5 h-5" />
-                  </Button>
+                    {isSelected ? (
+                      <CheckSquare className="w-5 h-5" />
+                    ) : (
+                      <Square className="w-5 h-5" />
+                    )}
+                  </button>
+
+                  <div
+                    className="absolute inset-0 cursor-pointer"
+                    onClick={() => toggleSelect(photo.id)}
+                  />
+
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      className="rounded-full h-11 w-11 pointer-events-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromFolder(photo.id);
+                      }}
+                      title="Remove from folder (delete nahi)"
+                    >
+                      <X className="w-5 h-5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
