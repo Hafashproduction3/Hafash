@@ -521,6 +521,7 @@ export default function ClientGalleryPage() {
     };
   }, [gallery?.photographerNote, showIntro]);
 
+  // ✅ FIXED: Profile from publicProfiles (logo yahan hai)
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
     return doc(firestore, 'publicProfiles', gallery.userId);
@@ -528,40 +529,40 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-    // ✅ Branding images — FRESH URLs generate karo
-    const [freshBranding, setFreshBranding] = useState<{
-      studioLogo?: string;
-      studioBanner?: string;
-      photographerPhoto?: string;
-    }>({});
-  
-    useEffect(() => {
-      async function refreshBranding() {
-        if (!profile) return;
-        
-        const keys: string[] = [];
-        if (profile.studioLogoKey) keys.push(profile.studioLogoKey);
-        if (profile.studioBannerKey) keys.push(profile.studioBannerKey);
-        if (profile.photographerPhotoKey) keys.push(profile.photographerPhotoKey);
-        
-        if (keys.length === 0) return;
-        
-        try {
-          const result = await refreshPhotoUrls(keys);
-          if (result.success) {
-            setFreshBranding({
-              studioLogo: profile.studioLogoKey ? result.urls[profile.studioLogoKey] : undefined,
-              studioBanner: profile.studioBannerKey ? result.urls[profile.studioBannerKey] : undefined,
-              photographerPhoto: profile.photographerPhotoKey ? result.urls[profile.photographerPhotoKey] : undefined,
-            });
-          }
-        } catch (err) {
-          console.error('[GALLERY_BRANDING_REFRESH]', err);
-        }
-      }
+  // ✅ Branding images — FRESH signed URLs
+  const [freshBranding, setFreshBranding] = useState<{
+    studioLogo?: string;
+    studioBanner?: string;
+    photographerPhoto?: string;
+  }>({});
+
+  useEffect(() => {
+    async function refreshBranding() {
+      if (!profile) return;
       
-      refreshBranding();
-    }, [profile]);
+      const keys: string[] = [];
+      if (profile.studioLogoKey) keys.push(profile.studioLogoKey);
+      if (profile.studioBannerKey) keys.push(profile.studioBannerKey);
+      if (profile.photographerPhotoKey) keys.push(profile.photographerPhotoKey);
+      
+      if (keys.length === 0) return;
+      
+      try {
+        const result = await refreshPhotoUrls(keys);
+        if (result.success) {
+          setFreshBranding({
+            studioLogo: profile.studioLogoKey ? result.urls[profile.studioLogoKey] : undefined,
+            studioBanner: profile.studioBannerKey ? result.urls[profile.studioBannerKey] : undefined,
+            photographerPhoto: profile.photographerPhotoKey ? result.urls[profile.photographerPhotoKey] : undefined,
+          });
+        }
+      } catch (err) {
+        console.error('[GALLERY_BRANDING_REFRESH]', err);
+      }
+    }
+    
+    refreshBranding();
+  }, [profile]);
 
   const isOwner = useMemo(() => {
     if (!user?.uid || !gallery?.userId) return false;
@@ -1268,7 +1269,8 @@ export default function ClientGalleryPage() {
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
   const isCustomBrandingActive = photographerPlan !== 'starter';
   const studioName = gallery.studioName || profile?.studioName || 'Professional Studio';
-  const studioLogo = freshBranding.studioLogo || gallery.studioLogo || profile?.studioLogo;
+  // ✅ FIXED: freshBranding first (signed URL), then profile, then gallery
+  const studioLogo = freshBranding.studioLogo || profile?.studioLogo || gallery.studioLogo;
   const whatsappNumber = gallery.whatsappNumber || profile?.whatsappNumber;
   const effectiveHeroImage = (isCustomBrandingActive && (freshBranding.studioBanner || profile?.studioBanner)) 
     ? (freshBranding.studioBanner || profile?.studioBanner)
