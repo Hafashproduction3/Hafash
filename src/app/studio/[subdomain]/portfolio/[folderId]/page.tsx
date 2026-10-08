@@ -62,6 +62,7 @@ export default function FolderDetailPublicPage() {
           return;
         }
 
+        // ═══ STEP 1: Folder cover image refresh ═══
         let refreshedFolder = { ...matchedFolder };
         if (matchedFolder.coverStorageKey) {
           try {
@@ -76,6 +77,7 @@ export default function FolderDetailPublicPage() {
 
         setFolder(refreshedFolder);
 
+        // ═══ STEP 2: Folder photos refresh (ONLY portfolioPhotos) ═══
         const rawPhotos: any[] = photographerData.portfolioPhotos || [];
         const folderPhotos = rawPhotos.filter(
           (p: any) => p.folderId === matchedFolder.id
@@ -109,62 +111,8 @@ export default function FolderDetailPublicPage() {
           if (!cancelled) setPhotos(refreshed);
         }
 
-        if (folderPhotos.length === 0) {
-          try {
-            const galleryQuery = query(
-              collection(firestore, "galleries"),
-              where("userId", "==", photographerData.userId)
-            );
-            const gallerySnap = await getDocs(galleryQuery);
+        // ❌ FALLBACK REMOVED — galleries scan nahi hoga (fast ⚡)
 
-            if (!cancelled && !gallerySnap.empty) {
-              const allPhotos: any[] = [];
-              for (const galleryDoc of gallerySnap.docs) {
-                const galleryData = galleryDoc.data();
-                const items = galleryData.items || [];
-                items.forEach((item: any) => {
-                  allPhotos.push({
-                    id: item.id || `${galleryDoc.id}-${item.storageKey}`,
-                    url: item.url || '',
-                    thumbUrl: item.thumbUrl || item.url || '',
-                    storageKey: item.storageKey,
-                    thumbKey: item.thumbKey,
-                    caption: item.caption || galleryData.title || 'Photo',
-                    folderId: matchedFolder.id,
-                  });
-                });
-              }
-
-              if (allPhotos.length > 0) {
-                const keysToRefresh: string[] = [];
-                allPhotos.forEach((p) => {
-                  if (p.storageKey) keysToRefresh.push(p.storageKey);
-                  if (p.thumbKey) keysToRefresh.push(p.thumbKey);
-                });
-
-                let urlMap: Record<string, string> = {};
-                if (keysToRefresh.length > 0) {
-                  try {
-                    const result = await refreshPhotoUrls(keysToRefresh);
-                    if (result.success) urlMap = result.urls;
-                  } catch {}
-                }
-
-                const refreshed = allPhotos.map((p) => ({
-                  ...p,
-                  url: urlMap[p.storageKey] || p.url || '',
-                  thumbUrl: p.thumbKey
-                    ? (urlMap[p.thumbKey] || p.thumbUrl || p.url)
-                    : (urlMap[p.storageKey] || p.url || ''),
-                }));
-
-                if (!cancelled) setPhotos(refreshed);
-              }
-            }
-          } catch (err) {
-            console.warn("[FOLDER_GALLERY_FALLBACK]", err);
-          }
-        }
       } catch (err) {
         console.error("[FOLDER_DETAIL_PUBLIC]", err);
       } finally {
@@ -446,6 +394,7 @@ export default function FolderDetailPublicPage() {
                         alt={photo.caption || `Photo ${idx + 1}`}
                         className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
                         loading="lazy"
+                        decoding="async"
                       />
                     </div>
 

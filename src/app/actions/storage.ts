@@ -12,6 +12,10 @@ function getPublicUrl(key: string | null | undefined): string {
   return `${R2_PUBLIC_URL}/${key}`;
 }
 
+// ✅ CACHE — signed URLs ko memory mein rakho (6 din tak)
+const signedUrlCache = new Map<string, { url: string; expires: number }>();
+const CACHE_TTL = 6 * 24 * 60 * 60 * 1000; // 6 din (ms)
+
 export async function requestUploadUrl({
   userId,
   galleryId,
@@ -184,7 +188,10 @@ export async function completeUpload({
 }
 
 /**
- * ✅ Refresh photo URLs — SIGNED URLs (R2 private endpoint, no rate limit)
+ * ✅ Refresh photo URLs — SIGNED URLs + CACHE (6 din tak)
+ * 
+ * Pehli baar: R2 se signed URL generate hota hai (slow)
+ * Baad mein: Cache se instant milta hai (fast) ⚡
  */
 export async function refreshPhotoUrls(keys: string[]): Promise<{
   success: boolean;
@@ -202,18 +209,38 @@ export async function refreshPhotoUrls(keys: string[]): Promise<{
 
     const urlMap: Record<string, string> = {};
     const uniqueKeys = [...new Set(keys.filter(Boolean))];
+    const now = Date.now();
+    const keysToFetch: string[] = [];
 
-    await Promise.all(
-      uniqueKeys.map(async (key) => {
-        try {
-          const signedUrl = await storage.getSignedUrl(key, 604800);
-          urlMap[key] = signedUrl;
-        } catch (err: any) {
-          console.warn(`[SIGNED_URL_FAIL] ${key}`, err?.message);
-          urlMap[key] = getPublicUrl(key);
-        }
-      })
-    );
+    // ✅ STEP 1: Cache check karo — jo valid hai wo use karo
+    for (const key of uniqueKeys) {
+      const cached = signedUrlCache.get(key);
+      if (cached && cached.expires > now) {
+        urlMap[key] = cached.url;
+      } else {
+        keysToFetch.push(key);
+      }
+    }
+
+    // ✅ STEP 2: Sirf missing/expired keys ke liye R2 call
+    if (keysToFetch.length > 0) {
+      await Promise.all(
+        keysToFetch.map(async (key) => {
+          try {
+            const signedUrl = await storage.getSignedUrl(key, 604800); // 7 din
+            urlMap[key] = signedUrl;
+            // ✅ Cache mein save karo
+            signedUrlCache.set(key, {
+              url: signedUrl,
+              expires: now + CACHE_TTL,
+            });
+          } catch (err: any) {
+            console.warn(`[SIGNED_URL_FAIL] ${key}`, err?.message);
+            urlMap[key] = getPublicUrl(key);
+          }
+        })
+      );
+    }
 
     return { success: true, urls: urlMap };
   } catch (error: any) {
