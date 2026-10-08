@@ -523,7 +523,7 @@ export default function ClientGalleryPage() {
 
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
-    return doc(firestore, 'users', gallery.userId);
+    return doc(firestore, 'publicProfiles', gallery.userId);
   }, [firestore, gallery?.userId]);
 
   const { data: profile } = useDoc(photographerRef);
