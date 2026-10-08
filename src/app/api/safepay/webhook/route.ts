@@ -30,6 +30,20 @@ export async function POST(request: Request) {
       JSON.stringify(event)
     );
 
+    // ✅ SANDBOX CHECK — test payments ignore karo
+    const safepayEnv = process.env.SAFEPAY_ENV || 'production';
+    const isSandbox = safepayEnv === 'sandbox' || safepayEnv === 'development';
+
+    if (isSandbox) {
+      console.log('[SAFEPAY WEBHOOK] 🚫 SANDBOX MODE — plan NOT activated');
+      console.log('[SAFEPAY WEBHOOK] Env:', safepayEnv);
+      console.log('[SAFEPAY WEBHOOK] Payment ignored for production safety');
+      return NextResponse.json({ 
+        received: true, 
+        message: 'Sandbox payment — no plan activation' 
+      });
+    }
+
     const eventType: string | undefined =
       event?.type || event?.event;
 
@@ -104,7 +118,7 @@ export async function POST(request: Request) {
       );
 
     console.log(
-      `[SAFEPAY WEBHOOK] Activated plan "${planId}" for user ${userId}, expires ${expiryDate.toISOString()}`
+      `[SAFEPAY WEBHOOK] ✅ LIVE PAYMENT — Activated plan "${planId}" for user ${userId}, expires ${expiryDate.toISOString()}`
     );
 
     // Send genuine payment receipt email
@@ -145,7 +159,7 @@ export async function POST(request: Request) {
           );
         } else {
           console.log(
-            `[SAFEPAY WEBHOOK] Payment receipt sent to ${email}`
+            `[SAFEPAY WEBHOOK] ✅ Payment receipt sent to ${email}`
           );
         }
       }
