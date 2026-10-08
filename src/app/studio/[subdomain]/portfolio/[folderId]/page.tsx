@@ -1,120 +1,108 @@
 "use client";
 
-import { useParams } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useFirestore } from "@/firebase";
-import { collection, query, where, getDocs, limit } from "firebase/firestore";
+import { useUser, useFirestore } from "@/firebase";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import {
-  Camera, X, ChevronLeft, ChevronRight, Loader2,
-  Folder, ArrowLeft, Search, Menu, Sparkles, LayoutGrid
+  ArrowLeft, Upload, Loader2, Trash2, Pencil, X,
+  Folder, Image as ImageIcon, Plus, Save, Info, CheckSquare, Square
 } from "lucide-react";
-import { refreshPhotoUrls } from "@/app/actions/storage";
-import { getTheme } from "@/lib/portfolio-themes";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { HafashLoader } from "@/components/ui/hafash-loader";
+import { requestUploadUrl, refreshPhotoUrls, deleteGalleryFiles } from "@/app/actions/storage";
+import { assignPhotoToFolder } from "@/app/actions/portfolio";
+import { convertToWebP } from "@/lib/storage/convert-to-webp";
 
-export default function FolderDetailPublicPage() {
+export default function FolderDetailPage() {
   const params = useParams();
-  const subdomain = (params?.subdomain as string) || "";
-  const folderId = (params?.folderId as string) || "";
+  const router = useRouter();
+  const folderId = params?.folderId as string;
+  const { user } = useUser();
   const firestore = useFirestore();
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [photographer, setPhotographer] = useState<any>(null);
   const [folder, setFolder] = useState<any>(null);
-  const [photos, setPhotos] = useState<any[]>([]);
+  const [allPhotos, setAllPhotos] = useState<any[]>([]);
+  const [folderPhotos, setFolderPhotos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPhotoIdx, setSelectedPhotoIdx] = useState<number | null>(null);
-  const [displayLimit, setDisplayLimit] = useState(12);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", description: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // ✅ BULK SELECT STATE
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      if (!firestore || !subdomain || !folderId) {
+      if (!firestore || !user || !folderId) {
         setLoading(false);
         return;
       }
 
       try {
-        const userQuery = query(
-          collection(firestore, "publicProfiles"),
-          where("subdomain", "==", subdomain.toLowerCase()),
-          limit(1)
-        );
-        const userSnap = await getDocs(userQuery);
-
+        const snap = await getDoc(doc(firestore, "publicProfiles", user.uid));
         if (cancelled) return;
-        if (userSnap.empty) { setLoading(false); return; }
 
-        const photographerData: any = {
-          userId: userSnap.docs[0].id,
-          ...userSnap.docs[0].data(),
-        };
-
-        setPhotographer(photographerData);
-
-        const allFolders: any[] = photographerData.portfolioFolders || [];
-        const matchedFolder = allFolders.find(
-          (f: any) => f.slug === folderId || f.id === folderId
-        );
-
-        if (!matchedFolder) {
+        if (!snap.exists()) {
           setLoading(false);
           return;
         }
 
-        // ═══ STEP 1: Folder cover image refresh ═══
-        let refreshedFolder = { ...matchedFolder };
-        if (matchedFolder.coverStorageKey) {
+        const data = snap.data();
+        const folders: any[] = data.portfolioFolders || [];
+        const found = folders.find((f: any) => f.id === folderId || f.slug === folderId);
+
+        if (!found) {
+          setLoading(false);
+          return;
+        }
+
+        setFolder(found);
+        setEditForm({ name: found.name || "", description: found.description || "" });
+
+        const rawPhotos: any[] = data.portfolioPhotos || [];
+        const keysToRefresh: string[] = [];
+        rawPhotos.forEach((p: any) => {
+          if (p.storageKey) keysToRefresh.push(p.storageKey);
+          if (p.thumbKey) keysToRefresh.push(p.thumbKey);
+        });
+
+        let urlMap: Record<string, string> = {};
+        if (keysToRefresh.length > 0) {
           try {
-            const coverResult = await refreshPhotoUrls([matchedFolder.coverStorageKey]);
-            if (coverResult.success && coverResult.urls[matchedFolder.coverStorageKey]) {
-              refreshedFolder.coverImage = coverResult.urls[matchedFolder.coverStorageKey];
-            }
-          } catch (err) {
-            console.warn("[FOLDER_COVER_REFRESH]", err);
-          }
+            const result = await refreshPhotoUrls(keysToRefresh);
+            if (result.success) urlMap = result.urls;
+          } catch {}
         }
 
-        setFolder(refreshedFolder);
+        const refreshed = rawPhotos
+          .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+          .map((p: any) => ({
+            ...p,
+            url: urlMap[p.storageKey] || p.url || '',
+            thumbUrl: p.thumbKey
+              ? (urlMap[p.thumbKey] || p.thumbUrl || p.url)
+              : (urlMap[p.storageKey] || p.url || ''),
+          }));
 
-        // ═══ STEP 2: Folder photos refresh (ONLY portfolioPhotos) ═══
-        const rawPhotos: any[] = photographerData.portfolioPhotos || [];
-        const folderPhotos = rawPhotos.filter(
-          (p: any) => p.folderId === matchedFolder.id
-        );
-
-        if (folderPhotos.length > 0) {
-          const keysToRefresh: string[] = [];
-          folderPhotos.forEach((p: any) => {
-            if (p.storageKey) keysToRefresh.push(p.storageKey);
-            if (p.thumbKey) keysToRefresh.push(p.thumbKey);
-          });
-
-          let urlMap: Record<string, string> = {};
-          if (keysToRefresh.length > 0) {
-            try {
-              const result = await refreshPhotoUrls(keysToRefresh);
-              if (result.success) urlMap = result.urls;
-            } catch {}
-          }
-
-          const refreshed = folderPhotos
-            .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-            .map((p: any) => ({
-              ...p,
-              url: urlMap[p.storageKey] || p.url || '',
-              thumbUrl: p.thumbKey
-                ? (urlMap[p.thumbKey] || p.thumbUrl || p.url)
-                : (urlMap[p.storageKey] || p.url || ''),
-            }));
-
-          if (!cancelled) setPhotos(refreshed);
-        }
-
-        // ❌ FALLBACK REMOVED — galleries scan nahi hoga (fast ⚡)
-
+        setAllPhotos(refreshed);
+        setFolderPhotos(refreshed.filter((p: any) => p.folderId === found.id));
       } catch (err) {
-        console.error("[FOLDER_DETAIL_PUBLIC]", err);
+        console.error("[FOLDER_DETAIL]", err);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -122,362 +110,696 @@ export default function FolderDetailPublicPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [firestore, subdomain, folderId]);
+  }, [firestore, user, folderId]);
 
-  const theme = useMemo(() => {
-    if (!photographer) return getTheme('royal-gold');
-    return getTheme(photographer.theme, photographer.customColors);
-  }, [photographer?.theme, photographer?.customColors]);
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files.length || !user || !firestore || !folder) return;
 
-  const visiblePhotos = photos.slice(0, displayLimit);
-  const hasMore = displayLimit < photos.length;
+    const files = Array.from(e.target.files);
+    const MAX_SIZE = 20 * 1024 * 1024;
 
-  const goNext = () => {
-    if (selectedPhotoIdx === null) return;
-    setSelectedPhotoIdx((selectedPhotoIdx + 1) % photos.length);
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        toast({ variant: "destructive", title: `${file.name} — image nahi hai` });
+        return;
+      }
+      if (file.size > MAX_SIZE) {
+        toast({ variant: "destructive", title: `${file.name} — 20MB se bara` });
+        return;
+      }
+    }
+
+    if (allPhotos.length + files.length > 50) {
+      toast({
+        variant: "destructive",
+        title: "Limit reached",
+        description: `Max 50 portfolio photos. Aapke paas ${allPhotos.length} hain.`,
+      });
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
+
+    try {
+      const profileRef = doc(firestore, "publicProfiles", user.uid);
+      const snap = await getDoc(profileRef);
+      const existing: any[] = snap.data()?.portfolioPhotos || [];
+
+      const newlyUploaded: any[] = [];
+      const CONCURRENT = 3;
+      let currentIndex = 0;
+      let completedCount = 0;
+      let failedCount = 0;
+
+      const uploadOneFile = async (file: File) => {
+        const webpFile = await convertToWebP(file, 0.85);
+
+        const uploadResult = await requestUploadUrl({
+          userId: user.uid,
+          galleryId: "portfolio",
+          fileName: webpFile.name,
+          contentType: webpFile.type,
+          fileSize: webpFile.size,
+        });
+
+        if (!uploadResult.success || !uploadResult.uploadUrl) {
+          throw new Error(uploadResult.error || "Upload URL failed");
+        }
+
+        const xhr = new XMLHttpRequest();
+        await new Promise<void>((resolve, reject) => {
+          xhr.open("PUT", uploadResult.uploadUrl!);
+          xhr.setRequestHeader("Content-Type", "image/webp");
+          xhr.onload = () =>
+            xhr.status >= 200 && xhr.status < 300
+              ? resolve()
+              : reject(new Error(`R2: ${xhr.status}`));
+          xhr.onerror = () => reject(new Error("Network error"));
+          xhr.send(webpFile);
+        });
+
+        const photoId = Math.random().toString(36).substring(2, 11);
+        const publicUrl = `https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev/${uploadResult.key!}`;
+
+        const newPhoto = {
+          id: photoId,
+          url: publicUrl,
+          thumbUrl: publicUrl,
+          storageKey: uploadResult.key!,
+          thumbKey: uploadResult.key!,
+          caption: "",
+          folderId: folder.id,
+          order: existing.length + newlyUploaded.length,
+          uploadedAt: new Date().toISOString(),
+        };
+
+        try {
+          const urlResult = await refreshPhotoUrls([uploadResult.key!]);
+          if (urlResult.success && urlResult.urls[uploadResult.key!]) {
+            newPhoto.url = urlResult.urls[uploadResult.key!];
+            newPhoto.thumbUrl = urlResult.urls[uploadResult.key!];
+          }
+        } catch {}
+
+        return newPhoto;
+      };
+
+      const worker = async () => {
+        while (true) {
+          const idx = currentIndex++;
+          if (idx >= files.length) return;
+
+          const file = files[idx];
+          try {
+            const photo = await uploadOneFile(file);
+            newlyUploaded.push(photo);
+          } catch (err: any) {
+            console.error(`[UPLOAD ${file.name}]`, err);
+            failedCount++;
+          } finally {
+            completedCount++;
+            setUploadProgress({ current: completedCount, total: files.length });
+          }
+        }
+      };
+
+      await Promise.all(
+        Array.from({ length: Math.min(CONCURRENT, files.length) }, () => worker())
+      );
+
+      if (newlyUploaded.length > 0) {
+        const updatedPhotos = [...existing, ...newlyUploaded];
+        await updateDoc(profileRef, {
+          portfolioPhotos: updatedPhotos,
+          updatedAt: new Date().toISOString(),
+        });
+
+        const folders: any[] = snap.data()?.portfolioFolders || [];
+        const updatedFolders = folders.map((f: any) => {
+          if (f.id === folder.id) {
+            return { ...f, photoCount: updatedPhotos.filter((p: any) => p.folderId === f.id).length };
+          }
+          return f;
+        });
+        await updateDoc(profileRef, { portfolioFolders: updatedFolders });
+
+        setAllPhotos(updatedPhotos);
+        setFolderPhotos(updatedPhotos.filter((p: any) => p.folderId === folder.id));
+
+        toast({
+          title: `✅ ${newlyUploaded.length} photo(s) upload ho gayi`,
+          description: `"${folder.name}" mein add ho gayi (WebP converted)`,
+        });
+      }
+
+      if (failedCount > 0) {
+        toast({
+          variant: "destructive",
+          title: `${failedCount} file(s) fail`,
+          description: `${newlyUploaded.length} upload ho gayi`,
+        });
+      }
+    } catch (err: any) {
+      console.error("[UPLOAD_BATCH]", err);
+      toast({ variant: "destructive", title: "Upload failed", description: err.message });
+    } finally {
+      setUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   };
-  const goPrev = () => {
-    if (selectedPhotoIdx === null) return;
-    setSelectedPhotoIdx((selectedPhotoIdx - 1 + photos.length) % photos.length);
+
+  const handleRemoveFromFolder = async (photoId: string) => {
+    if (!user || !firestore) return;
+    if (!confirm("Yeh photo folder se hat jayegi (delete nahi hogi). Continue?")) return;
+
+    try {
+      const result = await assignPhotoToFolder(user.uid, photoId, null);
+      if (!result.success) throw new Error(result.error);
+
+      setAllPhotos((prev) =>
+        prev.map((p) => (p.id === photoId ? { ...p, folderId: null } : p))
+      );
+      setFolderPhotos((prev) => prev.filter((p) => p.id !== photoId));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(photoId);
+        return next;
+      });
+      toast({ title: "Photo folder se hata di" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Failed", description: err.message });
+    }
   };
 
-  useEffect(() => {
-    if (selectedPhotoIdx === null) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectedPhotoIdx(null);
-      if (e.key === 'ArrowRight') goNext();
-      if (e.key === 'ArrowLeft') goPrev();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [selectedPhotoIdx, photos.length]);
+  // ✅ BULK DELETE FUNCTION
+  const handleBulkDelete = async () => {
+    if (!user || !firestore || selectedIds.size === 0) return;
 
-  useEffect(() => {
-    document.body.style.overflow = selectedPhotoIdx !== null ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
-  }, [selectedPhotoIdx]);
+    const count = selectedIds.size;
+    if (!confirm(`${count} photo(s) permanently delete karein? Yeh action undo nahi hoga.`)) return;
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[80vh]">
-        <div
-          className="w-12 h-12 border-4 rounded-full animate-spin"
-          style={{
-            borderColor: 'var(--portfolio-border)',
-            borderTopColor: 'var(--portfolio-primary)',
-          }}
-        />
-      </div>
-    );
-  }
+    setDeleting(true);
+    try {
+      const profileRef = doc(firestore, "publicProfiles", user.uid);
+      const snap = await getDoc(profileRef);
+      const photos: any[] = snap.data()?.portfolioPhotos || [];
+
+      // Selected photos ke storage keys collect karo
+      const photosToDelete = photos.filter((p: any) => selectedIds.has(p.id));
+      const storageKeys: string[] = [];
+      photosToDelete.forEach((p: any) => {
+        if (p.storageKey) storageKeys.push(p.storageKey);
+        if (p.thumbKey && p.thumbKey !== p.storageKey) storageKeys.push(p.thumbKey);
+      });
+
+      // 1. Firestore se delete karo
+      const updatedPhotos = photos.filter((p: any) => !selectedIds.has(p.id));
+      await updateDoc(profileRef, {
+        portfolioPhotos: updatedPhotos,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // 2. Folder count update karo
+      const folders: any[] = snap.data()?.portfolioFolders || [];
+      const updatedFolders = folders.map((f: any) => {
+        if (f.id === folder.id) {
+          return { ...f, photoCount: updatedPhotos.filter((p: any) => p.folderId === f.id).length };
+        }
+        return f;
+      });
+      await updateDoc(profileRef, { portfolioFolders: updatedFolders });
+
+      // 3. R2 se files delete karo (background mein)
+      if (storageKeys.length > 0) {
+        void deleteGalleryFiles(storageKeys).catch((e: any) =>
+          console.error("[BULK_DELETE] R2:", e)
+        );
+      }
+
+      // 4. UI update karo
+      setAllPhotos(updatedPhotos);
+      setFolderPhotos(updatedPhotos.filter((p: any) => p.folderId === folder.id));
+      setSelectedIds(new Set());
+
+      toast({
+        title: `✅ ${count} photo(s) delete ho gayi`,
+        description: "R2 se bhi delete ho rahi hain background mein",
+      });
+    } catch (err: any) {
+      console.error("[BULK_DELETE]", err);
+      toast({ variant: "destructive", title: "Delete failed", description: err.message });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // ✅ SELECT/DESELECT TOGGLE
+  const toggleSelect = (photoId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(photoId)) {
+        next.delete(photoId);
+      } else {
+        next.add(photoId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === folderPhotos.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(folderPhotos.map((p: any) => p.id)));
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!user || !firestore || !folder) return;
+    if (!editForm.name.trim()) {
+      toast({ variant: "destructive", title: "Folder name zaroori hai" });
+      return;
+    }
+
+    setSavingEdit(true);
+    try {
+      const profileRef = doc(firestore, "publicProfiles", user.uid);
+      const snap = await getDoc(profileRef);
+      const folders: any[] = snap.data()?.portfolioFolders || [];
+
+      const updatedFolders = folders.map((f: any) => {
+        if (f.id !== folder.id) return f;
+        const name = editForm.name.trim();
+        return {
+          ...f,
+          name,
+          slug: name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""),
+          description: editForm.description.trim(),
+          updatedAt: new Date().toISOString(),
+        };
+      });
+
+      await updateDoc(profileRef, {
+        portfolioFolders: updatedFolders,
+        updatedAt: new Date().toISOString(),
+      });
+
+      const updated = updatedFolders.find((f: any) => f.id === folder.id);
+      setFolder(updated);
+      setShowEditModal(false);
+      toast({ title: "✅ Folder update ho gaya" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Failed", description: err.message });
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDeleteFolder = async () => {
+    if (!user || !firestore || !folder) return;
+
+    const photosToDelete = allPhotos.filter((p: any) => p.folderId === folder.id);
+    const warningMsg = photosToDelete.length > 0
+      ? `"${folder.name}" folder aur iski ${photosToDelete.length} photo(s) delete hongi. Continue?`
+      : `"${folder.name}" folder delete karein?`;
+
+    if (!confirm(warningMsg)) return;
+
+    try {
+      const profileRef = doc(firestore, "publicProfiles", user.uid);
+      const snap = await getDoc(profileRef);
+      const folders: any[] = snap.data()?.portfolioFolders || [];
+      const photos: any[] = snap.data()?.portfolioPhotos || [];
+
+      const updatedFolders = folders
+        .filter((f: any) => f.id !== folder.id)
+        .map((f: any, idx: number) => ({ ...f, order: idx }));
+
+      const updatedPhotos = photos.filter((p: any) => p.folderId !== folder.id);
+
+      await updateDoc(profileRef, {
+        portfolioFolders: updatedFolders,
+        portfolioPhotos: updatedPhotos,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // R2 se bhi delete karo
+      const storageKeys: string[] = [];
+      photosToDelete.forEach((p: any) => {
+        if (p.storageKey) storageKeys.push(p.storageKey);
+        if (p.thumbKey && p.thumbKey !== p.storageKey) storageKeys.push(p.thumbKey);
+      });
+      if (storageKeys.length > 0) {
+        void deleteGalleryFiles(storageKeys).catch((e: any) =>
+          console.error("[FOLDER_DELETE] R2:", e)
+        );
+      }
+
+      toast({
+        title: "Folder delete ho gaya",
+        description: photosToDelete.length > 0
+          ? `${photosToDelete.length} photos bhi delete ho gayi`
+          : undefined,
+      });
+      router.push("/dashboard/settings?tab=portfolio");
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Failed", description: err.message });
+    }
+  };
+
+  if (loading) return <HafashLoader text="Loading folder..." />;
 
   if (!folder) {
     return (
-      <div
-        className="min-h-[70vh] flex items-center justify-center p-6"
-        style={{ background: 'var(--portfolio-page-bg)' }}
-      >
-        <div className="text-center space-y-6 max-w-md">
-          <div
-            className="w-24 h-24 rounded-full mx-auto flex items-center justify-center"
-            style={{ background: 'var(--portfolio-primary)15' }}
-          >
-            <Folder className="w-12 h-12" style={{ color: 'var(--portfolio-primary)', opacity: 0.4 }} />
-          </div>
-          <h1
-            className="text-3xl font-headline font-bold"
-            style={{ color: 'var(--portfolio-heading-text)' }}
-          >
-            Folder Nahi Mila
-          </h1>
-          <Link
-            href="/portfolio"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-full border-2 text-xs font-bold uppercase tracking-widest transition-all hover:scale-105"
-            style={{
-              borderColor: 'var(--portfolio-primary)',
-              color: 'var(--portfolio-primary)',
-            }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Portfolio
-          </Link>
-        </div>
+      <div className="min-h-[60vh] flex items-center justify-center p-6">
+        <Card className="rounded-[2rem] max-w-md w-full">
+          <CardContent className="p-10 text-center space-y-6">
+            <div className="w-20 h-20 rounded-full bg-primary/15 flex items-center justify-center mx-auto">
+              <Folder className="w-10 h-10 text-primary opacity-60" />
+            </div>
+            <h2 className="text-2xl font-headline font-bold">Folder Nahi Mila</h2>
+            <p className="text-sm text-muted-foreground">
+              Yeh folder exist nahi karta ya delete ho gaya.
+            </p>
+            <Link href="/dashboard/settings?tab=portfolio">
+              <Button className="rounded-xl gap-2">
+                <ArrowLeft className="w-4 h-4" /> Back to Settings
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  const studioName = photographer?.studioName || "Studio";
-  const coverImage = folder.coverImage || photos[0]?.thumbUrl || photos[0]?.url;
-
   return (
-    <div style={{ background: 'var(--portfolio-page-bg)' }}>
-
-      <nav
-        className="border-b"
-        style={{
-          borderColor: 'var(--portfolio-border)',
-          background: 'var(--portfolio-header-bg)',
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 py-5 flex items-center justify-between">
-          <Link href="/" className="space-y-0.5">
-            <p
-              className="text-xl lg:text-2xl font-headline font-bold tracking-wider"
-              style={{ color: 'var(--portfolio-heading-text)' }}
-            >
-              {studioName.toUpperCase()}
-            </p>
-            <p
-              className="text-[9px] font-bold uppercase tracking-[0.4em]"
-              style={{ color: 'var(--portfolio-muted-text)' }}
-            >
-              Production
-            </p>
-          </Link>
-
-          <div className="hidden lg:flex items-center gap-10">
-            {[
-              { label: 'Work', href: '/portfolio' },
-              { label: 'Archive', href: '/portfolio' },
-              { label: 'About', href: '/about' },
-              { label: 'Contact', href: '/contact' },
-            ].map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="text-xs font-bold uppercase tracking-[0.2em] transition-opacity hover:opacity-70"
-                style={{ color: 'var(--portfolio-body-text)' }}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button
-              className="w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70"
-              style={{ color: 'var(--portfolio-body-text)' }}
-            >
-              <Search className="w-4 h-4" />
-            </button>
-            <button
-              className="w-8 h-8 flex items-center justify-center transition-opacity hover:opacity-70"
-              style={{ color: 'var(--portfolio-body-text)' }}
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </nav>
-
-      <section className="py-10 lg:py-16" style={{ background: 'var(--portfolio-page-bg)' }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <Link
-            href="/portfolio"
-            className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.3em] mb-8 transition-opacity hover:opacity-70"
-            style={{ color: 'var(--portfolio-muted-text)' }}
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Portfolio
-          </Link>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            <div className="lg:col-span-5">
-              <div
-                className="aspect-square rounded-2xl overflow-hidden border"
-                style={{ borderColor: 'var(--portfolio-border)' }}
-              >
-                {coverImage ? (
-                  <img
-                    src={coverImage}
-                    alt={folder.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div
-                    className="w-full h-full flex items-center justify-center"
-                    style={{ background: 'var(--portfolio-card-bg)' }}
-                  >
-                    <Folder className="w-20 h-20" style={{ color: 'var(--portfolio-muted-text)', opacity: 0.3 }} />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="lg:col-span-7 space-y-6">
-              <div className="flex items-center gap-2">
-                <Folder className="w-4 h-4" style={{ color: 'var(--portfolio-primary)' }} />
-                <span
-                  className="text-[10px] font-bold uppercase tracking-[0.3em]"
-                  style={{ color: 'var(--portfolio-primary)' }}
-                >
-                  Folder / Collection
-                </span>
-              </div>
-
-              <h1
-                className="text-5xl lg:text-7xl font-headline font-bold leading-tight uppercase tracking-tight"
-                style={{ color: 'var(--portfolio-heading-text)' }}
-              >
-                {folder.name}
-              </h1>
-
-              {folder.description && (
-                <p
-                  className="text-lg lg:text-xl italic leading-relaxed"
-                  style={{ color: 'var(--portfolio-muted-text)' }}
-                >
-                  {folder.description}
-                </p>
-              )}
-
-              <p
-                className="text-xs font-bold uppercase tracking-[0.2em]"
-                style={{ color: 'var(--portfolio-muted-text)' }}
-              >
-                {photos.length} Photos · Updated {new Date().getFullYear()}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section
-        className="py-16 lg:py-24 border-t"
-        style={{
-          background: 'var(--portfolio-section-bg)',
-          borderColor: 'var(--portfolio-border)',
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          {photos.length === 0 ? (
-            <div className="text-center py-20">
-              <LayoutGrid
-                className="w-20 h-20 mx-auto mb-6"
-                style={{ color: 'var(--portfolio-muted-text)', opacity: 0.2 }}
-              />
-              <h3
-                className="text-2xl font-headline font-bold mb-3"
-                style={{ color: 'var(--portfolio-heading-text)' }}
-              >
-                Abhi Koi Photo Nahi
-              </h3>
-              <p
-                className="text-sm italic"
-                style={{ color: 'var(--portfolio-muted-text)' }}
-              >
-                Is folder mein abhi photos add nahi hui.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="text-center mb-12">
-                <h2
-                  className="text-[11px] font-bold uppercase tracking-[0.5em]"
-                  style={{ color: 'var(--portfolio-muted-text)' }}
-                >
-                  All Photos — {photos.length} Items
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-                {visiblePhotos.map((photo: any, idx: number) => (
-                  <div
-                    key={photo.id}
-                    onClick={() => setSelectedPhotoIdx(idx)}
-                    className="group relative overflow-hidden rounded-xl cursor-pointer border"
-                    style={{ borderColor: 'var(--portfolio-border)' }}
-                  >
-                    <div className="aspect-[4/3] overflow-hidden">
-                      <img
-                        src={photo.thumbUrl || photo.url}
-                        alt={photo.caption || `Photo ${idx + 1}`}
-                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </div>
-
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-4 lg:p-5">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs lg:text-sm font-bold text-white uppercase tracking-wider truncate">
-                          {photo.caption || folder.name}
-                        </p>
-                        <p className="text-[10px] font-bold text-white/60 tracking-widest shrink-0">
-                          {String(idx + 1).padStart(2, '0')} / {String(photos.length).padStart(2, '0')}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {hasMore && (
-                <div className="text-center mt-12">
-                  <button
-                    onClick={() => setDisplayLimit(prev => prev + 12)}
-                    className="inline-flex items-center gap-3 px-8 py-4 rounded-full border-2 text-xs font-bold uppercase tracking-[0.3em] transition-all hover:scale-105"
-                    style={{
-                      borderColor: 'var(--portfolio-primary)',
-                      color: 'var(--portfolio-primary)',
-                    }}
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Load More ({photos.length - displayLimit} remaining)
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </section>
-
-      {selectedPhotoIdx !== null && photos[selectedPhotoIdx] && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/98 backdrop-blur-3xl flex items-center justify-center"
-          onClick={() => setSelectedPhotoIdx(null)}
+    <div className="space-y-10 animate-in fade-in duration-500 pb-20 max-w-6xl mx-auto">
+      <div className="flex items-center gap-4 flex-wrap border-b border-border/50 pb-8">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-full h-12 w-12"
+          onClick={() => router.push("/dashboard/settings?tab=portfolio")}
         >
-          <button
-            className="absolute top-6 right-6 z-30 text-white h-14 w-14 hover:bg-white/10 rounded-full flex items-center justify-center transition-colors"
-            onClick={(e) => { e.stopPropagation(); setSelectedPhotoIdx(null); }}
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-3xl lg:text-4xl font-headline font-bold">{folder.name}</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {folder.description || `${folderPhotos.length} photo${folderPhotos.length === 1 ? "" : "s"} is folder mein`}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            onClick={() => setShowEditModal(true)}
+            className="rounded-xl gap-2 h-12"
           >
-            <X className="w-7 h-7" />
-          </button>
+            <Pencil className="w-4 h-4" />
+            Edit Folder
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleDeleteFolder}
+            className="rounded-xl gap-2 h-12 border-destructive/30 text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete
+          </Button>
+        </div>
+      </div>
 
-          <div className="absolute top-6 left-6 z-30 px-4 py-2 rounded-full bg-white/10 backdrop-blur-xl text-white text-sm font-bold">
-            {selectedPhotoIdx + 1} / {photos.length}
-          </div>
-
-          {photos.length > 1 && (
-            <>
-              <button
-                className="absolute left-4 lg:left-10 top-1/2 -translate-y-1/2 z-30 text-white h-16 w-16 hover:bg-white/10 rounded-full flex items-center justify-center transition-colors"
-                onClick={(e) => { e.stopPropagation(); goPrev(); }}
-              >
-                <ChevronLeft className="w-10 h-10" />
-              </button>
-
-              <button
-                className="absolute right-4 lg:right-10 top-1/2 -translate-y-1/2 z-30 text-white h-16 w-16 hover:bg-white/10 rounded-full flex items-center justify-center transition-colors"
-                onClick={(e) => { e.stopPropagation(); goNext(); }}
-              >
-                <ChevronRight className="w-10 h-10" />
-              </button>
-            </>
-          )}
-
-          <img
-            src={photos[selectedPhotoIdx].url}
-            alt={photos[selectedPhotoIdx].caption || 'Fullscreen'}
-            className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl animate-in fade-in duration-300"
-            onClick={(e) => e.stopPropagation()}
+      <Card className="bg-card/40 border-border/50 rounded-[2rem] overflow-hidden">
+        <CardContent className="p-8 lg:p-10">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleUpload}
+            disabled={uploading}
           />
 
-          {photos[selectedPhotoIdx].caption && (
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 px-6 py-3 rounded-full bg-white/10 backdrop-blur-xl text-white text-sm font-bold uppercase tracking-widest">
-              {photos[selectedPhotoIdx].caption}
+          <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 flex items-start gap-3 mb-6">
+            <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold text-sm">💡 Is folder mein photos upload karein</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Photos automatically <strong>"{folder.name}"</strong> folder mein assign ho jayengi.
+                Multiple photos ek saath select kar sakte hain (max 50 total, 20MB per photo).
+                <strong> WebP format mein convert hongi — 70% chhoti.</strong>
+              </p>
+            </div>
+          </div>
+
+          {uploading ? (
+            <div className="flex flex-col items-center justify-center p-10 space-y-4">
+              <Loader2 className="w-12 h-12 text-primary animate-spin" />
+              <div className="text-center space-y-2">
+                <p className="font-bold text-lg">
+                  Uploading & Converting... {uploadProgress.current} / {uploadProgress.total}
+                </p>
+                <div className="w-64 h-2 rounded-full bg-muted overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-300"
+                    style={{
+                      width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-10 border-2 border-dashed border-border/40 rounded-2xl hover:border-primary/50 transition-all">
+              <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                <Upload className="w-8 h-8 text-primary" />
+              </div>
+              <h3 className="font-headline font-bold text-xl mb-2">Upload Photos</h3>
+              <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
+                Click karein ya photos drag karein. WebP convert hongi — fast!
+              </p>
+              <Button
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-xl gap-2 h-12 px-8 font-bold"
+              >
+                <Plus className="w-4 h-4" />
+                Select Photos
+              </Button>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <div className="space-y-6">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <h2 className="text-2xl font-headline font-bold">Photos in "{folder.name}"</h2>
+          <div className="flex items-center gap-3">
+            {folderPhotos.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAll}
+                className="rounded-xl gap-2 h-10"
+              >
+                {selectedIds.size === folderPhotos.length ? (
+                  <>
+                    <CheckSquare className="w-4 h-4" />
+                    Deselect All
+                  </>
+                ) : (
+                  <>
+                    <Square className="w-4 h-4" />
+                    Select All
+                  </>
+                )}
+              </Button>
+            )}
+            {selectedIds.size > 0 && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleBulkDelete}
+                disabled={deleting}
+                className="rounded-xl gap-2 h-10"
+              >
+                {deleting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Delete ({selectedIds.size})
+              </Button>
+            )}
+            <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px] font-bold uppercase tracking-widest">
+              {folderPhotos.length} {folderPhotos.length === 1 ? "Photo" : "Photos"}
+            </Badge>
+          </div>
+        </div>
+
+        {folderPhotos.length === 0 ? (
+          <Card className="bg-card/40 border-border/50 rounded-[2rem]">
+            <CardContent className="p-16 text-center space-y-4">
+              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                <ImageIcon className="w-10 h-10 text-primary opacity-60" />
+              </div>
+              <h3 className="font-headline font-bold text-xl">Abhi Koi Photo Nahi</h3>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                Upar "Select Photos" button dabayein aur is folder mein photos upload karein.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {folderPhotos.map((photo) => {
+              const isSelected = selectedIds.has(photo.id);
+              return (
+                <div
+                  key={photo.id}
+                  className={`relative group aspect-square rounded-2xl overflow-hidden border-2 transition-all ${
+                    isSelected ? 'border-primary ring-2 ring-primary/40' : 'border-border/30'
+                  }`}
+                >
+                  {photo.thumbUrl || photo.url ? (
+                    <img
+                      src={photo.thumbUrl || photo.url}
+                      alt={photo.caption || "Portfolio"}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      loading="lazy"
+                      decoding="async"
+                      style={{ background: 'var(--portfolio-card-bg)' }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-muted flex items-center justify-center">
+                      <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                    </div>
+                  )}
+
+                  {/* ✅ CHECKBOX — top-left corner */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelect(photo.id);
+                    }}
+                    className={`absolute top-2 left-2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                      isSelected
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-black/50 text-white opacity-0 group-hover:opacity-100'
+                    }`}
+                  >
+                    {isSelected ? (
+                      <CheckSquare className="w-5 h-5" />
+                    ) : (
+                      <Square className="w-5 h-5" />
+                    )}
+                  </button>
+
+                  {/* ✅ PHOTO CLICK = TOGGLE SELECT (multi-select mode) */}
+                  <div
+                    className="absolute inset-0 cursor-pointer"
+                    onClick={() => toggleSelect(photo.id)}
+                  />
+
+                  {/* Hover actions — remove from folder */}
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+                    <Button
+                      size="icon"
+                      variant="destructive"
+                      className="rounded-full h-11 w-11 pointer-events-auto"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromFolder(photo.id);
+                      }}
+                      title="Remove from folder (delete nahi)"
+                    >
+                      <X className="w-5 h-5" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {showEditModal && (
+        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-xl flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg rounded-[2rem]">
+            <CardContent className="p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-primary/15 flex items-center justify-center">
+                    <Pencil className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="font-headline font-bold text-2xl">Edit Folder</h2>
+                    <p className="text-xs text-muted-foreground">Folder details update karein</p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="rounded-full"
+                  onClick={() => setShowEditModal(false)}
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label>Folder Name *</Label>
+                  <Input
+                    value={editForm.name}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, name: e.target.value }))
+                    }
+                    placeholder="e.g., Mehndi, Barat, Walima"
+                    className="h-12 rounded-xl"
+                    maxLength={30}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Description (optional)</Label>
+                  <Textarea
+                    value={editForm.description}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({ ...prev, description: e.target.value }))
+                    }
+                    placeholder="Client ko yeh description dikhegi..."
+                    className="rounded-xl min-h-[80px]"
+                    maxLength={150}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditModal(false)}
+                  className="flex-1 rounded-xl h-12"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveEdit}
+                  disabled={savingEdit || !editForm.name.trim()}
+                  className="flex-1 rounded-xl gap-2 font-bold h-12"
+                >
+                  {savingEdit ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  Save Changes
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
