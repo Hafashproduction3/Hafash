@@ -732,26 +732,6 @@ export default function EventManagementPage() {
   </div>
 </div>
 
-{/* ✅ NEW: Downloads + Last Viewed */}
-<div className="grid grid-cols-2 gap-6">
-  <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
-    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Downloads</p>
-    <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.downloadCount || 0}</p>
-  </div>
-  <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
-    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Last Viewed</p>
-    <p className="text-sm font-headline font-bold text-primary drop-shadow-2xl mt-2">
-      {event.lastViewedAt 
-        ? new Date(event.lastViewedAt).toLocaleDateString('en-PK', { 
-            day: 'numeric', 
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        : 'Never'}
-    </p>
-  </div>
-</div>
               
               <div className="space-y-6 pt-4">
                 <div className="flex items-center justify-between p-2">
