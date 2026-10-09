@@ -991,13 +991,6 @@ export default function ClientGalleryPage() {
 
     if (!gallery) return;
 
-    // ✅ Download count increment
-    if (firestore && galleryId && galleryId !== 'demo') {
-      updateDoc(doc(firestore, 'galleries', galleryId), {
-        downloadCount: increment(1),
-      }).catch(err => console.error('[DOWNLOAD_COUNT]', err));
-    }
-
     const selectedItems = (gallery.items || []).filter((it: any) => 
       selectedPhotos.has(it.id) && it.originalReady && it.originalKey
     );
@@ -1171,7 +1164,7 @@ export default function ClientGalleryPage() {
         description: error.message || "Please try again",
       });
     }
-  }, [canDownload, toast, firestore, galleryId]);
+  }, [canDownload, toast]);
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

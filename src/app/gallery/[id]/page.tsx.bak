@@ -1080,7 +1080,7 @@ export default function ClientGalleryPage() {
       setIsPreparing(false);
       setPreparationStep('');
     }
-  }, [gallery, selectedPhotos, isMobile, toast]);
+  }, [gallery, selectedPhotos, isMobile, toast, firestore, galleryId]);
 
   // ✅ SINGLE VERSION — blob approach (mobile + desktop both work)
   const handleDownloadSingle = useCallback(async (item: any) => {
