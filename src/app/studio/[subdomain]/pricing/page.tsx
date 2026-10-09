@@ -208,15 +208,16 @@ export default function PricingPage() {
                       </div>
                     )}
 
-                    {pkg.image && (
-                      <div className="w-full h-48 overflow-hidden">
-                        <img
-                          src={pkg.image}
-                          alt={pkg.name}
-                          className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"
-                        />
-                      </div>
-                    )}
+{pkg.image && (
+  <div className="w-full aspect-[4/3] overflow-hidden bg-black/20">
+    <img
+      src={pkg.image}
+      alt={pkg.name}
+      className="w-full h-full object-contain hover:scale-105 transition-transform duration-700 cursor-pointer"
+      onClick={() => window.open(pkg.image, '_blank')}
+    />
+  </div>
+)}
 
                     <div className="p-8 flex flex-col flex-1">
                       <div className="text-center mb-6">
