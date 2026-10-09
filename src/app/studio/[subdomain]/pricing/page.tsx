@@ -23,6 +23,7 @@ export default function PricingPage() {
   const [photographer, setPhotographer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,12 +210,18 @@ export default function PricingPage() {
                     )}
 
 {pkg.image && (
-  <div className="w-full aspect-[4/3] overflow-hidden bg-black/20">
+  <div 
+    className="w-full aspect-[4/3] overflow-hidden bg-black/20 cursor-pointer group/img relative"
+    onClick={() => setLightboxImage(pkg.image)}
+  >
     <img
       src={pkg.image}
       alt={pkg.name}
-      className="w-full h-full object-contain transition-transform duration-700"
+      className="w-full h-full object-contain transition-transform duration-700 group-hover/img:scale-105"
     />
+    <div className="absolute bottom-3 right-3 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-widest opacity-0 group-hover/img:opacity-100 transition-opacity">
+      🔍 Click to view
+    </div>
   </div>
 )}
 
@@ -679,6 +686,33 @@ export default function PricingPage() {
           </div>
         </div>
       </section>
+      {/* ═══════════════════════════════════════════════════ */}
+      {/* LIGHTBOX MODAL */}
+      {/* ═══════════════════════════════════════════════════ */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-300"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            className="absolute top-6 right-6 w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-all z-10"
+            onClick={() => setLightboxImage(null)}
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          <img
+            src={lightboxImage}
+            alt="Package preview"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-md text-white text-xs font-bold uppercase tracking-widest">
+            Click anywhere to close
+          </div>
+        </div>
+      )}
     </>
   );
 }
