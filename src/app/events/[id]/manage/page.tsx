@@ -170,15 +170,19 @@ export default function EventManagementPage() {
     refreshCover();
   }, [eventRaw?.coverImage]);
 
-  // ✅ FIXED: event typed as any
+  // ✅ PRIORITY: eventData.items FIRST (instant load)
   const event: any = useMemo(() => {
     if (!eventRaw) return null;
     const eventData = eventRaw as any;
-    const photos = refreshedPhotos.length > 0
-      ? refreshedPhotos
-      : (subcollectionPhotos && subcollectionPhotos.length > 0)
-        ? subcollectionPhotos
-        : (eventData.items || []);
+    
+    // ✅ Instant items from Firestore
+    let photos: any[] = eventData.items || [];
+    
+    // ✅ Agar refreshed signed URLs available hain, to replace karo
+    if (refreshedPhotos.length > 0) {
+      photos = refreshedPhotos;
+    }
+    
     return { 
       ...eventData, 
       items: photos,
@@ -417,7 +421,6 @@ export default function EventManagementPage() {
     }
   }, [eventRef, event, deleteConfirmText, router, toast, isDeleting, firestore, id, subcollectionPhotos]);
 
-  // ✅ FIXED: updateToggle with error handling
   const updateToggle = useCallback(async (field: string, value: any) => {
     if (!eventRef) {
       console.error('[TOGGLE] eventRef is null');
@@ -429,8 +432,6 @@ export default function EventManagementPage() {
       return;
     }
 
-    console.log(`[TOGGLE] Updating ${field} to:`, value);
-
     const updateData: any = { 
       [field]: value, 
       updatedAt: new Date().toISOString() 
@@ -439,13 +440,11 @@ export default function EventManagementPage() {
 
     try {
       await updateDoc(eventRef, updateData);
-      console.log(`[TOGGLE] ✅ ${field} updated successfully`);
       toast({ 
         title: `✅ ${field === 'isPublic' ? 'Public Access' : field === 'isPaid' ? 'Download Access' : field} Updated`,
         description: value ? 'Enabled' : 'Disabled'
       });
     } catch (err: any) {
-      console.error('[TOGGLE] ❌ Error:', err);
       toast({ 
         variant: 'destructive', 
         title: 'Update Failed', 
@@ -471,7 +470,8 @@ export default function EventManagementPage() {
     );
   }, [event?.items, assetSearch]);
 
-  if (authLoading || dataLoading || photosLoading) return (
+  // ✅ Loading state — sirf auth + doc loading
+  if (authLoading || dataLoading) return (
     <HafashLoader text="Synchronizing Workspace..." />
   );
 
@@ -696,42 +696,40 @@ export default function EventManagementPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="p-10 space-y-10">
-            <div className="grid grid-cols-2 gap-6">
-  <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
-    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Total Views</p>
-    <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.viewCount || 0}</p>
-  </div>
-  <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
-    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Unique Visitors</p>
-    <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.uniqueVisitors || 0}</p>
-  </div>
-</div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Total Views</p>
+                  <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.viewCount || 0}</p>
+                </div>
+                <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Unique Visitors</p>
+                  <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.uniqueVisitors || 0}</p>
+                </div>
+              </div>
 
-{/* ✅ Downloads + Favorites + Last Viewed */}
-<div className="grid grid-cols-3 gap-4">
-  <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
-    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Downloads</p>
-    <p className="text-3xl font-headline font-bold text-primary drop-shadow-2xl">{event.downloadCount || 0}</p>
-  </div>
-  <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
-    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Favorites</p>
-    <p className="text-3xl font-headline font-bold text-primary drop-shadow-2xl">{favoritesCount}</p>
-  </div>
-  <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
-    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Last Viewed</p>
-    <p className="text-xs font-headline font-bold text-primary drop-shadow-2xl mt-1">
-      {event.lastViewedAt 
-        ? new Date(event.lastViewedAt).toLocaleDateString('en-PK', { 
-            day: 'numeric', 
-            month: 'short',
-            hour: '2-digit',
-            minute: '2-digit'
-          })
-        : 'Never'}
-    </p>
-  </div>
-</div>
-
+              <div className="grid grid-cols-3 gap-4">
+                <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Downloads</p>
+                  <p className="text-3xl font-headline font-bold text-primary drop-shadow-2xl">{event.downloadCount || 0}</p>
+                </div>
+                <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Favorites</p>
+                  <p className="text-3xl font-headline font-bold text-primary drop-shadow-2xl">{favoritesCount}</p>
+                </div>
+                <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Last Viewed</p>
+                  <p className="text-xs font-headline font-bold text-primary drop-shadow-2xl mt-1">
+                    {event.lastViewedAt 
+                      ? new Date(event.lastViewedAt).toLocaleDateString('en-PK', { 
+                          day: 'numeric', 
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'Never'}
+                  </p>
+                </div>
+              </div>
               
               <div className="space-y-6 pt-4">
                 <div className="flex items-center justify-between p-2">
@@ -766,7 +764,6 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* ═══ ANALYTICS LINK (Business+) ═══ */}
           <Card className="bg-gradient-to-br from-primary/10 via-card/60 to-background border border-primary/30 rounded-[3rem] overflow-hidden shadow-2xl">
             <CardHeader className="p-10 border-b border-primary/20 bg-background/20">
               <CardTitle className="text-lg font-headline font-bold flex items-center gap-4 text-white">
