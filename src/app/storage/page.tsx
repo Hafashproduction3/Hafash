@@ -212,7 +212,9 @@ export default function StoragePage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {Object.values(HAFASH_PLANS).map(plan => {
+        {Object.values(HAFASH_PLANS)
+  .filter(plan => plan.id !== 'trial')
+  .map(plan => {
           const isCurrent = currentPlan.id === plan.id;
           // Only call it an "upgrade" if the user already has a real plan;
           // a first-time purchase should say "Select Plan", not "Upgrade".
