@@ -213,8 +213,7 @@ export default function PricingPage() {
     <img
       src={pkg.image}
       alt={pkg.name}
-      className="w-full h-full object-contain hover:scale-105 transition-transform duration-700 cursor-pointer"
-      onClick={() => window.open(pkg.image, '_blank')}
+      className="w-full h-full object-contain transition-transform duration-700"
     />
   </div>
 )}
