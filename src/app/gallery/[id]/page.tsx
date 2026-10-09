@@ -15,17 +15,16 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { 
-  collection, query, where, getDocs, doc, updateDoc, 
+  collection, query, where, getDocs, doc, updateDoc, increment, 
   limit, arrayUnion, orderBy, startAfter, getDocFromServer 
 } from 'firebase/firestore';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+const SLIDESHOW_INTERVAL = 4000;
 import { type PlanId } from '@/lib/plans';
 import { getFreshMusicUrl, refreshPhotoUrls } from '@/app/actions/storage';
-
-const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 60;
 const DESKTOP_BATCH_SIZE = 100;
 const MOBILE_BATCH_SIZE = 30;
@@ -702,6 +701,16 @@ export default function ClientGalleryPage() {
     }
   };
 
+
+  // ✅ View count increment
+  useEffect(() => {
+    if (!firestore || !galleryId || galleryId === 'demo') return;
+    const galleryRef = doc(firestore, 'galleries', galleryId);
+    updateDoc(galleryRef, {
+      viewCount: increment(1),
+      lastViewedAt: new Date().toISOString(),
+    }).catch(err => console.error('[VIEW_COUNT]', err));
+  }, [firestore, galleryId]);
   const handleFavorite = useCallback(async (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
     const photoRef = doc(firestore, 'galleries', galleryId, 'photos', itemId);
