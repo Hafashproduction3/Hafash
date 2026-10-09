@@ -8,7 +8,7 @@ import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import {
   Check, X, Crown, Sparkles, MessageCircle, ArrowRight,
   Star, ChevronDown, ChevronUp, Package, Clock, Users,
-  Camera, Award, Calendar
+  Camera, Award, Calendar, Plus, Quote
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,7 @@ export default function PricingPage() {
 
   const [photographer, setPhotographer] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showAllFeatures, setShowAllFeatures] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,42 +78,22 @@ export default function PricingPage() {
   if (!photographer) return null;
 
   const packages = photographer.packages || [];
+  const addOns = photographer.addOns || [];
+  const testimonials = photographer.testimonials || [];
   const whatsapp = photographer.whatsappNumber;
   const studioName = photographer.studioName || 'Studio';
 
-  // FAQ Data
-  const faqs = [
-    {
-      q: "How early should we book?",
-      a: "We recommend booking 2-3 months before your event to secure your preferred date. However, we do accept last-minute bookings based on availability.",
-    },
-    {
-      q: "What's included in the packages?",
-      a: "All packages include professional photography coverage, professional editing, high-resolution photos, and an online gallery for viewing and downloading.",
-    },
-    {
-      q: "Do you travel for destination weddings?",
-      a: "Yes! We cover weddings across Pakistan and offer destination wedding services. Travel and accommodation charges may apply based on location.",
-    },
-    {
-      q: "How do payments work?",
-      a: "We require a 30% advance to confirm your booking. The remaining balance is split between the event day and final delivery. We accept bank transfer, EasyPaisa, JazzCash, and cash.",
-    },
-    {
-      q: "When will we receive our photos?",
-      a: "Preview photos are delivered within 5-7 days. Full edited gallery is delivered within 3-4 weeks after the event. Expedited delivery is available on request.",
-    },
-    {
-      q: "What if we need to reschedule?",
-      a: "Rescheduling is possible subject to availability. Please notify us at least 15 days before your event. Cancellation policy applies.",
-    },
+  const faqs = photographer.faqs || [
+    { q: "How early should we book?", a: "We recommend booking 2-3 months before your event to secure your preferred date." },
+    { q: "What's included in the packages?", a: "All packages include professional photography coverage, professional editing, and an online gallery." },
+    { q: "Do you travel for destination weddings?", a: "Yes! We cover weddings across Pakistan and offer destination wedding services." },
+    { q: "How do payments work?", a: "We require a 30% advance to confirm your booking. Balance split between event day and delivery." },
+    { q: "When will we receive our photos?", a: "Preview within 5-7 days. Full gallery within 3-4 weeks." },
+    { q: "What if we need to reschedule?", a: "Rescheduling possible subject to availability. Notify at least 15 days before." },
   ];
 
   return (
     <>
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* PAGE HERO */}
-      {/* ═══════════════════════════════════════════════════ */}
       <section
         className="py-20 lg:py-24 relative overflow-hidden"
         style={{ background: 'var(--portfolio-section-bg)' }}
@@ -124,7 +104,7 @@ export default function PricingPage() {
             background: `radial-gradient(circle at center, var(--portfolio-primary) 0%, transparent 70%)`,
           }}
         />
-        <div className="relative max-w-7xl mx-auto px-6 lg:px-8 text-center">
+        <div className="relative max-w-7xl mx-auto px-6 lg:px-8 text-center animate-in fade-in slide-in-from-bottom-4 duration-1000">
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border mb-6"
             style={{
               borderColor: 'var(--portfolio-primary)',
@@ -154,12 +134,8 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* PACKAGES */}
-      {/* ═══════════════════════════════════════════════════ */}
       <section className="py-16 lg:py-24" style={{ background: 'var(--portfolio-page-bg)' }}>
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-
           {packages.length === 0 ? (
             <div className="text-center py-32">
               <Package
@@ -195,46 +171,54 @@ export default function PricingPage() {
               )}
             </div>
           ) : (
-            <>
-              {/* Packages Grid */}
-              <div className={cn(
-                "grid gap-6 lg:gap-8",
-                packages.length === 1 ? "grid-cols-1 max-w-md mx-auto" :
-                packages.length === 2 ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto" :
-                "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-              )}>
-                {packages.map((pkg: any, idx: number) => {
-                  const isPopular = idx === Math.floor(packages.length / 2) && packages.length >= 3;
+            <div className={cn(
+              "grid gap-6 lg:gap-8",
+              packages.length === 1 ? "grid-cols-1 max-w-md mx-auto" :
+              packages.length === 2 ? "grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto" :
+              "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+            )}>
+              {packages.map((pkg: any, idx: number) => {
+                const isPopular = idx === Math.floor(packages.length / 2) && packages.length >= 3;
 
-                  return (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "relative rounded-3xl p-8 transition-all hover:-translate-y-2 flex flex-col",
-                        isPopular && "lg:scale-105 lg:-translate-y-4"
-                      )}
-                      style={{
-                        background: 'var(--portfolio-card-bg)',
-                        border: `2px solid ${isPopular ? 'var(--portfolio-primary)' : 'var(--portfolio-border)'}`,
-                        boxShadow: isPopular
-                          ? `0 25px 50px -12px var(--portfolio-primary)40`
-                          : '0 10px 30px -15px rgba(0,0,0,0.2)',
-                      }}
-                    >
-                      {/* Popular Badge */}
-                      {isPopular && (
-                        <div
-                          className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest whitespace-nowrap"
-                          style={{
-                            background: 'var(--portfolio-primary)',
-                            color: 'var(--portfolio-primary-text)',
-                          }}
-                        >
-                          ⭐ Most Popular
-                        </div>
-                      )}
+                return (
+                  <div
+                    key={idx}
+                    className={cn(
+                      "relative rounded-3xl overflow-hidden transition-all hover:-translate-y-2 flex flex-col animate-in fade-in slide-in-from-bottom-6 duration-700",
+                      isPopular && "lg:scale-105 lg:-translate-y-4"
+                    )}
+                    style={{
+                      background: 'var(--portfolio-card-bg)',
+                      border: `2px solid ${isPopular ? 'var(--portfolio-primary)' : 'var(--portfolio-border)'}`,
+                      boxShadow: isPopular
+                        ? `0 25px 50px -12px var(--portfolio-primary)40`
+                        : '0 10px 30px -15px rgba(0,0,0,0.2)',
+                      animationDelay: `${idx * 100}ms`,
+                    }}
+                  >
+                    {isPopular && (
+                      <div
+                        className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest whitespace-nowrap z-10"
+                        style={{
+                          background: 'var(--portfolio-primary)',
+                          color: 'var(--portfolio-primary-text)',
+                        }}
+                      >
+                        ⭐ Most Popular
+                      </div>
+                    )}
 
-                      {/* Package Name */}
+                    {pkg.image && (
+                      <div className="w-full h-48 overflow-hidden">
+                        <img
+                          src={pkg.image}
+                          alt={pkg.name}
+                          className="w-full h-full object-cover hover:scale-110 transition-transform duration-700"
+                        />
+                      </div>
+                    )}
+
+                    <div className="p-8 flex flex-col flex-1">
                       <div className="text-center mb-6">
                         <h3
                           className="text-2xl font-headline font-bold uppercase tracking-widest mb-4"
@@ -243,7 +227,6 @@ export default function PricingPage() {
                           {pkg.name}
                         </h3>
 
-                        {/* Price */}
                         <div className="flex items-baseline justify-center gap-1">
                           <span
                             className="text-sm font-bold"
@@ -258,9 +241,17 @@ export default function PricingPage() {
                             {pkg.price?.toLocaleString()}
                           </span>
                         </div>
+
+                        {pkg.description && (
+                          <p
+                            className="text-xs italic mt-3"
+                            style={{ color: 'var(--portfolio-muted-text)' }}
+                          >
+                            {pkg.description}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Features */}
                       <ul className="space-y-3 mb-8 flex-1">
                         {(pkg.features || []).map((feature: string, i: number) => (
                           <li key={i} className="flex items-start gap-3">
@@ -280,7 +271,6 @@ export default function PricingPage() {
                         ))}
                       </ul>
 
-                      {/* CTA */}
                       {whatsapp && (
                         <a
                           href={`https://wa.me/${whatsapp.replace(/\D/g, '')}?text=${encodeURIComponent(`Salam! Mujhe ${pkg.name} package book karni hai (PKR ${pkg.price?.toLocaleString()}).`)}`}
@@ -301,21 +291,76 @@ export default function PricingPage() {
                         </a>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-            </>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* COMPARISON TABLE */}
-      {/* ═══════════════════════════════════════════════════ */}
-      {packages.length >= 2 && (
+      {addOns.length > 0 && (
         <section
           className="py-16 lg:py-24"
           style={{ background: 'var(--portfolio-section-bg)' }}
+        >
+          <div className="max-w-5xl mx-auto px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2
+                className="text-3xl lg:text-4xl font-headline font-bold mb-3"
+                style={{ color: 'var(--portfolio-heading-text)' }}
+              >
+                Add-ons & Extras
+              </h2>
+              <p
+                className="text-sm italic"
+                style={{ color: 'var(--portfolio-muted-text)' }}
+              >
+                Customize your package with these additional services
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {addOns.map((addon: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-5 rounded-2xl transition-all hover:scale-105"
+                  style={{
+                    background: 'var(--portfolio-card-bg)',
+                    border: `1px solid var(--portfolio-border)`,
+                  }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center"
+                      style={{ background: 'var(--portfolio-primary)15' }}
+                    >
+                      <Plus className="w-5 h-5" style={{ color: 'var(--portfolio-primary)' }} />
+                    </div>
+                    <span
+                      className="font-bold text-sm"
+                      style={{ color: 'var(--portfolio-heading-text)' }}
+                    >
+                      {addon.name}
+                    </span>
+                  </div>
+                  <span
+                    className="font-headline font-bold text-lg"
+                    style={{ color: 'var(--portfolio-primary)' }}
+                  >
+                    +PKR {addon.price?.toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {packages.length >= 2 && (
+        <section
+          className="py-16 lg:py-24"
+          style={{ background: 'var(--portfolio-page-bg)' }}
         >
           <div className="max-w-6xl mx-auto px-6 lg:px-8">
             <div className="text-center mb-12">
@@ -348,7 +393,7 @@ export default function PricingPage() {
                         className="text-left px-6 py-4 text-xs font-bold uppercase tracking-widest"
                         style={{ color: 'var(--portfolio-primary-text)' }}
                       >
-                        Package
+                        Feature
                       </th>
                       {packages.map((pkg: any, idx: number) => (
                         <th
@@ -427,9 +472,88 @@ export default function PricingPage() {
         </section>
       )}
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* FAQ */}
-      {/* ═══════════════════════════════════════════════════ */}
+      {testimonials.length > 0 && (
+        <section
+          className="py-16 lg:py-24"
+          style={{ background: 'var(--portfolio-section-bg)' }}
+        >
+          <div className="max-w-6xl mx-auto px-6 lg:px-8">
+            <div className="text-center mb-12">
+              <h2
+                className="text-3xl lg:text-4xl font-headline font-bold mb-3"
+                style={{ color: 'var(--portfolio-heading-text)' }}
+              >
+                What Clients Say
+              </h2>
+              <p
+                className="text-sm italic"
+                style={{ color: 'var(--portfolio-muted-text)' }}
+              >
+                Real reviews from real clients
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {testimonials.map((t: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="p-6 rounded-2xl transition-all hover:scale-105 animate-in fade-in slide-in-from-bottom-4 duration-700"
+                  style={{
+                    background: 'var(--portfolio-card-bg)',
+                    border: `1px solid var(--portfolio-border)`,
+                    animationDelay: `${idx * 100}ms`,
+                  }}
+                >
+                  <Quote
+                    className="w-8 h-8 mb-4"
+                    style={{ color: 'var(--portfolio-primary)', opacity: 0.3 }}
+                  />
+                  <p
+                    className="text-sm italic leading-relaxed mb-4"
+                    style={{ color: 'var(--portfolio-body-text)' }}
+                  >
+                    "{t.text}"
+                  </p>
+                  <div className="flex items-center gap-3 pt-4 border-t"
+                    style={{ borderColor: 'var(--portfolio-border)' }}
+                  >
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-bold"
+                      style={{
+                        background: 'var(--portfolio-primary)20',
+                        color: 'var(--portfolio-primary)',
+                      }}
+                    >
+                      {t.name?.[0] || '?'}
+                    </div>
+                    <div>
+                      <p
+                        className="font-bold text-sm"
+                        style={{ color: 'var(--portfolio-heading-text)' }}
+                      >
+                        {t.name}
+                      </p>
+                      <div className="flex gap-0.5 mt-0.5">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className="w-3 h-3"
+                            style={{
+                              color: 'var(--portfolio-primary)',
+                              fill: star <= (t.rating || 5) ? 'var(--portfolio-primary)' : 'transparent',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <section className="py-16 lg:py-24" style={{ background: 'var(--portfolio-page-bg)' }}>
         <div className="max-w-3xl mx-auto px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -448,16 +572,51 @@ export default function PricingPage() {
           </div>
 
           <div className="space-y-3">
-            {faqs.map((faq, idx) => (
-              <FAQItem key={idx} faq={faq} />
+            {faqs.map((faq: any, idx: number) => (
+              <div
+                key={idx}
+                className="rounded-2xl overflow-hidden transition-all"
+                style={{
+                  background: 'var(--portfolio-card-bg)',
+                  border: `1px solid var(--portfolio-border)`,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => setOpenFaq(openFaq === idx ? null : idx)}
+                  className="w-full flex items-center justify-between p-5 text-left transition-all hover:opacity-80"
+                >
+                  <span
+                    className="font-bold text-sm lg:text-base pr-4"
+                    style={{ color: 'var(--portfolio-heading-text)' }}
+                  >
+                    {faq.q}
+                  </span>
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-transform"
+                    style={{
+                      background: 'var(--portfolio-primary)15',
+                      transform: openFaq === idx ? 'rotate(180deg)' : 'rotate(0deg)',
+                    }}
+                  >
+                    <ChevronDown className="w-4 h-4" style={{ color: 'var(--portfolio-primary)' }} />
+                  </div>
+                </button>
+
+                {openFaq === idx && (
+                  <div
+                    className="px-5 pb-5 text-sm leading-relaxed animate-in fade-in slide-in-from-top-2 duration-300"
+                    style={{ color: 'var(--portfolio-body-text)' }}
+                  >
+                    {faq.a}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════ */}
-      {/* CTA SECTION */}
-      {/* ═══════════════════════════════════════════════════ */}
       <section
         className="py-20 lg:py-28 relative overflow-hidden"
         style={{ background: 'var(--portfolio-section-bg)' }}
@@ -521,55 +680,5 @@ export default function PricingPage() {
         </div>
       </section>
     </>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// FAQ ITEM COMPONENT
-// ═══════════════════════════════════════════════════════════════
-
-function FAQItem({ faq }: { faq: { q: string; a: string } }) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <div
-      className="rounded-2xl overflow-hidden transition-all"
-      style={{
-        background: 'var(--portfolio-card-bg)',
-        border: `1px solid var(--portfolio-border)`,
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-5 text-left transition-all hover:opacity-80"
-      >
-        <span
-          className="font-bold text-sm lg:text-base pr-4"
-          style={{ color: 'var(--portfolio-heading-text)' }}
-        >
-          {faq.q}
-        </span>
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-          style={{ background: 'var(--portfolio-primary)15' }}
-        >
-          {isOpen ? (
-            <ChevronUp className="w-4 h-4" style={{ color: 'var(--portfolio-primary)' }} />
-          ) : (
-            <ChevronDown className="w-4 h-4" style={{ color: 'var(--portfolio-primary)' }} />
-          )}
-        </div>
-      </button>
-
-      {isOpen && (
-        <div
-          className="px-5 pb-5 text-sm leading-relaxed"
-          style={{ color: 'var(--portfolio-body-text)' }}
-        >
-          {faq.a}
-        </div>
-      )}
-    </div>
   );
 }

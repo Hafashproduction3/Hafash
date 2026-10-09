@@ -37,7 +37,8 @@ import { THEME_LIST, type ThemeId } from '@/lib/portfolio-themes';
 import { requestUploadUrl, refreshPhotoUrls } from '@/app/actions/storage';
 import { ImageUploader } from '@/components/ImageUploader';
 import { doc, setDoc, deleteField } from 'firebase/firestore';
-import { convertToWebP } from '@/lib/storage/convert-to-webp';   // 🆕 YEH
+import { convertToWebP } from '@/lib/storage/convert-to-webp';
+
 export default function SettingsPage() {
   const { user } = useUser();
   const firestore = useFirestore();
@@ -51,7 +52,6 @@ export default function SettingsPage() {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
-  // Folders state
   const [portfolioFolders, setPortfolioFolders] = useState<any[]>([]);
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [editingFolder, setEditingFolder] = useState<any>(null);
@@ -94,6 +94,7 @@ export default function SettingsPage() {
     aboutBio: '',
     services: [] as any[],
     packages: [] as any[],
+    addOns: [] as any[],
     videoUrl: '',
     stats: { years: 5, clients: 100, appreciations: 0 },
     defaultWatermark: true,
@@ -131,6 +132,7 @@ export default function SettingsPage() {
         aboutBio: profile.aboutBio || '',
         services: profile.services || [],
         packages: profile.packages || [],
+        addOns: profile.addOns || [],
         videoUrl: profile.videoUrl || '',
         stats: profile.stats || { years: 5, clients: 100, appreciations: 0 },
         defaultWatermark: profile.defaultWatermark ?? true,
@@ -238,10 +240,6 @@ export default function SettingsPage() {
     return regex.test(number.replace(/\s+/g, ''));
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // FOLDER HANDLERS
-  // ═══════════════════════════════════════════════════════════════
-
   const openCreateFolderModal = () => {
     setEditingFolder(null);
     setFolderForm({ name: '', description: '', coverImage: '', coverKey: '' });
@@ -326,10 +324,6 @@ export default function SettingsPage() {
     }
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // PORTFOLIO PHOTO UPLOAD
-  // ═══════════════════════════════════════════════════════════════
-
   const handlePortfolioPhotoUpload = async (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -367,8 +361,6 @@ export default function SettingsPage() {
     setUploadingPhoto(true);
 
     try {
-
-      // 🆕 Convert to WebP
       const webpFile = await convertToWebP(file, 0.85);
 
       const uploadResult = await requestUploadUrl({
@@ -396,14 +388,14 @@ export default function SettingsPage() {
       
       const publicUrl = `https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev/${uploadResult.key!}`;
 
-const result = await addPortfolioPhoto(user.uid, {
-  id: photoId,
-  url: publicUrl,
-  thumbUrl: publicUrl,
-  storageKey: uploadResult.key!,
-  thumbKey: uploadResult.key!,
-  caption: '',
-});
+      const result = await addPortfolioPhoto(user.uid, {
+        id: photoId,
+        url: publicUrl,
+        thumbUrl: publicUrl,
+        storageKey: uploadResult.key!,
+        thumbKey: uploadResult.key!,
+        caption: '',
+      });
 
       if (!result.success) {
         throw new Error(result.error);
@@ -513,10 +505,6 @@ const result = await addPortfolioPhoto(user.uid, {
     }
   };
 
-  // ═══════════════════════════════════════════════════════════════
-  // SAVE
-  // ═══════════════════════════════════════════════════════════════
-
   const handleSave = async () => {
     if (!firestore || !user) return;
     
@@ -589,6 +577,7 @@ const result = await addPortfolioPhoto(user.uid, {
         aboutBio: formData.aboutBio || '',
         services: formData.services || [],
         packages: formData.packages || [],
+        addOns: formData.addOns || [],
         videoUrl: formData.videoUrl || '',
         stats: formData.stats || { years: 5, clients: 100, appreciations: 0 },
         theme: formData.theme || 'mixed',
@@ -696,7 +685,6 @@ const result = await addPortfolioPhoto(user.uid, {
           </TabsTrigger>
         </TabsList>
 
-        {/* STUDIO TAB */}
         <TabsContent value="studio" className="space-y-8">
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
@@ -884,15 +872,6 @@ const result = await addPortfolioPhoto(user.uid, {
                           {copiedUrl ? 'Copied' : 'Copy'}
                         </Button>
                       </div>
-
-                      {isOwner && (
-                        <div className="flex items-start gap-3 p-4 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                          <Sparkles className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
-                          <p className="text-[11px] text-purple-200/90 leading-relaxed">
-                            <strong>Owner Account:</strong> Aap unlimited subdomain changes kar sakte hain. Koi 30-din limit nahi.
-                          </p>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="space-y-6 pt-10 border-t-2 border-primary/20">
@@ -933,9 +912,7 @@ const result = await addPortfolioPhoto(user.uid, {
           </Card>
         </TabsContent>
 
-        {/* PORTFOLIO TAB */}
         <TabsContent value="portfolio" className="space-y-8">
-          {/* Theme Card */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
               <CardTitle className="text-3xl font-headline font-bold flex items-center gap-3">
@@ -970,7 +947,6 @@ const result = await addPortfolioPhoto(user.uid, {
             </CardContent>
           </Card>
 
-          {/* PORTFOLIO FOLDERS SECTION */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between flex-wrap gap-4">
               <div>
@@ -990,7 +966,6 @@ const result = await addPortfolioPhoto(user.uid, {
               </Button>
             </CardHeader>
             <CardContent className="p-10 space-y-8">
-              {/* Guidance Box */}
               <div className="p-6 rounded-2xl bg-primary/5 border border-primary/20 space-y-3">
                 <div className="flex items-start gap-3">
                   <Info className="w-5 h-5 text-primary shrink-0 mt-0.5" />
@@ -999,29 +974,11 @@ const result = await addPortfolioPhoto(user.uid, {
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       Folders aapke kaam ko categories mein organize karte hain. Client jab aapka portfolio kholega,
                       toh usay <strong>gol circle folders</strong> dikhenge — Instagram highlights jaisa.
-                      Woh folder pe click karke us event ki saari photos dekh sakta hai.
-                    </p>
-                    <div className="pt-2 space-y-1">
-                      <p className="text-xs font-bold text-foreground">Suggested folders:</p>
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        {['Mehndi', 'Barat', 'Walima', 'Birthday', 'Aqeeqa', 'Nikkah', 'Fashion', 'Product'].map((s) => (
-                          <span key={s} className="text-[10px] px-2 py-1 rounded-full bg-primary/10 border border-primary/20 font-bold">
-                            {s}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground italic pt-1">
-                      ⚠️ Folder nahi banaye toh saari photos ek hi "All Photos" grid mein dikhengi.
-                    </p>
-                    <p className="text-[11px] text-primary font-bold pt-1">
-                      💡 Folder pe click karein → andar photos upload karein
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Folder List — Clickable */}
               {portfolioFolders.length === 0 ? (
                 <div className="text-center py-16 border-2 border-dashed border-border/40 rounded-[2rem]">
                   <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
@@ -1048,7 +1005,6 @@ const result = await addPortfolioPhoto(user.uid, {
                           className="flex flex-col items-center gap-3 group cursor-pointer"
                         >
                           <div className="relative">
-                            {/* Circle Folder */}
                             <div
                               className="w-[100px] h-[100px] rounded-full overflow-hidden border-2 group-hover:scale-105 transition-all"
                               style={{
@@ -1067,7 +1023,6 @@ const result = await addPortfolioPhoto(user.uid, {
                                 </div>
                               )}
                             </div>
-                            {/* Edit/Delete buttons */}
                             <div className="absolute -top-1 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={(e) => {
@@ -1181,6 +1136,9 @@ const result = await addPortfolioPhoto(user.uid, {
             </CardContent>
           </Card>
 
+          {/* ═══════════════════════════════════════════════ */}
+          {/* PRICING PACKAGES (with image upload) */}
+          {/* ═══════════════════════════════════════════════ */}
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between">
               <CardTitle className="text-2xl font-headline font-bold">Pricing Packages</CardTitle>
@@ -1188,7 +1146,7 @@ const result = await addPortfolioPhoto(user.uid, {
                 size="sm"
                 variant="outline"
                 className="rounded-xl gap-2"
-                onClick={() => updateField('packages', [...formData.packages, { name: '', price: 0, features: [] }])}
+                onClick={() => updateField('packages', [...formData.packages, { name: '', price: 0, description: '', features: [], image: '', imageKey: '' }])}
               >
                 <Plus className="w-4 h-4" /> Add Package
               </Button>
@@ -1199,6 +1157,23 @@ const result = await addPortfolioPhoto(user.uid, {
               ) : (
                 formData.packages.map((pkg: any, idx: number) => (
                   <div key={idx} className="p-6 rounded-2xl bg-background/40 border border-border/30 space-y-4">
+                    {/* Package Image */}
+                    <div className="space-y-2">
+                      <Label>Package Image</Label>
+                      <ImageUploader
+                        label=""
+                        value={pkg.image || ''}
+                        onChange={(url, key) => {
+                          const newPkgs = [...formData.packages];
+                          newPkgs[idx] = { ...pkg, image: url, imageKey: key || '' };
+                          updateField('packages', newPkgs);
+                        }}
+                        userId={user?.uid || ''}
+                        type="logo"
+                        maxSizeMB={5}
+                      />
+                    </div>
+
                     <div className="flex gap-3 items-start">
                       <Input
                         value={pkg.name}
@@ -1230,16 +1205,87 @@ const result = await addPortfolioPhoto(user.uid, {
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <Textarea
-                      value={(pkg.features || []).join('\n')}
+
+                    <Input
+                      value={pkg.description || ''}
                       onChange={(e) => {
                         const newPkgs = [...formData.packages];
-                        newPkgs[idx] = { ...pkg, features: e.target.value.split('\n').filter(f => f.trim()) };
+                        newPkgs[idx] = { ...pkg, description: e.target.value };
                         updateField('packages', newPkgs);
                       }}
-                      placeholder="Features (one per line)"
-                      className="rounded-xl min-h-[80px] text-sm"
+                      placeholder="Short description (optional)"
+                      className="h-12 rounded-xl"
                     />
+
+                    <div className="space-y-2">
+                      <Label className="text-xs">Features (one per line)</Label>
+                      <Textarea
+                        value={(pkg.features || []).join('\n')}
+                        onChange={(e) => {
+                          const newPkgs = [...formData.packages];
+                          newPkgs[idx] = { ...pkg, features: e.target.value.split('\n').filter(f => f.trim()) };
+                          updateField('packages', newPkgs);
+                        }}
+                        placeholder="Photo coverage (8 hours)&#10;Video coverage (4 hours)&#10;Drone shots&#10;300+ edited photos"
+                        className="rounded-xl min-h-[100px] text-sm"
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ═══════════════════════════════════════════════ */}
+          {/* ADD-ONS */}
+          {/* ═══════════════════════════════════════════════ */}
+          <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-border/30 px-10 py-10 flex flex-row items-center justify-between">
+              <CardTitle className="text-2xl font-headline font-bold">Add-ons</CardTitle>
+              <Button
+                size="sm"
+                variant="outline"
+                className="rounded-xl gap-2"
+                onClick={() => updateField('addOns', [...(formData.addOns || []), { name: '', price: 0 }])}
+              >
+                <Plus className="w-4 h-4" /> Add Add-on
+              </Button>
+            </CardHeader>
+            <CardContent className="p-10 space-y-4">
+              {(formData.addOns || []).length === 0 ? (
+                <p className="text-center text-muted-foreground italic py-8">No add-ons yet.</p>
+              ) : (
+                (formData.addOns || []).map((addon: any, idx: number) => (
+                  <div key={idx} className="flex gap-3">
+                    <Input
+                      value={addon.name}
+                      onChange={(e) => {
+                        const newAddOns = [...(formData.addOns || [])];
+                        newAddOns[idx] = { ...addon, name: e.target.value };
+                        updateField('addOns', newAddOns);
+                      }}
+                      placeholder="Add-on name (e.g., Drone Coverage)"
+                      className="h-12 rounded-xl flex-1"
+                    />
+                    <Input
+                      type="number"
+                      value={addon.price}
+                      onChange={(e) => {
+                        const newAddOns = [...(formData.addOns || [])];
+                        newAddOns[idx] = { ...addon, price: Number(e.target.value) };
+                        updateField('addOns', newAddOns);
+                      }}
+                      placeholder="Price"
+                      className="h-12 rounded-xl w-32"
+                    />
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-12 w-12 text-destructive rounded-xl"
+                      onClick={() => updateField('addOns', (formData.addOns || []).filter((_: any, i: number) => i !== idx))}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 ))
               )}
@@ -1267,7 +1313,6 @@ const result = await addPortfolioPhoto(user.uid, {
           </Card>
         </TabsContent>
 
-        {/* PHOTOS TAB */}
         <TabsContent value="photos" className="space-y-8">
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
@@ -1292,7 +1337,6 @@ const result = await addPortfolioPhoto(user.uid, {
                   <p className="font-bold text-sm">💡 Photos ko folders mein assign karein</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Har photo ke neeche dropdown hai. Us se folder choose karein (Mehndi, Barat, etc).
-                    Ya folder pe click karke andar upload karein.
                   </p>
                 </div>
               </div>
@@ -1379,7 +1423,6 @@ const result = await addPortfolioPhoto(user.uid, {
           </Card>
         </TabsContent>
 
-        {/* ACCOUNT TAB */}
         <TabsContent value="account" className="space-y-8">
           <Card className="bg-card/40 border-border/50 rounded-[2.5rem] overflow-hidden shadow-2xl">
             <CardHeader className="border-b border-border/30 px-10 py-10">
@@ -1419,9 +1462,6 @@ const result = await addPortfolioPhoto(user.uid, {
         </TabsContent>
       </Tabs>
 
-      {/* ═══════════════════════════════════════════════════════ */}
-      {/* FOLDER MODAL */}
-      {/* ═══════════════════════════════════════════════════════ */}
       {showFolderModal && (
         <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-xl flex items-center justify-center p-4 overflow-y-auto">
           <Card className="w-full max-w-lg rounded-[2rem] my-8">
@@ -1455,9 +1495,6 @@ const result = await addPortfolioPhoto(user.uid, {
                     className="h-12 rounded-xl"
                     maxLength={30}
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    💡 Examples: Mehndi, Barat, Walima, Birthday, Aqeeqa, Fashion
-                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -1469,9 +1506,6 @@ const result = await addPortfolioPhoto(user.uid, {
                     className="rounded-xl min-h-[80px]"
                     maxLength={150}
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    💡 Client ko yeh description folder ke andar dikhegi
-                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -1486,9 +1520,6 @@ const result = await addPortfolioPhoto(user.uid, {
                     type="logo"
                     maxSizeMB={20}
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    💡 Cover nahi doge toh pehli photo automatically cover ban jayegi
-                  </p>
                 </div>
               </div>
 
