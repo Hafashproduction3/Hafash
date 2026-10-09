@@ -703,14 +703,39 @@ export default function ClientGalleryPage() {
   };
 
 
-  // ✅ View count increment
+  // ✅ Advanced Analytics Tracking
   useEffect(() => {
     if (!firestore || !galleryId || galleryId === 'demo') return;
     const galleryRef = doc(firestore, 'galleries', galleryId);
-    updateDoc(galleryRef, {
+    
+    const updates: any = {
       viewCount: increment(1),
       lastViewedAt: new Date().toISOString(),
-    }).catch(err => console.error('[VIEW_COUNT]', err));
+    };
+
+    // Unique visitor (localStorage-based)
+    try {
+      const visitorKey = `hafash_visitor_${galleryId}`;
+      if (!localStorage.getItem(visitorKey)) {
+        localStorage.setItem(visitorKey, 'true');
+        updates.uniqueVisitors = increment(1);
+      }
+    } catch (e) {}
+
+    // Device type
+    const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    updates[`devices.${isMobileDevice ? 'mobile' : 'desktop'}`] = increment(1);
+
+    // Traffic source
+    const referrer = document.referrer || '';
+    let source = 'direct';
+    if (referrer.includes('whatsapp') || referrer.includes('wa.me')) source = 'whatsapp';
+    else if (referrer.includes('instagram')) source = 'instagram';
+    else if (referrer.includes('facebook')) source = 'facebook';
+    else if (referrer.includes('google')) source = 'google';
+    updates[`sources.${source}`] = increment(1);
+
+    updateDoc(galleryRef, updates).catch(err => console.error('[ANALYTICS]', err));
   }, [firestore, galleryId]);
   const handleFavorite = useCallback(async (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;

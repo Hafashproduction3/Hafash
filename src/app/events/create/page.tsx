@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, useFirestore } from '@/firebase';
-import { collection, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { 
   Calendar as CalendarIcon, User, Camera, ArrowLeft, Loader2, 
   Mail, Phone, Sparkles, PartyPopper, Heart, Crown, Baby, 
@@ -144,13 +144,44 @@ export default function CreateEventPage() {
       const profileSnap = await getDoc(profileRef);
       const profileData = profileSnap.exists() ? profileSnap.data() : {};
 
+      // ✅ TRIAL CHECK — 1 gallery limit + expiry
+      const plan = getUserPlan(profileData.planId, user.email);
+      if (plan.id === 'trial') {
+        // Trial expiry check
+        const trialExpiry = profileData.trialExpiry;
+        if (trialExpiry && new Date() > new Date(trialExpiry)) {
+          toast({
+            variant: "destructive",
+            title: "Trial Expired",
+            description: "Aapka free trial khatam ho gaya. Starter plan (Rs. 499) lein.",
+          });
+          setLoading(false);
+          return;
+        }
+        
+        // Gallery count check
+        const userGalleriesQuery = query(
+          collection(firestore, 'galleries'),
+          where('userId', '==', user.uid)
+        );
+        const userGalleriesSnap = await getDocs(userGalleriesQuery);
+        if (userGalleriesSnap.size >= 1) {
+          toast({
+            variant: "destructive",
+            title: "Trial Limit Reached",
+            description: "Trial mein sirf 1 gallery allowed hai. Starter plan lein for more.",
+          });
+          setLoading(false);
+          return;
+        }
+      }
+
       const galleriesRef = collection(firestore, 'galleries');
       const newDocRef = doc(galleriesRef);
       const newId = newDocRef.id;
       const slug = generateSlug(formData.title);
       
       const now = new Date();
-      const plan = getUserPlan(profileData.planId, user.email);
 
       // ✅ Starter plan: 7 days auto-delete
       // ✅ Other plans: no auto-delete (permanent)

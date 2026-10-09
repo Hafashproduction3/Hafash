@@ -702,8 +702,33 @@ export default function EventManagementPage() {
     <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.viewCount || 0}</p>
   </div>
   <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
-    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Favorites</p>
-    <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{favoritesCount}</p>
+    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Unique Visitors</p>
+    <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.uniqueVisitors || 0}</p>
+  </div>
+</div>
+
+{/* ✅ Downloads + Favorites + Last Viewed */}
+<div className="grid grid-cols-3 gap-4">
+  <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
+    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Downloads</p>
+    <p className="text-3xl font-headline font-bold text-primary drop-shadow-2xl">{event.downloadCount || 0}</p>
+  </div>
+  <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
+    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Favorites</p>
+    <p className="text-3xl font-headline font-bold text-primary drop-shadow-2xl">{favoritesCount}</p>
+  </div>
+  <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
+    <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Last Viewed</p>
+    <p className="text-xs font-headline font-bold text-primary drop-shadow-2xl mt-1">
+      {event.lastViewedAt 
+        ? new Date(event.lastViewedAt).toLocaleDateString('en-PK', { 
+            day: 'numeric', 
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        : 'Never'}
+    </p>
   </div>
 </div>
 
@@ -758,6 +783,25 @@ export default function EventManagementPage() {
                   />
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* ═══ ANALYTICS LINK (Business+) ═══ */}
+          <Card className="bg-gradient-to-br from-primary/10 via-card/60 to-background border border-primary/30 rounded-[3rem] overflow-hidden shadow-2xl">
+            <CardHeader className="p-10 border-b border-primary/20 bg-background/20">
+              <CardTitle className="text-lg font-headline font-bold flex items-center gap-4 text-white">
+                <Zap className="w-6 h-6 text-primary" /> Advanced Analytics
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-10 space-y-6">
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                Detailed insights — traffic sources, device types, aur bahut kuch.
+              </p>
+              <Link href={`/events/${id}/analytics`}>
+                <Button className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-lg">
+                  View Full Analytics <ExternalLinkIcon className="w-4 h-4" />
+                </Button>
+              </Link>
             </CardContent>
           </Card>
 
