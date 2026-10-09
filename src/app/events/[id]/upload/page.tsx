@@ -197,29 +197,31 @@ export default function GalleryUploadPage() {
   const currentPlan = useMemo(() => {
     if (isOwner) {
       return {
-        id: 'business' as PlanId,
-        name: 'Owner (Unlimited)',
+        ...DEFAULT_PLAN,
         storageGb: 999999,
-        zipLimitGb: 999999,
-        price: 'Rs. 0',
-        priceAmount: 0,
-        features: ['Unlimited Storage'],
-        priorityLevel: 999,
-        priorityLabel: 'Owner',
+        // ... (owner)
       };
     }
     const planId = (profile?.planId as PlanId) || 'none';
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId, isOwner]);
-
+  
+  const isTrialActive = useMemo(() => {
+    if (profile?.planId !== 'trial') return false;
+    const trialExpiry = profile?.trialExpiry;
+    if (!trialExpiry) return false;
+    return new Date(trialExpiry).getTime() > Date.now();
+  }, [profile?.planId, profile?.trialExpiry]);
+  
   const isSubscriptionActive = useMemo(() => {
     if (isOwner) return true;
+    
+    // ✅ Trial check
+    if (isTrialActive) return true;
+    
     if (!profile?.planId || currentPlan.id === 'none') return false;
-    const raw = profile?.planExpiryDate;
-    if (!raw) return false;
-    const expiry = typeof raw?.toDate === 'function' ? raw.toDate() : new Date(raw);
-    return expiry.getTime() > Date.now();
-  }, [isOwner, profile?.planId, profile?.planExpiryDate, currentPlan.id]);
+    // ...
+  }, [isOwner, profile?.planId, profile?.planExpiryDate, currentPlan.id, isTrialActive]);
 
   const currentUsageGb = useMemo(() => calculateUsageGb(galleries), [galleries]);
 
