@@ -29,7 +29,6 @@ export interface HafashPlan {
   maxFileSizeGb: number;
   supportLevel: string;
   supportResponseTime: string;
-  // ✅ Trial-specific
   isTrial?: boolean;
   trialDays?: number;
   maxGalleries?: number;
@@ -346,6 +345,18 @@ export function getTrialDaysRemaining(trialExpiry?: string | Date | null): numbe
   const diffMs = expiry.getTime() - now.getTime();
   if (diffMs <= 0) return 0;
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Calculate trial hours remaining
+ */
+export function getTrialHoursRemaining(trialExpiry?: string | Date | null): number {
+  if (!trialExpiry) return 0;
+  const expiry = typeof trialExpiry === 'string' ? new Date(trialExpiry) : trialExpiry;
+  const now = new Date();
+  const diffMs = expiry.getTime() - now.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / (1000 * 60 * 60));
 }
 
 /**

@@ -34,6 +34,8 @@ import {
   Building2,
   UserCheck,
   Briefcase,
+  Gift,
+  Clock,
 } from 'lucide-react';
 import { PaymentWidget } from '@/components/dashboard/PaymentWidget';
 import { Button } from '@/components/ui/button';
@@ -57,11 +59,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { deleteGalleryFiles } from '@/app/actions/storage';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
-import { getUserPlan, calculateUsageGb, isOwnerEmail } from '@/lib/plans';
+import { getUserPlan, calculateUsageGb, isOwnerEmail, getTrialDaysRemaining, getTrialHoursRemaining } from '@/lib/plans';
 import type { Booking } from '@/lib/portfolio-types';
 
 export default function DashboardPage() {
@@ -74,6 +76,7 @@ export default function DashboardPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [galleryToDelete, setGalleryToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [startingTrial, setStartingTrial] = useState(false);
 
   // ─── Galleries ───
   const galleriesQuery = useMemo(() => {
@@ -263,6 +266,15 @@ export default function DashboardPage() {
     return planExpiryDate.getTime() > Date.now();
   }, [profile?.planId, currentPlan.id, planExpiryDate, user?.email]);
 
+  // ─── Trial State ───
+  const isTrial = profile?.planId === 'trial';
+  const trialExpiry = profile?.trialExpiry;
+  const trialDaysLeft = isTrial ? getTrialDaysRemaining(trialExpiry) : 0;
+  const trialHoursLeft = isTrial ? getTrialHoursRemaining(trialExpiry) : 0;
+  const isTrialExpired = isTrial && trialDaysLeft === 0 && trialHoursLeft === 0;
+  const hasTrialStarted = !!profile?.trialStartedAt;
+  const canStartTrial = !hasTrialStarted && !hasActivePlan && !isOwnerEmail(user?.email);
+
   const daysUntilExpiry = useMemo(() => {
     if (!planExpiryDate) return null;
     return Math.ceil((planExpiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -273,6 +285,40 @@ export default function DashboardPage() {
   const usagePercent = storageLimitGb > 0 ? Math.min((currentUsageGb / storageLimitGb) * 100, 100) : 0;
   const isNearLimit = usagePercent >= 90 && usagePercent < 100;
   const isOverLimit = usagePercent >= 100;
+
+  // ─── Start Trial Function ───
+  const handleStartTrial = useCallback(async () => {
+    if (!firestore || !user || startingTrial) return;
+
+    setStartingTrial(true);
+    try {
+      const now = new Date();
+      const expiry = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000); // 3 days
+
+      await updateDoc(doc(firestore, 'users', user.uid), {
+        planId: 'trial',
+        trialStartedAt: now.toISOString(),
+        trialExpiry: expiry.toISOString(),
+        planStatus: 'trial',
+        planActivatedAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      });
+
+      toast({
+        title: "🎁 Free Trial Started!",
+        description: "3 din ka trial shuru. 1 gallery banao aur clients ko share karo!",
+      });
+    } catch (err: any) {
+      console.error('[START_TRIAL]', err);
+      toast({
+        variant: "destructive",
+        title: "Trial Start Failed",
+        description: err.message || "Please try again.",
+      });
+    } finally {
+      setStartingTrial(false);
+    }
+  }, [firestore, user, startingTrial, toast]);
 
   // ─── Stats ───
   const stats = useMemo(() => {
@@ -455,8 +501,65 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* ═══ TRIAL ACTIVE BANNER ═══ */}
+      {!profileLoading && isTrial && !isTrialExpired && (
+        <div className="relative overflow-hidden rounded-2xl border border-primary/40 bg-gradient-to-r from-primary/15 via-primary/10 to-card/40 backdrop-blur-xl p-5 shadow-lg">
+          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
+          <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="h-12 w-12 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+                <Gift className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-headline font-bold text-lg text-white flex items-center gap-2">
+                  🎁 Free Trial Active
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-primary bg-primary/15 border border-primary/30 px-2 py-0.5 rounded-md">
+                    {trialDaysLeft > 0 ? `${trialDaysLeft} days left` : `${trialHoursLeft} hours left`}
+                  </span>
+                </h3>
+                <p className="text-[12px] text-muted-foreground mt-0.5">
+                  1 Gallery · 5 GB Storage · Expires on {new Date(trialExpiry).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              </div>
+            </div>
+            <Link href="/storage" className="w-full md:w-auto shrink-0">
+              <Button className="w-full md:w-auto h-11 px-6 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-[12px] gap-1.5 group shadow-lg shadow-primary/25">
+                Upgrade to Starter — Rs. 499
+                <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ TRIAL EXPIRED BANNER ═══ */}
+      {!profileLoading && isTrial && isTrialExpired && (
+        <div className="relative overflow-hidden rounded-2xl border border-red-500/40 bg-red-500/10 p-5 shadow-lg">
+          <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-red-500/10 blur-3xl pointer-events-none" />
+          <div className="relative flex flex-col md:flex-row items-start md:items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-red-500/20 flex items-center justify-center shrink-0">
+              <AlertTriangle className="w-6 h-6 text-red-500" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-headline font-bold text-lg text-white">
+                ⚠️ Aapka Free Trial Expire Ho Gaya Hai
+              </h3>
+              <p className="text-sm text-white/80 mt-1">
+                Trial khatam ho gaya. Starter plan lein aur galleries continue karein.
+              </p>
+            </div>
+            <Link href="/storage" className="w-full md:w-auto shrink-0">
+              <Button className="w-full md:w-auto rounded-xl bg-red-500 text-white hover:bg-red-600 font-bold gap-2">
+                Upgrade — Rs. 499
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ═══ PLAN EXPIRY WARNING BANNER ═══ */}
-      {!profileLoading && daysUntilExpiry !== null && !isOwnerEmail(user?.email) && (
+      {!profileLoading && daysUntilExpiry !== null && !isOwnerEmail(user?.email) && !isTrial && (
         <>
           {daysUntilExpiry < 0 && (
             <div className="relative overflow-hidden rounded-2xl border border-red-500/40 bg-red-500/10 p-5 shadow-lg">
@@ -658,8 +761,84 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ═══ NO PLAN ═══ */}
-      {!profileLoading && !hasActivePlan && (
+      {/* ═══ START FREE TRIAL ═══ */}
+      {!profileLoading && canStartTrial && (
+        <div className="relative overflow-hidden rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-card/60 to-card/40 backdrop-blur-xl p-6 md:p-8 shadow-lg">
+          <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-primary/15 blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-20 -left-20 w-48 h-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+
+          <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="flex items-start gap-4 flex-1">
+              <div className="h-14 w-14 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center shrink-0 shadow-lg shadow-primary/20">
+                <Gift className="w-7 h-7 text-primary" />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-headline font-bold text-xl text-white">
+                    Start Your Free Trial
+                  </h3>
+                  <span className="text-[9px] font-bold uppercase tracking-widest text-primary bg-primary/15 border border-primary/30 px-2 py-0.5 rounded-md">
+                    3 Days Free
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Try Hafash free for 3 days. No credit card required.
+                </p>
+                <div className="flex flex-wrap items-center gap-4 pt-1">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    </div>
+                    <span className="text-xs font-bold text-white/80">1 Gallery</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    </div>
+                    <span className="text-xs font-bold text-white/80">5 GB Storage</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                    </div>
+                    <span className="text-xs font-bold text-white/80">No Credit Card</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full md:w-auto shrink-0 space-y-3">
+              <Button
+                onClick={handleStartTrial}
+                disabled={startingTrial}
+                className="w-full md:w-auto h-14 px-8 rounded-2xl bg-gradient-to-br from-primary via-primary to-primary/90 text-primary-foreground hover:from-primary/90 hover:to-primary/80 font-bold text-sm gap-2 shadow-lg shadow-primary/30 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/40 transition-all duration-300 active:scale-95 group"
+              >
+                {startingTrial ? (
+                  <>
+                    <Clock className="w-5 h-5 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Gift className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    Start Free Trial
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  </>
+                )}
+              </Button>
+              <p className="text-center text-[10px] text-muted-foreground">
+                Or{" "}
+                <Link href="/storage" className="text-primary hover:underline font-bold">
+                  view paid plans
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ NO PLAN (jab trial nahi chala, plan nahi hai, aur trial start nahi hua) ═══ */}
+      {!profileLoading && !hasActivePlan && !canStartTrial && !isTrial && (
         <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/8 via-card/60 to-card/40 backdrop-blur-xl p-4 md:p-5 shadow-lg">
           <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
@@ -692,7 +871,7 @@ export default function DashboardPage() {
       )}
 
       {/* ═══ STORAGE ═══ */}
-      {!profileLoading && hasActivePlan && (
+      {!profileLoading && (hasActivePlan || isTrial) && (
         <div className={cn(
           "relative overflow-hidden rounded-2xl border backdrop-blur-xl p-5 shadow-lg transition-all duration-500",
           isOverLimit ? "border-destructive/40 bg-destructive/5" :
