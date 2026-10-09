@@ -1,12 +1,12 @@
 /**
  * Hafash Subscription Plan Definitions
- * 4 Plans: Starter, Professional, Business, Enterprise
+ * 5 Plans: Trial, Starter, Professional, Business, Enterprise
  * 
  * NOTE: Enterprise plan includes Full Custom Domain,
  * but domain cost (registration + renewal) is paid separately by photographer.
  */
 
-export type PlanId = 'starter' | 'professional' | 'business' | 'enterprise';
+export type PlanId = 'trial' | 'starter' | 'professional' | 'business' | 'enterprise';
 
 export interface HafashPlan {
   id: PlanId | 'none';
@@ -29,6 +29,12 @@ export interface HafashPlan {
   maxFileSizeGb: number;
   supportLevel: string;
   supportResponseTime: string;
+  // ✅ Trial-specific
+  isTrial?: boolean;
+  trialDays?: number;
+  maxGalleries?: number;
+  galleryExpiryDays?: number;
+  watermark?: boolean;
   domainInfo?: {
     available: boolean;
     cost: string;
@@ -38,6 +44,45 @@ export interface HafashPlan {
 }
 
 export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
+  trial: {
+    id: 'trial',
+    name: 'Free Trial',
+    storageGb: 5,
+    zipLimitGb: 999,
+    price: 'Free',
+    priceAmount: 0,
+    yearlyPrice: 'Free',
+    yearlyPriceAmount: 0,
+    features: [
+      '🎁 3-Day Free Trial',
+      '📁 5GB Hafash Drive Storage',
+      '🖼️ 1 Gallery Only',
+      '📸 Max 500 Photos',
+      '⬇️ Download All Originals',
+      '⚠️ Hafash Watermark (Forced)',
+      '⏰ Gallery Expires in 3 days',
+      '❌ No Custom Branding',
+      '❌ No Video Upload',
+      '❌ No Photographer\'s Note',
+      '📧 Email Support',
+    ],
+    priorityLevel: 0,
+    priorityLabel: 'Trial',
+    driveEnabled: false,
+    customBranding: false,
+    customSubdomain: false,
+    customDomain: false,
+    whiteLabel: false,
+    maxFolderDepth: 1,
+    maxFileSizeGb: 1,
+    supportLevel: 'Email',
+    supportResponseTime: '48 hours',
+    isTrial: true,
+    trialDays: 3,
+    maxGalleries: 1,
+    galleryExpiryDays: 3,
+    watermark: true,
+  },
   starter: {
     id: 'starter',
     name: 'Starter',
@@ -134,7 +179,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     priorityLabel: 'Premium',
     driveEnabled: true,
     customBranding: true,
-    customSubdomain: false,   // ✅ CHANGED
+    customSubdomain: false,
     customDomain: false,
     whiteLabel: false,
     maxFolderDepth: 8,
@@ -154,7 +199,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     features: [
       '📁 200GB Hafash Drive Storage',
       '✅ Everything in Business',
-      '🌐 Custom Subdomain (yourname.hafash.pk)',   // ✅ ADDED
+      '🌐 Custom Subdomain (yourname.hafash.pk)',
       '🌐 Full Custom Domain (ahmedphotography.com)',
       '⚪ White Label (Complete Hafash Removal)',
       '📊 Advanced Analytics',
@@ -173,7 +218,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     priorityLabel: 'Enterprise',
     driveEnabled: true,
     customBranding: true,
-    customSubdomain: true,   // ✅ TRUE
+    customSubdomain: true,
     customDomain: true,
     whiteLabel: true,
     maxFolderDepth: 15,
@@ -251,7 +296,7 @@ export const OWNER_PLAN: HafashPlan = {
     'Unlimited Drive',
     'All Features Unlocked',
     'Custom Branding',
-    'Custom Subdomain',        // ✅ ADDED
+    'Custom Subdomain',
     'Full Custom Domain',
     'White Label',
     'Priority Processing',
@@ -261,7 +306,7 @@ export const OWNER_PLAN: HafashPlan = {
   priorityLabel: 'Owner',
   driveEnabled: true,
   customBranding: true,
-  customSubdomain: true,       // ✅ TRUE (you had false)
+  customSubdomain: true,
   customDomain: true,
   whiteLabel: true,
   maxFolderDepth: 999,
@@ -280,6 +325,27 @@ export function getUserPlan(planId?: string | null, email?: string | null): Hafa
   if (!planId) return NO_PLAN;
   if (planId in HAFASH_PLANS) return HAFASH_PLANS[planId as PlanId];
   return NO_PLAN;
+}
+
+/**
+ * Check if trial is expired
+ */
+export function isTrialExpired(trialExpiry?: string | Date | null): boolean {
+  if (!trialExpiry) return false;
+  const expiry = typeof trialExpiry === 'string' ? new Date(trialExpiry) : trialExpiry;
+  return new Date() > expiry;
+}
+
+/**
+ * Calculate trial days remaining
+ */
+export function getTrialDaysRemaining(trialExpiry?: string | Date | null): number {
+  if (!trialExpiry) return 0;
+  const expiry = typeof trialExpiry === 'string' ? new Date(trialExpiry) : trialExpiry;
+  const now = new Date();
+  const diffMs = expiry.getTime() - now.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
 /**
