@@ -879,7 +879,7 @@ export default function SettingsPage() {
                         <div>
                           <Label className="text-primary">🌐 Personal Subdomain</Label>
                           <p className="text-xs text-muted-foreground mt-2">
-                            Enterprise plan mein aapko apna personal portfolio URL milega
+                            Enterprise plan mein aapko apna personal portfolio URL aur custom branding milega
                           </p>
                         </div>
                         <Badge className="bg-amber-500/20 text-amber-500 border-amber-500/30 text-[10px] font-bold uppercase tracking-widest gap-1.5">
@@ -894,7 +894,7 @@ export default function SettingsPage() {
                         <div>
                           <p className="font-headline font-bold text-xl">Upgrade to Enterprise</p>
                           <p className="text-xs text-muted-foreground mt-2 max-w-md mx-auto leading-relaxed">
-                            Rs. 3,500/month mein apna personal subdomain <strong className="text-primary">yourname.hafash.pk</strong> aur full custom domain milega
+                            Rs. 3,500/month mein apna personal subdomain <strong className="text-primary">yourname.hafash.pk</strong> aur custom branding milega
                           </p>
                         </div>
                         <Link href="/storage">

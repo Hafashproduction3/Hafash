@@ -117,7 +117,7 @@ export async function reserveSubdomain(
 }
 
 /**
- * Update subdomain — OWNER UNLIMITED + PHOTOGRAPHER LIMIT
+ * Update subdomain — OWNER UNLIMITED + ENTERPRISE ONLY
  */
 export async function updateSubdomain(
   userId: string,
@@ -144,6 +144,15 @@ export async function updateSubdomain(
     const userData = userSnap.data() || {};
     const userEmail = userData.email || null;
     const isOwner = isOwnerEmail(userEmail);
+    const planId = userData.planId || 'none';
+
+    // ✅ ENTERPRISE CHECK — Sirf Enterprise ya Owner
+    if (!isOwner && planId !== 'enterprise') {
+      return { 
+        success: false, 
+        error: 'Subdomain sirf Enterprise plan mein available hai. Upgrade karein.' 
+      };
+    }
 
     // Check if subdomain taken
     const publicSnap = await adminDb

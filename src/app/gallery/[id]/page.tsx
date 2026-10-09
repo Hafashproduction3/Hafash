@@ -1298,7 +1298,7 @@ export default function ClientGalleryPage() {
   if (!gallery) return null;
 
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
-  const isCustomBrandingActive = photographerPlan !== 'starter';
+  const isCustomBrandingActive = photographerPlan === 'enterprise';
   const studioName = gallery.studioName || profile?.studioName || 'Professional Studio';
   // ✅ FIXED: freshBranding first (signed URL), then profile, then gallery
   const studioLogo = freshBranding.studioLogo || profile?.studioLogo || gallery.studioLogo;

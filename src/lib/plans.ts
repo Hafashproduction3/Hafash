@@ -1,9 +1,6 @@
 /**
  * Hafash Subscription Plan Definitions
  * 5 Plans: Trial, Starter, Professional, Business, Enterprise
- * 
- * NOTE: Enterprise plan includes Full Custom Domain,
- * but domain cost (registration + renewal) is paid separately by photographer.
  */
 
 export type PlanId = 'trial' | 'starter' | 'professional' | 'business' | 'enterprise';
@@ -34,6 +31,8 @@ export interface HafashPlan {
   maxGalleries?: number;
   galleryExpiryDays?: number;
   watermark?: boolean;
+  analytics?: 'none' | 'basic' | 'advanced';
+  videoQuality?: 'none' | 'hd' | '4k';
   domainInfo?: {
     available: boolean;
     cost: string;
@@ -60,9 +59,11 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
       '⬇️ Download All Originals',
       '⚠️ Hafash Watermark (Forced)',
       '⏰ Gallery Expires in 3 days',
+      '📦 Max 1 GB per photo',
       '❌ No Custom Branding',
       '❌ No Video Upload',
       '❌ No Photographer\'s Note',
+      '❌ No Analytics',
       '📧 Email Support',
     ],
     priorityLevel: 0,
@@ -81,6 +82,8 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     maxGalleries: 1,
     galleryExpiryDays: 3,
     watermark: true,
+    analytics: 'none',
+    videoQuality: 'none',
   },
   starter: {
     id: 'starter',
@@ -95,16 +98,17 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
       '📁 20GB Hafash Drive Storage',
       '🖼️ Max 5 Galleries per month',
       '📸 Max 500 Photos per gallery',
-      '📦 Max 200 MB per photo',
+      '📦 Max 1 GB per photo',
       '⬇️ Download All Originals',
       '🎬 Slideshow & Favorites',
       '🔒 Password Protection',
-      '⚠️ Hafash Watermark (Forced)',
+      '✨ No Watermark',
       '⏰ Gallery Expires in 7 days',
       '👥 Client Download Limit: 50 photos/gallery',
       '❌ No Video Upload',
       '❌ No Photographer\'s Note',
       '❌ No Client Reply',
+      '❌ No Analytics',
       '📧 Email Support (48 hours)',
     ],
     priorityLevel: 1,
@@ -118,6 +122,9 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     maxFileSizeGb: 1,
     supportLevel: 'Email',
     supportResponseTime: '48 hours',
+    watermark: false,
+    analytics: 'none',
+    videoQuality: 'none',
   },
   professional: {
     id: 'professional',
@@ -132,7 +139,7 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
       '📁 50GB Hafash Drive Storage',
       '🖼️ Unlimited Galleries',
       '📸 Unlimited Photos per gallery',
-      '📦 Unlimited File Size',
+      '📦 Max 5 GB per photo',
       '🎥 Video Upload (HD)',
       '✨ No Watermark',
       '⏰ Galleries Never Expire',
@@ -155,6 +162,9 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     maxFileSizeGb: 5,
     supportLevel: 'Email',
     supportResponseTime: '24 hours',
+    watermark: false,
+    analytics: 'none',
+    videoQuality: 'hd',
   },
   business: {
     id: 'business',
@@ -168,16 +178,15 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     features: [
       '📁 100GB Hafash Drive Storage',
       '✅ Everything in Professional',
-      '🎨 Custom Logo on Gallery',
-      '📝 Custom Studio Name',
-      '🚫 Hafash Logo Hidden',
-      '📊 Basic Analytics (Views, Favorites)',
+      '📦 Max 10 GB per photo',
+      '🎥 Video Upload (HD)',
+      '📊 Basic Analytics (Views, Favorites, Downloads)',
       '📧 Priority Email Support (12 hours)',
     ],
     priorityLevel: 3,
     priorityLabel: 'Premium',
     driveEnabled: true,
-    customBranding: true,
+    customBranding: false,
     customSubdomain: false,
     customDomain: false,
     whiteLabel: false,
@@ -185,6 +194,9 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     maxFileSizeGb: 10,
     supportLevel: 'Priority Email',
     supportResponseTime: '12 hours',
+    watermark: false,
+    analytics: 'basic',
+    videoQuality: 'hd',
   },
   enterprise: {
     id: 'enterprise',
@@ -198,57 +210,28 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     features: [
       '📁 200GB Hafash Drive Storage',
       '✅ Everything in Business',
-      '🌐 Custom Subdomain (yourname.hafash.pk)',
-      '🌐 Full Custom Domain (ahmedphotography.com)',
+      '📦 Max 25 GB per photo',
+      '🎥 Video Upload (4K)',
+      '🎨 Custom Branding (Logo + Studio Name)',
       '⚪ White Label (Complete Hafash Removal)',
-      '📊 Advanced Analytics',
+      '🌐 Custom Subdomain (yourname.hafash.pk)',
+      '📊 Advanced Analytics (Charts, Traffic, Geographic)',
       '📧 Priority Email + Call Support (6 hours)',
-      '👤 Dedicated Account Manager',
-      '',
-      '🌐 CUSTOM DOMAIN INCLUDED',
-      '📌 Domain registration included',
-      '💰 Domain cost paid separately (yearly)',
-      '💵 Yearly fee: Rs. 3,000-5,000',
-      '🔧 Setup handled by Hafash',
-      '✅ Photographer only pays domain cost',
-      '⚠️ Cost depends on TLD (.com, .pk)',
     ],
     priorityLevel: 4,
     priorityLabel: 'Enterprise',
     driveEnabled: true,
     customBranding: true,
     customSubdomain: true,
-    customDomain: true,
+    customDomain: false,
     whiteLabel: true,
     maxFolderDepth: 15,
     maxFileSizeGb: 25,
     supportLevel: 'Priority Email + Call',
     supportResponseTime: '6 hours',
-    domainInfo: {
-      available: true,
-      cost: 'Rs. 3,000 - Rs. 5,000 / year',
-      description: 'Full custom domain (ahmedphotography.com) included. Domain cost is paid separately by photographer.',
-      howItWorks: [
-        '1. Photographer Enterprise Plan leta hai (Rs. 3,500/month)',
-        '2. Hafash Settings → Custom Domain khole',
-        '3. Apna domain type kare (ahmedphotography.com)',
-        '4. Hafash availability check kare',
-        '5. Photographer domain cost pay kare (yearly)',
-        '6. Hafash domain register kare',
-        '7. DNS + SSL automatically setup ho',
-        '8. 5 minute mein live! ahmedphotography.com',
-        '',
-        '💰 Domain Cost (Yearly):',
-        '• .com domain: Rs. 3,000-4,000/year',
-        '• .pk domain: Rs. 3,000-5,000/year',
-        '• .photography: Rs. 4,000-5,000/year',
-        '',
-        '⚠️ Yeh cost Hafash ka nahi — domain registrar ka hai.',
-        '📅 Har saal domain renewal fee deni hogi.',
-        '✅ Photographer domain ka owner hoga.',
-        '🔧 Setup + DNS + SSL — Hafash handle karega.',
-      ],
-    },
+    watermark: false,
+    analytics: 'advanced',
+    videoQuality: '4k',
   },
 };
 
@@ -273,6 +256,8 @@ export const NO_PLAN: HafashPlan = {
   maxFileSizeGb: 0,
   supportLevel: 'None',
   supportResponseTime: 'N/A',
+  analytics: 'none',
+  videoQuality: 'none',
 };
 
 export const DEFAULT_PLAN = NO_PLAN;
@@ -298,6 +283,8 @@ export const OWNER_PLAN: HafashPlan = {
     'Custom Subdomain',
     'Full Custom Domain',
     'White Label',
+    'Advanced Analytics',
+    '4K Video',
     'Priority Processing',
     'Owner Account',
   ],
@@ -312,6 +299,8 @@ export const OWNER_PLAN: HafashPlan = {
   maxFileSizeGb: 999,
   supportLevel: 'Owner',
   supportResponseTime: 'N/A',
+  analytics: 'advanced',
+  videoQuality: '4k',
 };
 
 export function isOwnerEmail(email?: string | null): boolean {
@@ -326,18 +315,12 @@ export function getUserPlan(planId?: string | null, email?: string | null): Hafa
   return NO_PLAN;
 }
 
-/**
- * Check if trial is expired
- */
 export function isTrialExpired(trialExpiry?: string | Date | null): boolean {
   if (!trialExpiry) return false;
   const expiry = typeof trialExpiry === 'string' ? new Date(trialExpiry) : trialExpiry;
   return new Date() > expiry;
 }
 
-/**
- * Calculate trial days remaining
- */
 export function getTrialDaysRemaining(trialExpiry?: string | Date | null): number {
   if (!trialExpiry) return 0;
   const expiry = typeof trialExpiry === 'string' ? new Date(trialExpiry) : trialExpiry;
@@ -347,9 +330,6 @@ export function getTrialDaysRemaining(trialExpiry?: string | Date | null): numbe
   return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 }
 
-/**
- * Calculate trial hours remaining
- */
 export function getTrialHoursRemaining(trialExpiry?: string | Date | null): number {
   if (!trialExpiry) return 0;
   const expiry = typeof trialExpiry === 'string' ? new Date(trialExpiry) : trialExpiry;
@@ -359,9 +339,6 @@ export function getTrialHoursRemaining(trialExpiry?: string | Date | null): numb
   return Math.floor(diffMs / (1000 * 60 * 60));
 }
 
-/**
- * Calculates total storage usage across all galleries.
- */
 export function calculateUsageGb(galleries: any[] | null): number {
   if (!galleries || !Array.isArray(galleries)) return 0;
 
@@ -393,9 +370,6 @@ export function calculateUsageGb(galleries: any[] | null): number {
   return totalBytes / (1024 * 1024 * 1024);
 }
 
-/**
- * Hafash Drive ke saath total usage
- */
 export function calculateTotalUsageGb(
   galleries: any[] | null,
   driveItems: any[] | null
