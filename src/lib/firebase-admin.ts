@@ -2,92 +2,71 @@ import * as admin from 'firebase-admin';
 
 /**
  * ═══════════════════════════════════════════════════════════════
- * Firebase Admin SDK — Lazy Initialization
+ * Firebase Admin SDK — Simple Lazy Init (No Proxy)
  * ═══════════════════════════════════════════════════════════════
  * 
- * Yeh production (Vercel) aur local (Firebase Studio) dono mein kaam karega.
- * 
- * Priority:
- * 1. Service Account env vars (production ke liye)
- * 2. Application Default Credentials (Firebase Studio / GCP ke liye)
+ * Proxy use nahi karna — Server Actions mein `this` binding toot jati hai.
+ * Direct instance export karo.
  */
 
-let cachedApp: admin.app.App | null = null;
-let cachedDb: admin.firestore.Firestore | null = null;
-
-function getAdminApp(): admin.app.App {
-  // ✅ Already initialized hai toh wohi return karo
-  if (cachedApp) return cachedApp;
-  
+function initializeAdmin(): admin.app.App {
+  // ✅ Already initialized?
   if (admin.apps.length > 0 && admin.apps[0]) {
-    cachedApp = admin.apps[0];
-    return cachedApp;
+    return admin.apps[0];
   }
 
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const projectId = 
     process.env.FIREBASE_PROJECT_ID || 
     process.env.GCP_PROJECT || 
     process.env.GCLOUD_PROJECT || 
     "hafash-pk";
 
-  // ✅ Try 1: Service Account credentials (production ke liye)
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+  // ✅ Debug log
+  console.log('[FIREBASE_ADMIN] Initializing:', {
+    hasProjectId: !!projectId,
+    hasClientEmail: !!clientEmail,
+    hasPrivateKey: !!privateKey,
+    privateKeyLength: privateKey?.length || 0,
+  });
+
+  // ✅ Try 1: Service Account
   if (privateKey && clientEmail) {
     try {
-      cachedApp = admin.initializeApp({
+      const app = admin.initializeApp({
         credential: admin.credential.cert({
           projectId,
           clientEmail,
           privateKey: privateKey.replace(/\\n/g, '\n'),
         }),
       });
-      console.info("[FIREBASE_ADMIN] ✅ Initialized with Service Account env vars");
-      return cachedApp;
+      console.log('[FIREBASE_ADMIN] ✅ Initialized with Service Account');
+      return app;
     } catch (e: any) {
-      console.error("[FIREBASE_ADMIN] ❌ Service Account init failed:", e.message);
+      console.error('[FIREBASE_ADMIN] ❌ Service Account failed:', e.message);
     }
   }
 
-  // ✅ Try 2: Application Default Credentials (Firebase Studio ke liye)
+  // ✅ Try 2: ADC fallback
   try {
-    cachedApp = admin.initializeApp({ projectId });
-    console.info("[FIREBASE_ADMIN] ✅ Initialized with ADC for project:", projectId);
-    return cachedApp;
+    const app = admin.initializeApp({ projectId });
+    console.log('[FIREBASE_ADMIN] ✅ Initialized with ADC:', projectId);
+    return app;
   } catch (e: any) {
-    console.error("[FIREBASE_ADMIN] ❌ ADC init failed:", e.message);
+    console.error('[FIREBASE_ADMIN] ❌ ADC failed:', e.message);
     throw new Error(
-      "Firebase Admin initialization failed. " +
-      "Please check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY environment variables."
+      'Firebase Admin init failed. Check FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY.'
     );
   }
 }
 
-function getDb(): admin.firestore.Firestore {
-  if (cachedDb) return cachedDb;
-  const app = getAdminApp();
-  cachedDb = admin.firestore(app);
-  return cachedDb;
-}
+// ✅ Initialize ek baar
+const app = initializeAdmin();
 
-/**
- * ✅ adminDb — Proxy object
- * 
- * Yeh Firestore ke saare methods ko forward karta hai lazily.
- * Isse null reference errors nahi aayenge.
- */
-export const adminDb = new Proxy({} as admin.firestore.Firestore, {
-  get(_target, prop: string | symbol) {
-    const db = getDb();
-    const value = (db as any)[prop];
-    if (typeof value === 'function') {
-      return value.bind(db);
-    }
-    return value;
-  },
-});
+// ✅ Direct instance export — NO PROXY
+export const adminDb = admin.firestore(app);
 
-/**
- * ✅ admin namespace export
- */
+// ✅ Admin namespace bhi export
 export { admin };

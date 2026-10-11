@@ -2047,11 +2047,12 @@ export default function ClientGalleryPage() {
       {/* ✅ REVIEW FORM */}
       {!isSelectionMode && galleryId && gallery && (
         <ReviewFormSection
-          galleryId={galleryId}
-          galleryTitle={gallery.title}
-          clientName={gallery.clientName}
-          eventType={gallery.category}
-        />
+        galleryId={galleryId}
+        galleryTitle={gallery.title}
+        clientName={gallery.clientName}
+        eventType={gallery.category}
+        photographerId={gallery.userId || profile?.userId || null}
+      />
       )}
 
     </div>

@@ -14,11 +14,13 @@ export function ReviewFormSection({
   galleryTitle,
   clientName,
   eventType,
+  photographerId,
 }: {
   galleryId: string | null;
   galleryTitle: string;
   clientName: string;
   eventType: string;
+  photographerId?: string | null;
 }) {
   const { toast } = useToast();
   const [rating, setRating] = useState(5);
@@ -30,7 +32,10 @@ export function ReviewFormSection({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!galleryId) return;
+    if (!galleryId) {
+      toast({ variant: 'destructive', title: 'Gallery not ready' });
+      return;
+    }
     if (!text.trim()) {
       toast({ variant: 'destructive', title: 'Please write a review' });
       return;
@@ -44,6 +49,7 @@ export function ReviewFormSection({
         rating,
         text,
         eventType,
+        photographerId: photographerId || null,
       });
 
       if (result.success) {
@@ -105,7 +111,6 @@ export function ReviewFormSection({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6 bg-card/40 backdrop-blur-xl border border-white/10 rounded-3xl p-8 lg:p-10">
-          {/* Rating */}
           <div className="space-y-3">
             <Label className="text-[11px] font-bold uppercase tracking-widest text-primary">
               Your Rating
@@ -135,7 +140,6 @@ export function ReviewFormSection({
             </p>
           </div>
 
-          {/* Name */}
           <div className="space-y-2">
             <Label className="text-[11px] font-bold uppercase tracking-widest text-primary">
               Your Name
@@ -148,7 +152,6 @@ export function ReviewFormSection({
             />
           </div>
 
-          {/* Review Text */}
           <div className="space-y-2">
             <Label className="text-[11px] font-bold uppercase tracking-widest text-primary">
               Your Review
@@ -165,7 +168,6 @@ export function ReviewFormSection({
             </p>
           </div>
 
-          {/* Submit */}
           <Button
             type="submit"
             disabled={submitting || !text.trim()}

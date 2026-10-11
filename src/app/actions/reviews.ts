@@ -22,9 +22,11 @@ export async function submitReview({
   eventType?: string;
   photographerId?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'DB offline' };
-
   try {
+    if (!adminDb) {
+      return { success: false, error: 'DB offline' };
+    }
+
     const gallerySnap = await adminDb.collection('galleries').doc(galleryId).get();
     if (!gallerySnap.exists) {
       return { success: false, error: 'Gallery not found' };
@@ -56,9 +58,10 @@ export async function submitReview({
       approvedAt: null,
     });
 
+    console.log('[SUBMIT_REVIEW] ✅ Saved:', reviewRef.id);
     return { success: true };
   } catch (error: any) {
-    console.error('[SUBMIT_REVIEW]', error);
+    console.error('[SUBMIT_REVIEW] ❌', error);
     return { success: false, error: error.message };
   }
 }
@@ -75,9 +78,9 @@ export async function approveReview({
   galleryId: string;
   reviewId: string;
 }): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'DB offline' };
-
   try {
+    if (!adminDb) return { success: false, error: 'DB offline' };
+
     await adminDb
       .collection('galleries')
       .doc(galleryId)
@@ -90,7 +93,7 @@ export async function approveReview({
 
     return { success: true };
   } catch (error: any) {
-    console.error('[APPROVE_REVIEW]', error);
+    console.error('[APPROVE_REVIEW] ❌', error);
     return { success: false, error: error.message };
   }
 }
@@ -107,9 +110,9 @@ export async function rejectReview({
   galleryId: string;
   reviewId: string;
 }): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'DB offline' };
-
   try {
+    if (!adminDb) return { success: false, error: 'DB offline' };
+
     await adminDb
       .collection('galleries')
       .doc(galleryId)
@@ -121,7 +124,7 @@ export async function rejectReview({
 
     return { success: true };
   } catch (error: any) {
-    console.error('[REJECT_REVIEW]', error);
+    console.error('[REJECT_REVIEW] ❌', error);
     return { success: false, error: error.message };
   }
 }
@@ -138,9 +141,9 @@ export async function deleteReview({
   galleryId: string;
   reviewId: string;
 }): Promise<{ success: boolean; error?: string }> {
-  if (!adminDb) return { success: false, error: 'DB offline' };
-
   try {
+    if (!adminDb) return { success: false, error: 'DB offline' };
+
     await adminDb
       .collection('galleries')
       .doc(galleryId)
@@ -150,7 +153,7 @@ export async function deleteReview({
 
     return { success: true };
   } catch (error: any) {
-    console.error('[DELETE_REVIEW]', error);
+    console.error('[DELETE_REVIEW] ❌', error);
     return { success: false, error: error.message };
   }
 }
@@ -186,9 +189,9 @@ function timestampToMs(obj: any): number {
 export async function getPhotographerReviews(
   photographerId: string
 ): Promise<{ success: boolean; reviews?: any[]; error?: string }> {
-  if (!adminDb) return { success: false, error: 'DB offline' };
-
   try {
+    if (!adminDb) return { success: false, error: 'DB offline' };
+
     const galleriesSnap = await adminDb
       .collection('galleries')
       .where('userId', '==', photographerId)
@@ -196,22 +199,28 @@ export async function getPhotographerReviews(
 
     const allReviews: any[] = [];
 
-    await Promise.all(
-      galleriesSnap.docs.map(async (galleryDoc) => {
-        const reviewsSnap = await galleryDoc.ref
-          .collection('reviews')
-          .where('status', '==', 'approved')
-          .get();
+    for (const galleryDoc of galleriesSnap.docs) {
+      const reviewsSnap = await galleryDoc.ref
+        .collection('reviews')
+        .where('status', '==', 'approved')
+        .get();
 
-        reviewsSnap.docs.forEach((reviewDoc) => {
-          allReviews.push({
-            id: reviewDoc.id,
-            galleryId: galleryDoc.id,
-            ...reviewDoc.data(),
-          });
+      reviewsSnap.docs.forEach((reviewDoc) => {
+        const data = reviewDoc.data();
+        allReviews.push({
+          id: reviewDoc.id,
+          galleryId: galleryDoc.id,
+          clientName: data.clientName || 'Anonymous',
+          rating: data.rating || 0,
+          text: data.text || '',
+          eventType: data.eventType || '',
+          status: data.status || 'pending',
+          photographerId: data.photographerId || '',
+          createdAt: data.createdAt,
+          approvedAt: data.approvedAt,
         });
-      })
-    );
+      });
+    }
 
     allReviews.sort((a, b) => {
       const aT = timestampToMs(a.approvedAt) || timestampToMs(a.createdAt);
@@ -221,7 +230,7 @@ export async function getPhotographerReviews(
 
     return { success: true, reviews: allReviews };
   } catch (error: any) {
-    console.error('[GET_PHOTOGRAPHER_REVIEWS]', error);
+    console.error('[GET_PHOTOGRAPHER_REVIEWS] ❌', error);
     return { success: false, error: error.message };
   }
 }
@@ -234,62 +243,73 @@ export async function getPhotographerReviews(
 export async function getDashboardReviews(
   photographerId: string
 ): Promise<{ success: boolean; reviews?: any[]; error?: string }> {
-  console.log('[GET_DASHBOARD_REVIEWS] Called for:', photographerId);
-  console.log('[GET_DASHBOARD_REVIEWS] adminDb exists:', !!adminDb);
-
-  if (!adminDb) {
-    console.error('[GET_DASHBOARD_REVIEWS] ❌ adminDb is null');
-    return { success: false, error: 'DB offline' };
-  }
-
   try {
-    console.log('[GET_DASHBOARD_REVIEWS] Querying galleries...');
+    console.log('[DASHBOARD_REVIEWS] Called for:', photographerId);
+    console.log('[DASHBOARD_REVIEWS] adminDb exists:', !!adminDb);
+
+    if (!adminDb) {
+      return { success: false, error: 'DB offline — adminDb is null' };
+    }
+
+    console.log('[DASHBOARD_REVIEWS] Querying galleries...');
 
     const galleriesSnap = await adminDb
       .collection('galleries')
       .where('userId', '==', photographerId)
       .get();
 
-    console.log('[GET_DASHBOARD_REVIEWS] Galleries found:', galleriesSnap.size);
+    console.log('[DASHBOARD_REVIEWS] Galleries found:', galleriesSnap.size);
+
+    if (galleriesSnap.empty) {
+      return { success: true, reviews: [] };
+    }
 
     const allReviews: any[] = [];
 
-    await Promise.all(
-      galleriesSnap.docs.map(async (galleryDoc) => {
-        const reviewsSnap = await galleryDoc.ref.collection('reviews').get();
-        console.log(`[GET_DASHBOARD_REVIEWS] Reviews in ${galleryDoc.id}:`, reviewsSnap.size);
-
-        reviewsSnap.docs.forEach((reviewDoc) => {
-          allReviews.push({
-            id: reviewDoc.id,
-            galleryId: galleryDoc.id,
-            galleryTitle: galleryDoc.data().title || 'Gallery',
-            ...reviewDoc.data(),
-          });
+    for (const galleryDoc of galleriesSnap.docs) {
+      const reviewsSnap = await galleryDoc.ref.collection('reviews').get();
+      
+      console.log(`[DASHBOARD_REVIEWS] ${galleryDoc.id}: ${reviewsSnap.size} reviews`);
+      
+      reviewsSnap.docs.forEach((reviewDoc) => {
+        const data = reviewDoc.data();
+        allReviews.push({
+          id: reviewDoc.id,
+          galleryId: galleryDoc.id,
+          galleryTitle: galleryDoc.data().title || 'Gallery',
+          // ✅ Explicit field mapping — spread avoid
+          clientName: data.clientName || 'Anonymous',
+          rating: data.rating || 0,
+          text: data.text || '',
+          eventType: data.eventType || '',
+          status: data.status || 'pending',
+          photographerId: data.photographerId || '',
+          createdAt: data.createdAt,
+          approvedAt: data.approvedAt,
         });
-      })
-    );
+      });
+    }
 
-    console.log('[GET_DASHBOARD_REVIEWS] ✅ Total reviews:', allReviews.length);
+    console.log('[DASHBOARD_REVIEWS] ✅ Total:', allReviews.length);
 
+    // ✅ Sort: pending first, phir date
     allReviews.sort((a, b) => {
-      // Pending reviews sabse upar
       if (a.status === 'pending' && b.status !== 'pending') return -1;
       if (a.status !== 'pending' && b.status === 'pending') return 1;
-
-      // Phir date ke hisaab se
-      const aT = timestampToMs(a.createdAt);
-      const bT = timestampToMs(b.createdAt);
-      return bT - aT;
+      return timestampToMs(b.createdAt) - timestampToMs(a.createdAt);
     });
 
     return { success: true, reviews: allReviews };
+
   } catch (error: any) {
-    console.error('[GET_DASHBOARD_REVIEWS] ❌ FATAL:', {
+    console.error('[DASHBOARD_REVIEWS] ❌ FATAL:', {
       message: error.message,
       code: error.code,
-      stack: error.stack,
+      stack: error.stack?.substring(0, 300),
     });
-    return { success: false, error: error.message };
+    return { 
+      success: false, 
+      error: `${error.code || 'ERROR'}: ${error.message}` 
+    };
   }
 }

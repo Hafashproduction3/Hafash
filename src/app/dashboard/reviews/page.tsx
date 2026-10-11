@@ -8,12 +8,11 @@ import {
   Clock, CheckCircle2, XCircle, ArrowLeft
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { cn } from '@/lib/utils';
-import Link from 'next/link';
 import {
   getDashboardReviews,
   approveReview,
@@ -32,25 +31,56 @@ export default function DashboardReviewsPage() {
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   const loadReviews = useCallback(async () => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      console.log('[LOAD_REVIEWS] No user uid');
+      return;
+    }
+    
     setLoading(true);
+    console.log('[LOAD_REVIEWS] Loading for uid:', user.uid);
+    
     try {
       const result = await getDashboardReviews(user.uid);
-      if (result.success) setReviews(result.reviews || []);
-    } catch (err) {
-      console.error('[LOAD_REVIEWS]', err);
+      
+      console.log('[LOAD_REVIEWS] Result:', {
+        success: result.success,
+        error: result.error,
+        count: result.reviews?.length,
+      });
+
+      if (result.success) {
+        setReviews(result.reviews || []);
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Reviews load failed',
+          description: result.error || 'Unknown error',
+        });
+      }
+    } catch (err: any) {
+      console.error('[LOAD_REVIEWS] ❌ THROWN:', {
+        message: err.message,
+        digest: err.digest,
+      });
+      toast({
+        variant: 'destructive',
+        title: 'Reviews load failed',
+        description: err.message || 'Server error',
+      });
     } finally {
       setLoading(false);
     }
-  }, [user?.uid]);
+  }, [user?.uid, toast]);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    loadReviews();
-  }, [loadReviews]);
+    if (!authLoading && user?.uid) {
+      loadReviews();
+    }
+  }, [authLoading, user?.uid, loadReviews]);
 
   const handleApprove = async (galleryId: string, reviewId: string) => {
     setProcessingId(reviewId);
@@ -134,7 +164,6 @@ export default function DashboardReviewsPage() {
         </div>
       </div>
 
-      {/* Filter tabs */}
       <div className="flex flex-wrap items-center gap-3">
         {(['all', 'pending', 'approved', 'rejected'] as const).map((f) => (
           <Button
@@ -156,7 +185,6 @@ export default function DashboardReviewsPage() {
         ))}
       </div>
 
-      {/* Reviews List */}
       {filtered.length === 0 ? (
         <Card className="bg-card/40 border-border/50 rounded-[2.5rem]">
           <CardContent className="p-16 text-center space-y-4">
@@ -181,10 +209,8 @@ export default function DashboardReviewsPage() {
             >
               <CardContent className="p-6 lg:p-8">
                 <div className="flex flex-col lg:flex-row lg:items-start gap-6">
-                  {/* Left — Review content */}
                   <div className="flex-1 space-y-4">
                     <div className="flex flex-wrap items-center gap-3">
-                      {/* Stars */}
                       <div className="flex gap-0.5">
                         {[1, 2, 3, 4, 5].map((s) => (
                           <Star
@@ -197,7 +223,6 @@ export default function DashboardReviewsPage() {
                         ))}
                       </div>
 
-                      {/* Status badge */}
                       <Badge
                         className={cn(
                           'text-[9px] font-bold uppercase tracking-widest',
@@ -209,7 +234,6 @@ export default function DashboardReviewsPage() {
                         {review.status}
                       </Badge>
 
-                      {/* Gallery */}
                       <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                         {review.galleryTitle}
                       </span>
@@ -226,19 +250,9 @@ export default function DashboardReviewsPage() {
                           {review.eventType}
                         </span>
                       )}
-                      {review.createdAt?.seconds && (
-                        <span>
-                          {new Date(review.createdAt.seconds * 1000).toLocaleDateString('en-PK', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </span>
-                      )}
                     </div>
                   </div>
 
-                  {/* Right — Actions */}
                   <div className="flex flex-wrap lg:flex-col gap-2 lg:w-40">
                     {review.status === 'pending' && (
                       <>
