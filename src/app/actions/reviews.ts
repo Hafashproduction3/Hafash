@@ -11,30 +11,30 @@ export async function submitReview({
   rating,
   text,
   eventType,
+  photographerId: passedPhotographerId,
 }: {
   galleryId: string;
   clientName: string;
   rating: number;
   text: string;
   eventType?: string;
+  photographerId?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   if (!adminDb) return { success: false, error: 'DB offline' };
 
   try {
-    // Get gallery to find photographer
     const gallerySnap = await adminDb.collection('galleries').doc(galleryId).get();
     if (!gallerySnap.exists) {
       return { success: false, error: 'Gallery not found' };
     }
 
     const galleryData = gallerySnap.data() || {};
-    const photographerId = galleryData.userId;
+    const photographerId = passedPhotographerId || galleryData.userId || null;
 
     if (!photographerId) {
       return { success: false, error: 'Photographer not found' };
     }
 
-    // Save review in gallery subcollection
     const reviewRef = adminDb
       .collection('galleries')
       .doc(galleryId)
@@ -49,7 +49,7 @@ export async function submitReview({
       rating: Math.max(1, Math.min(5, Math.round(rating))),
       text: text.trim(),
       eventType: eventType || galleryData.category || '',
-      status: 'pending', // pending | approved | rejected
+      status: 'pending',
       createdAt: new Date(),
       approvedAt: null,
     });
@@ -62,7 +62,7 @@ export async function submitReview({
 }
 
 /**
- * Approve a review (photographer only)
+ * Approve a review
  */
 export async function approveReview({
   galleryId,
@@ -156,7 +156,6 @@ export async function getPhotographerReviews(
   if (!adminDb) return { success: false, error: 'DB offline' };
 
   try {
-    // Get all galleries for this photographer
     const galleriesSnap = await adminDb
       .collection('galleries')
       .where('userId', '==', photographerId)
@@ -164,7 +163,6 @@ export async function getPhotographerReviews(
 
     const allReviews: any[] = [];
 
-    // For each gallery, get approved reviews
     await Promise.all(
       galleriesSnap.docs.map(async (galleryDoc) => {
         const reviewsSnap = await galleryDoc.ref
@@ -182,7 +180,6 @@ export async function getPhotographerReviews(
       })
     );
 
-    // Sort by date (newest first)
     allReviews.sort((a, b) => {
       const aT = a.approvedAt?.seconds || a.createdAt?.seconds || 0;
       const bT = b.approvedAt?.seconds || b.createdAt?.seconds || 0;
@@ -197,7 +194,7 @@ export async function getPhotographerReviews(
 }
 
 /**
- * Get pending + approved reviews for photographer dashboard
+ * Get all reviews (pending + approved + rejected) for dashboard
  */
 export async function getDashboardReviews(
   photographerId: string
@@ -227,7 +224,6 @@ export async function getDashboardReviews(
       })
     );
 
-    // Sort: pending first, then by date
     allReviews.sort((a, b) => {
       if (a.status === 'pending' && b.status !== 'pending') return -1;
       if (a.status !== 'pending' && b.status === 'pending') return 1;
