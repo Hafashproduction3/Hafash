@@ -35,13 +35,13 @@ export default function DashboardReviewsPage() {
       console.log('[LOAD_REVIEWS] No user uid');
       return;
     }
-    
+
     setLoading(true);
     console.log('[LOAD_REVIEWS] Loading for uid:', user.uid);
-    
+
     try {
       const result = await getDashboardReviews(user.uid);
-      
+
       console.log('[LOAD_REVIEWS] Result:', {
         success: result.success,
         error: result.error,
@@ -89,7 +89,7 @@ export default function DashboardReviewsPage() {
       toast({ title: '✅ Review Approved' });
       setReviews((prev) =>
         prev.map((r) =>
-          r.id === reviewId ? { ...r, status: 'approved', approvedAt: new Date() } : r
+          r.id === reviewId ? { ...r, status: 'approved', approvedAt: new Date().toISOString() } : r
         )
       );
     } else {
@@ -248,6 +248,15 @@ export default function DashboardReviewsPage() {
                       {review.eventType && (
                         <span className="text-primary font-bold uppercase tracking-widest text-[10px]">
                           {review.eventType}
+                        </span>
+                      )}
+                      {review.createdAt && (
+                        <span>
+                          {new Date(review.createdAt).toLocaleDateString('en-PK', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
                         </span>
                       )}
                     </div>

@@ -4,6 +4,47 @@ import { adminDb } from '@/lib/firebase-admin';
 
 /**
  * ═══════════════════════════════════════════════════════════════
+ * HELPER — Timestamp → ISO String (serializable for Client Components)
+ * ═══════════════════════════════════════════════════════════════
+ */
+function toISOString(obj: any): string | null {
+  if (!obj) return null;
+  try {
+    if (typeof obj === 'string') return obj;
+    if (obj instanceof Date) return obj.toISOString();
+    if (typeof obj.toDate === 'function') return obj.toDate().toISOString();
+    if (typeof obj.seconds === 'number') {
+      return new Date(obj.seconds * 1000).toISOString();
+    }
+    if (typeof obj._seconds === 'number') {
+      return new Date(obj._seconds * 1000).toISOString();
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function timestampToMs(obj: any): number {
+  if (!obj) return 0;
+  if (typeof obj === 'string') {
+    const t = new Date(obj).getTime();
+    return isNaN(t) ? 0 : t;
+  }
+  if (obj instanceof Date) return obj.getTime();
+  if (typeof obj === 'object') {
+    if (typeof obj.seconds === 'number') return obj.seconds * 1000;
+    if (typeof obj._seconds === 'number') return obj._seconds * 1000;
+    if (typeof obj.toDate === 'function') {
+      try { return obj.toDate().getTime(); } catch { return 0; }
+    }
+  }
+  if (typeof obj === 'number') return obj;
+  return 0;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════
  * SUBMIT REVIEW (Client)
  * ═══════════════════════════════════════════════════════════════
  */
@@ -23,9 +64,7 @@ export async function submitReview({
   photographerId?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   try {
-    if (!adminDb) {
-      return { success: false, error: 'DB offline' };
-    }
+    if (!adminDb) return { success: false, error: 'DB offline' };
 
     const gallerySnap = await adminDb.collection('galleries').doc(galleryId).get();
     if (!gallerySnap.exists) {
@@ -160,29 +199,6 @@ export async function deleteReview({
 
 /**
  * ═══════════════════════════════════════════════════════════════
- * HELPER — Timestamp → milliseconds
- * ═══════════════════════════════════════════════════════════════
- */
-function timestampToMs(obj: any): number {
-  if (!obj) return 0;
-  if (typeof obj === 'object') {
-    if (typeof obj.seconds === 'number') return obj.seconds * 1000;
-    if (typeof obj._seconds === 'number') return obj._seconds * 1000;
-    if (typeof obj.toDate === 'function') {
-      try { return obj.toDate().getTime(); } catch { return 0; }
-    }
-  }
-  if (obj instanceof Date) return obj.getTime();
-  if (typeof obj === 'string') {
-    const t = new Date(obj).getTime();
-    return isNaN(t) ? 0 : t;
-  }
-  if (typeof obj === 'number') return obj;
-  return 0;
-}
-
-/**
- * ═══════════════════════════════════════════════════════════════
  * GET PHOTOGRAPHER REVIEWS (Approved only — public profile)
  * ═══════════════════════════════════════════════════════════════
  */
@@ -210,14 +226,14 @@ export async function getPhotographerReviews(
         allReviews.push({
           id: reviewDoc.id,
           galleryId: galleryDoc.id,
-          clientName: data.clientName || 'Anonymous',
-          rating: data.rating || 0,
-          text: data.text || '',
-          eventType: data.eventType || '',
-          status: data.status || 'pending',
-          photographerId: data.photographerId || '',
-          createdAt: data.createdAt,
-          approvedAt: data.approvedAt,
+          clientName: String(data.clientName || 'Anonymous'),
+          rating: Number(data.rating) || 0,
+          text: String(data.text || ''),
+          eventType: String(data.eventType || ''),
+          status: String(data.status || 'pending'),
+          photographerId: String(data.photographerId || ''),
+          createdAt: toISOString(data.createdAt),
+          approvedAt: toISOString(data.approvedAt),
         });
       });
     }
@@ -251,8 +267,6 @@ export async function getDashboardReviews(
       return { success: false, error: 'DB offline — adminDb is null' };
     }
 
-    console.log('[DASHBOARD_REVIEWS] Querying galleries...');
-
     const galleriesSnap = await adminDb
       .collection('galleries')
       .where('userId', '==', photographerId)
@@ -268,31 +282,30 @@ export async function getDashboardReviews(
 
     for (const galleryDoc of galleriesSnap.docs) {
       const reviewsSnap = await galleryDoc.ref.collection('reviews').get();
-      
       console.log(`[DASHBOARD_REVIEWS] ${galleryDoc.id}: ${reviewsSnap.size} reviews`);
-      
+
       reviewsSnap.docs.forEach((reviewDoc) => {
         const data = reviewDoc.data();
         allReviews.push({
           id: reviewDoc.id,
           galleryId: galleryDoc.id,
-          galleryTitle: galleryDoc.data().title || 'Gallery',
-          // ✅ Explicit field mapping — spread avoid
-          clientName: data.clientName || 'Anonymous',
-          rating: data.rating || 0,
-          text: data.text || '',
-          eventType: data.eventType || '',
-          status: data.status || 'pending',
-          photographerId: data.photographerId || '',
-          createdAt: data.createdAt,
-          approvedAt: data.approvedAt,
+          galleryTitle: String(galleryDoc.data().title || 'Gallery'),
+          // ✅ Sirf primitives — no Timestamps, no Dates
+          clientName: String(data.clientName || 'Anonymous'),
+          rating: Number(data.rating) || 0,
+          text: String(data.text || ''),
+          eventType: String(data.eventType || ''),
+          status: String(data.status || 'pending'),
+          photographerId: String(data.photographerId || ''),
+          // ✅ Timestamps → ISO string (serializable for Client Components)
+          createdAt: toISOString(data.createdAt),
+          approvedAt: toISOString(data.approvedAt),
         });
       });
     }
 
     console.log('[DASHBOARD_REVIEWS] ✅ Total:', allReviews.length);
 
-    // ✅ Sort: pending first, phir date
     allReviews.sort((a, b) => {
       if (a.status === 'pending' && b.status !== 'pending') return -1;
       if (a.status !== 'pending' && b.status === 'pending') return 1;
@@ -300,16 +313,15 @@ export async function getDashboardReviews(
     });
 
     return { success: true, reviews: allReviews };
-
   } catch (error: any) {
     console.error('[DASHBOARD_REVIEWS] ❌ FATAL:', {
       message: error.message,
       code: error.code,
       stack: error.stack?.substring(0, 300),
     });
-    return { 
-      success: false, 
-      error: `${error.code || 'ERROR'}: ${error.message}` 
+    return {
+      success: false,
+      error: `${error.code || 'ERROR'}: ${error.message}`,
     };
   }
 }
