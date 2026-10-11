@@ -7,11 +7,11 @@ import { useFirestore } from "@/firebase";
 import { collection, query, where, getDocs, limit } from "firebase/firestore";
 import {
   Star, Quote, MessageCircle, ArrowRight, Sparkles,
-  ThumbsUp, Filter, Heart
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getTheme } from "@/lib/portfolio-themes";
 import { cn } from "@/lib/utils";
+import { getPhotographerReviews } from "@/app/actions/reviews";
 
 export default function ReviewsPage() {
   const params = useParams();
@@ -31,6 +31,7 @@ export default function ReviewsPage() {
       if (!firestore || !subdomain) { setLoading(false); return; }
 
       try {
+        // 1. Photographer dhundho subdomain se
         const userQuery = query(
           collection(firestore, "publicProfiles"),
           where("subdomain", "==", subdomain.toLowerCase()),
@@ -47,23 +48,23 @@ export default function ReviewsPage() {
         };
 
         setPhotographer(photographerData);
+        console.log('[REVIEWS_PAGE] Photographer:', photographerData.userId);
 
-        // Load reviews
+        // ✅ FIX: gallery reviews se data lao (networkReviews se NAHI!)
         try {
-          const reviewsQuery = query(
-            collection(firestore, "networkReviews"),
-            where("professionalId", "==", photographerData.userId)
-          );
-          const reviewsSnap = await getDocs(reviewsQuery);
-          const reviewsData = reviewsSnap.docs
-            .map(d => ({ id: d.id, ...d.data() }))
-            .sort((a: any, b: any) => {
-              const aT = a.createdAt?.seconds || 0;
-              const bT = b.createdAt?.seconds || 0;
-              return bT - aT;
-            });
-          if (!cancelled) setReviews(reviewsData);
-        } catch {}
+          const result = await getPhotographerReviews(photographerData.userId);
+          
+          console.log('[REVIEWS_PAGE] Result:', {
+            success: result.success,
+            count: result.reviews?.length,
+          });
+
+          if (result.success && !cancelled) {
+            setReviews(result.reviews || []);
+          }
+        } catch (err) {
+          console.error('[REVIEWS_PAGE] ❌', err);
+        }
       } catch (err) {
         console.error("[REVIEWS_LOAD]", err);
       } finally {
@@ -180,8 +181,6 @@ export default function ReviewsPage() {
               }}
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
-
-                {/* Left — Overall */}
                 <div className="text-center md:text-left space-y-4">
                   <div className="flex items-center justify-center md:justify-start gap-4">
                     <span
@@ -219,7 +218,6 @@ export default function ReviewsPage() {
                   </p>
                 </div>
 
-                {/* Right — Distribution */}
                 <div className="space-y-2">
                   {[5, 4, 3, 2, 1].map((star) => {
                     const count = (stats.distribution as any)[star] || 0;
@@ -264,7 +262,6 @@ export default function ReviewsPage() {
                 </div>
               </div>
 
-              {/* Filter Info */}
               {filterRating !== 'all' && (
                 <div className="mt-6 pt-6 border-t flex items-center justify-between"
                   style={{ borderColor: 'var(--portfolio-border)' }}
@@ -294,7 +291,6 @@ export default function ReviewsPage() {
       {/* REVIEWS GRID */}
       <section className="py-16 lg:py-20" style={{ background: 'var(--portfolio-page-bg)' }}>
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
-
           {reviews.length === 0 ? (
             <div className="text-center py-32">
               <MessageCircle
@@ -443,8 +439,10 @@ function ReviewCard({ review }: { review: any }) {
   const text = review.text || review.reviewText || '';
   const clientName = review.clientName || 'Happy Client';
   const eventType = review.eventType || review.event || '';
-  const date = review.createdAt?.seconds
-    ? new Date(review.createdAt.seconds * 1000).toLocaleDateString('en-GB', {
+  
+  // ✅ createdAt ab string hai (ISO format)
+  const date = review.createdAt
+    ? new Date(review.createdAt).toLocaleDateString('en-GB', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
@@ -459,13 +457,11 @@ function ReviewCard({ review }: { review: any }) {
         border: `1px solid var(--portfolio-border)`,
       }}
     >
-      {/* Quote Icon */}
       <Quote
         className="w-10 h-10 mb-4"
         style={{ color: 'var(--portfolio-primary)', opacity: 0.2 }}
       />
 
-      {/* Stars */}
       <div className="flex gap-1 mb-4">
         {[1, 2, 3, 4, 5].map((s) => (
           <Star
@@ -479,7 +475,6 @@ function ReviewCard({ review }: { review: any }) {
         ))}
       </div>
 
-      {/* Text */}
       <p
         className="text-sm leading-relaxed mb-6 italic flex-1"
         style={{ color: 'var(--portfolio-body-text)' }}
@@ -487,7 +482,6 @@ function ReviewCard({ review }: { review: any }) {
         "{text}"
       </p>
 
-      {/* Footer */}
       <div
         className="pt-4 border-t"
         style={{ borderColor: 'var(--portfolio-border)' }}

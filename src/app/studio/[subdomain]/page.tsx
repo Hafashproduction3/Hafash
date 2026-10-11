@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { refreshPhotoUrls } from "@/app/actions/storage";
 import { getTheme } from "@/lib/portfolio-themes";
 import { cn } from "@/lib/utils";
+import { getPhotographerReviews } from "@/app/actions/reviews";
 
 export default function StudioHomePage() {
   const params = useParams();
@@ -111,14 +112,21 @@ export default function StudioHomePage() {
           if (!cancelled) setPortfolioPhotos(refreshed);
         }
 
+        // ✅ FIX: Gallery reviews se data lao (networkReviews se NAHI!)
         try {
-          const reviewsQuery = query(
-            collection(firestore, "networkReviews"),
-            where("professionalId", "==", photographerData.userId)
-          );
-          const reviewsSnap = await getDocs(reviewsQuery);
-          setReviews(reviewsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        } catch {}
+          const reviewsResult = await getPhotographerReviews(photographerData.userId);
+          
+          console.log('[HOME_REVIEWS] Result:', {
+            success: reviewsResult.success,
+            count: reviewsResult.reviews?.length,
+          });
+          
+          if (reviewsResult.success) {
+            setReviews(reviewsResult.reviews || []);
+          }
+        } catch (err) {
+          console.error('[HOME_REVIEWS] ❌', err);
+        }
       } catch (err) {
         console.error("[HOME_LOAD]", err);
       } finally {
