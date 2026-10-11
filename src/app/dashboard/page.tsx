@@ -64,6 +64,7 @@ import { deleteGalleryFiles } from '@/app/actions/storage';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserPlan, calculateUsageGb, isOwnerEmail, getTrialDaysRemaining, getTrialHoursRemaining } from '@/lib/plans';
+import { Star } from 'lucide-react';
 import type { Booking } from '@/lib/portfolio-types';
 
 export default function DashboardPage() {
@@ -497,6 +498,16 @@ export default function DashboardPage() {
                 <ArrowRight className="w-3.5 h-3.5 text-amber-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
               </Button>
             </Link>
+            <Link href="/dashboard/reviews">
+  <Button
+    variant="outline"
+    className="rounded-2xl h-12 px-6 border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 hover:border-purple-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
+  >
+    <Star className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+    <span className="text-[13px]">Reviews</span>
+    <ArrowRight className="w-3.5 h-3.5 text-purple-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+  </Button>
+</Link>
           </div>
         </div>
       </div>

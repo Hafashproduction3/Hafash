@@ -21,6 +21,7 @@ import {
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { cn } from '@/lib/utils';
 import JSZip from 'jszip';
+import { ReviewFormSection } from '@/components/gallery/ReviewFormSection';
 import { saveAs } from 'file-saver';
 import { type PlanId } from '@/lib/plans';
 import { getFreshMusicUrl, refreshPhotoUrls } from '@/app/actions/storage';
@@ -2042,6 +2043,17 @@ export default function ClientGalleryPage() {
           to { transform: scale(1.25) translate(-1%, -1%); }
         }
       `}</style>
+      
+      {/* ✅ REVIEW FORM */}
+      {!isSelectionMode && galleryId && gallery && (
+        <ReviewFormSection
+          galleryId={galleryId}
+          galleryTitle={gallery.title}
+          clientName={gallery.clientName}
+          eventType={gallery.category}
+        />
+      )}
+
     </div>
   );
 }
