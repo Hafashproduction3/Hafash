@@ -3,7 +3,9 @@
 import { adminDb } from '@/lib/firebase-admin';
 
 /**
- * Submit a new review (from client)
+ * ═══════════════════════════════════════════════════════════════
+ * SUBMIT REVIEW (Client)
+ * ═══════════════════════════════════════════════════════════════
  */
 export async function submitReview({
   galleryId,
@@ -62,7 +64,9 @@ export async function submitReview({
 }
 
 /**
- * Approve a review
+ * ═══════════════════════════════════════════════════════════════
+ * APPROVE REVIEW
+ * ═══════════════════════════════════════════════════════════════
  */
 export async function approveReview({
   galleryId,
@@ -92,7 +96,9 @@ export async function approveReview({
 }
 
 /**
- * Reject a review
+ * ═══════════════════════════════════════════════════════════════
+ * REJECT REVIEW
+ * ═══════════════════════════════════════════════════════════════
  */
 export async function rejectReview({
   galleryId,
@@ -121,7 +127,9 @@ export async function rejectReview({
 }
 
 /**
- * Delete a review
+ * ═══════════════════════════════════════════════════════════════
+ * DELETE REVIEW
+ * ═══════════════════════════════════════════════════════════════
  */
 export async function deleteReview({
   galleryId,
@@ -148,7 +156,32 @@ export async function deleteReview({
 }
 
 /**
- * Get approved reviews for a photographer (all galleries)
+ * ═══════════════════════════════════════════════════════════════
+ * HELPER — Timestamp → milliseconds
+ * ═══════════════════════════════════════════════════════════════
+ */
+function timestampToMs(obj: any): number {
+  if (!obj) return 0;
+  if (typeof obj === 'object') {
+    if (typeof obj.seconds === 'number') return obj.seconds * 1000;
+    if (typeof obj._seconds === 'number') return obj._seconds * 1000;
+    if (typeof obj.toDate === 'function') {
+      try { return obj.toDate().getTime(); } catch { return 0; }
+    }
+  }
+  if (obj instanceof Date) return obj.getTime();
+  if (typeof obj === 'string') {
+    const t = new Date(obj).getTime();
+    return isNaN(t) ? 0 : t;
+  }
+  if (typeof obj === 'number') return obj;
+  return 0;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════
+ * GET PHOTOGRAPHER REVIEWS (Approved only — public profile)
+ * ═══════════════════════════════════════════════════════════════
  */
 export async function getPhotographerReviews(
   photographerId: string
@@ -181,8 +214,8 @@ export async function getPhotographerReviews(
     );
 
     allReviews.sort((a, b) => {
-      const aT = a.approvedAt?.seconds || a.createdAt?.seconds || 0;
-      const bT = b.approvedAt?.seconds || b.createdAt?.seconds || 0;
+      const aT = timestampToMs(a.approvedAt) || timestampToMs(a.createdAt);
+      const bT = timestampToMs(b.approvedAt) || timestampToMs(b.createdAt);
       return bT - aT;
     });
 
@@ -194,24 +227,37 @@ export async function getPhotographerReviews(
 }
 
 /**
- * Get all reviews (pending + approved + rejected) for dashboard
+ * ═══════════════════════════════════════════════════════════════
+ * GET DASHBOARD REVIEWS (All statuses — photographer dashboard)
+ * ═══════════════════════════════════════════════════════════════
  */
 export async function getDashboardReviews(
   photographerId: string
 ): Promise<{ success: boolean; reviews?: any[]; error?: string }> {
-  if (!adminDb) return { success: false, error: 'DB offline' };
+  console.log('[GET_DASHBOARD_REVIEWS] Called for:', photographerId);
+  console.log('[GET_DASHBOARD_REVIEWS] adminDb exists:', !!adminDb);
+
+  if (!adminDb) {
+    console.error('[GET_DASHBOARD_REVIEWS] ❌ adminDb is null');
+    return { success: false, error: 'DB offline' };
+  }
 
   try {
+    console.log('[GET_DASHBOARD_REVIEWS] Querying galleries...');
+
     const galleriesSnap = await adminDb
       .collection('galleries')
       .where('userId', '==', photographerId)
       .get();
+
+    console.log('[GET_DASHBOARD_REVIEWS] Galleries found:', galleriesSnap.size);
 
     const allReviews: any[] = [];
 
     await Promise.all(
       galleriesSnap.docs.map(async (galleryDoc) => {
         const reviewsSnap = await galleryDoc.ref.collection('reviews').get();
+        console.log(`[GET_DASHBOARD_REVIEWS] Reviews in ${galleryDoc.id}:`, reviewsSnap.size);
 
         reviewsSnap.docs.forEach((reviewDoc) => {
           allReviews.push({
@@ -224,17 +270,26 @@ export async function getDashboardReviews(
       })
     );
 
+    console.log('[GET_DASHBOARD_REVIEWS] ✅ Total reviews:', allReviews.length);
+
     allReviews.sort((a, b) => {
+      // Pending reviews sabse upar
       if (a.status === 'pending' && b.status !== 'pending') return -1;
       if (a.status !== 'pending' && b.status === 'pending') return 1;
-      const aT = a.createdAt?.seconds || 0;
-      const bT = b.createdAt?.seconds || 0;
+
+      // Phir date ke hisaab se
+      const aT = timestampToMs(a.createdAt);
+      const bT = timestampToMs(b.createdAt);
       return bT - aT;
     });
 
     return { success: true, reviews: allReviews };
   } catch (error: any) {
-    console.error('[GET_DASHBOARD_REVIEWS]', error);
+    console.error('[GET_DASHBOARD_REVIEWS] ❌ FATAL:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
     return { success: false, error: error.message };
   }
 }
