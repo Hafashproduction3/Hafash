@@ -113,20 +113,20 @@ export default function StudioHomePage() {
         }
 
         // ✅ FIX: Gallery reviews se data lao (networkReviews se NAHI!)
-        try {
-          const reviewsResult = await getPhotographerReviews(photographerData.userId);
-          
-          console.log('[HOME_REVIEWS] Result:', {
-            success: reviewsResult.success,
-            count: reviewsResult.reviews?.length,
-          });
-          
-          if (reviewsResult.success) {
-            setReviews(reviewsResult.reviews || []);
-          }
-        } catch (err) {
-          console.error('[HOME_REVIEWS] ❌', err);
-        }
+                try {
+                          const reviewsResult = await getPhotographerReviews(photographerData.userId);
+
+                                              console.log('[HOME_REVIEWS] Result:', {
+                                                          success: reviewsResult.success,
+                                                                      count: reviewsResult.reviews?.length,
+                                                                                });
+
+                                                                                                    if (reviewsResult.success) {
+                                                                                                                setReviews(reviewsResult.reviews || []);
+                                                                                                                          }
+                                                                                                                                  } catch (err) {
+                                                                                                                                            console.error('[HOME_REVIEWS] ❌', err);
+                                                                                                                                                    }
       } catch (err) {
         console.error("[HOME_LOAD]", err);
       } finally {

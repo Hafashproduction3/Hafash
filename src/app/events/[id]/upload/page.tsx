@@ -4,8 +4,8 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useFirestore, useDoc, useUser, useCollection } from '@/firebase';
 import { doc, collection, query, where } from 'firebase/firestore';
-import { 
-  Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles, 
+import {
+  Upload, CheckCircle2, ArrowRight, ArrowLeft, Loader2, Sparkles,
   X, AlertTriangle, Activity, ShieldCheck, HardDrive, FileIcon,
   RefreshCw, Clock, Zap, Play, Pause, Lock, Share2, Timer, AlertCircle,
   Trash2, Ban
@@ -21,10 +21,10 @@ import { requestUploadUrl, completeUpload } from '@/app/actions/storage';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import imageCompression from 'browser-image-compression';
-import { 
-  savePendingFile, 
-  loadPendingFiles, 
-  removePendingFile, 
+import {
+  savePendingFile,
+  loadPendingFiles,
+  removePendingFile,
   clearPendingFiles,
   blobToFile
 } from '@/lib/upload-storage';
@@ -51,7 +51,7 @@ interface FileItem {
   originalReady?: boolean;
 }
 
-const PARALLEL_LIMIT = 2;
+const PARALLEL_LIMIT = 3;
 const MAX_RETRIES = 3;
 
 const THUMBNAIL_OPTIONS = {
@@ -91,7 +91,7 @@ export default function GalleryUploadPage() {
   const firestore = useFirestore();
   const { user, loading: authLoading } = useUser();
   const { toast } = useToast();
-  
+
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -100,7 +100,7 @@ export default function GalleryUploadPage() {
   const [uploadedNames, setUploadedNames] = useState<Set<string>>(new Set());
   const [isRestoring, setIsRestoring] = useState(true);
   const [showPreUploadWarning, setShowPreUploadWarning] = useState(false);
-  
+
   const pauseRef = useRef(false);
   const cancelRef = useRef(false);
   const speedSamplesRef = useRef<number[]>([]);
@@ -205,20 +205,20 @@ export default function GalleryUploadPage() {
     const planId = (profile?.planId as PlanId) || 'none';
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId, isOwner]);
-  
+
   const isTrialActive = useMemo(() => {
     if (profile?.planId !== 'trial') return false;
     const trialExpiry = profile?.trialExpiry;
     if (!trialExpiry) return false;
     return new Date(trialExpiry).getTime() > Date.now();
   }, [profile?.planId, profile?.trialExpiry]);
-  
+
   const isSubscriptionActive = useMemo(() => {
     if (isOwner) return true;
-    
+
     // ✅ Trial check
     if (isTrialActive) return true;
-    
+
     if (!profile?.planId || currentPlan.id === 'none') return false;
     // ...
   }, [isOwner, profile?.planId, profile?.planExpiryDate, currentPlan.id, isTrialActive]);
@@ -252,7 +252,7 @@ export default function GalleryUploadPage() {
     if (e.target.files && e.target.files.length > 0) {
       setIsDone(false);
       const selectedFiles = Array.from(e.target.files);
-      
+
       const newItems: FileItem[] = selectedFiles.map(f => {
         const isImage = f.type.startsWith('image/');
         return {
@@ -289,7 +289,7 @@ export default function GalleryUploadPage() {
           }
         });
       }
-      
+
       const newFiles = newItems.filter(f => f.status !== 'completed');
       if (newFiles.length > 20) setShowPreUploadWarning(true);
     }
@@ -324,15 +324,15 @@ export default function GalleryUploadPage() {
     pauseRef.current = false;
     setIsPaused(false);
     setIsUploading(false);
-    
-    setFiles(prev => prev.map(f => 
-      f.status === 'completed' 
-        ? f 
+
+    setFiles(prev => prev.map(f =>
+      f.status === 'completed'
+        ? f
         : { ...f, status: 'cancelled' as UploadStepStatus, currentStep: 'Cancelled', progress: 0 }
     ));
-    
-    toast({ 
-      title: "❌ Upload Cancelled", 
+
+    toast({
+      title: "❌ Upload Cancelled",
       description: "Saari pending uploads ruk gayin.",
       variant: "destructive"
     });
@@ -345,11 +345,11 @@ export default function GalleryUploadPage() {
       toast({ title: "No completed files to erase" });
       return;
     }
-    
+
     if (!confirm(`Remove ${completedCount} completed file(s) from upload list? (Photos remain in gallery)`)) return;
-    
+
     setFiles(prev => prev.filter(f => f.status !== 'completed'));
-    toast({ 
+    toast({
       title: `🗑️ ${completedCount} files cleared from list`,
       description: "Photos abhi bhi gallery mein safe hain.",
     });
@@ -429,7 +429,7 @@ export default function GalleryUploadPage() {
       (f) => f.status !== "completed" && !alreadyUploaded.has(f.name) && f.status !== 'cancelled'
     );
 
-    setFiles(prev => prev.map(f => 
+    setFiles(prev => prev.map(f =>
       alreadyUploaded.has(f.name) && f.status !== 'completed'
         ? { ...f, status: 'completed', progress: 100, currentStep: 'Already Uploaded' }
         : f
@@ -455,71 +455,116 @@ export default function GalleryUploadPage() {
       }
 
       try {
-        updateFileStatus(item.id, { status: 'compressing', currentStep: 'Optimizing...' });
-        const originalFile = await generateCompressedOriginal(item.file);
-        const fileToUpload = originalFile;
 
-        let thumbFile = item.thumbFile;
-        if (!thumbFile && item.file.type.startsWith('image/')) {
-          updateFileStatus(item.id, { currentStep: 'Creating thumbnail...' });
-          const t = await generateThumbnail(fileToUpload);
-          if (t) thumbFile = t;
-        }
+updateFileStatus(item.id, {
+  status: 'compressing',
+  currentStep: 'Optimizing...',
+});
 
-        setFiles(prev => prev.map(f => 
-          f.id === item.id 
-            ? { ...f, originalFile, originalSize: fileToUpload.size, thumbFile, thumbSize: thumbFile?.size } 
-            : f
-        ));
+// Original optimize aur thumbnail generate ek saath
+const [originalFile, generatedThumb] = await Promise.all([
+  generateCompressedOriginal(item.file),
+  item.thumbFile
+    ? Promise.resolve(item.thumbFile)
+    : item.file.type.startsWith('image/')
+      ? generateThumbnail(item.file)
+      : Promise.resolve(null),
+]);
 
-        if (pauseRef.current) {
-          updateFileStatus(item.id, { status: 'paused', currentStep: 'Paused' });
-          return;
-        }
-        if (cancelRef.current) {
-          updateFileStatus(item.id, { status: 'cancelled', currentStep: 'Cancelled' });
-          return;
-        }
+const fileToUpload = originalFile;
+let thumbFile = item.thumbFile ?? generatedThumb ?? undefined;
 
-        updateFileStatus(item.id, { status: 'uploading', currentStep: 'Uploading...' });
+setFiles(prev => prev.map(f =>
+  f.id === item.id
+    ? {
+        ...f,
+        originalFile,
+        originalSize: fileToUpload.size,
+        thumbFile,
+        thumbSize: thumbFile?.size,
+      }
+    : f
+));
 
-        const originalResult = await requestUploadUrl({
-          userId: user!.uid,
-          galleryId: id,
-          fileName: `original_${item.name}`,
-          contentType: fileToUpload.type || 'image/jpeg',
-          fileSize: fileToUpload.size,
-        });
+if (pauseRef.current) {
+  updateFileStatus(item.id, {
+    status: 'paused',
+    currentStep: 'Paused',
+  });
+  return;
+}
 
-        if (!originalResult.success || !originalResult.uploadUrl) {
-          throw new Error(originalResult.error || "Failed to authorize upload.");
-        }
+if (cancelRef.current) {
+  updateFileStatus(item.id, {
+    status: 'cancelled',
+    currentStep: 'Cancelled',
+  });
+  return;
+}
 
-        await uploadToR2(originalResult.uploadUrl, fileToUpload, (loaded, total) => {
-          const progress = Math.round((loaded / total) * 100);
-          updateFileStatus(item.id, { progress });
-        });
+updateFileStatus(item.id, {
+  status: 'uploading',
+  currentStep: 'Uploading original + thumbnail...',
+});
 
-        let thumbKey: string | undefined;
-        if (thumbFile) {
-          updateFileStatus(item.id, { currentStep: "Uploading thumbnail..." });
-          try {
-            const thumbResult = await requestUploadUrl({
-              userId: user!.uid,
-              galleryId: id,
-              fileName: `thumb_${item.name}`,
-              contentType: 'image/jpeg',
-              fileSize: thumbFile.size,
-            });
+// Dono upload URLs ek saath request karo
+const [originalResult, thumbResult] = await Promise.all([
+  requestUploadUrl({
+    userId: user!.uid,
+    galleryId: id,
+    fileName: `original_${item.name}`,
+    contentType: fileToUpload.type || 'image/jpeg',
+    fileSize: fileToUpload.size,
+  }),
+  thumbFile
+    ? requestUploadUrl({
+        userId: user!.uid,
+        galleryId: id,
+        fileName: `thumb_${item.name}`,
+        contentType: 'image/jpeg',
+        fileSize: thumbFile.size,
+      }).catch(() => null)
+    : Promise.resolve(null),
+]);
 
-            if (thumbResult.success && thumbResult.uploadUrl) {
-              await uploadToR2(thumbResult.uploadUrl, thumbFile);
-              thumbKey = thumbResult.key;
-            }
-          } catch (thumbErr) {}
-        }
+if (!originalResult.success || !originalResult.uploadUrl) {
+  throw new Error(
+    originalResult.error || 'Failed to authorize upload.'
+  );
+}
 
-        updateFileStatus(item.id, { currentStep: "Finalizing..." });
+let thumbKey: string | undefined;
+
+// Original aur thumbnail ko parallel upload karo
+const uploadTasks: Promise<void>[] = [
+  uploadToR2(
+    originalResult.uploadUrl,
+    fileToUpload,
+    (loaded, total) => {
+      const progress = Math.round((loaded / total) * 100);
+      updateFileStatus(item.id, { progress });
+    }
+  ),
+];
+
+if (thumbFile && thumbResult?.success && thumbResult.uploadUrl) {
+  uploadTasks.push(
+    uploadToR2(thumbResult.uploadUrl, thumbFile)
+      .then(() => {
+        thumbKey = thumbResult.key;
+      })
+      .catch(() => {
+        // Thumbnail fail ho to original upload continue rahe
+      })
+  );
+}
+
+await Promise.all(uploadTasks);
+
+updateFileStatus(item.id, {
+  currentStep: 'Finalizing...',
+});
+
 
         await completeUpload({
           userId: user!.uid,
@@ -589,7 +634,7 @@ export default function GalleryUploadPage() {
     await Promise.all(workers);
 
     setIsUploading(false);
-    
+
     if (pauseRef.current) {
       toast({ title: "⏸ Paused", description: "Progress safe hai." });
       return;
@@ -610,7 +655,7 @@ export default function GalleryUploadPage() {
   };
 
   const retryFailed = () => {
-    setFiles(prev => prev.map(f => 
+    setFiles(prev => prev.map(f =>
       f.status === 'error'
         ? { ...f, status: 'queued', progress: 0, error: undefined, currentStep: 'Re-queued', retryCount: 0 }
         : f
@@ -638,7 +683,7 @@ export default function GalleryUploadPage() {
     if (speedSamplesRef.current.length > 0) {
       avgSpeed = speedSamplesRef.current.reduce((a, b) => a + b, 0) / speedSamplesRef.current.length;
     }
-    
+
     const etaSeconds = avgSpeed > 0 ? remainingBytes / avgSpeed : 0;
     const willFinishAt = etaSeconds > 0 ? new Date(Date.now() + etaSeconds * 1000) : null;
 
@@ -766,11 +811,11 @@ export default function GalleryUploadPage() {
             "relative h-96 border-2 border-dashed rounded-[3rem] flex flex-col items-center justify-center transition-all",
             isOverLimit ? "border-destructive/30 bg-destructive/5" : "border-border/50 bg-card/30 hover:border-primary/50 cursor-pointer"
           )}>
-            <input 
-              type="file" 
-              multiple 
+            <input
+              type="file"
+              multiple
               accept="image/*,video/*"
-              className="absolute inset-0 opacity-0 cursor-pointer z-20" 
+              className="absolute inset-0 opacity-0 cursor-pointer z-20"
               onChange={handleFileChange}
               disabled={isUploading || isOverLimit}
             />
@@ -781,7 +826,7 @@ export default function GalleryUploadPage() {
               <p className="text-2xl font-headline font-bold">Deliver Masterpieces</p>
               <p className="text-sm text-muted-foreground italic">⚡ High Quality • Fast Upload</p>
             </div>
-            
+
             <div className="absolute bottom-8 flex items-center gap-3 px-6 py-2 rounded-full bg-background/50 backdrop-blur-md border">
                <Zap className="w-3 h-3 text-primary animate-pulse" />
                <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">Original • 4000px • Print-Ready</span>
@@ -801,7 +846,7 @@ export default function GalleryUploadPage() {
                 </div>
               </div>
               <Progress value={stats.avgProgress} className="h-2" />
-              
+
               {isUploading && stats.avgSpeed > 0 && stats.etaSeconds > 0 && (
                 <div className="grid grid-cols-2 gap-4 pt-3 border-t border-border/30">
                   <div className="flex items-center gap-3">
@@ -839,9 +884,9 @@ export default function GalleryUploadPage() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-3 flex-wrap">
                {files.length > 0 && !isDone && !isUploading && (
-                 <Button variant="ghost" className="rounded-full text-muted-foreground hover:text-destructive" onClick={() => { 
-                   setFiles([]); 
-                   clearResumeState(); 
+                 <Button variant="ghost" className="rounded-full text-muted-foreground hover:text-destructive" onClick={() => {
+                   setFiles([]);
+                   clearResumeState();
                    if (id) clearPendingFiles(id).catch(e => {});
                  }}>
                    Purge Queue
@@ -854,7 +899,7 @@ export default function GalleryUploadPage() {
                  </Button>
                )}
             </div>
-            
+
             <div className="flex gap-3 w-full sm:w-auto flex-wrap justify-end">
               {/* ✅ PAUSE Button */}
               {isUploading && !isPaused && (
@@ -866,9 +911,9 @@ export default function GalleryUploadPage() {
 
               {/* ✅ CANCEL Button (Pause ke saath, upload ke doran) */}
               {isUploading && (
-                <Button 
-                  variant="outline" 
-                  className="rounded-2xl h-14 px-6 border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold gap-2" 
+                <Button
+                  variant="outline"
+                  className="rounded-2xl h-14 px-6 border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold gap-2"
                   onClick={handleCancelAll}
                 >
                   <Ban className="w-4 h-4" />
@@ -878,9 +923,9 @@ export default function GalleryUploadPage() {
 
               {/* ✅ ERASE Button (upload ke baad, neeche) */}
               {stats.completedFiles > 0 && !isUploading && (
-                <Button 
-                  variant="outline" 
-                  className="rounded-2xl h-14 px-6 border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold gap-2" 
+                <Button
+                  variant="outline"
+                  className="rounded-2xl h-14 px-6 border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold gap-2"
                   onClick={handleEraseCompleted}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -895,13 +940,13 @@ export default function GalleryUploadPage() {
                   Resume
                 </Button>
               )}
-              
+
               {!isPaused && (
-                <Button 
+                <Button
                   className={cn(
                     "rounded-2xl px-10 h-14 font-bold flex-1 sm:flex-none min-w-[220px] text-lg gap-2",
-                    (isOverLimit || isUploading || stats.isComplete) 
-                      ? "bg-muted cursor-not-allowed text-muted-foreground" 
+                    (isOverLimit || isUploading || stats.isComplete)
+                      ? "bg-muted cursor-not-allowed text-muted-foreground"
                       : "bg-primary hover:bg-primary/90"
                   )}
                   onClick={startUpload}
@@ -949,13 +994,13 @@ export default function GalleryUploadPage() {
               files.slice(0, 30).map(file => (
                 <div key={file.id} className={cn(
                   "bg-background/40 p-4 rounded-2xl border relative overflow-hidden",
-                  file.status === 'error' ? 'border-destructive/30' : 
+                  file.status === 'error' ? 'border-destructive/30' :
                   file.status === 'paused' ? 'border-orange-500/30' :
                   file.status === 'cancelled' ? 'border-red-500/30 opacity-50' :
                   file.status === 'completed' ? 'border-green-500/20' : 'border-border/30'
                 )}>
                   <div className="absolute bottom-0 left-0 h-1 bg-primary/20 transition-all duration-500" style={{ width: `${file.progress}%` }} />
-                  
+
                   <div className="flex gap-4 items-center">
                     <div className="h-14 w-14 rounded-xl bg-muted overflow-hidden shrink-0">
                       {file.previewUrl ? (
@@ -966,7 +1011,7 @@ export default function GalleryUploadPage() {
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start">
                          <p className="text-xs font-bold truncate pr-2">{file.name}</p>
@@ -986,7 +1031,7 @@ export default function GalleryUploadPage() {
                       </div>
                       <span className={cn(
                         "text-[9px] font-bold uppercase",
-                        file.status === 'error' ? 'text-destructive' : 
+                        file.status === 'error' ? 'text-destructive' :
                         file.status === 'paused' ? 'text-orange-500' :
                         file.status === 'cancelled' ? 'text-red-500' :
                         file.status === 'completed' ? 'text-green-500' : 'text-primary'
@@ -995,7 +1040,7 @@ export default function GalleryUploadPage() {
                       </span>
                     </div>
                   </div>
-                  
+
                   {file.error && (
                     <p className="mt-2 text-[9px] text-destructive font-bold uppercase bg-destructive/10 p-2 rounded">
                       {file.error}
@@ -1010,7 +1055,7 @@ export default function GalleryUploadPage() {
               </p>
             )}
           </div>
-          
+
           <div className="mt-8 pt-8 border-t flex justify-between text-[10px] font-bold uppercase text-muted-foreground">
              <span>Remaining</span>
              <span className="font-mono">{stats.remainingFiles} files</span>
