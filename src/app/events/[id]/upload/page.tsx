@@ -51,7 +51,7 @@ interface FileItem {
   originalReady?: boolean;
 }
 
-const PARALLEL_LIMIT = 3;
+const PARALLEL_LIMIT = 5;
 const MAX_RETRIES = 3;
 
 const THUMBNAIL_OPTIONS = {
@@ -59,14 +59,6 @@ const THUMBNAIL_OPTIONS = {
   maxWidthOrHeight: 400,
   useWebWorker: true,
   initialQuality: 0.8,
-  fileType: 'image/jpeg',
-};
-
-const ORIGINAL_OPTIONS = {
-  maxSizeMB: 3,
-  maxWidthOrHeight: 4000,
-  useWebWorker: true,
-  initialQuality: 0.90,
   fileType: 'image/jpeg',
 };
 
@@ -365,13 +357,8 @@ export default function GalleryUploadPage() {
   };
 
   const generateCompressedOriginal = async (file: File): Promise<File> => {
-    if (!file.type.startsWith('image/')) return file;
-    if (file.size < 4 * 1024 * 1024) return file;
-    try {
-      return await imageCompression(file, ORIGINAL_OPTIONS);
-    } catch (err) {
-      return file;
-    }
+    // Original camera file ko bilkul compress nahi karna
+    return file;
   };
 
   const uploadToR2 = (url: string, file: File, onProgress?: (loaded: number, total: number) => void): Promise<void> => {
