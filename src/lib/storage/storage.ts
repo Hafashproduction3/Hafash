@@ -1,3 +1,4 @@
+
 /**
  * Metadata associated with a stored object.
  */
@@ -6,6 +7,14 @@ export interface ObjectMetadata {
   size: number;
   contentType?: string;
   lastModified?: Date;
+}
+
+/**
+ * Information about a completed multipart upload part.
+ */
+export interface MultipartCompletedPart {
+  ETag: string;
+  PartNumber: number;
 }
 
 /**
@@ -42,6 +51,24 @@ export interface StorageProvider {
   deleteFile(key: string): Promise<void>;
   getSignedUrl(key: string, expiresIn?: number): Promise<string>;
   getSignedUploadUrl(key: string, contentType: string, expiresIn?: number): Promise<string>;
+
+  createMultipartUpload(key: string, contentType: string): Promise<string>;
+
+  getSignedUploadPartUrl(
+    key: string,
+    uploadId: string,
+    partNumber: number,
+    expiresIn?: number
+  ): Promise<string>;
+
+  completeMultipartUpload(
+    key: string,
+    uploadId: string,
+    parts: MultipartCompletedPart[]
+  ): Promise<void>;
+
+  abortMultipartUpload(key: string, uploadId: string): Promise<void>;
+
   fileExists(key: string): Promise<boolean>;
   getFileMetadata(key: string): Promise<ObjectMetadata | null>;
   listFiles(prefix?: string): Promise<string[]>;

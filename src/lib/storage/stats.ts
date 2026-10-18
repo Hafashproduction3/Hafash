@@ -12,11 +12,22 @@ export interface StorageStats {
   isOverQuota: boolean;
 }
 
+// ✅ Storage stats cache (60 seconds)
+const storageStatsCache = new Map<string, { data: StorageStats; expires: number }>();
+const STATS_CACHE_TTL = 60 * 1000;
+
 /**
  * SERVICE: Calculate comprehensive storage telemetry for a user.
  * ✅ Owner bypass: owner ko unlimited storage milta hai.
+ * ✅ Fast: photoCount use karta hai — items array iterate NAHI karta.
  */
 export async function getStorageStats(userId: string): Promise<StorageStats> {
+  // ✅ Cache check — agar 60 seconds ke andar call hua, toh cached return karo
+  const cached = storageStatsCache.get(userId);
+  if (cached && cached.expires > Date.now()) {
+    return cached.data;
+  }
+
   console.log(`[DEBUG] getStorageStats: Starting for user ${userId}`);
   
   if (!adminDb) {
@@ -58,14 +69,25 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
     let totalBytes = 0;
     let totalFiles = 0;
 
+    // ✅ FAST: photoCount use karein — items iterate NAHI
     galleriesSnap.docs.forEach(doc => {
       const data = doc.data();
+      
+      const photoCount = Number(data.photoCount) || 0;
       const items = Array.isArray(data.items) ? data.items : [];
       
+      // ✅ Agar items khaali hai, photoCount use karo — 0 iterations
+      if (items.length === 0 && photoCount > 0) {
+        totalFiles += photoCount;
+        // Average 6.5 MB per photo (preview + thumb + original)
+        totalBytes += photoCount * 6.5 * 1024 * 1024;
+        return;
+      }
+      
+      // ✅ Agar items hain toh iterate karo (legacy support)
       totalFiles += items.length;
       
       items.forEach((item: any) => {
-        // ✅ Preview + Thumb + Original count
         const previewSize = Number(item.fileSize) || 0;
         const thumbSize = item.thumbKey ? (50 * 1024) : 0;
         let originalSize = 0;
@@ -83,7 +105,7 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
 
     console.log(`[DEBUG] Storage: ${usedGb.toFixed(4)} GB across ${totalFiles} assets`);
 
-    return {
+    const result: StorageStats = {
       usedBytes: totalBytes,
       usedGb: usedGb,
       totalGb: plan.storageGb,
@@ -93,8 +115,23 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
       planName: plan.name,
       isOverQuota: !isOwner && usedGb >= plan.storageGb,
     };
+
+    // ✅ Cache mein save karo
+    storageStatsCache.set(userId, {
+      data: result,
+      expires: Date.now() + STATS_CACHE_TTL,
+    });
+
+    return result;
   } catch (error: any) {
     console.error("[DEBUG] CRITICAL ERROR IN getStorageStats:", error);
     throw error;
   }
+}
+
+/**
+ * ✅ Cache manually clear karein (upload ke baad, plan change ke baad)
+ */
+export function clearStorageStatsCache(userId: string): void {
+  storageStatsCache.delete(userId);
 }
