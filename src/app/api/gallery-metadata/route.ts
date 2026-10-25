@@ -8,24 +8,31 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     if (!adminDb) return NextResponse.json({ error: 'DB offline' }, { status: 500 });
 
-    // 1. Pehle Direct ID se check karein
+    // 1. ID ya Slug se Gallery dhoondein
     let gallerySnap = await adminDb.collection('galleries').doc(id).get();
     let galleryData = gallerySnap.exists ? gallerySnap.data() : null;
 
-    // 2. Agar ID se na mile, toh Slug se check karein
     if (!galleryData) {
       const slugSnap = await adminDb.collection('galleries').where('slug', '==', id).limit(1).get();
-      if (!slugSnap.empty) {
-        galleryData = slugSnap.docs[0].data();
-      }
+      if (!slugSnap.empty) galleryData = slugSnap.docs[0].data();
     }
 
     if (!galleryData) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    // 3. R2 Public URL (jo WhatsApp pe load hogi)
+    // 2. Image ka Public URL banayein (IMPORTANT FIX)
     let coverUrl = '';
+    
+    // Agar coverKey mojood hai (jo sabse best hai)
     if (galleryData.coverKey) {
       coverUrl = `${R2_PUBLIC_URL}/${galleryData.coverKey}`;
+    } 
+    // Agar coverImage mojood hai lekin signed URL nahi hai
+    else if (galleryData.coverImage && !galleryData.coverImage.includes('X-Amz')) {
+      coverUrl = galleryData.coverImage;
+    } 
+    // Agar image bilkul nahi hai, toh Hafash ka default banner lagayein
+    else {
+      coverUrl = 'https://hafash.pk/hafash-banner.jpg'; // Aap yahan apni koi achi si default image ka link de sakte hain
     }
 
     return NextResponse.json({
