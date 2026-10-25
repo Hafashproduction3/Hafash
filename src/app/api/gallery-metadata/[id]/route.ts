@@ -68,7 +68,7 @@ export async function GET(
 
     let imageUrl = FALLBACK_IMAGE;
 
-    // ✅ FIX: WhatsApp ke liye pehle Thumbnail (chhoti image) check karein
+    // ✅ ASAL FIX: WhatsApp ke liye chhoti Thumbnail use karein
     if (typeof data.thumbKey === 'string' && data.thumbKey) {
       imageUrl = `${R2_PUBLIC_URL}/${data.thumbKey
         .split('/')
