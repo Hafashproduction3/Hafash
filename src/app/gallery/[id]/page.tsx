@@ -9,7 +9,7 @@ export async function generateMetadata({
   params,
 }: PageProps): Promise<Metadata> {
   const { id } = await params;
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://hafash.pk';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.hafash.pk';
 
   const fallbackTitle = 'Hafash Wedding Gallery';
   const fallbackDescription = 'Beautiful photography galleries, delivered by Hafash.pk.';
@@ -63,7 +63,7 @@ export async function generateMetadata({
     const title = clientName ? `${galleryTitle} — ${clientName}` : `${galleryTitle} | ${studioName}`;
     const description = `${category} gallery by ${studioName}. Beautiful moments, delivered with Hafash.pk.`;
     
-    // ✅ ASAL FIX: API se aane wali direct image use karein
+    // ✅ Image URL
     const coverImage = data.coverImage || `${baseUrl}/hafash-logo.png`;
 
     return {
@@ -91,6 +91,12 @@ export async function generateMetadata({
         title,
         description,
         images: [coverImage],
+      },
+      // ✅ FIX: WhatsApp ko dimensions batane ke liye
+      other: {
+        'og:image:width': '1200',
+        'og:image:height': '630',
+        'og:image:type': 'image/jpeg',
       },
     };
   } catch (error) {
