@@ -66,21 +66,20 @@ export async function GET(
       );
     }
 
+    // ✅ FIX: Default image se shuru karein
     let imageUrl = FALLBACK_IMAGE;
 
-    // ✅ ASAL FIX: WhatsApp ke liye chhoti Thumbnail use karein
-    if (typeof data.thumbKey === 'string' && data.thumbKey) {
-      imageUrl = `${R2_PUBLIC_URL}/${data.thumbKey
-        .split('/')
-        .map((part: string) => encodeURIComponent(part))
-        .join('/')}`;
-    } else if (typeof data.coverImage === 'string' && data.coverImage.startsWith('https://') && !data.coverImage.includes('X-Amz')) {
+    // 1. Pehle thumbKey check karein (sabse choti image)
+    if (typeof data.thumbKey === 'string' && data.thumbKey.length > 0) {
+      imageUrl = `${R2_PUBLIC_URL}/${data.thumbKey}`;
+    } 
+    // 2. Agar thumbKey na ho, toh coverImage (agar public ho) check karein
+    else if (typeof data.coverImage === 'string' && data.coverImage.startsWith('https://') && !data.coverImage.includes('X-Amz')) {
       imageUrl = data.coverImage;
-    } else if (typeof data.coverKey === 'string' && data.coverKey) {
-      imageUrl = `${R2_PUBLIC_URL}/${data.coverKey
-        .split('/')
-        .map((part: string) => encodeURIComponent(part))
-        .join('/')}`;
+    }
+    // 3. Agar coverKey ho toh usay use karein
+    else if (typeof data.coverKey === 'string' && data.coverKey.length > 0) {
+      imageUrl = `${R2_PUBLIC_URL}/${data.coverKey}`;
     }
 
     return NextResponse.json(
