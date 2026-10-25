@@ -1043,7 +1043,7 @@ export default function DashboardPage() {
             >
               <div className="aspect-[4/3] relative overflow-hidden">
                 {gallery.coverImage ? (
-                  <img src={gallery.coverImage} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt={gallery.title} loading="lazy" decoding="async" />
+                  <img src={gallery.coverImage} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" alt={gallery.title} loading="lazy" decoding="async" fetchPriority="low" />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">
                     <ImageIcon className="w-12 h-12 text-white/5" />
@@ -1100,7 +1100,7 @@ export default function DashboardPage() {
                 <div className="pt-6 border-t border-white/5 flex justify-between items-center">
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold text-primary tracking-widest uppercase mb-1">Status</span>
-                    <span className="text-xs font-medium text-white/80">{gallery.items?.length || 0} Assets Delivered</span>
+                    <span className="text-xs font-medium text-white/80">{gallery.photoCount ?? gallery.items?.length ?? 0} Assets Delivered</span>
                   </div>
                   <Link href={`/events/${gallery.id}/manage`}>
                     <Button variant="ghost" size="sm" className="h-10 rounded-xl px-5 gap-2 text-[10px] font-bold uppercase hover:bg-primary/10 hover:text-primary transition-all active:scale-95">
@@ -1118,7 +1118,7 @@ export default function DashboardPage() {
             <div key={gallery.id} className="flex items-center gap-6 p-5 bg-card/30 backdrop-blur-md border border-white/5 rounded-3xl group hover:border-primary/40 transition-all duration-500 shadow-xl hover:translate-x-2">
               <div className="h-16 w-16 rounded-2xl overflow-hidden shrink-0 border border-white/10 shadow-2xl group-hover:scale-105 transition-transform duration-500">
                 {gallery.coverImage ? (
-                  <img src={gallery.coverImage} className="w-full h-full object-cover" alt="Cover" loading="lazy" decoding="async" />
+                  <img src={gallery.coverImage} className="w-full h-full object-cover" alt="Cover" loading="lazy" decoding="async" fetchPriority="low" />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">
                     <ImageIcon className="w-6 h-6 text-white/5" />
@@ -1139,7 +1139,7 @@ export default function DashboardPage() {
                 <div className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground flex items-center gap-6">
                   <span className="flex items-center gap-2"><UserIcon className="w-3.5 h-3.5 text-primary" /> {gallery.clientName}</span>
                   <span className="flex items-center gap-2"><CalendarIcon className="w-3.5 h-3.5 text-primary" /> {gallery.date}</span>
-                  <span className="flex items-center gap-2 text-white/40"><LayoutGrid className="w-3.5 h-3.5" /> {gallery.items?.length || 0} Assets</span>
+                  <span className="flex items-center gap-2 text-white/40"><LayoutGrid className="w-3.5 h-3.5" /> {gallery.photoCount ?? gallery.items?.length ?? 0} Assets</span>
                 </div>
               </div>
 
