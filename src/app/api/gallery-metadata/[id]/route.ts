@@ -1,10 +1,8 @@
-
 import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 
 const FALLBACK_IMAGE = 'https://hafash.pk/hafash-logo.png';
-const R2_PUBLIC_URL =
-  'https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev';
+const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev';
 
 export async function GET(
   _request: Request,
@@ -14,10 +12,7 @@ export async function GET(
     const { id } = await params;
 
     if (!adminDb) {
-      return NextResponse.json(
-        { error: 'DB offline' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'DB offline' }, { status: 500 });
     }
 
     let gallerySnap = await adminDb.collection('galleries').doc(id).get();
@@ -73,7 +68,13 @@ export async function GET(
 
     let imageUrl = FALLBACK_IMAGE;
 
-    if (typeof data.coverImage === 'string' && data.coverImage.startsWith('https://')) {
+    // ✅ FIX: WhatsApp ke liye pehle Thumbnail (chhoti image) check karein
+    if (typeof data.thumbKey === 'string' && data.thumbKey) {
+      imageUrl = `${R2_PUBLIC_URL}/${data.thumbKey
+        .split('/')
+        .map((part: string) => encodeURIComponent(part))
+        .join('/')}`;
+    } else if (typeof data.coverImage === 'string' && data.coverImage.startsWith('https://') && !data.coverImage.includes('X-Amz')) {
       imageUrl = data.coverImage;
     } else if (typeof data.coverKey === 'string' && data.coverKey) {
       imageUrl = `${R2_PUBLIC_URL}/${data.coverKey
