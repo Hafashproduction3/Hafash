@@ -1954,17 +1954,33 @@ export default function ClientGalleryPage() {
             </Button>
           )}
 
-          <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
-            <img 
-              key={selectedIndex}
-              src={gallery.items[selectedIndex].url} 
-              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-300" 
-              alt="Fullscreen" 
-              decoding="async"
-              onClick={(e) => e.stopPropagation()}
-            />
-            {showWatermark && <div className="luxury-watermark pointer-events-none" />}
-          </div>
+          
+<div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
+  <img
+    src={
+      gallery.items[selectedIndex].thumbUrl ||
+      gallery.items[selectedIndex].url
+    }
+    alt="Photo preview"
+    className="absolute inset-0 w-full h-full object-contain rounded-2xl"
+    decoding="async"
+  />
+
+  <img
+    key={gallery.items[selectedIndex].url}
+    src={gallery.items[selectedIndex].url}
+    alt="Fullscreen"
+    loading="eager"
+    decoding="async"
+    onClick={(e) => e.stopPropagation()}
+    className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5"
+  />
+
+  {showWatermark && (
+    <div className="luxury-watermark pointer-events-none" />
+  )}
+</div>
+
 
           <div 
             className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-3 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl"
