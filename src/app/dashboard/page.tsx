@@ -4,6 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useFirestore, useUser, useCollection, useDoc } from '@/firebase';
+import Image from 'next/image';
 import {
   Plus,
   Search,
@@ -1043,7 +1044,7 @@ export default function DashboardPage() {
             >
               <div className="aspect-[4/3] relative overflow-hidden">
                 {gallery.coverImage ? (
-                  <img src={gallery.coverImage} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" alt={gallery.title} loading="lazy" decoding="async" fetchPriority="low" />
+                  <Image src={gallery.thumbUrl || gallery.coverImage} alt={gallery.title} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition-transform duration-300 group-hover:scale-105" />
                 ) : (
                   <div className="w-full h-full bg-muted flex items-center justify-center">
                     <ImageIcon className="w-12 h-12 text-white/5" />

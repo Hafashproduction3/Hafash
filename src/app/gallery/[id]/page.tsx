@@ -3,6 +3,7 @@
 import { useFirestore, useDoc, useUser } from '@/firebase';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { 
   Heart, Download, Loader2, MessageCircle, Share2, ShieldAlert,
   ArrowLeft, CheckCircle2, Sparkles, Lock, Unlock, KeyRound, X,
@@ -73,19 +74,20 @@ const GalleryItem = memo(({
           <span className="text-xs font-bold uppercase tracking-widest opacity-50">Image Unavailable</span>
         </div>
       ) : (
-        <img 
-          src={imageSrc} 
-          alt={item.fileName || "Gallery Asset"}
-          className={cn(
-            "w-full h-full object-cover transition-all duration-1000",
-            loaded ? "opacity-100" : "opacity-0",
-            !isSelectionMode && "group-hover:scale-110"
-          )}
-          loading={priority ? "eager" : "lazy"}
-          decoding="async"
-          onLoad={() => setLoaded(true)}
-          onError={() => { setImgError(true); setLoaded(true); }}
-        />
+        <Image
+  src={imageSrc}
+  alt={item.fileName || "Gallery Asset"}
+  fill
+  sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+  className={cn(
+    "object-cover transition-all duration-1000",
+    loaded ? "opacity-100" : "opacity-0",
+    !isSelectionMode && "group-hover:scale-110"
+  )}
+  loading={priority ? "eager" : "lazy"}
+  onLoad={() => setLoaded(true)}
+  onError={() => { setImgError(true); setLoaded(true); }}
+/>
       )}
       
       {isSelectionMode && (
