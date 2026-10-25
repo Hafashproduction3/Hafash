@@ -70,11 +70,7 @@ export async function generateMetadata({
     const description =
       `${category} gallery by ${studioName}. ` +
       'Beautiful moments, delivered with Hafash.pk.';
-    const coverImage =
-      typeof data.coverImage === 'string' &&
-      data.coverImage.startsWith('https://')
-        ? data.coverImage
-        : `${baseUrl}/hafash-logo.png`;
+    const coverImage = `${baseUrl}/api/gallery-og/${encodeURIComponent(id)}`;
 
     return {
       metadataBase: new URL(baseUrl),
