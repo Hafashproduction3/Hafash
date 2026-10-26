@@ -37,6 +37,7 @@ import {
   Briefcase,
   Gift,
   Clock,
+  CheckCircle2,
 } from 'lucide-react';
 import { PaymentWidget } from '@/components/dashboard/PaymentWidget';
 import { Button } from '@/components/ui/button';
