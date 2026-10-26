@@ -33,11 +33,11 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 z-0">
-            <img 
-              src="https://picsum.photos/seed/hafash-hero/1920/1080" 
-              alt="Luxury Wedding" 
-              className="w-full h-full object-cover opacity-60 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
-            />
+          <img 
+  src="https://i.postimg.cc/MH88pvhh/nikon.jpg" 
+  alt="Luxury Photography Setup" 
+  className="w-full h-full object-cover opacity-40 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
+/>
             {/* Cinematic Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
