@@ -650,13 +650,68 @@ export default function DashboardPage() {
 
       {/* ═══ PAYMENT WIDGET ═══ */}
       {!dataLoading && bookingsForWidget && bookingsForWidget.length > 0 && (
-        <PaymentWidget bookings={bookingsForWidget as unknown as Booking[]} />
-      )}
+  <div className="relative overflow-hidden rounded-[2.5rem] border border-primary/20 bg-gradient-to-br from-[#1A1916] via-[#1C1A17] to-[#25231E] p-6 lg:p-8 shadow-2xl">
+    <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+    
+    <div className="relative z-10">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+            <CreditCard className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h3 className="text-xl font-headline font-bold text-white">Payments Overview</h3>
+            <p className="text-sm text-muted-foreground">Manage your studio's earnings</p>
+          </div>
+        </div>
+        <Link href="/dashboard/payments">
+          <Button variant="outline" className="rounded-xl border-primary/30 text-primary hover:bg-primary/10 gap-2">
+            View All <ArrowRight className="w-4 h-4" />
+          </Button>
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-all">
+          <div className="flex items-center gap-2 mb-3">
+            <TrendingUp className="w-4 h-4 text-white/50" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Total Value</p>
+          </div>
+          <p className="text-2xl font-headline font-bold text-white">Rs. 50.0k</p>
+        </div>
+
+        <div className="bg-green-500/5 border border-green-500/20 rounded-2xl p-5 hover:bg-green-500/10 transition-all">
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-green-500/70">Received</p>
+          </div>
+          <p className="text-2xl font-headline font-bold text-green-500">Rs. 14.7k</p>
+        </div>
+
+        <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5 hover:bg-amber-500/10 transition-all">
+          <div className="flex items-center gap-2 mb-3">
+            <Clock className="w-4 h-4 text-amber-500" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/70">Pending</p>
+          </div>
+          <p className="text-2xl font-headline font-bold text-amber-500">Rs. 34.3k</p>
+        </div>
+
+        <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5 hover:bg-red-500/10 transition-all">
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="w-4 h-4 text-destructive" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-destructive/70">Overdue</p>
+          </div>
+          <p className="text-2xl font-headline font-bold text-destructive">Rs. 0</p>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* ═══ NETWORK WIDGET ═══ */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/8 via-card/60 to-background p-5 lg:p-6 shadow-lg">
-        <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-
+      {/* ═══ NETWORK WIDGET ═══ */}
+<div className="bg-[#1E1C18] border border-primary/20 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
+  <div className="absolute -top-20 -right-20 w-48 h-48 bg-primary/10 rounded-full blur-3xl" />
         <div className="relative space-y-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
@@ -884,12 +939,12 @@ export default function DashboardPage() {
 
       {/* ═══ STORAGE ═══ */}
       {!profileLoading && (hasActivePlan || isTrial) && (
-        <div className={cn(
-          "relative overflow-hidden rounded-2xl border backdrop-blur-xl p-5 shadow-lg transition-all duration-500",
-          isOverLimit ? "border-destructive/40 bg-destructive/5" :
-          isNearLimit ? "border-orange-500/30 bg-orange-500/5" :
-          "border-primary/20 bg-card/30"
-        )}>
+  <div className={cn(
+    "bg-[#141312] border rounded-3xl p-6 shadow-2xl relative transition-all duration-500",
+    isOverLimit ? "border-destructive/40" :
+    isNearLimit ? "border-orange-500/30" :
+    "border-white/5"
+  )}>
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5 flex-1 w-full">
               <div className={cn(
