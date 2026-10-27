@@ -501,15 +501,15 @@ export default function DashboardPage() {
               </Button>
             </Link>
             <Link href="/dashboard/reviews">
-  <Button
-    variant="outline"
-    className="rounded-2xl h-12 px-6 border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 hover:border-purple-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
-  >
-    <Star className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
-    <span className="text-[13px]">Reviews</span>
-    <ArrowRight className="w-3.5 h-3.5 text-purple-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
-  </Button>
-</Link>
+              <Button
+                variant="outline"
+                className="rounded-2xl h-12 px-6 border-purple-500/30 bg-purple-500/5 hover:bg-purple-500/10 hover:border-purple-500/50 font-bold gap-2.5 transition-all duration-300 hover:-translate-y-0.5 active:scale-95 group"
+              >
+                <Star className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                <span className="text-[13px]">Reviews</span>
+                <ArrowRight className="w-3.5 h-3.5 text-purple-400 opacity-0 -ml-2 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+              </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -648,127 +648,6 @@ export default function DashboardPage() {
           )}
         </>
       )}
-
-      {/* ═══ PAYMENT WIDGET ═══ */}
-      {!dataLoading && bookingsForWidget && bookingsForWidget.length > 0 && (
-  <div className="relative overflow-hidden rounded-[2.5rem] border border-primary/20 bg-gradient-to-br from-[#1A1916] via-[#1C1A17] to-[#25231E] p-6 lg:p-8 shadow-2xl">
-    <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
-    
-    <div className="relative z-10">
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-            <CreditCard className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-xl font-headline font-bold text-white">Payments Overview</h3>
-            <p className="text-sm text-muted-foreground">Manage your studio's earnings</p>
-          </div>
-        </div>
-        <Link href="/dashboard/payments">
-          <Button variant="outline" className="rounded-xl border-primary/30 text-primary hover:bg-primary/10 gap-2">
-            View All <ArrowRight className="w-4 h-4" />
-          </Button>
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-all">
-          <div className="flex items-center gap-2 mb-3">
-            <TrendingUp className="w-4 h-4 text-white/50" />
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Total Value</p>
-          </div>
-          <p className="text-2xl font-headline font-bold text-white">Rs. 50.0k</p>
-        </div>
-
-        <div className="bg-green-500/5 border border-green-500/20 rounded-2xl p-5 hover:bg-green-500/10 transition-all">
-          <div className="flex items-center gap-2 mb-3">
-            <CheckCircle2 className="w-4 h-4 text-green-500" />
-            <p className="text-[10px] font-bold uppercase tracking-widest text-green-500/70">Received</p>
-          </div>
-          <p className="text-2xl font-headline font-bold text-green-500">Rs. 14.7k</p>
-        </div>
-
-        <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-5 hover:bg-amber-500/10 transition-all">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-4 h-4 text-amber-500" />
-            <p className="text-[10px] font-bold uppercase tracking-widest text-amber-500/70">Pending</p>
-          </div>
-          <p className="text-2xl font-headline font-bold text-amber-500">Rs. 34.3k</p>
-        </div>
-
-        <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-5 hover:bg-red-500/10 transition-all">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="w-4 h-4 text-destructive" />
-            <p className="text-[10px] font-bold uppercase tracking-widest text-destructive/70">Overdue</p>
-          </div>
-          <p className="text-2xl font-headline font-bold text-destructive">Rs. 0</p>
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-      {/* ═══ NETWORK WIDGET ═══ */}
-      {/* ═══ NETWORK WIDGET ═══ */}
-<div className="bg-[#1E1C18] border border-primary/20 rounded-3xl p-6 shadow-2xl relative overflow-hidden group">
-  <div className="absolute -top-20 -right-20 w-48 h-48 bg-primary/10 rounded-full blur-3xl" />
-        <div className="relative space-y-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-headline font-bold text-base text-white flex items-center gap-2">
-                Hafash Network
-                {(pendingCount > 0 || unreadCount > 0) && (
-                  <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-primary bg-primary/15 border border-primary/30 px-2 py-0.5 rounded-md animate-pulse">
-                    {pendingCount + unreadCount} new
-                  </span>
-                )}
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {hasNetworkProfile
-                  ? "Aapka Network profile active hai"
-                  : "Abhi tak Network profile nahi banayi"}
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <NetworkStatCard
-              icon={<Inbox className="w-4 h-4" />}
-              label="Incoming"
-              value={pendingCount}
-              href="/network/incoming"
-              highlight={pendingCount > 0}
-              color="amber"
-            />
-            <NetworkStatCard
-              icon={<MessageSquare className="w-4 h-4" />}
-              label="Messages"
-              value={unreadCount}
-              href="/network/messages"
-              highlight={unreadCount > 0}
-              color="pink"
-            />
-            <NetworkStatCard
-              icon={<TrendingUp className="w-4 h-4" />}
-              label="Active"
-              value={totalAccepted}
-              href="/network/requests"
-              color="green"
-            />
-            <NetworkStatCard
-              icon={hasNetworkProfile ? <Sparkles className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-              label={hasNetworkProfile ? "Profile" : "Setup"}
-              value={hasNetworkProfile ? "✓" : "!"}
-              href={hasNetworkProfile ? `/network/professional/${user?.uid}` : "/network/join"}
-              color={hasNetworkProfile ? "primary" : "amber"}
-            />
-          </div>
-        </div>
-      </div>
 
       {/* ═══ LOCATION WIDGET ═══ */}
       {locationStats.count > 0 && (
@@ -1237,99 +1116,6 @@ export default function DashboardPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════
-// Network Stat Card
-// ═══════════════════════════════════════════════════════════════
-
-function NetworkStatCard({
-  icon,
-  label,
-  value,
-  href,
-  highlight,
-  color,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number | string;
-  href: string;
-  highlight?: boolean;
-  color: 'amber' | 'pink' | 'green' | 'primary';
-}) {
-  const colorClasses = {
-    amber: {
-      border: highlight ? 'border-amber-500/40' : 'border-amber-500/20',
-      bg: highlight ? 'bg-amber-500/10' : 'bg-amber-500/5',
-      icon: 'text-amber-400',
-      iconBg: 'bg-amber-500/15',
-      value: highlight ? 'text-amber-400' : 'text-white',
-    },
-    pink: {
-      border: highlight ? 'border-pink-500/40' : 'border-pink-500/20',
-      bg: highlight ? 'bg-pink-500/10' : 'bg-pink-500/5',
-      icon: 'text-pink-400',
-      iconBg: 'bg-pink-500/15',
-      value: highlight ? 'text-pink-400' : 'text-white',
-    },
-    green: {
-      border: 'border-green-500/20',
-      bg: 'bg-green-500/5',
-      icon: 'text-green-400',
-      iconBg: 'bg-green-500/15',
-      value: 'text-white',
-    },
-    primary: {
-      border: 'border-primary/20',
-      bg: 'bg-primary/5',
-      icon: 'text-primary',
-      iconBg: 'bg-primary/15',
-      value: 'text-white',
-    },
-  }[color];
-
-  return (
-    <Link href={href}>
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-2xl border p-4 transition-all duration-300 cursor-pointer group",
-          "hover:scale-[1.02] hover:-translate-y-0.5",
-          colorClasses.border,
-          colorClasses.bg
-        )}
-      >
-        {highlight && (
-          <div className="absolute -top-6 -right-6 w-16 h-16 rounded-full bg-current/10 blur-2xl animate-pulse" />
-        )}
-
-        <div className="relative flex items-center gap-3">
-          <div className={cn(
-            "w-9 h-9 rounded-xl flex items-center justify-center shrink-0",
-            colorClasses.iconBg
-          )}>
-            <div className={colorClasses.icon}>{icon}</div>
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
-              {label}
-            </p>
-            <p className={cn(
-              "text-xl font-headline font-bold leading-tight mt-0.5",
-              colorClasses.value
-            )}>
-              {value}
-            </p>
-          </div>
-
-          {highlight && typeof value === 'number' && value > 0 && (
-            <span className="shrink-0 w-2 h-2 rounded-full bg-current animate-pulse" />
-          )}
-        </div>
-      </div>
-    </Link>
   );
 }
 
