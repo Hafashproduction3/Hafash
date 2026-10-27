@@ -10,7 +10,7 @@ import {
   User as UserIcon, Calendar as CalendarIcon, Archive as ArchiveIcon,
   ExternalLink as ExternalLinkIcon, Music as MusicIcon, Play as PlayIcon,
   Pause as PauseIcon, Upload as UploadIcon, X as XIcon, Search as SearchIcon,
-  Crown as CrownIcon, Zap
+  Crown as CrownIcon, Zap, Star as StarIcon, Settings as SettingsIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,7 +27,7 @@ import {
   Dialog, DialogContent, DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from '@/hooks/use-toast';
-import { doc, deleteDoc, updateDoc, arrayRemove, collection, query, orderBy } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, collection, query, orderBy } from 'firebase/firestore';
 import { deleteGalleryFiles, requestUploadUrl, getMusicSignedUrl, refreshPhotoUrls } from '@/app/actions/storage';
 import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
@@ -170,19 +170,13 @@ export default function EventManagementPage() {
     refreshCover();
   }, [eventRaw?.coverImage]);
 
-  // ✅ PRIORITY: eventData.items FIRST (instant load)
   const event: any = useMemo(() => {
     if (!eventRaw) return null;
     const eventData = eventRaw as any;
-    
-    // ✅ Instant items from Firestore
     let photos: any[] = eventData.items || [];
-    
-    // ✅ Agar refreshed signed URLs available hain, to replace karo
     if (refreshedPhotos.length > 0) {
       photos = refreshedPhotos;
     }
-    
     return { 
       ...eventData, 
       items: photos,
@@ -219,7 +213,7 @@ export default function EventManagementPage() {
         photographerNote: settings.photographerNote,
         updatedAt: new Date().toISOString() 
       });
-      toast({ title: "Settings Saved" });
+      toast({ title: "Note Saved" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed" });
     }
@@ -240,7 +234,7 @@ export default function EventManagementPage() {
         updatedAt: new Date().toISOString() 
       });
       setRefreshedCover(imageUrl);
-      toast({ title: "✅ Cover Updated" });
+      toast({ title: "Cover Updated" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Update Failed" });
     }
@@ -269,7 +263,7 @@ export default function EventManagementPage() {
         void deleteGalleryFiles(keys).catch(e => console.error('[PHOTO_DELETE] R2:', e));
       }
       
-      toast({ title: "Asset Removed" });
+      toast({ title: "Photo Removed" });
     } catch (err: any) {
       console.error('[PHOTO_DELETE] Error:', err);
       toast({ variant: "destructive", title: "Remove Failed" });
@@ -422,34 +416,15 @@ export default function EventManagementPage() {
   }, [eventRef, event, deleteConfirmText, router, toast, isDeleting, firestore, id, subcollectionPhotos]);
 
   const updateToggle = useCallback(async (field: string, value: any) => {
-    if (!eventRef) {
-      console.error('[TOGGLE] eventRef is null');
-      toast({ 
-        variant: 'destructive', 
-        title: 'Failed', 
-        description: 'Gallery reference not found' 
-      });
-      return;
-    }
-
-    const updateData: any = { 
-      [field]: value, 
-      updatedAt: new Date().toISOString() 
-    };
+    if (!eventRef) return;
+    const updateData: any = { [field]: value, updatedAt: new Date().toISOString() };
     if (field === 'isPaid') updateData.isLocked = !value;
 
     try {
       await updateDoc(eventRef, updateData);
-      toast({ 
-        title: `✅ ${field === 'isPublic' ? 'Public Access' : field === 'isPaid' ? 'Download Access' : field} Updated`,
-        description: value ? 'Enabled' : 'Disabled'
-      });
+      toast({ title: `${field === 'isPublic' ? 'Public Access' : 'Download Access'} Updated` });
     } catch (err: any) {
-      toast({ 
-        variant: 'destructive', 
-        title: 'Update Failed', 
-        description: err.message || 'Unknown error'
-      });
+      toast({ variant: 'destructive', title: 'Update Failed', description: err.message });
       setSettings((prev: any) => ({ ...prev, [field]: !value }));
     }
   }, [eventRef, toast]);
@@ -470,16 +445,15 @@ export default function EventManagementPage() {
     );
   }, [event?.items, assetSearch]);
 
-  // ✅ Loading state — sirf auth + doc loading
   if (authLoading || dataLoading) return (
-    <HafashLoader text="Synchronizing Workspace..." />
+    <HafashLoader text="Loading Workspace..." />
   );
 
   if (error || !event) return (
-    <div className="text-center py-40 bg-card/20 backdrop-blur-md border border-white/5 rounded-[3rem]">
-      <ImageIcon className="w-20 h-20 text-muted-foreground mx-auto mb-8 opacity-20" />
-      <h2 className="text-4xl font-headline font-bold text-white uppercase tracking-tight">Event not found</h2>
-      <Button className="mt-10 rounded-2xl h-14 px-12 bg-primary text-primary-foreground font-bold shadow-2xl" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
+    <div className="text-center py-40 bg-[#161616] border border-white/10 rounded-3xl m-6">
+      <ImageIcon className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
+      <h2 className="text-2xl font-headline font-bold text-white">Event not found</h2>
+      <Button className="mt-8 rounded-xl h-12 px-8 bg-primary text-primary-foreground font-bold" onClick={() => router.push('/dashboard')}>Back to Dashboard</Button>
     </div>
   );
 
@@ -488,112 +462,115 @@ export default function EventManagementPage() {
   const totalItems = event.items?.length || 0;
 
   return (
-    <div className="space-y-16 pb-32 animate-in fade-in duration-1000">
-      <div className="relative rounded-[3.5rem] overflow-hidden border border-white/5 shadow-[0_50px_100px_rgba(0,0,0,0.5)] group">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background/95 to-background z-0" />
-        <div className="absolute -inset-20 bg-[radial-gradient(circle_at_center,var(--primary)_0%,transparent_70%)] opacity-5 blur-3xl group-hover:opacity-10 transition-opacity duration-1000" />
-        
-        <div className="relative z-10 p-12 lg:p-20 flex flex-col lg:row justify-between items-start lg:items-center gap-12">
-          <div className="space-y-8">
-            <div className="flex items-center gap-5">
-              <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 bg-white/5 hover:bg-primary hover:text-primary-foreground border border-white/10 transition-all shadow-xl" onClick={() => router.push('/dashboard')}>
-                <ArrowLeftIcon className="w-6 h-6" />
-              </Button>
-              <Badge variant="outline" className="border-primary/30 text-primary text-[10px] uppercase font-bold tracking-[0.4em] px-6 py-2 rounded-xl backdrop-blur-md">
-                Workspace / {event.category}
-              </Badge>
-            </div>
-            <div className="space-y-3">
-              <h1 className="text-6xl lg:text-8xl font-headline font-bold tracking-tighter text-white drop-shadow-2xl leading-none">
-                {event.title}
-              </h1>
-              <div className="flex flex-wrap items-center gap-10 text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground/80">
-                <span className="flex items-center gap-3"><UserIcon className="w-4 h-4 text-primary" /> {event.clientName}</span>
-                <span className="flex items-center gap-3"><CalendarIcon className="w-4 h-4 text-primary" /> {event.date}</span>
-                <span className="flex items-center gap-3 text-primary"><LayoutGridIcon className="w-4 h-4" /> {totalItems} Assets</span>
+    <div className="w-full min-h-screen bg-black space-y-6 pb-24 animate-in fade-in duration-500 absolute top-0 left-0 z-50">
+      
+      {/* Header Container */}
+      <div className="w-full border-b border-white/10 px-6 py-6 bg-black">
+        <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="rounded-full h-9 w-9 bg-[#111] hover:bg-[#222] shrink-0 text-white" onClick={() => router.push('/dashboard')}>
+              <ArrowLeftIcon className="w-4 h-4" />
+            </Button>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[9px] uppercase tracking-widest text-primary font-bold">{event.category}</span>
+                <span className="text-muted-foreground text-[10px]">•</span>
+                <span className="text-[10px] text-muted-foreground flex items-center gap-1"><CalendarIcon className="w-3 h-3" /> {event.date}</span>
               </div>
+              <h1 className="text-2xl md:text-3xl font-headline font-bold text-white leading-none">{event.title}</h1>
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1.5">
+                <UserIcon className="w-3 h-3" /> {event.clientName}
+              </p>
             </div>
           </div>
           
-          <div className="flex flex-col sm:flex-row gap-5 w-full lg:w-auto">
-            <Link href={`/gallery/${event.slug || event.id}`} target="_blank" className="flex-1">
-               <Button className="w-full rounded-[1.5rem] h-20 bg-white text-black hover:bg-gray-100 font-bold gap-4 shadow-[0_20px_40px_rgba(255,255,255,0.1)] hover:translate-y-[-4px] transition-all active:scale-95 text-lg">
-                 <EyeIcon className="w-7 h-7" /> Preview
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <Link href={`/gallery/${event.slug || event.id}`} target="_blank" className="flex-1 md:flex-none">
+               <Button size="sm" className="w-full md:w-auto rounded-xl h-9 bg-white text-black hover:bg-gray-200 font-bold gap-1.5 text-xs">
+                 <EyeIcon className="w-3.5 h-3.5" /> Preview
                </Button>
             </Link>
             <Button 
+              size="sm"
               variant="outline" 
-              className="flex-1 rounded-[1.5rem] h-20 border-white/10 font-bold gap-4 bg-white/5 backdrop-blur-2xl hover:bg-white/10 transition-all hover:translate-y-[-4px] shadow-2xl text-lg"
+              className="flex-1 md:flex-none rounded-xl h-9 border-white/10 font-bold gap-1.5 bg-[#111] hover:bg-[#222] text-white text-xs"
               onClick={() => handleCopy(galleryUrl)}
             >
-              {copiedLink ? <CheckIcon className="w-7 h-7 text-green-500" /> : <CopyIcon className="w-7 h-7" />}
-              {copiedLink ? "Copied" : "Copy Link"}
+              {copiedLink ? <CheckIcon className="w-3.5 h-3.5 text-green-500" /> : <CopyIcon className="w-3.5 h-3.5" />}
+              {copiedLink ? "Copied" : "Share"}
             </Button>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        <div className="lg:col-span-2 space-y-12">
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
-            <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12 flex flex-row items-center justify-between">
-              <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
-                <ImageIcon className="w-10 h-10 text-primary" /> Visual Assets
+      {/* Main Content Area */}
+      <div className="max-w-[1800px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-6">
+          
+        {/* Left Side: Photos (Takes 9/12 columns) */}
+        <div className="lg:col-span-9 space-y-6 w-full">
+          
+          <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+            <CardHeader className="border-b border-white/10 px-5 py-4 flex flex-row items-center justify-between shrink-0 bg-[#161616]">
+              <CardTitle className="text-base font-headline font-bold flex items-center gap-2 text-white">
+                <ImageIcon className="w-4 h-4 text-primary" /> Gallery Photos <span className="text-muted-foreground text-xs font-sans font-normal ml-1">({totalItems})</span>
               </CardTitle>
               <Link href={`/events/${id}/upload`}>
-                <Button className="rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-[0_15px_30px_rgba(212,175,55,0.2)] h-14 px-10 hover:translate-y-[-2px] transition-all">
-                  <ImageIcon className="w-5 h-5" /> Add Assets
+                <Button size="sm" className="rounded-lg bg-primary/20 text-primary hover:bg-primary/30 font-bold gap-1.5 h-8 text-xs">
+                  <UploadIcon className="w-3.5 h-3.5" /> Upload
                 </Button>
               </Link>
             </CardHeader>
-            <CardContent className="p-12">
-              {(!event.items || event.items.length === 0) ? (
-                <div className="text-center py-32 border-2 border-dashed border-white/5 rounded-[2.5rem] bg-background/20">
-                  <LayoutGridIcon className="w-20 h-20 text-muted-foreground mx-auto mb-8 opacity-10" />
-                  <p className="text-muted-foreground italic font-headline text-2xl">No photos delivered yet.</p>
+            <CardContent className="p-5">
+              {totalItems === 0 ? (
+                <div className="text-center py-24 border-2 border-dashed border-white/10 rounded-2xl bg-black h-full flex flex-col items-center justify-center">
+                  <LayoutGridIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                  <p className="text-muted-foreground italic text-sm">No photos uploaded yet.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-8">
-                  {event.items.slice(0, 11).map((item: any) => (
-                    <div key={item.id} className="group relative aspect-[4/5] rounded-[2rem] overflow-hidden border border-white/5 bg-background shadow-2xl hover:translate-y-[-8px] transition-all duration-700">
-                      {item.thumbUrl || item.url ? (
-                        <img src={item.thumbUrl || item.url} className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" alt="Asset" loading="lazy" />
-                      ) : null}
-                      <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center p-6 text-center backdrop-blur-md gap-3">
-                        <Button 
-                          size="sm" variant="ghost"
-                          className={cn(
-                            "w-full rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] h-12 shadow-2xl transition-all",
-                            event.coverImage === item.url ? "bg-primary text-primary-foreground border-none" : "bg-white text-black hover:bg-gray-100"
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                  {event.items.slice(0, 23).map((item: any) => {
+                    const isCover = event.coverImage === item.url;
+                    return (
+                      <div key={item.id} className="group relative aspect-[4/5] rounded-xl overflow-hidden border border-white/10 bg-black">
+                        <img src={item.thumbUrl || item.url} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" alt="Asset" loading="lazy" />
+                        
+                        <div className="absolute top-2 left-2 right-2 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <div className="flex gap-1 bg-black/80 backdrop-blur-md p-1 rounded-lg border border-white/20 shadow-xl">
+                             <button 
+                               onClick={() => !isCover && handleSetCover(item.url)}
+                               className={cn("p-1.5 rounded-md transition-colors", isCover ? "text-primary" : "text-white hover:bg-white/20")}
+                               title="Set Cover"
+                             >
+                               <StarIcon className={cn("w-3.5 h-3.5", isCover && "fill-primary")} />
+                             </button>
+                             <button 
+                               onClick={() => handleDeletePhoto(item)}
+                               className="p-1.5 rounded-md text-white hover:bg-destructive/90 transition-colors"
+                               title="Delete"
+                               disabled={processingItems.has(item.id)}
+                             >
+                               {processingItems.has(item.id) ? <Loader2Icon className="w-3.5 h-3.5 animate-spin" /> : <Trash2Icon className="w-3.5 h-3.5" />}
+                             </button>
+                          </div>
+                          {isCover && (
+                            <div className="bg-primary text-primary-foreground p-1.5 rounded-md shadow-lg" title="Current Cover">
+                              <CrownIcon className="w-3.5 h-3.5" />
+                            </div>
                           )}
-                          onClick={() => event.coverImage !== item.url && handleSetCover(item.url)}
-                          disabled={processingItems.has(item.id)}
-                        >
-                          {event.coverImage === item.url ? "★ Active Cover" : "Set Cover"}
-                        </Button>
-                        <Button 
-                          size="sm" variant="destructive"
-                          className="w-full rounded-xl font-bold text-[10px] uppercase tracking-[0.2em] h-12 shadow-2xl transition-all active:scale-95"
-                          onClick={() => handleDeletePhoto(item)}
-                          disabled={processingItems.has(item.id)}
-                        >
-                          {processingItems.has(item.id) ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <Trash2Icon className="w-4 h-4 mr-2" />}
-                          Remove
-                        </Button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   
-                  {totalItems > 11 && (
+                  {totalItems > 23 && (
                     <button
                       onClick={() => setShowAllAssets(true)}
-                      className="aspect-[4/5] rounded-[2rem] border-2 border-dashed border-primary/30 flex flex-col items-center justify-center bg-primary/5 backdrop-blur-sm hover:border-primary hover:bg-primary/10 transition-all cursor-pointer group"
+                      className="aspect-[4/5] rounded-xl border-2 border-dashed border-primary/40 flex flex-col items-center justify-center bg-[#161616] hover:border-primary hover:bg-[#222] transition-all cursor-pointer group"
                     >
-                      <span className="text-5xl font-headline font-bold text-primary drop-shadow-2xl">+{totalItems - 11}</span>
-                      <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary mt-4 group-hover:scale-110 transition-transform">
-                        View All Assets
+                      <span className="text-3xl font-headline font-bold text-primary">+{totalItems - 23}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-primary mt-1 group-hover:scale-105 transition-transform">
+                        View All
                       </span>
-                      <span className="text-[9px] text-muted-foreground mt-2">Click to open</span>
                     </button>
                   )}
                 </div>
@@ -601,302 +578,253 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
-            <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12">
-              <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
-                <MusicIcon className="w-10 h-10 text-primary" /> Background Music
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-12 space-y-8">
-              <input ref={musicInputRef} type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} disabled={isUploadingMusic} />
-
-              {!currentMusicUrl ? (
-                <div 
-                  onClick={() => !isUploadingMusic && musicInputRef.current?.click()}
-                  className={cn(
-                    "relative h-64 border-2 border-dashed rounded-[2.5rem] flex flex-col items-center justify-center transition-all duration-500 cursor-pointer group",
-                    isUploadingMusic ? "border-primary/50 bg-primary/5 cursor-wait" : "border-border/50 bg-background/30 hover:border-primary/50 hover:bg-primary/5"
-                  )}
-                >
-                  <div className={cn("p-6 rounded-full mb-6 transition-all duration-500", isUploadingMusic ? "bg-primary/20" : "bg-primary/10 group-hover:scale-110")}>
-                    {isUploadingMusic ? <Loader2Icon className="w-10 h-10 text-primary animate-spin" /> : <UploadIcon className="w-10 h-10 text-primary" />}
-                  </div>
-                  <p className="text-xl font-headline font-bold text-white mb-2">
-                    {isUploadingMusic ? `Uploading... ${musicUploadProgress}%` : "Upload Background Music"}
-                  </p>
-                  <p className="text-sm text-muted-foreground italic">
-                    {isUploadingMusic ? "Please wait..." : "Click to select (MP3, WAV, up to 20MB)"}
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="relative overflow-hidden rounded-[2.5rem] border border-primary/30 bg-gradient-to-br from-primary/10 via-background/50 to-background p-8 shadow-2xl">
-                    <div className="relative z-10 flex items-center gap-6">
-                      <Button
-                        size="icon"
-                        className="h-20 w-20 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shadow-2xl shrink-0 transition-all hover:scale-105"
-                        onClick={toggleMusicPreview}
-                      >
-                        {isPlayingMusic ? <PauseIcon className="w-9 h-9" /> : <PlayIcon className="w-9 h-9 ml-1" />}
-                      </Button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
-                          <MusicIcon className="w-5 h-5 text-primary" />
-                          <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary">
-                            {isPlayingMusic ? "Now Playing" : "Background Track Ready"}
-                          </span>
-                        </div>
-                        <p className="text-lg font-headline font-bold text-white truncate">Gallery Theme Music</p>
-                      </div>
-                      <Button variant="ghost" size="icon" className="h-14 w-14 rounded-full text-destructive hover:bg-destructive/10 shrink-0" onClick={handleRemoveMusic}>
-                        <Trash2Icon className="w-6 h-6" />
-                      </Button>
-                    </div>
-                  </div>
-                  <Button variant="outline" className="w-full rounded-2xl h-14 border-white/10 font-bold gap-3" onClick={() => musicInputRef.current?.click()}>
-                    <UploadIcon className="w-5 h-5" /> Replace Music
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl">
-            <CardHeader className="bg-white/5 border-b border-white/5 px-12 py-12">
-              <CardTitle className="text-4xl font-headline font-bold flex items-center gap-6 text-white">
-                <SparklesIcon className="w-10 h-10 text-primary" /> Experience Strategy
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-12 space-y-12">
-              <div className="space-y-8">
-                <Label className="text-[11px] font-bold uppercase tracking-[0.4em] text-primary flex items-center gap-4">
-                  <FileTextIcon className="w-5 h-5" /> Personalized Welcome Note
-                </Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Welcome Note Card */}
+            <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+              <CardHeader className="border-b border-white/10 px-5 py-4 shrink-0 bg-[#161616]">
+                <CardTitle className="text-sm font-headline font-bold flex items-center gap-2 text-white">
+                  <FileTextIcon className="w-4 h-4 text-primary" /> Welcome Note
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 flex-1 flex flex-col gap-3">
                 <Textarea 
-                  placeholder="Compose a beautiful personalized note for your clients..." 
-                  className="min-h-[200px] rounded-[2.5rem] bg-background/40 border-white/10 p-10 text-xl italic focus:border-primary/50 text-white/90 shadow-inner transition-all leading-relaxed"
+                  placeholder="Write a message..." 
+                  className="flex-1 min-h-[100px] rounded-xl bg-black border-white/10 p-3 text-sm focus:border-primary/50 text-white/90 resize-none"
                   value={settings.photographerNote}
                   onChange={(e) => setSettings({...settings, photographerNote: e.target.value})}
                 />
+                <div className="flex justify-end">
+                  <Button size="sm" className="rounded-lg px-6 h-8 text-xs font-bold" onClick={handleUpdateSettings}>
+                    Save
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Background Music Card */}
+            <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+              <CardHeader className="border-b border-white/10 px-5 py-4 shrink-0 bg-[#161616]">
+                <CardTitle className="text-sm font-headline font-bold flex items-center gap-2 text-white">
+                  <MusicIcon className="w-4 h-4 text-primary" /> Music
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 flex-1 flex flex-col justify-center">
+                <input ref={musicInputRef} type="file" accept="audio/*" className="hidden" onChange={handleMusicUpload} disabled={isUploadingMusic} />
+
+                {!currentMusicUrl ? (
+                  <div 
+                    onClick={() => !isUploadingMusic && musicInputRef.current?.click()}
+                    className={cn(
+                      "h-full min-h-[100px] border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition-all cursor-pointer group",
+                      isUploadingMusic ? "border-primary/50 bg-primary/10" : "border-white/10 bg-black hover:border-primary/50 hover:bg-[#1A1A1A]"
+                    )}
+                  >
+                    {isUploadingMusic ? (
+                      <Loader2Icon className="w-5 h-5 text-primary animate-spin mb-1" />
+                    ) : (
+                      <UploadIcon className="w-5 h-5 text-muted-foreground group-hover:text-primary mb-1" />
+                    )}
+                    <p className="text-xs font-bold text-white">
+                      {isUploadingMusic ? `Uploading... ${musicUploadProgress}%` : "Upload Music"}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between bg-black rounded-xl p-3 border border-white/10">
+                    <div className="flex items-center gap-3">
+                      <Button
+                        size="icon"
+                        className="h-8 w-8 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+                        onClick={toggleMusicPreview}
+                      >
+                        {isPlayingMusic ? <PauseIcon className="w-3.5 h-3.5" /> : <PlayIcon className="w-3.5 h-3.5 ml-0.5" />}
+                      </Button>
+                      <div>
+                        <p className="text-xs font-bold text-white">Background Track</p>
+                        <p className="text-[9px] text-primary uppercase tracking-wider">{isPlayingMusic ? "Playing" : "Ready"}</p>
+                      </div>
+                    </div>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive hover:bg-destructive/10" onClick={handleRemoveMusic}>
+                      <Trash2Icon className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Right Side: Sidebar (Takes 3/12 columns - Compact) */}
+        <div className="lg:col-span-3 space-y-4 w-full sticky top-6">
+          
+          {/* Combined Settings Card */}
+          <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+            <CardHeader className="p-4 border-b border-white/10 bg-[#161616]">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                <SettingsIcon className="w-3.5 h-3.5" /> Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {/* Public Access */}
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <div>
+                  <p className="text-xs font-bold text-white">Public Access</p>
+                </div>
+                <Switch 
+                  checked={settings.isPublic} 
+                  onCheckedChange={async (val) => {
+                    setSettings((prev: any) => ({ ...prev, isPublic: val }));
+                    await updateToggle('isPublic', val);
+                  }} 
+                  className="data-[state=checked]:bg-primary scale-75 origin-right" 
+                />
               </div>
-              <div className="flex justify-end">
-                <Button className="rounded-2xl px-16 h-16 font-bold shadow-[0_20px_40px_rgba(212,175,55,0.1)] text-lg hover:translate-y-[-2px] transition-all active:scale-95" onClick={handleUpdateSettings}>
-                  Save Configuration
-                </Button>
+              
+              {/* Download Access */}
+              <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <div>
+                  <p className="text-xs font-bold text-white">Downloads</p>
+                  <Badge variant="outline" className={cn("mt-1 text-[8px] px-1.5 py-0", settings.isPaid ? "border-green-500/50 text-green-500 bg-green-500/10" : "border-amber-500/50 text-amber-500 bg-amber-500/10")}>
+                    {settings.isPaid ? "Paid" : "Unpaid"}
+                  </Badge>
+                </div>
+                <Switch 
+                  checked={settings.isPaid} 
+                  onCheckedChange={async (val) => {
+                    setSettings((prev: any) => ({ ...prev, isPaid: val, isLocked: !val }));
+                    await updateToggle('isPaid', val);
+                  }} 
+                  className="data-[state=checked]:bg-green-500 scale-75 origin-right" 
+                />
+              </div>
+
+              {/* Workflow */}
+              <div className="p-4">
+                <p className="text-xs font-bold text-white mb-2">Workflow Phase</p>
+                <select 
+                  className="w-full h-9 rounded-lg bg-black border border-white/10 font-medium text-[11px] px-3 focus:outline-none focus:border-primary/50 text-white appearance-none"
+                  value={settings.albumStatus} 
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSettings({...settings, albumStatus: val});
+                    if (eventRef) updateDoc(eventRef, { albumStatus: val });
+                  }}
+                >
+                  <option value="New Selection" className="bg-[#111]">New Selection</option>
+                  <option value="Album Package Generated" className="bg-[#111]">Package Ready</option>
+                  <option value="Shared with Album Designer" className="bg-[#111]">In Production</option>
+                  <option value="Completed" className="bg-[#111]">Completed</option>
+                </select>
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        <div className="space-y-12">
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary">
-            <CardHeader className="p-10 border-b border-white/5 bg-background/20">
-              <CardTitle className="text-[11px] font-bold uppercase tracking-[0.5em] text-primary flex items-center gap-3">
-                <Zap className="w-4 h-4 animate-pulse" /> Live Telemetry
+          {/* Analytics Card */}
+          <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+            <CardHeader className="p-4 border-b border-white/10 bg-[#161616]">
+              <CardTitle className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                <Zap className="w-3.5 h-3.5" /> Analytics
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-10 space-y-10">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Total Views</p>
-                  <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.viewCount || 0}</p>
+            <CardContent className="p-4 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-black p-3 rounded-xl border border-white/5 text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Views</p>
+                  <p className="text-lg font-headline font-bold text-white">{event.viewCount || 0}</p>
                 </div>
-                <div className="bg-background/60 p-6 rounded-[2rem] border border-white/5 text-center space-y-3 shadow-inner">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Unique Visitors</p>
-                  <p className="text-4xl font-headline font-bold text-primary drop-shadow-2xl">{event.uniqueVisitors || 0}</p>
+                <div className="bg-black p-3 rounded-xl border border-white/5 text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Visitors</p>
+                  <p className="text-lg font-headline font-bold text-white">{event.uniqueVisitors || 0}</p>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Downloads</p>
-                  <p className="text-3xl font-headline font-bold text-primary drop-shadow-2xl">{event.downloadCount || 0}</p>
+                <div className="bg-black p-3 rounded-xl border border-white/5 text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Favorites</p>
+                  <p className="text-lg font-headline font-bold text-primary">{favoritesCount}</p>
                 </div>
-                <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Favorites</p>
-                  <p className="text-3xl font-headline font-bold text-primary drop-shadow-2xl">{favoritesCount}</p>
-                </div>
-                <div className="bg-background/60 p-5 rounded-[2rem] border border-white/5 text-center space-y-2 shadow-inner">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Last Viewed</p>
-                  <p className="text-xs font-headline font-bold text-primary drop-shadow-2xl mt-1">
-                    {event.lastViewedAt 
-                      ? new Date(event.lastViewedAt).toLocaleDateString('en-PK', { 
-                          day: 'numeric', 
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      : 'Never'}
-                  </p>
+                <div className="bg-black p-3 rounded-xl border border-white/5 text-center">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Downloads</p>
+                  <p className="text-lg font-headline font-bold text-white">{event.downloadCount || 0}</p>
                 </div>
               </div>
               
-              <div className="space-y-6 pt-4">
-                <div className="flex items-center justify-between p-2">
-                  <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em]">Public Access</span>
-                  <Switch 
-                    checked={settings.isPublic} 
-                    onCheckedChange={async (val) => {
-                      setSettings((prev: any) => ({ ...prev, isPublic: val }));
-                      await updateToggle('isPublic', val);
-                    }} 
-                    className="data-[state=checked]:bg-primary" 
-                  />
-                </div>
-                <div className="flex items-center justify-between pt-10 border-t border-white/5">
-                  <div className="space-y-2">
-                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.3em] block">Download Access</span>
-                    <span className="text-[10px] text-muted-foreground/70 block">Download is enabled when payment is received.</span>
-                    <Badge className={cn("text-[10px] font-bold uppercase tracking-widest px-4 py-1", settings.isPaid ? "bg-green-500/20 text-green-500" : "bg-amber-500/20 text-amber-500")}>
-                      {settings.isPaid ? "Payment Received" : "Awaiting Transfer"}
-                    </Badge>
-                  </div>
-                  <Switch 
-                    checked={settings.isPaid} 
-                    onCheckedChange={async (val) => {
-                      setSettings((prev: any) => ({ ...prev, isPaid: val, isLocked: !val }));
-                      await updateToggle('isPaid', val);
-                    }} 
-                    className="data-[state=checked]:bg-green-500" 
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gradient-to-br from-primary/10 via-card/60 to-background border border-primary/30 rounded-[3rem] overflow-hidden shadow-2xl">
-            <CardHeader className="p-10 border-b border-primary/20 bg-background/20">
-              <CardTitle className="text-lg font-headline font-bold flex items-center gap-4 text-white">
-                <Zap className="w-6 h-6 text-primary" /> Advanced Analytics
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-10 space-y-6">
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Detailed insights — traffic sources, device types, aur bahut kuch.
-              </p>
-              <Link href={`/events/${id}/analytics`}>
-                <Button className="w-full h-14 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-lg">
-                  View Full Analytics <ExternalLinkIcon className="w-4 h-4" />
+              <Link href={`/events/${id}/analytics`} className="block">
+                <Button variant="outline" className="w-full h-8 rounded-lg text-[10px] font-bold border-white/10 hover:bg-[#222] text-white">
+                  Full Analytics <ExternalLinkIcon className="w-2.5 h-2.5 ml-1" />
                 </Button>
               </Link>
             </CardContent>
           </Card>
 
-          <Card className="bg-card/20 backdrop-blur-xl border border-white/5 rounded-[3rem] overflow-hidden shadow-2xl border-t-4 border-t-primary">
-            <CardHeader className="p-10 border-b border-white/5 bg-background/20">
-              <CardTitle className="text-lg font-headline font-bold flex items-center gap-4 text-white">
-                <ArchiveIcon className="w-6 h-6 text-primary" /> Workflow Phase
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-10 space-y-8">
-               <div className="space-y-4">
-                  <Label className="text-[11px] font-bold uppercase tracking-[0.3em] text-muted-foreground">Select Current Phase</Label>
-                  <select 
-                    className="w-full h-16 rounded-2xl bg-background/60 border border-white/10 font-bold text-[11px] uppercase tracking-[0.3em] px-6 focus:outline-none focus:border-primary/50 text-white shadow-inner transition-all appearance-none"
-                    value={settings.albumStatus} 
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSettings({...settings, albumStatus: val});
-                      if (eventRef) updateDoc(eventRef, { albumStatus: val });
-                    }}
-                  >
-                    <option value="New Selection" className="bg-card">New Selection</option>
-                    <option value="Album Package Generated" className="bg-card">Package Ready</option>
-                    <option value="Shared with Album Designer" className="bg-card">In Production</option>
-                    <option value="Completed" className="bg-card">Completed</option>
-                  </select>
-               </div>
-               <Link href="/album-selections" className="block">
-                  <Button variant="ghost" className="w-full h-14 rounded-2xl text-[11px] font-bold uppercase tracking-[0.3em] text-primary gap-4 hover:bg-primary/10 transition-all">
-                    Open Workflow Portal <ExternalLinkIcon className="w-4 h-4" />
-                  </Button>
-               </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-destructive/5 border border-destructive/20 rounded-[3rem] overflow-hidden group shadow-2xl">
-            <CardHeader className="p-10 pb-4">
-              <CardTitle className="text-lg font-headline font-bold text-destructive flex items-center gap-4">
-                <Trash2Icon className="w-6 h-6" /> Permanent Removal
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-10">
-              <Button variant="destructive" className="w-full rounded-2xl font-bold h-16 text-[11px] uppercase tracking-[0.4em] shadow-2xl hover:translate-y-[-2px] transition-all active:scale-95" onClick={() => setShowDeleteDialog(true)}>
-                Destroy Gallery Record
+          {/* Danger Zone */}
+          <Card className="bg-[#1A0A0A] border border-red-900/30 rounded-3xl overflow-hidden shadow-2xl">
+            <CardContent className="p-4">
+              <Button variant="destructive" className="w-full rounded-xl font-bold h-9 text-[11px]" onClick={() => setShowDeleteDialog(true)}>
+                <Trash2Icon className="w-3.5 h-3.5 mr-1.5" /> Delete Gallery
               </Button>
             </CardContent>
           </Card>
         </div>
       </div>
 
+      {/* FULL SCREEN LIGHTBOX MODAL */}
       <Dialog open={showAllAssets} onOpenChange={setShowAllAssets}>
-        <DialogContent className="max-w-[95vw] w-full h-[95vh] max-h-[95vh] bg-card/95 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-0 overflow-hidden flex flex-col gap-0 [&>button]:hidden">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 lg:p-8 border-b border-white/10 bg-background/40 shrink-0">
+        <DialogContent className="max-w-[100vw] w-screen h-screen bg-black border-none rounded-none p-0 overflow-hidden flex flex-col gap-0 [&>button]:hidden">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 lg:px-8 lg:py-6 border-b border-white/10 bg-[#0A0A0A] shrink-0 z-50">
             <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-primary/15 border border-primary/30 flex items-center justify-center">
-                <LayoutGridIcon className="w-6 h-6 text-primary" />
+              <div className="h-10 w-10 rounded-xl bg-primary/20 flex items-center justify-center border border-primary/30">
+                <LayoutGridIcon className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <DialogTitle className="text-2xl lg:text-3xl font-headline font-bold text-white">All Assets</DialogTitle>
-                <p className="text-xs text-muted-foreground mt-1">{filteredAssets.length} of {totalItems} photos</p>
+                <DialogTitle className="text-2xl font-headline font-bold text-white leading-none">All Gallery Photos</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-1">{filteredAssets.length} photos</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center gap-4 w-full sm:w-auto">
               <div className="relative flex-1 sm:w-80">
                 <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search by filename..."
-                  className="pl-11 h-12 bg-background/60 border-white/10 rounded-xl"
+                  className="pl-11 h-11 bg-[#111] border-white/10 rounded-xl text-white placeholder:text-muted-foreground focus:border-primary/50"
                   value={assetSearch}
                   onChange={(e) => setAssetSearch(e.target.value)}
                 />
               </div>
-              <Button variant="ghost" size="icon" className="h-12 w-12 rounded-xl shrink-0" onClick={() => setShowAllAssets(false)}>
-                <XIcon className="w-5 h-5" />
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-xl shrink-0 bg-[#111] hover:bg-[#222] text-white" onClick={() => setShowAllAssets(false)}>
+                <XIcon className="w-6 h-6" />
               </Button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto min-h-0 p-6 lg:p-8">
+          <div className="flex-1 overflow-y-auto min-h-0 p-4 lg:p-8 custom-scrollbar">
             {filteredAssets.length === 0 ? (
-              <div className="text-center py-20">
-                <SearchIcon className="w-16 h-16 text-muted-foreground mx-auto mb-6 opacity-20" />
-                <p className="text-muted-foreground italic text-lg">No photos found</p>
+              <div className="text-center py-32 flex flex-col items-center">
+                <SearchIcon className="w-16 h-16 text-muted-foreground mb-6 opacity-20" />
+                <p className="text-muted-foreground text-lg italic">No photos found matching your search.</p>
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3 lg:gap-4">
                   {filteredAssets.slice(0, displayLimit).map((item: any) => {
                     const isCover = event.coverImage === item.url;
                     const isProcessing = processingItems.has(item.id);
                     return (
                       <div key={item.id} className={cn(
-                        "group relative aspect-square rounded-2xl overflow-hidden border-2 bg-background shadow-lg hover:scale-[1.03] transition-all duration-300",
-                        isCover ? "border-primary ring-2 ring-primary/30" : "border-white/5"
+                        "group relative aspect-[3/4] rounded-xl overflow-hidden border bg-black transition-all",
+                        isCover ? "border-primary ring-2 ring-primary/30" : "border-white/10 hover:border-white/30"
                       )}>
-                        <img src={item.thumbUrl || item.url} className="w-full h-full object-cover" alt={item.fileName || "Asset"} loading="lazy" decoding="async" />
+                        <img src={item.thumbUrl || item.url} className="w-full h-full object-cover" alt={item.fileName || "Asset"} loading="lazy" />
                         
-                        {isCover && (
-                          <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[9px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg flex items-center gap-1 shadow-lg">
-                            <CrownIcon className="w-3 h-3" /> Cover
-                          </div>
-                        )}
-
-                        <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-3 backdrop-blur-sm">
-                          {!isCover && (
-                            <Button size="sm" className="w-full rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-[10px] uppercase tracking-wider h-9" onClick={() => handleSetCover(item.url)} disabled={isProcessing}>
-                              <CrownIcon className="w-3 h-3 mr-1.5" /> Set Cover
-                            </Button>
-                          )}
-                          {isCover && <Badge className="bg-primary text-primary-foreground text-[10px] uppercase font-bold">★ Active Cover</Badge>}
-                          <Button size="sm" variant="destructive" className="w-full rounded-lg font-bold text-[10px] uppercase tracking-wider h-9" onClick={() => handleDeletePhoto(item)} disabled={isProcessing}>
-                            {isProcessing ? <Loader2Icon className="w-3 h-3 animate-spin" /> : <><Trash2Icon className="w-3 h-3 mr-1.5" /> Remove</>}
-                          </Button>
-                        </div>
-
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2 pt-6 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <p className="text-[9px] text-white font-bold truncate">{item.fileName || item.id}</p>
+                        <div className="absolute top-3 left-3 right-3 flex justify-between opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-[-10px] group-hover:translate-y-0">
+                           <div className="bg-black/80 backdrop-blur-md p-1.5 rounded-xl flex gap-1 border border-white/20 shadow-xl">
+                             {!isCover && (
+                               <button onClick={() => handleSetCover(item.url)} className="p-2 text-white hover:bg-white/20 rounded-lg transition-colors" title="Set Cover">
+                                 <StarIcon className="w-4 h-4" />
+                               </button>
+                             )}
+                             <button onClick={() => handleDeletePhoto(item)} className="p-2 text-white hover:bg-destructive/90 rounded-lg transition-colors" disabled={isProcessing} title="Delete">
+                               {isProcessing ? <Loader2Icon className="w-4 h-4 animate-spin" /> : <Trash2Icon className="w-4 h-4" />}
+                             </button>
+                           </div>
+                           {isCover && <div className="bg-primary p-2 rounded-xl text-primary-foreground shadow-lg"><CrownIcon className="w-4 h-4" /></div>}
                         </div>
                       </div>
                     );
@@ -904,9 +832,9 @@ export default function EventManagementPage() {
                 </div>
 
                 {filteredAssets.length > displayLimit && (
-                  <div className="flex justify-center pt-8 pb-4">
-                    <Button variant="outline" className="rounded-xl h-12 px-8 font-bold border-primary/30 text-primary hover:bg-primary/10" onClick={() => setDisplayLimit(prev => prev + 60)}>
-                      Load More ({filteredAssets.length - displayLimit} remaining)
+                  <div className="flex justify-center pt-12 pb-8">
+                    <Button variant="outline" className="rounded-xl h-12 px-8 font-bold border-primary/30 text-primary hover:bg-primary/10" onClick={() => setDisplayLimit(prev => prev + 80)}>
+                      Load More Photos ({filteredAssets.length - displayLimit} remaining)
                     </Button>
                   </div>
                 )}
@@ -916,34 +844,34 @@ export default function EventManagementPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        <AlertDialogContent className="bg-card/90 backdrop-blur-3xl border border-white/10 rounded-[3.5rem] max-w-md p-12 shadow-[0_50px_100px_rgba(0,0,0,0.6)] overflow-hidden ring-1 ring-white/10">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-destructive to-transparent opacity-50" />
+        <AlertDialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-sm p-6 shadow-2xl">
           <AlertDialogHeader>
-            <div className="bg-destructive/10 w-28 h-28 rounded-full flex items-center justify-center mx-auto mb-10 ring-8 ring-destructive/5 shadow-inner">
-              <AlertCircleIcon className="w-14 h-14 text-destructive" />
+            <div className="bg-destructive/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircleIcon className="w-8 h-8 text-destructive" />
             </div>
-            <AlertDialogTitle className="text-3xl font-headline font-bold text-center text-white">Final Confirmation</AlertDialogTitle>
-            <AlertDialogDescription className="text-center space-y-8 pt-6">
-              <p className="text-base font-medium italic text-muted-foreground leading-relaxed px-4">
-                This will permanently purge this record. Type <span className="text-destructive font-bold not-italic">DELETE</span> below.
+            <AlertDialogTitle className="text-xl font-headline font-bold text-center text-white">Delete Gallery?</AlertDialogTitle>
+            <AlertDialogDescription className="text-center pt-2">
+              <p className="text-sm text-muted-foreground mb-4">
+                This action cannot be undone. Please type <strong className="text-white">DELETE</strong> to confirm.
               </p>
               <Input 
                 placeholder="Type DELETE..." 
-                className="text-center font-bold h-16 rounded-2xl border-white/10 bg-background/50 text-xl tracking-[0.2em] focus:border-destructive/50" 
+                className="text-center font-bold h-12 rounded-xl border-white/10 bg-black text-white" 
                 value={deleteConfirmText} 
                 onChange={(e) => setDeleteConfirmText(e.target.value)} 
               />
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="flex flex-col sm:flex-row gap-5 mt-12">
-            <AlertDialogCancel className="rounded-2xl flex-1 h-16 font-bold uppercase text-[11px] tracking-[0.2em] border-white/10 hover:bg-white/5 transition-all">Abort</AlertDialogCancel>
+          <AlertDialogFooter className="flex gap-3 mt-6">
+            <AlertDialogCancel className="rounded-xl flex-1 h-11 font-bold border-white/10 hover:bg-[#222] text-white">Cancel</AlertDialogCancel>
             <AlertDialogAction 
-              className="rounded-2xl bg-destructive text-white hover:bg-destructive/90 font-bold flex-1 h-16 uppercase text-[11px] tracking-[0.2em] shadow-2xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed" 
+              className="rounded-xl bg-destructive text-white hover:bg-destructive/90 font-bold flex-1 h-11 disabled:opacity-50" 
               onClick={confirmDelete} 
               disabled={deleteConfirmText !== 'DELETE'}
             >
-              Confirm Deletion
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
