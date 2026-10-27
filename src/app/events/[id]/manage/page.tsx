@@ -10,7 +10,9 @@ import {
   User as UserIcon, Calendar as CalendarIcon, Archive as ArchiveIcon,
   ExternalLink as ExternalLinkIcon, Music as MusicIcon, Play as PlayIcon,
   Pause as PauseIcon, Upload as UploadIcon, X as XIcon, Search as SearchIcon,
-  Crown as CrownIcon, Zap, Star as StarIcon, Settings as SettingsIcon
+  Crown as CrownIcon, Zap, Star as StarIcon, Settings as SettingsIcon,
+  Palette as PaletteIcon, Moon as MoonIcon, Sun as SunIcon, Link as LinkIcon,
+  Heart, ShoppingBag, MessageSquare, Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +64,27 @@ export default function EventManagementPage() {
   const [currentMusicUrl, setCurrentMusicUrl] = useState<string>('');
   const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
   const musicInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Modal States
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [activeModalTab, setActiveModalTab] = useState<'main' | 'favorites' | 'products' | 'reviews' | 'privacy'>('main');
+  
+  // Local state for modal inputs to save on click
+  const [modalSettings, setModalSettings] = useState({
+    title: '',
+    slug: '',
+    date: '',
+    isPaid: false,
+    isLocked: true,
+    enableFavorites: true,
+    favoritesLimit: 50,
+    enableProducts: false,
+    digitalDownloadPrice: 0,
+    enableReviews: true,
+    autoApproveReviews: false,
+    isPasswordProtected: false,
+    password: '',
+  });
 
   const [settings, setSettings] = useState({
     photographerNote: '',
@@ -194,6 +217,23 @@ export default function EventManagementPage() {
         isLocked: !!event.isLocked
       });
       setCurrentMusicUrl(event.musicUrl || '');
+      
+      // Populate modal settings when event loads
+      setModalSettings({
+        title: event.title || '',
+        slug: event.slug || event.id || '',
+        date: event.date || '',
+        isPaid: !!event.isPaid,
+        isLocked: !!event.isLocked,
+        enableFavorites: event.enableFavorites ?? true,
+        favoritesLimit: event.favoritesLimit ?? 50,
+        enableProducts: event.enableProducts ?? false,
+        digitalDownloadPrice: event.digitalDownloadPrice ?? 0,
+        enableReviews: event.enableReviews ?? true,
+        autoApproveReviews: event.autoApproveReviews ?? false,
+        isPasswordProtected: event.isPasswordProtected ?? false,
+        password: '', // Don't show old password for security
+      });
     }
   }, [event]);
 
@@ -205,6 +245,45 @@ export default function EventManagementPage() {
       }
     };
   }, []);
+
+  const handleSaveModalSettings = async () => {
+    if (!eventRef) return;
+    try {
+      let updateData: any = {
+        title: modalSettings.title,
+        slug: modalSettings.slug,
+        date: modalSettings.date,
+        isPaid: modalSettings.isPaid,
+        isLocked: modalSettings.isLocked,
+        enableFavorites: modalSettings.enableFavorites,
+        favoritesLimit: Number(modalSettings.favoritesLimit),
+        enableProducts: modalSettings.enableProducts,
+        digitalDownloadPrice: Number(modalSettings.digitalDownloadPrice),
+        enableReviews: modalSettings.enableReviews,
+        autoApproveReviews: modalSettings.autoApproveReviews,
+        isPasswordProtected: modalSettings.isPasswordProtected,
+        updatedAt: new Date().toISOString()
+      };
+
+      // ✅ Password Hash logic (Yeh naya add kiya hai)
+      if (modalSettings.isPasswordProtected && modalSettings.password) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(modalSettings.password);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashedPassword = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        updateData.hashedPassword = hashedPassword;
+      } else if (!modalSettings.isPasswordProtected) {
+        updateData.hashedPassword = '';
+      }
+
+      await updateDoc(eventRef, updateData);
+      toast({ title: "Settings Saved" });
+      setShowSettingsModal(false);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Save Failed", description: err.message });
+    }
+  };
 
   const handleUpdateSettings = useCallback(async () => {
     if (!eventRef) return;
@@ -653,68 +732,25 @@ export default function EventManagementPage() {
           </div>
         </div>
 
-        {/* Right Side: Sidebar (Takes 3/12 columns - Compact) */}
+        {/* Right Side: Settings Buttons */}
         <div className="lg:col-span-3 space-y-4 w-full sticky top-6">
           
-          {/* Combined Settings Card */}
           <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
-            <CardHeader className="p-4 border-b border-white/10 bg-[#161616]">
-              <CardTitle className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-                <SettingsIcon className="w-3.5 h-3.5" /> Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {/* Public Access */}
-              <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <div>
-                  <p className="text-xs font-bold text-white">Public Access</p>
-                </div>
-                <Switch 
-                  checked={settings.isPublic} 
-                  onCheckedChange={async (val) => {
-                    setSettings((prev: any) => ({ ...prev, isPublic: val }));
-                    await updateToggle('isPublic', val);
-                  }} 
-                  className="data-[state=checked]:bg-primary scale-75 origin-right" 
-                />
-              </div>
-              
-              {/* Download Access */}
-              <div className="flex items-center justify-between p-4 border-b border-white/10">
-                <div>
-                  <p className="text-xs font-bold text-white">Downloads</p>
-                  <Badge variant="outline" className={cn("mt-1 text-[8px] px-1.5 py-0", settings.isPaid ? "border-green-500/50 text-green-500 bg-green-500/10" : "border-amber-500/50 text-amber-500 bg-amber-500/10")}>
-                    {settings.isPaid ? "Paid" : "Unpaid"}
-                  </Badge>
-                </div>
-                <Switch 
-                  checked={settings.isPaid} 
-                  onCheckedChange={async (val) => {
-                    setSettings((prev: any) => ({ ...prev, isPaid: val, isLocked: !val }));
-                    await updateToggle('isPaid', val);
-                  }} 
-                  className="data-[state=checked]:bg-green-500 scale-75 origin-right" 
-                />
-              </div>
-
-              {/* Workflow */}
-              <div className="p-4">
-                <p className="text-xs font-bold text-white mb-2">Workflow Phase</p>
-                <select 
-                  className="w-full h-9 rounded-lg bg-black border border-white/10 font-medium text-[11px] px-3 focus:outline-none focus:border-primary/50 text-white appearance-none"
-                  value={settings.albumStatus} 
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setSettings({...settings, albumStatus: val});
-                    if (eventRef) updateDoc(eventRef, { albumStatus: val });
-                  }}
-                >
-                  <option value="New Selection" className="bg-[#111]">New Selection</option>
-                  <option value="Album Package Generated" className="bg-[#111]">Package Ready</option>
-                  <option value="Shared with Album Designer" className="bg-[#111]">In Production</option>
-                  <option value="Completed" className="bg-[#111]">Completed</option>
-                </select>
-              </div>
+            <CardContent className="p-2 flex flex-col gap-2">
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start h-11 px-4 text-sm font-bold text-white hover:bg-[#222]"
+                onClick={() => setShowSettingsModal(true)}
+              >
+                <SettingsIcon className="w-4 h-4 mr-3 text-primary" /> Settings
+              </Button>
+              <Button 
+                variant="ghost" 
+                className="w-full justify-start h-11 px-4 text-sm font-bold text-white hover:bg-[#222]"
+                onClick={() => toast({title: "Coming soon", description: "Design & Cover options are coming soon."})}
+              >
+                <PaletteIcon className="w-4 h-4 mr-3 text-primary" /> Design and cover
+              </Button>
             </CardContent>
           </Card>
 
@@ -763,6 +799,232 @@ export default function EventManagementPage() {
           </Card>
         </div>
       </div>
+
+      {/* ═══ GALLERY SETTINGS MODAL (Wfolio Style) ═══ */}
+      <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+        <DialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-2xl p-0 overflow-hidden shadow-2xl [&>button]:hidden">
+          
+          {/* Modal Header */}
+          <div className="flex items-center justify-between p-6 border-b border-white/10">
+            <DialogTitle className="text-2xl font-headline font-bold text-white">Gallery settings</DialogTitle>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 text-muted-foreground" onClick={() => setShowSettingsModal(false)}>
+              <XIcon className="w-5 h-5" />
+            </Button>
+          </div>
+
+          {/* Modal Tabs */}
+          <div className="px-6 border-b border-white/10 flex gap-6 overflow-x-auto custom-scrollbar">
+            <button onClick={() => setActiveModalTab('main')} className={cn("text-sm font-bold pb-3 pt-2 whitespace-nowrap transition-colors", activeModalTab === 'main' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-white")}>Main</button>
+            <button onClick={() => setActiveModalTab('favorites')} className={cn("text-sm font-bold pb-3 pt-2 whitespace-nowrap transition-colors", activeModalTab === 'favorites' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-white")}>Favorites</button>
+            <button onClick={() => setActiveModalTab('products')} className={cn("text-sm font-bold pb-3 pt-2 whitespace-nowrap transition-colors", activeModalTab === 'products' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-white")}>Products</button>
+            <button onClick={() => setActiveModalTab('reviews')} className={cn("text-sm font-bold pb-3 pt-2 whitespace-nowrap transition-colors", activeModalTab === 'reviews' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-white")}>Reviews</button>
+            <button onClick={() => setActiveModalTab('privacy')} className={cn("text-sm font-bold pb-3 pt-2 whitespace-nowrap transition-colors", activeModalTab === 'privacy' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-white")}>Privacy</button>
+          </div>
+
+          {/* Modal Body */}
+          <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+            
+            {/* ─── MAIN TAB ─── */}
+            {activeModalTab === 'main' && (
+              <>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-xs font-bold text-muted-foreground mb-1 block">Gallery name</Label>
+                    <Input 
+                      value={modalSettings.title}
+                      onChange={(e) => setModalSettings({...modalSettings, title: e.target.value})}
+                      className="h-10 bg-[#161616] border-white/10"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold text-muted-foreground mb-1 block">Gallery link</Label>
+                    <div className="flex">
+                      <div className="h-10 px-3 flex items-center bg-[#161616] border border-r-0 border-white/10 rounded-l-md text-xs text-muted-foreground">
+                        hafash.pk/gallery/
+                      </div>
+                      <Input 
+                        value={modalSettings.slug}
+                        onChange={(e) => setModalSettings({...modalSettings, slug: e.target.value})}
+                        className="h-10 bg-[#161616] border-white/10 rounded-l-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-bold text-muted-foreground mb-1 block">Shoot date</Label>
+                    <Input 
+                      type="date"
+                      value={modalSettings.date || ''}
+                      onChange={(e) => setModalSettings({...modalSettings, date: e.target.value})}
+                      className="h-10 bg-[#161616] border-white/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-white/10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-white">Allow original file downloads</p>
+                    </div>
+                    <Switch 
+                      checked={modalSettings.isPaid} 
+                      onCheckedChange={(val) => setModalSettings({...modalSettings, isPaid: val})} 
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-white">Add watermark</p>
+                      <p className="text-xs text-muted-foreground">Applied to photos when downloads are disabled.</p>
+                    </div>
+                    <Switch 
+                      checked={modalSettings.isLocked} 
+                      onCheckedChange={(val) => setModalSettings({...modalSettings, isLocked: val})} 
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* ─── FAVORITES TAB ─── */}
+            {activeModalTab === 'favorites' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-white">Enable Favorites</p>
+                    <p className="text-xs text-muted-foreground">Allow clients to heart photos.</p>
+                  </div>
+                  <Switch 
+                    checked={modalSettings.enableFavorites} 
+                    onCheckedChange={(val) => setModalSettings({...modalSettings, enableFavorites: val})} 
+                  />
+                </div>
+
+                {modalSettings.enableFavorites && (
+                  <div>
+                    <Label className="text-xs font-bold text-muted-foreground mb-1 block">Favorites Limit (Max photos a client can select)</Label>
+                    <Input 
+                      type="number"
+                      value={modalSettings.favoritesLimit}
+                      onChange={(e) => setModalSettings({...modalSettings, favoritesLimit: Number(e.target.value)})}
+                      className="h-10 bg-[#161616] border-white/10"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1">Set to 0 for unlimited.</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ─── PRODUCTS TAB ─── */}
+            {activeModalTab === 'products' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-white">Enable Products (Paid Downloads)</p>
+                    <p className="text-xs text-muted-foreground">Clients must pay to download high-res.</p>
+                  </div>
+                  <Switch 
+                    checked={modalSettings.enableProducts} 
+                    onCheckedChange={(val) => setModalSettings({...modalSettings, enableProducts: val, isPaid: !val ? modalSettings.isPaid : false})} 
+                  />
+                </div>
+
+                {modalSettings.enableProducts && (
+                  <div>
+                    <Label className="text-xs font-bold text-muted-foreground mb-1 block">Digital Download Price (PKR)</Label>
+                    <Input 
+                      type="number"
+                      value={modalSettings.digitalDownloadPrice}
+                      onChange={(e) => setModalSettings({...modalSettings, digitalDownloadPrice: Number(e.target.value)})}
+                      className="h-10 bg-[#161616] border-white/10"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* ─── REVIEWS TAB ─── */}
+            {activeModalTab === 'reviews' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-white">Enable Reviews</p>
+                    <p className="text-xs text-muted-foreground">Allow clients to leave feedback.</p>
+                  </div>
+                  <Switch 
+                    checked={modalSettings.enableReviews} 
+                    onCheckedChange={(val) => setModalSettings({...modalSettings, enableReviews: val})} 
+                  />
+                </div>
+
+                {modalSettings.enableReviews && (
+                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                    <div>
+                      <p className="text-sm font-bold text-white">Auto-Approve Reviews</p>
+                      <p className="text-xs text-muted-foreground">Show reviews immediately without your approval.</p>
+                    </div>
+                    <Switch 
+                      checked={modalSettings.autoApproveReviews} 
+                      onCheckedChange={(val) => setModalSettings({...modalSettings, autoApproveReviews: val})} 
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ─── PRIVACY TAB ─── */}
+            {activeModalTab === 'privacy' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-white">Password Protect Gallery</p>
+                    <p className="text-xs text-muted-foreground">Clients need a password to view photos.</p>
+                  </div>
+                  <Switch 
+                    checked={modalSettings.isPasswordProtected} 
+                    onCheckedChange={(val) => setModalSettings({...modalSettings, isPasswordProtected: val})} 
+                  />
+                </div>
+
+                {modalSettings.isPasswordProtected && (
+                  <div>
+                    <Label className="text-xs font-bold text-muted-foreground mb-1 block">Set Password</Label>
+                    <Input 
+                      type="text"
+                      placeholder="Enter gallery password..."
+                      value={modalSettings.password}
+                      onChange={(e) => setModalSettings({...modalSettings, password: e.target.value})}
+                      className="h-10 bg-[#161616] border-white/10"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Modal Footer */}
+          <div className="p-6 border-t border-white/10 flex items-center justify-between bg-[#161616]">
+            <Button 
+              variant="ghost" 
+              className="text-destructive hover:bg-destructive/10 hover:text-destructive font-bold text-xs"
+              onClick={() => {
+                setShowSettingsModal(false);
+                setShowDeleteDialog(true);
+              }}
+            >
+              <Trash2Icon className="w-4 h-4 mr-2" /> Delete gallery
+            </Button>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-8"
+              onClick={handleSaveModalSettings}
+            >
+              Save
+            </Button>
+          </div>
+
+        </DialogContent>
+      </Dialog>
 
       {/* FULL SCREEN LIGHTBOX MODAL */}
       <Dialog open={showAllAssets} onOpenChange={setShowAllAssets}>

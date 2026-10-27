@@ -1201,26 +1201,30 @@ export default function ClientGalleryPage() {
     }
   }, [canDownload, toast, firestore, galleryId]);
 
-  const handlePasswordSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!gallery?.hashedPassword) return;
+  const handlePasswordSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!gallery?.hashedPassword || verifying) return;
+    
     setVerifying(true);
     setPasswordError(false);
+    
     try {
       const encoder = new TextEncoder();
       const data = encoder.encode(passwordInput);
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashedInput = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      
       if (hashedInput === gallery.hashedPassword) {
         setIsUnlocked(true);
         if (galleryId) sessionStorage.setItem(`unlocked_gallery_${galleryId}`, 'true');
         toast({ title: "Access Granted" });
       } else {
         setPasswordError(true);
-        toast({ variant: "destructive", title: "Access Denied" });
+        toast({ variant: "destructive", title: "Access Denied", description: "Incorrect password. Please try again." });
       }
     } catch (err) {
+      console.error(err);
       toast({ variant: "destructive", title: "Security Error" });
     } finally {
       setVerifying(false);
@@ -1303,6 +1307,12 @@ export default function ClientGalleryPage() {
                       )}
                       value={passwordInput}
                       onChange={(e) => setPasswordInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handlePasswordSubmit();
+                        }
+                      }}
                       autoFocus
                     />
                   </div>
