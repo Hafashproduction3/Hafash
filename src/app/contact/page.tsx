@@ -12,7 +12,7 @@ export default function ContactPage() {
 
   const contactNumber = "+92 302 9680191"; 
   const whatsappNumber = "923029680191"; 
-  const emailAddress = "hafashgroup60@gmail.com";
+  const emailAddress = "support@hafash.pk"; // ✅ Custom Email Active
 
   // ✅ Gmail web compose link (Universal)
   const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${emailAddress}&su=Inquiry%20from%20Hafash.pk`;
