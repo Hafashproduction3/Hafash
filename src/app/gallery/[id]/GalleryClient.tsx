@@ -285,14 +285,17 @@ export default function ClientGalleryPage() {
           : (urlMap[p.storageKey] || p.url),
       }));
       
-      // ✅ DUPLICATE FIX: Purani photos ki IDs nikal lein
+      // ✅ DUPLICATE + SORTING FIX: Purani photos hata kar, order ke hisaab se sort karein
       if (reset) {
-        setPhotos(newPhotos);
+        const sortedPhotos = [...newPhotos].sort((a, b) => (a.order || 0) - (b.order || 0));
+        setPhotos(sortedPhotos);
       } else {
         setPhotos(prev => {
           const existingIds = new Set(prev.map(p => p.id));
           const filteredNewPhotos = newPhotos.filter(p => !existingIds.has(p.id));
-          return [...prev, ...filteredNewPhotos];
+          const combined = [...prev, ...filteredNewPhotos];
+          // Purani aur nayi sab photos ko order ke hisaab se sort karein
+          return combined.sort((a, b) => (a.order || 0) - (b.order || 0));
         });
       }
       
