@@ -6,8 +6,7 @@ import { useUser, useFirestore } from '@/firebase';
 import { collection, doc, setDoc, getDoc, query, where, getDocs } from 'firebase/firestore';
 import { 
   Calendar as CalendarIcon, User, Camera, ArrowLeft, Loader2, 
-  Mail, Phone, Sparkles, PartyPopper, Heart, Crown, Baby, 
-  Briefcase, Star, Check
+  Mail, Phone, Sparkles, PartyPopper, Heart
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,16 +24,15 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { getUserPlan } from '@/lib/plans';
-import { cn } from '@/lib/utils';
 
 export type EventCategory = 
   | 'Wedding' 
   | 'Mehndi' 
+  | 'Mayo'
   | 'Barat' 
   | 'Walima' 
   | 'Nikkah' 
   | 'Engagement' 
-  | 'Maternity' 
   | 'Birthday' 
   | 'Corporate' 
   | 'Portrait' 
@@ -43,11 +41,11 @@ export type EventCategory =
 const CATEGORIES: { value: EventCategory; label: string; emoji: string }[] = [
   { value: 'Wedding', label: 'Wedding', emoji: '💒' },
   { value: 'Mehndi', label: 'Mehndi', emoji: '🌿' },
+  { value: 'Mayo', label: 'Mayo', emoji: '💛' },
   { value: 'Barat', label: 'Barat', emoji: '🐎' },
   { value: 'Walima', label: 'Walima', emoji: '🎉' },
   { value: 'Nikkah', label: 'Nikkah', emoji: '💍' },
   { value: 'Engagement', label: 'Engagement', emoji: '💐' },
-  { value: 'Maternity', label: 'Maternity', emoji: '🤰' },
   { value: 'Birthday', label: 'Birthday', emoji: '🎂' },
   { value: 'Corporate', label: 'Corporate', emoji: '💼' },
   { value: 'Portrait', label: 'Portrait', emoji: '📸' },
@@ -71,16 +69,18 @@ export default function CreateEventPage() {
     clientPhone: '',
     date: '',
     category: 'Wedding' as EventCategory,
+    eventFormat: 'wedding',
+    groomName: '',
+    brideName: '',
+    celebrantName: '',
   });
 
-  // ✅ Auth check
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
     }
   }, [user, authLoading, router]);
 
-  // ✅ Load profile for plan check
   useEffect(() => {
     async function loadProfile() {
       if (!firestore || !user) return;
@@ -110,10 +110,8 @@ export default function CreateEventPage() {
       .replace(/^-+|-+$/g, '') + '-' + Math.random().toString(36).substring(2, 7);
   };
 
-  // ✅ Calendar open on click
   const handleDateClick = () => {
     if (dateInputRef.current) {
-      // Modern browsers: showPicker() method
       if ('showPicker' in dateInputRef.current) {
         try {
           (dateInputRef.current as any).showPicker();
@@ -144,10 +142,8 @@ export default function CreateEventPage() {
       const profileSnap = await getDoc(profileRef);
       const profileData = profileSnap.exists() ? profileSnap.data() : {};
 
-      // ✅ TRIAL CHECK — 1 gallery limit + expiry
       const plan = getUserPlan(profileData.planId, user.email);
       if (plan.id === 'trial') {
-        // Trial expiry check
         const trialExpiry = profileData.trialExpiry;
         if (trialExpiry && new Date() > new Date(trialExpiry)) {
           toast({
@@ -159,7 +155,6 @@ export default function CreateEventPage() {
           return;
         }
         
-        // Gallery count check
         const userGalleriesQuery = query(
           collection(firestore, 'galleries'),
           where('userId', '==', user.uid)
@@ -183,8 +178,6 @@ export default function CreateEventPage() {
       
       const now = new Date();
 
-      // ✅ Starter plan: 7 days auto-delete
-      // ✅ Other plans: no auto-delete (permanent)
       const autoDeleteAt = plan.id === 'starter'
         ? new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
         : null;
@@ -221,16 +214,18 @@ export default function CreateEventPage() {
         studioName: profileData.studioName || "",
         whatsappNumber: profileData.whatsappNumber || "",
         studioLogo: profileData.studioLogo || "",
-        // ✅ Auto-delete tracking
         planId: plan.id,
-        autoDeleteAt: autoDeleteAt,       // 7 days for starter, null for others
-        expiresAt: expiresAt,             // same logic
+        autoDeleteAt: autoDeleteAt,
+        expiresAt: expiresAt,
         lastExpiryWarningSent: null,
+        eventFormat: formData.eventFormat,
+        groomName: formData.groomName,
+        brideName: formData.brideName,
+        celebrantName: formData.celebrantName,
       };
 
       await setDoc(newDocRef, newGallery);
 
-      // ✅ Show different message based on plan
       if (plan.id === 'starter') {
         toast({
           title: "Gallery Created ⚠️",
@@ -273,7 +268,6 @@ export default function CreateEventPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
       
-      {/* ═══ HEADER ═══ */}
       <div className="flex items-center gap-4">
         <Link href="/dashboard">
           <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 bg-white/5 hover:bg-primary/10 hover:text-primary transition-all">
@@ -296,7 +290,6 @@ export default function CreateEventPage() {
         </div>
       </div>
 
-      {/* ═══ STARTER PLAN WARNING ═══ */}
       {isStarterPlan && (
         <div className="relative overflow-hidden rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 shadow-lg animate-pulse">
           <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
@@ -317,15 +310,12 @@ export default function CreateEventPage() {
         </div>
       )}
 
-      {/* ═══ FORM ═══ */}
       <div className="relative bg-gradient-to-br from-card/60 via-card/40 to-card/20 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 lg:p-12 shadow-[0_30px_80px_rgba(0,0,0,0.4)] overflow-hidden">
         
-        {/* Decorative gradient */}
         <div className="absolute -top-40 -right-40 w-80 h-80 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
         
         <form onSubmit={handleSubmit} className="relative space-y-8">
           
-          {/* ═══ EVENT TITLE ═══ */}
           <div className="space-y-3">
             <Label htmlFor="title" className="text-[11px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
               <Camera className="w-3.5 h-3.5" />
@@ -341,7 +331,6 @@ export default function CreateEventPage() {
             />
           </div>
 
-          {/* ═══ CLIENT NAME + CATEGORY ═══ */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-3">
               <Label htmlFor="client" className="text-[11px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
@@ -365,7 +354,21 @@ export default function CreateEventPage() {
               </Label>
               <Select 
                 value={formData.category} 
-                onValueChange={(val) => setFormData({ ...formData, category: val as EventCategory })}
+                onValueChange={(val) => {
+                  let defaultFormat = 'wedding';
+                  if (val === 'Birthday') defaultFormat = 'birthday_girl';
+                  if (['Corporate', 'Portrait', 'Other'].includes(val)) defaultFormat = 'solo';
+                  if (val === 'Mayo') defaultFormat = 'mayo';
+                  
+                  setFormData({ 
+                    ...formData, 
+                    category: val as EventCategory, 
+                    eventFormat: defaultFormat,
+                    groomName: '',
+                    brideName: '',
+                    celebrantName: ''
+                  })
+                }}
               >
                 <SelectTrigger className="h-14 bg-background/50 border-white/10 rounded-2xl text-lg focus:border-primary/50 transition-all">
                   <SelectValue placeholder="Select Category" />
@@ -388,7 +391,84 @@ export default function CreateEventPage() {
             </div>
           </div>
 
-          {/* ═══ CLIENT EMAIL + PHONE ═══ */}
+          <div className="p-6 bg-black/40 rounded-2xl border border-white/10 space-y-5">
+            <div className="space-y-3">
+              <Label className="text-[11px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                <Heart className="w-3.5 h-3.5" /> Event Format
+              </Label>
+              <Select 
+                value={formData.eventFormat} 
+                onValueChange={(val) => setFormData({ ...formData, eventFormat: val })}
+              >
+                <SelectTrigger className="h-12 bg-background/50 border-white/10 rounded-xl text-base">
+                  <SelectValue placeholder="Select Format" />
+                </SelectTrigger>
+                <SelectContent className="bg-card/95 backdrop-blur-2xl border-white/10 rounded-xl">
+                  
+                  {['Wedding', 'Mehndi', 'Mayo', 'Barat', 'Walima', 'Nikkah', 'Engagement'].includes(formData.category) && (
+                    <>
+                      <SelectItem value="wedding">Wedding (Couple)</SelectItem>
+                      <SelectItem value="mehndi">Mehndi (Couple)</SelectItem>
+                      <SelectItem value="mayo">Mayo (Couple)</SelectItem>
+                      <SelectItem value="barat">Barat (Couple)</SelectItem>
+                      <SelectItem value="walima">Walima (Couple)</SelectItem>
+                      <SelectItem value="nikkah">Nikkah (Couple)</SelectItem>
+                      <SelectItem value="engagement">Engagement (Couple)</SelectItem>
+                    </>
+                  )}
+
+                  {formData.category === 'Birthday' && (
+                    <>
+                      <SelectItem value="birthday_girl">Birthday Girl</SelectItem>
+                      <SelectItem value="birthday_boy">Birthday Boy</SelectItem>
+                    </>
+                  )}
+
+                  {['Corporate', 'Portrait', 'Other'].includes(formData.category) && (
+                    <>
+                      <SelectItem value="corporate">Corporate / Event</SelectItem>
+                      <SelectItem value="solo">Solo / Portrait</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {['wedding', 'mehndi', 'mayo', 'barat', 'walima', 'nikkah', 'engagement'].includes(formData.eventFormat) ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold text-muted-foreground">Groom Name</Label>
+                  <Input 
+                    placeholder="e.g. Munir" 
+                    className="h-12 bg-background/50 border-white/10 rounded-xl"
+                    value={formData.groomName}
+                    onChange={(e) => setFormData({ ...formData, groomName: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-bold text-muted-foreground">Bride Name</Label>
+                  <Input 
+                    placeholder="e.g. Dania" 
+                    className="h-12 bg-background/50 border-white/10 rounded-xl"
+                    value={formData.brideName}
+                    onChange={(e) => setFormData({ ...formData, brideName: e.target.value })}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold text-muted-foreground">Celebrant / Main Name</Label>
+                <Input 
+                  placeholder="e.g. Ayesha" 
+                  className="h-12 bg-background/50 border-white/10 rounded-xl"
+                  value={formData.celebrantName}
+                  onChange={(e) => setFormData({ ...formData, celebrantName: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-3">
               <Label htmlFor="clientEmail" className="text-[11px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
@@ -420,7 +500,6 @@ export default function CreateEventPage() {
             </div>
           </div>
 
-          {/* ═══ EVENT DATE (Calendar Click) ═══ */}
           <div className="space-y-3">
             <Label htmlFor="date" className="text-[11px] font-bold uppercase tracking-widest text-primary flex items-center gap-2">
               <CalendarIcon className="w-3.5 h-3.5" />
@@ -440,7 +519,6 @@ export default function CreateEventPage() {
                 value={formData.date}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                 onFocus={(e) => {
-                  // ✅ Open calendar on focus
                   if ('showPicker' in e.target) {
                     try {
                       (e.target as any).showPicker();
@@ -455,7 +533,6 @@ export default function CreateEventPage() {
             </p>
           </div>
 
-          {/* ═══ SUBMIT BUTTON ═══ */}
           <div className="pt-6">
             <Button 
               type="submit" 
@@ -479,7 +556,6 @@ export default function CreateEventPage() {
         </form>
       </div>
 
-      {/* ═══ INFO FOOTER ═══ */}
       <div className="text-center space-y-2 pt-4">
         <p className="text-xs text-muted-foreground italic">
           {isStarterPlan 

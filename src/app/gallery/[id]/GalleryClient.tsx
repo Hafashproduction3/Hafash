@@ -1361,9 +1361,40 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
           </div>
           
           <div className="space-y-4 animate-in fade-in slide-in-from-left-8 duration-1200 delay-400">
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-headline font-bold text-white uppercase tracking-tight leading-[1.05] drop-shadow-2xl">
-              {gallery.title}
-            </h1>
+            <div className="flex flex-col items-start">
+              <span className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg mb-2">
+                {gallery.eventFormat === 'wedding' ? 'The Wedding Of' : 
+                 gallery.eventFormat === 'mehndi' ? 'The Mehndi Of' :
+                 gallery.eventFormat === 'mayo' ? 'The Mayo Of' :
+                 gallery.eventFormat === 'barat' ? 'The Barat Of' :
+                 gallery.eventFormat === 'walima' ? 'The Walima Of' :
+                 gallery.eventFormat === 'nikkah' ? 'The Nikkah Of' :
+                 gallery.eventFormat === 'engagement' ? 'The Engagement Of' :
+                 gallery.eventFormat === 'birthday_girl' ? 'Birthday Girl' :
+                 gallery.eventFormat === 'birthday_boy' ? 'Birthday Boy' :
+                 gallery.eventFormat === 'maternity' ? 'Maternity Shoot' :
+                 'Celebrating'}
+              </span>
+              <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 mt-2">
+                {['wedding', 'mehndi', 'mayo', 'barat', 'walima', 'nikkah', 'engagement'].includes(gallery.eventFormat) ? (
+                  <>
+                    <span className="text-4xl sm:text-6xl lg:text-7xl font-bold uppercase tracking-tight text-white">
+                      {gallery.groomName || 'Groom'}
+                    </span>
+                    <span className="text-3xl sm:text-4xl lg:text-5xl text-primary italic font-light px-1 sm:px-2">
+                      &amp;
+                    </span>
+                    <span className="text-4xl sm:text-6xl lg:text-7xl font-bold uppercase tracking-tight text-white">
+                      {gallery.brideName || 'Bride'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-4xl sm:text-6xl lg:text-7xl font-bold uppercase tracking-tight text-white">
+                    {gallery.celebrantName || gallery.title}
+                  </span>
+                )}
+              </h1>
+            </div>
             <p className="text-xl lg:text-3xl italic text-primary/90 font-headline drop-shadow-xl">
               Dear {gallery.clientName},
             </p>
@@ -1458,11 +1489,13 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         </div>
       )}
 
-      {/* ✅ HERO SECTION - Bottom Left Aligned */}
-      <div className={cn(
-        "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col justify-end p-8 lg:p-16 bg-card shadow-2xl transition-all duration-1000",
+            {/* ✅ HERO SECTION - Fixed Layout (Logo Top Left, Text Bottom Left) */}
+            <div className={cn(
+        "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col justify-between bg-card shadow-2xl transition-all duration-1000",
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[4rem] lg:rounded-b-[6rem]"
       )}>
+        
+        {/* Background Image */}
         {effectiveHeroImage ? (
           <img 
             src={effectiveHeroImage} 
@@ -1474,92 +1507,122 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-tr from-black/90 via-black/40 to-transparent" />
         
-        <div className="relative z-10 max-w-3xl space-y-6">
-          <div className="flex flex-col items-start">
-            {isCustomBrandingActive ? (
-              <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-left-6 duration-1000">
-                <div className="flex items-center justify-start gap-4 lg:gap-6">
-                  {studioLogo && (
-                    <img src={studioLogo} className="h-12 lg:h-20 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
-                  )}
-                  <span className="text-3xl lg:text-5xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
-                </div>
-                {profile?.photographerName && (
-                  <div className="flex items-center gap-4">
-                    <div className="h-px w-8 bg-primary/50" />
-                    <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg">{profile.photographerName}</p>
-                  </div>
+        {/* Top Logo Section - Fixed Left Position */}
+        <div className="relative z-10 w-full pt-24 pl-8 lg:pl-16">
+          {isCustomBrandingActive ? (
+            <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-top-6 duration-1000">
+              <div className="flex items-center justify-start gap-4 lg:gap-6">
+                {studioLogo && (
+                  <img src={studioLogo} className="h-12 lg:h-16 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
                 )}
+                <span className="text-3xl lg:text-4xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
               </div>
-            ) : (
-              <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-left-6 duration-1000">
-                <div className="flex items-center justify-start gap-2 mb-2">
-                  <img src="/hafash-logo.png" className="h-[40px] w-auto drop-shadow-2xl" alt="Logo" />
-                  <span className="text-3xl sm:text-5xl lg:text-7xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
-                </div>
-                <span className="text-[10px] lg:text-[12px] font-bold tracking-[0.6em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
+            </div>
+          ) : (
+            <div className="flex flex-col items-start space-y-2 animate-in fade-in slide-in-from-top-6 duration-1000">
+              <div className="flex items-center justify-start gap-2">
+                <img src="/hafash-logo.png" className="h-[35px] w-auto drop-shadow-2xl" alt="Logo" />
+                <span className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
               </div>
-            )}
-          </div>
+              <span className="text-[9px] lg:text-[11px] font-bold tracking-[0.4em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
+            </div>
+          )}
+        </div>
 
-          <div className="space-y-4 animate-in fade-in slide-in-from-left-6 duration-1000 delay-300">
-            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-headline font-bold text-white uppercase tracking-tight leading-[1.1] drop-shadow-2xl">{gallery.title}</h1>
-            <p className="text-xl lg:text-3xl italic text-primary font-headline drop-shadow-xl">
+        {/* Bottom Content Section */}
+        <div className="relative z-10 p-8 lg:p-16 pb-20 lg:pb-28 w-full max-w-4xl space-y-5">
+          <div className="space-y-3 animate-in fade-in slide-in-from-left-6 duration-1000 delay-300">
+            <div className="flex flex-col items-start">
+              <span className="text-primary tracking-[0.3em] text-[10px] lg:text-xs font-bold uppercase mb-2">
+                {gallery.eventFormat === 'wedding' ? 'The Wedding Of' : 
+                 gallery.eventFormat === 'mehndi' ? 'The Mehndi Of' :
+                 gallery.eventFormat === 'mayo' ? 'The Mayo Of' :
+                 gallery.eventFormat === 'barat' ? 'The Barat Of' :
+                 gallery.eventFormat === 'walima' ? 'The Walima Of' :
+                 gallery.eventFormat === 'nikkah' ? 'The Nikkah Of' :
+                 gallery.eventFormat === 'engagement' ? 'The Engagement Of' :
+                 gallery.eventFormat === 'birthday_girl' ? 'Birthday Girl' :
+                 gallery.eventFormat === 'birthday_boy' ? 'Birthday Boy' :
+                 gallery.eventFormat === 'maternity' ? 'Maternity Shoot' :
+                 'Celebrating'}
+              </span>
+              <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                {['wedding', 'mehndi', 'mayo', 'barat', 'walima', 'nikkah', 'engagement'].includes(gallery.eventFormat) ? (
+                  <>
+                    <span className="text-4xl sm:text-5xl lg:text-6xl font-bold uppercase tracking-tight text-white">
+                      {gallery.groomName || 'Groom'}
+                    </span>
+                    <span className="text-3xl sm:text-4xl lg:text-5xl text-primary italic font-light px-1">
+                      &amp;
+                    </span>
+                    <span className="text-4xl sm:text-5xl lg:text-6xl font-bold uppercase tracking-tight text-white">
+                      {gallery.brideName || 'Bride'}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-4xl sm:text-5xl lg:text-6xl font-bold uppercase tracking-tight text-white">
+                    {gallery.celebrantName || gallery.title}
+                  </span>
+                )}
+              </h1>
+            </div>
+            <p className="text-xl lg:text-2xl italic text-primary font-headline drop-shadow-xl">
               Dear {gallery.clientName},
             </p>
-            <div className="flex items-center justify-start gap-6 text-white/80 uppercase tracking-[0.4em] text-[10px] lg:text-[12px] font-bold">
+            <div className="flex items-center justify-start gap-4 text-white/80 uppercase tracking-[0.3em] text-[10px] lg:text-xs font-bold pt-1">
               <span>{gallery.category}</span>
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span>{gallery.date}</span>
             </div>
           </div>
           
-          <div className="mt-8 flex flex-wrap justify-start items-center gap-4 lg:gap-6 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
+          {/* Compact Buttons */}
+          <div className="mt-6 flex flex-wrap justify-start items-center gap-3 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
             {whatsappNumber && (
-              <Button className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl text-xs lg:text-sm transition-all hover:scale-105 active:scale-95" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
-                <MessageCircle className="w-4 h-4 lg:w-5 lg:h-5" /> Contact Studio
+              <Button className="rounded-full px-6 h-11 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 shadow-xl text-xs lg:text-sm transition-all hover:scale-105" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
+                <MessageCircle className="w-4 h-4" /> Contact Studio
               </Button>
             )}
 
             {totalItems > 0 && (
               <Button 
-                className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-3 shadow-2xl backdrop-blur-xl text-xs lg:text-sm transition-all hover:scale-105"
+                className="rounded-full px-6 h-11 bg-transparent border border-white/30 text-white hover:bg-white/10 font-bold gap-2 shadow-xl backdrop-blur-md text-xs lg:text-sm transition-all hover:scale-105"
                 onClick={() => { openLightbox(0); setIsSlideshowPlaying(true); }}
               >
-                <Play className="w-4 h-4 lg:w-5 lg:h-5" /> Play Slideshow
+                <Play className="w-4 h-4" /> Play Slideshow
               </Button>
             )}
 
             {canDownload && totalItems > 0 && (
               <Button 
-                className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 font-bold gap-3 shadow-2xl text-xs lg:text-sm transition-all hover:scale-105"
+                className="rounded-full px-6 h-11 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-bold gap-2 shadow-xl text-xs lg:text-sm transition-all hover:scale-105"
                 onClick={handleDownloadAll}
                 disabled={downloadAllActive}
               >
-                <Package className="w-4 h-4 lg:w-5 lg:h-5" /> Download All ({gallery.photoCount || totalItems})
+                <Package className="w-4 h-4" /> Download All ({gallery.photoCount || totalItems})
               </Button>
             )}
 
             {canDownload && totalItems > 0 && (
               <Button 
-                className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-3 shadow-2xl backdrop-blur-xl text-xs lg:text-sm transition-all hover:scale-105"
+                className="rounded-full px-6 h-11 bg-transparent border border-white/30 text-white hover:bg-white/10 font-bold gap-2 shadow-xl backdrop-blur-md text-xs lg:text-sm transition-all hover:scale-105"
                 onClick={() => {
                   setIsSelectionMode(true);
                   setSelectedPhotos(new Set());
                 }}
               >
-                <CheckSquare className="w-4 h-4 lg:w-5 lg:h-5" /> Select Photos
+                <CheckSquare className="w-4 h-4" /> Select Photos
               </Button>
             )}
 
-            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 border-white/30 text-white hover:bg-white/10 gap-3 backdrop-blur-xl text-xs lg:text-sm transition-all" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
-              <Share2 className="w-4 h-4 lg:w-5 lg:h-5" /> Share
+            <Button variant="outline" className="rounded-full px-6 h-11 border-white/30 text-white hover:bg-white/10 gap-2 backdrop-blur-md text-xs lg:text-sm transition-all hover:scale-105" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
+              <Share2 className="w-4 h-4" /> Share
             </Button>
           </div>
         </div>
         
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce flex flex-col items-center gap-2 opacity-50 hidden lg:flex">
-           <div className="w-px h-12 bg-gradient-to-b from-primary to-transparent" />
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 animate-bounce flex flex-col items-center gap-2 opacity-50 hidden lg:flex">
+           <div className="w-px h-8 bg-gradient-to-b from-primary to-transparent" />
         </div>
       </div>
 

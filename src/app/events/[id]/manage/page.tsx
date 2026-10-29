@@ -65,18 +65,15 @@ export default function EventManagementPage() {
   const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
   const musicInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Modal States
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [activeModalTab, setActiveModalTab] = useState<'main' | 'favorites' | 'products' | 'reviews' | 'privacy'>('main');
   
-  // Local state for modal inputs to save on click
-  // ✅ FIXED: isLocked default false kar diya taake download hamesha available rahe
   const [modalSettings, setModalSettings] = useState({
     title: '',
     slug: '',
     date: '',
     isPaid: false,
-    isLocked: false, // ← CHANGED from true to false
+    isLocked: false,
     enableFavorites: true,
     favoritesLimit: 50,
     enableProducts: false,
@@ -85,6 +82,10 @@ export default function EventManagementPage() {
     autoApproveReviews: false,
     isPasswordProtected: false,
     password: '',
+    eventFormat: 'wedding',
+    groomName: '',
+    brideName: '',
+    celebrantName: '',
   });
 
   const [settings, setSettings] = useState({
@@ -92,7 +93,7 @@ export default function EventManagementPage() {
     albumStatus: 'New Selection',
     isPublic: true,
     isPaid: false,
-    isLocked: false // ← CHANGED from true to false
+    isLocked: false
   });
 
   useEffect(() => {
@@ -219,7 +220,6 @@ export default function EventManagementPage() {
       });
       setCurrentMusicUrl(event.musicUrl || '');
       
-      // Populate modal settings when event loads
       setModalSettings({
         title: event.title || '',
         slug: event.slug || event.id || '',
@@ -234,6 +234,10 @@ export default function EventManagementPage() {
         autoApproveReviews: event.autoApproveReviews ?? false,
         isPasswordProtected: event.isPasswordProtected ?? false,
         password: '',
+        eventFormat: event.eventFormat || 'wedding',
+        groomName: event.groomName || '',
+        brideName: event.brideName || '',
+        celebrantName: event.celebrantName || '',
       });
     }
   }, [event]);
@@ -263,10 +267,13 @@ export default function EventManagementPage() {
         enableReviews: modalSettings.enableReviews,
         autoApproveReviews: modalSettings.autoApproveReviews,
         isPasswordProtected: modalSettings.isPasswordProtected,
+        eventFormat: modalSettings.eventFormat,
+        groomName: modalSettings.groomName,
+        brideName: modalSettings.brideName,
+        celebrantName: modalSettings.celebrantName,
         updatedAt: new Date().toISOString()
       };
 
-      // ✅ Password Hash logic
       if (modalSettings.isPasswordProtected && modalSettings.password) {
         const encoder = new TextEncoder();
         const data = encoder.encode(modalSettings.password);
@@ -495,12 +502,9 @@ export default function EventManagementPage() {
     }
   }, [eventRef, event, deleteConfirmText, router, toast, isDeleting, firestore, id, subcollectionPhotos]);
 
-  // ✅ FIXED: updateToggle se isPaid ka isLocked override hata diya
   const updateToggle = useCallback(async (field: string, value: any) => {
     if (!eventRef) return;
     const updateData: any = { [field]: value, updatedAt: new Date().toISOString() };
-    // ✅ REMOVED: if (field === 'isPaid') updateData.isLocked = !value; — Yeh galat tha
-    // Ab isPaid aur isLocked independent rahenge
 
     try {
       await updateDoc(eventRef, updateData);
@@ -546,7 +550,6 @@ export default function EventManagementPage() {
   return (
     <div className="w-full min-h-screen bg-black space-y-6 pb-24 animate-in fade-in duration-500 absolute top-0 left-0 z-50">
       
-      {/* Header Container */}
       <div className="w-full border-b border-white/10 px-6 py-6 bg-black">
         <div className="max-w-[1800px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center gap-3">
@@ -585,10 +588,8 @@ export default function EventManagementPage() {
         </div>
       </div>
 
-      {/* Main Content Area */}
       <div className="max-w-[1800px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start mt-6">
           
-        {/* Left Side: Photos (Takes 9/12 columns) */}
         <div className="lg:col-span-9 space-y-6 w-full">
           
           <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
@@ -661,7 +662,6 @@ export default function EventManagementPage() {
           </Card>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Welcome Note Card */}
             <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
               <CardHeader className="border-b border-white/10 px-5 py-4 shrink-0 bg-[#161616]">
                 <CardTitle className="text-sm font-headline font-bold flex items-center gap-2 text-white">
@@ -683,7 +683,6 @@ export default function EventManagementPage() {
               </CardContent>
             </Card>
 
-            {/* Background Music Card */}
             <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
               <CardHeader className="border-b border-white/10 px-5 py-4 shrink-0 bg-[#161616]">
                 <CardTitle className="text-sm font-headline font-bold flex items-center gap-2 text-white">
@@ -735,7 +734,6 @@ export default function EventManagementPage() {
           </div>
         </div>
 
-        {/* Right Side: Settings Buttons */}
         <div className="lg:col-span-3 space-y-4 w-full sticky top-6">
           
           <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
@@ -757,7 +755,6 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Analytics Card */}
           <Card className="bg-[#111] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
             <CardHeader className="p-4 border-b border-white/10 bg-[#161616]">
               <CardTitle className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
@@ -792,7 +789,6 @@ export default function EventManagementPage() {
             </CardContent>
           </Card>
 
-          {/* Danger Zone */}
           <Card className="bg-[#1A0A0A] border border-red-900/30 rounded-3xl overflow-hidden shadow-2xl">
             <CardContent className="p-4">
               <Button variant="destructive" className="w-full rounded-xl font-bold h-9 text-[11px]" onClick={() => setShowDeleteDialog(true)}>
@@ -803,11 +799,9 @@ export default function EventManagementPage() {
         </div>
       </div>
 
-      {/* ═══ GALLERY SETTINGS MODAL (Wfolio Style) ═══ */}
       <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
         <DialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-2xl p-0 overflow-hidden shadow-2xl [&>button]:hidden">
           
-          {/* Modal Header */}
           <div className="flex items-center justify-between p-6 border-b border-white/10">
             <DialogTitle className="text-2xl font-headline font-bold text-white">Gallery settings</DialogTitle>
             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 text-muted-foreground" onClick={() => setShowSettingsModal(false)}>
@@ -815,7 +809,6 @@ export default function EventManagementPage() {
             </Button>
           </div>
 
-          {/* Modal Tabs */}
           <div className="px-6 border-b border-white/10 flex gap-6 overflow-x-auto custom-scrollbar">
             <button onClick={() => setActiveModalTab('main')} className={cn("text-sm font-bold pb-3 pt-2 whitespace-nowrap transition-colors", activeModalTab === 'main' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-white")}>Main</button>
             <button onClick={() => setActiveModalTab('favorites')} className={cn("text-sm font-bold pb-3 pt-2 whitespace-nowrap transition-colors", activeModalTab === 'favorites' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-white")}>Favorites</button>
@@ -824,10 +817,8 @@ export default function EventManagementPage() {
             <button onClick={() => setActiveModalTab('privacy')} className={cn("text-sm font-bold pb-3 pt-2 whitespace-nowrap transition-colors", activeModalTab === 'privacy' ? "text-primary border-b-2 border-primary" : "text-muted-foreground hover:text-white")}>Privacy</button>
           </div>
 
-          {/* Modal Body */}
           <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
             
-            {/* ─── MAIN TAB ─── */}
             {activeModalTab === 'main' && (
               <>
                 <div className="space-y-4">
@@ -838,6 +829,60 @@ export default function EventManagementPage() {
                       onChange={(e) => setModalSettings({...modalSettings, title: e.target.value})}
                       className="h-10 bg-[#161616] border-white/10"
                     />
+                  </div>
+
+                  <div className="pt-2 border-t border-white/10 mt-2">
+                    <Label className="text-xs font-bold text-muted-foreground mb-2 block">Event Type / Format</Label>
+                    <select 
+                      value={modalSettings.eventFormat}
+                      onChange={(e) => setModalSettings({...modalSettings, eventFormat: e.target.value})}
+                      className="w-full h-10 bg-[#161616] border border-white/10 rounded-md px-3 text-sm text-white mb-3"
+                    >
+                      <option value="wedding">Wedding (Couple)</option>
+                      <option value="mehndi">Mehndi (Couple)</option>
+                      <option value="mayo">Mayo (Couple)</option>
+                      <option value="barat">Barat (Couple)</option>
+                      <option value="walima">Walima (Couple)</option>
+                      <option value="nikkah">Nikkah (Couple)</option>
+                      <option value="engagement">Engagement (Couple)</option>
+                      <option value="birthday_girl">Birthday Girl</option>
+                      <option value="birthday_boy">Birthday Boy</option>
+                      <option value="solo">Solo / Portrait</option>
+                      <option value="other">Other</option>
+                    </select>
+
+                    {['wedding', 'mehndi', 'mayo', 'barat', 'walima', 'nikkah', 'engagement'].includes(modalSettings.eventFormat) ? (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-[10px] font-bold text-muted-foreground mb-1 block">Groom Name</Label>
+                          <Input 
+                            placeholder="e.g. Munir"
+                            value={modalSettings.groomName}
+                            onChange={(e) => setModalSettings({...modalSettings, groomName: e.target.value})}
+                            className="h-10 bg-[#161616] border-white/10"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[10px] font-bold text-muted-foreground mb-1 block">Bride Name</Label>
+                          <Input 
+                            placeholder="e.g. Dania"
+                            value={modalSettings.brideName}
+                            onChange={(e) => setModalSettings({...modalSettings, brideName: e.target.value})}
+                            className="h-10 bg-[#161616] border-white/10"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <Label className="text-[10px] font-bold text-muted-foreground mb-1 block">Celebrant Name</Label>
+                        <Input 
+                          placeholder="e.g. Ayesha"
+                          value={modalSettings.celebrantName}
+                          onChange={(e) => setModalSettings({...modalSettings, celebrantName: e.target.value})}
+                          className="h-10 bg-[#161616] border-white/10"
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -890,7 +935,6 @@ export default function EventManagementPage() {
               </>
             )}
 
-            {/* ─── FAVORITES TAB ─── */}
             {activeModalTab === 'favorites' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -919,7 +963,6 @@ export default function EventManagementPage() {
               </div>
             )}
 
-            {/* ─── PRODUCTS TAB ─── */}
             {activeModalTab === 'products' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -947,7 +990,6 @@ export default function EventManagementPage() {
               </div>
             )}
             
-            {/* ─── REVIEWS TAB ─── */}
             {activeModalTab === 'reviews' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -976,7 +1018,6 @@ export default function EventManagementPage() {
               </div>
             )}
 
-            {/* ─── PRIVACY TAB ─── */}
             {activeModalTab === 'privacy' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -1006,7 +1047,6 @@ export default function EventManagementPage() {
             )}
           </div>
 
-          {/* Modal Footer */}
           <div className="p-6 border-t border-white/10 flex items-center justify-between bg-[#161616]">
             <Button 
               variant="ghost" 
@@ -1029,7 +1069,6 @@ export default function EventManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* FULL SCREEN LIGHTBOX MODAL */}
       <Dialog open={showAllAssets} onOpenChange={setShowAllAssets}>
         <DialogContent className="max-w-[100vw] w-screen h-screen bg-black border-none rounded-none p-0 overflow-hidden flex flex-col gap-0 [&>button]:hidden">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 lg:px-8 lg:py-6 border-b border-white/10 bg-[#0A0A0A] shrink-0 z-50">
@@ -1109,7 +1148,6 @@ export default function EventManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-sm p-6 shadow-2xl">
           <AlertDialogHeader>
