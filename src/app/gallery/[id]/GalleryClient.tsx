@@ -692,9 +692,19 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
   }, [selectedIndex, closeLightbox, goNext, goPrev]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    // Agar touch image par hai, toh swipe detect mat karein
+    if ((e.target as HTMLElement).tagName === 'IMG') {
+      touchStartX.current = 0;
+      return;
+    }
     touchStartX.current = e.touches[0].clientX;
   };
+
   const handleTouchEnd = (e: React.TouchEvent) => {
+    // Agar touch image par shuru hua tha, toh kuch na karein (zoom ke liye)
+    if (touchStartX.current === 0) return;
+    if ((e.target as HTMLElement).tagName === 'IMG') return;
+
     touchEndX.current = e.changedTouches[0].clientX;
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) > 60) {
