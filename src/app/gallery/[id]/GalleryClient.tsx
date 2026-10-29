@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { 
   collection, query, where, getDocs, doc, updateDoc, increment, 
-  limit, arrayUnion, orderBy, startAfter, getDocFromServer 
+  limit, arrayUnion, orderBy, startAfter, getDocFromServer, onSnapshot 
 } from 'firebase/firestore';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { cn } from '@/lib/utils';
@@ -59,13 +59,13 @@ const GalleryItem = memo(({
   return (
     <div 
       className={cn(
-        "relative group overflow-hidden rounded-[2rem] border-2 bg-card/20 cursor-pointer shadow-xl transition-all duration-700 aspect-[4/5]",
+        "relative group overflow-hidden rounded-xl border-2 bg-card/20 cursor-pointer shadow-xl transition-all duration-700 aspect-[4/5]",
         isSelected ? "border-primary ring-4 ring-primary/30" : "border-border/10"
       )}
       onClick={handleClick}
     >
       {!loaded && !imgError && (
-        <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-[2rem]" />
+        <div className="absolute inset-0 bg-muted/20 animate-pulse rounded-xl" />
       )}
       
       {imgError ? (
@@ -75,33 +75,33 @@ const GalleryItem = memo(({
         </div>
       ) : (
         <Image
-  src={imageSrc}
-  alt={item.fileName || "Gallery Asset"}
-  fill
-  sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
-  className={cn(
-    "object-cover transition-all duration-1000",
-    loaded ? "opacity-100" : "opacity-0",
-    !isSelectionMode && "group-hover:scale-110"
-  )}
-  loading={priority ? "eager" : "lazy"}
-  onLoad={() => setLoaded(true)}
-  onError={() => { setImgError(true); setLoaded(true); }}
-/>
+          src={imageSrc}
+          alt={item.fileName || "Gallery Asset"}
+          fill
+          sizes="(max-width: 768px) 33vw, (max-width: 1200px) 20vw, 15vw"
+          className={cn(
+            "object-cover transition-all duration-1000",
+            loaded ? "opacity-100" : "opacity-0",
+            !isSelectionMode && "group-hover:scale-110"
+          )}
+          loading={priority ? "eager" : "lazy"}
+          onLoad={() => setLoaded(true)}
+          onError={() => { setImgError(true); setLoaded(true); }}
+        />
       )}
       
       {isSelectionMode && (
         <div className="absolute top-3 right-3 z-20">
           <div className={cn(
-            "h-10 w-10 rounded-full flex items-center justify-center shadow-2xl border-2 transition-all",
+            "h-8 w-8 rounded-full flex items-center justify-center shadow-2xl border-2 transition-all",
             isSelected 
               ? "bg-primary border-primary" 
               : "bg-white/90 border-white/50 backdrop-blur-md"
           )}>
             {isSelected ? (
-              <CheckCheck className="w-6 h-6 text-primary-foreground" />
+              <CheckCheck className="w-5 h-5 text-primary-foreground" />
             ) : (
-              <Square className="w-5 h-5 text-black/40" />
+              <Square className="w-4 h-4 text-black/40" />
             )}
           </div>
         </div>
@@ -110,21 +110,21 @@ const GalleryItem = memo(({
       {showWatermark && <div className="luxury-watermark" />}
       
       {!isSelectionMode && (
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
-          <div className="flex gap-4 scale-75 group-hover:scale-100 transition-transform duration-500">
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
+          <div className="flex gap-3 scale-75 group-hover:scale-100 transition-transform duration-500">
             <Button 
               size="icon" 
               className={cn(
-                "rounded-full h-16 w-16 border-none shadow-2xl transition-all", 
+                "rounded-full h-12 w-12 border-none shadow-2xl transition-all", 
                 item.isFavorite ? "bg-primary text-primary-foreground" : "bg-white/20 text-white hover:bg-white/30 backdrop-blur-md"
               )} 
               onClick={(e) => { e.stopPropagation(); onFavorite(item.id, !!item.isFavorite); }}
             >
-              <Heart className={cn("w-7 h-7", item.isFavorite ? "fill-current" : "")} />
+              <Heart className={cn("w-5 h-5", item.isFavorite ? "fill-current" : "")} />
             </Button>
             {canDownload && (
-              <Button size="icon" className="rounded-full h-16 w-16 bg-white text-black hover:bg-gray-100 shadow-2xl transition-all" onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
-                <Download className="w-7 h-7" />
+              <Button size="icon" className="rounded-full h-12 w-12 bg-white text-black hover:bg-gray-100 shadow-2xl transition-all" onClick={(e) => { e.stopPropagation(); onDownload(item); }}>
+                <Download className="w-5 h-5" />
               </Button>
             )}
           </div>
@@ -214,40 +214,30 @@ export default function ClientGalleryPage() {
     return doc(firestore, 'galleries', galleryId);
   }, [firestore, galleryId]);
 
-  // FORCE FRESH DATA (bypass cache)
+  // ✅ REAL-TIME LISTENER FOR GALLERY UPDATES
   useEffect(() => {
-    let cancelled = false;
+    if (!galleryRef || galleryId === 'demo') {
+      setDocLoading(false);
+      return;
+    }
     
-    async function fetchGalleryFresh() {
-      if (!galleryRef || galleryId === 'demo') {
-        setDocLoading(false);
-        return;
-      }
-      
-      try {
-        const snap = await getDocFromServer(galleryRef);
-        
-        if (cancelled) return;
-        
+    setDocLoading(true);
+    const unsubscribe = onSnapshot(galleryRef, 
+      (snap) => {
         if (snap.exists()) {
           setDbGallery({ id: snap.id, ...snap.data() });
         } else {
           setDbGallery(null);
         }
-      } catch (err: any) {
-        console.error('[GALLERY_FRESH_FETCH]', err);
-        if (!cancelled) setDbGallery(null);
-      } finally {
-        if (!cancelled) setDocLoading(false);
+        setDocLoading(false);
+      },
+      (err) => {
+        console.error('[GALLERY_REALTIME]', err);
+        setDocLoading(false);
       }
-    }
+    );
     
-    if (galleryId) {
-      setDocLoading(true);
-      fetchGalleryFresh();
-    }
-    
-    return () => { cancelled = true; };
+    return () => unsubscribe();
   }, [galleryRef, galleryId]);
 
   const loadPhotos = useCallback(async (reset = false) => {
@@ -524,7 +514,6 @@ export default function ClientGalleryPage() {
     };
   }, [gallery?.photographerNote, showIntro]);
 
-  // ✅ FIXED: Profile from publicProfiles (logo yahan hai)
   const photographerRef = useMemo(() => {
     if (!firestore || !gallery?.userId) return null;
     return doc(firestore, 'publicProfiles', gallery.userId);
@@ -532,7 +521,6 @@ export default function ClientGalleryPage() {
 
   const { data: profile } = useDoc(photographerRef);
 
-  // ✅ Branding images — FRESH signed URLs
   const [freshBranding, setFreshBranding] = useState<{
     studioLogo?: string;
     studioBanner?: string;
@@ -579,8 +567,11 @@ export default function ClientGalleryPage() {
     return gallery.isPublic === true;
   }, [gallery, isResolving, docLoading, authLoading, galleryId, galleryParam]);
 
-  const canDownload = useMemo(() => gallery ? (!gallery.isLocked && !!gallery.isPaid) : false, [gallery]);
-  const showWatermark = useMemo(() => gallery ? (!!gallery.isLocked || !gallery.isPaid) : true, [gallery]);
+  // ✅ FIXED WATERMARK LOGIC: Agar download on (isPaid) hai toh watermark nahi hoga
+  // ✅ Download sirf isPaid par depend — isLocked se koi lena dena nahi
+const canDownload = useMemo(() => gallery ? !!gallery.isPaid : false, [gallery]);
+// ✅ Watermark tab dikhe jab isLocked true ho
+const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [gallery]);
   const totalItems = gallery?.items?.length || 0;
   
   const musicUrl = freshMusicUrl || gallery?.musicUrl || gallery?.backgroundMusic || '';
@@ -705,8 +696,6 @@ export default function ClientGalleryPage() {
     }
   };
 
-
-  // ✅ Advanced Analytics Tracking
   useEffect(() => {
     if (!firestore || !galleryId || galleryId === 'demo') return;
     const galleryRef = doc(firestore, 'galleries', galleryId);
@@ -716,7 +705,6 @@ export default function ClientGalleryPage() {
       lastViewedAt: new Date().toISOString(),
     };
 
-    // Unique visitor (localStorage-based)
     try {
       const visitorKey = `hafash_visitor_${galleryId}`;
       if (!localStorage.getItem(visitorKey)) {
@@ -725,11 +713,9 @@ export default function ClientGalleryPage() {
       }
     } catch (e) {}
 
-    // Device type
     const isMobileDevice = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     updates[`devices.${isMobileDevice ? 'mobile' : 'desktop'}`] = increment(1);
 
-    // Traffic source
     const referrer = document.referrer || '';
     let source = 'direct';
     if (referrer.includes('whatsapp') || referrer.includes('wa.me')) source = 'whatsapp';
@@ -740,6 +726,7 @@ export default function ClientGalleryPage() {
 
     updateDoc(galleryRef, updates).catch(err => console.error('[ANALYTICS]', err));
   }, [firestore, galleryId]);
+
   const handleFavorite = useCallback(async (itemId: string, isCurrentlyFavorite: boolean) => {
     if (!firestore || !gallery || !galleryId || galleryId === 'demo') return;
     const photoRef = doc(firestore, 'galleries', galleryId, 'photos', itemId);
@@ -855,7 +842,6 @@ export default function ClientGalleryPage() {
     if (!gallery || !galleryId || galleryId === 'demo') return;
     if (!canDownload) return;
     
-    // ✅ Download count increment
     if (firestore && galleryId) {
       updateDoc(doc(firestore, 'galleries', galleryId), {
         downloadCount: increment(1),
@@ -1019,7 +1005,6 @@ export default function ClientGalleryPage() {
 
     if (!gallery) return;
 
-    // ✅ Download count increment
     if (firestore && galleryId && galleryId !== 'demo') {
       updateDoc(doc(firestore, 'galleries', galleryId), {
         downloadCount: increment(1),
@@ -1133,11 +1118,9 @@ export default function ClientGalleryPage() {
     }
   }, [gallery, selectedPhotos, isMobile, toast, firestore, galleryId]);
 
-  // ✅ SINGLE VERSION — blob approach (mobile + desktop both work)
   const handleDownloadSingle = useCallback(async (item: any) => {
     if (!canDownload) return;
     
-    // ✅ Download count increment
     if (firestore && galleryId && galleryId !== 'demo') {
       updateDoc(doc(firestore, 'galleries', galleryId), {
         downloadCount: increment(1),
@@ -1166,15 +1149,12 @@ export default function ClientGalleryPage() {
       const data = await res.json();
       if (!data.url) throw new Error('No download URL');
 
-      // Fetch as blob (forces save instead of preview on mobile)
       const fileRes = await fetch(data.url);
       if (!fileRes.ok) throw new Error('Failed to fetch file');
       const blob = await fileRes.blob();
 
-      // Create blob URL (same-origin, so download attribute works)
       const blobUrl = URL.createObjectURL(blob);
 
-      // Trigger download
       const link = document.createElement('a');
       link.href = blobUrl;
       link.download = filename;
@@ -1183,7 +1163,6 @@ export default function ClientGalleryPage() {
       link.click();
       document.body.removeChild(link);
 
-      // Cleanup blob URL
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
       toast({
@@ -1338,7 +1317,6 @@ export default function ClientGalleryPage() {
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
   const isCustomBrandingActive = photographerPlan === 'enterprise';
   const studioName = gallery.studioName || profile?.studioName || 'Professional Studio';
-  // ✅ FIXED: freshBranding first (signed URL), then profile, then gallery
   const studioLogo = freshBranding.studioLogo || profile?.studioLogo || gallery.studioLogo;
   const whatsappNumber = gallery.whatsappNumber || profile?.whatsappNumber;
   const effectiveHeroImage = (isCustomBrandingActive && (freshBranding.studioBanner || profile?.studioBanner)) 
@@ -1350,7 +1328,7 @@ export default function ClientGalleryPage() {
     return (
       <div 
         className={cn(
-          "fixed inset-0 z-[999] bg-black flex items-center justify-center overflow-hidden",
+          "fixed inset-0 z-[999] bg-black flex flex-col justify-end p-8 lg:p-16 overflow-hidden",
           introLeaving ? "animate-out fade-out zoom-out-105 duration-800" : "animate-in fade-in duration-1000"
         )}
       >
@@ -1364,50 +1342,47 @@ export default function ClientGalleryPage() {
               loading="eager"
             />
           ) : null}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-black via-black/60 to-transparent" />
         </div>
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.7)_100%)]" />
-        <div className="relative z-10 text-center px-6 max-w-4xl mx-auto space-y-12">
-          <div className="animate-in fade-in slide-in-from-top-8 duration-1200 delay-200">
+        
+        <div className="relative z-10 max-w-3xl space-y-6">
+          <div className="animate-in fade-in slide-in-from-left-8 duration-1200 delay-200">
             {isCustomBrandingActive && studioLogo ? (
-              <img src={studioLogo} className="h-24 lg:h-32 w-auto mx-auto object-contain drop-shadow-[0_10px_40px_rgba(212,175,55,0.3)]" alt="Logo" />
+              <img src={studioLogo} className="h-16 lg:h-24 w-auto object-contain drop-shadow-[0_10px_40px_rgba(212,175,55,0.3)] mb-4" alt="Logo" />
             ) : (
-              <div className="flex items-center justify-center gap-3">
-                <img src="/hafash-logo.png" className="h-14 w-auto drop-shadow-2xl" alt="Logo" />
-                <span className="text-4xl lg:text-6xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
+              <div className="flex items-center gap-3 mb-4">
+                <img src="/hafash-logo.png" className="h-10 w-auto drop-shadow-2xl" alt="Logo" />
+                <span className="text-2xl lg:text-4xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
               </div>
             )}
-          </div>
-          <div className="flex items-center justify-center gap-4 animate-in fade-in duration-1000 delay-700">
-            <div className="h-px w-16 bg-gradient-to-r from-transparent to-primary/60" />
-            <Sparkles className="w-4 h-4 text-primary" />
-            <div className="h-px w-16 bg-gradient-to-l from-transparent to-primary/60" />
-          </div>
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-1200 delay-500">
-            <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg">
+            <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg mb-2">
               {studioName}
             </p>
-            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-headline font-bold text-white uppercase tracking-tight leading-[1.05] drop-shadow-2xl">
+          </div>
+          
+          <div className="space-y-4 animate-in fade-in slide-in-from-left-8 duration-1200 delay-400">
+            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-headline font-bold text-white uppercase tracking-tight leading-[1.05] drop-shadow-2xl">
               {gallery.title}
             </h1>
-            <p className="text-2xl lg:text-4xl italic text-primary/90 font-headline drop-shadow-xl">
+            <p className="text-xl lg:text-3xl italic text-primary/90 font-headline drop-shadow-xl">
               Dear {gallery.clientName},
             </p>
-            <div className="flex items-center justify-center gap-6 text-white/60 uppercase tracking-[0.4em] text-[10px] lg:text-xs font-bold pt-4">
+            <div className="flex items-center gap-6 text-white/60 uppercase tracking-[0.4em] text-[10px] lg:text-xs font-bold pt-2">
               <span>{gallery.category}</span>
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span>{gallery.date}</span>
             </div>
           </div>
-          <div className="pt-8 animate-in fade-in slide-in-from-bottom-10 duration-1200 delay-1000">
+
+          <div className="pt-8 animate-in fade-in slide-in-from-left-8 duration-1200 delay-600">
             <Button 
               onClick={handleEnterGallery}
-              className="group relative rounded-full px-16 lg:px-20 h-16 lg:h-18 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-4 shadow-[0_20px_60px_rgba(212,175,55,0.4)] text-base lg:text-lg transition-all hover:scale-105 active:scale-95 overflow-hidden"
+              className="group relative rounded-full px-12 lg:px-16 h-14 lg:h-16 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-4 shadow-[0_20px_60px_rgba(212,175,55,0.4)] text-base lg:text-lg transition-all hover:scale-105 active:scale-95 overflow-hidden"
             >
               <span className="relative z-10">Enter Gallery</span>
               <ChevronRight className="w-5 h-5 lg:w-6 lg:h-6 relative z-10 group-hover:translate-x-1 transition-transform" />
             </Button>
-            <p className="mt-6 text-white/40 text-[10px] uppercase tracking-[0.4em] font-bold">
+            <p className="mt-4 text-white/40 text-[10px] uppercase tracking-[0.4em] font-bold">
               {gallery.photoCount || totalItems} Masterpieces {hasMusic && "• 🎵 Music On"}
             </p>
           </div>
@@ -1483,8 +1458,9 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
+      {/* ✅ HERO SECTION - Bottom Left Aligned */}
       <div className={cn(
-        "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col items-center justify-center bg-card shadow-2xl transition-all duration-1000",
+        "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col justify-end p-8 lg:p-16 bg-card shadow-2xl transition-all duration-1000",
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[4rem] lg:rounded-b-[6rem]"
       )}>
         {effectiveHeroImage ? (
@@ -1496,94 +1472,93 @@ export default function ClientGalleryPage() {
             decoding="async"
           />
         ) : null}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-background" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-black/90 via-black/40 to-transparent" />
         
-        <div className="relative z-10 text-center px-6 max-w-5xl space-y-10">
-          <div className="flex flex-col items-center">
-          {isCustomBrandingActive ? (
-  <div className="flex flex-col items-center space-y-6 animate-in fade-in slide-in-from-top-6 duration-1000">
-    <div className="flex items-center justify-center gap-4 lg:gap-6">
-      {studioLogo && (
-        <img src={studioLogo} className="h-16 lg:h-24 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
-      )}
-      <span className="text-4xl lg:text-6xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
-    </div>
-    {profile?.photographerName && (
-      <div className="flex items-center gap-4">
-        <div className="h-px w-8 bg-primary/50" />
-        <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg">{profile.photographerName}</p>
-        <div className="h-px w-8 bg-primary/50" />
-      </div>
-    )}
-  </div>
-) : (
-              <div className="flex flex-col items-center space-y-6 animate-in fade-in slide-in-from-top-6 duration-1000">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <img src="/hafash-logo.png" className="h-[50px] w-auto drop-shadow-2xl" alt="Logo" />
-                  <span className="text-4xl sm:text-6xl lg:text-9xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
+        <div className="relative z-10 max-w-3xl space-y-6">
+          <div className="flex flex-col items-start">
+            {isCustomBrandingActive ? (
+              <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-left-6 duration-1000">
+                <div className="flex items-center justify-start gap-4 lg:gap-6">
+                  {studioLogo && (
+                    <img src={studioLogo} className="h-12 lg:h-20 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
+                  )}
+                  <span className="text-3xl lg:text-5xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
+                </div>
+                {profile?.photographerName && (
+                  <div className="flex items-center gap-4">
+                    <div className="h-px w-8 bg-primary/50" />
+                    <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg">{profile.photographerName}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-left-6 duration-1000">
+                <div className="flex items-center justify-start gap-2 mb-2">
+                  <img src="/hafash-logo.png" className="h-[40px] w-auto drop-shadow-2xl" alt="Logo" />
+                  <span className="text-3xl sm:text-5xl lg:text-7xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
                 </div>
                 <span className="text-[10px] lg:text-[12px] font-bold tracking-[0.6em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
               </div>
             )}
           </div>
 
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-300">
-            <h1 className="text-4xl sm:text-6xl lg:text-8xl font-headline font-bold text-white uppercase tracking-tight leading-[1.1] drop-shadow-2xl">{gallery.title}</h1>
-            <p className="text-2xl lg:text-3xl italic text-primary font-headline drop-shadow-xl">
+          <div className="space-y-4 animate-in fade-in slide-in-from-left-6 duration-1000 delay-300">
+            <h1 className="text-4xl sm:text-5xl lg:text-7xl font-headline font-bold text-white uppercase tracking-tight leading-[1.1] drop-shadow-2xl">{gallery.title}</h1>
+            <p className="text-xl lg:text-3xl italic text-primary font-headline drop-shadow-xl">
               Dear {gallery.clientName},
             </p>
-            <div className="flex items-center justify-center gap-6 text-white/80 uppercase tracking-[0.4em] text-[10px] lg:text-[12px] font-bold">
+            <div className="flex items-center justify-start gap-6 text-white/80 uppercase tracking-[0.4em] text-[10px] lg:text-[12px] font-bold">
               <span>{gallery.category}</span>
               <div className="w-1.5 h-1.5 rounded-full bg-primary" />
               <span>{gallery.date}</span>
             </div>
           </div>
           
-          <div className="mt-14 lg:mt-20 flex flex-wrap justify-center items-center gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-500">
+          <div className="mt-8 flex flex-wrap justify-start items-center gap-4 lg:gap-6 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
             {whatsappNumber && (
-              <Button className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-4 shadow-2xl text-sm lg:text-base transition-all hover:scale-105 active:scale-95" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
-                <MessageCircle className="w-5 h-5 lg:w-6 lg:h-6" /> Contact Studio
+              <Button className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-3 shadow-2xl text-xs lg:text-sm transition-all hover:scale-105 active:scale-95" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
+                <MessageCircle className="w-4 h-4 lg:w-5 lg:h-5" /> Contact Studio
               </Button>
             )}
 
             {totalItems > 0 && (
               <Button 
-                className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-4 shadow-2xl backdrop-blur-xl text-sm lg:text-base transition-all hover:scale-105"
+                className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-3 shadow-2xl backdrop-blur-xl text-xs lg:text-sm transition-all hover:scale-105"
                 onClick={() => { openLightbox(0); setIsSlideshowPlaying(true); }}
               >
-                <Play className="w-5 h-5 lg:w-6 lg:h-6" /> Play Slideshow
+                <Play className="w-4 h-4 lg:w-5 lg:h-5" /> Play Slideshow
               </Button>
             )}
 
             {canDownload && totalItems > 0 && (
               <Button 
-                className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 font-bold gap-4 shadow-2xl text-sm lg:text-base transition-all hover:scale-105"
+                className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground hover:from-primary/90 hover:to-primary/70 font-bold gap-3 shadow-2xl text-xs lg:text-sm transition-all hover:scale-105"
                 onClick={handleDownloadAll}
                 disabled={downloadAllActive}
               >
-                <Package className="w-5 h-5 lg:w-6 lg:h-6" /> Download All ({gallery.photoCount || totalItems})
+                <Package className="w-4 h-4 lg:w-5 lg:h-5" /> Download All ({gallery.photoCount || totalItems})
               </Button>
             )}
 
             {canDownload && totalItems > 0 && (
               <Button 
-                className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-4 shadow-2xl backdrop-blur-xl text-sm lg:text-base transition-all hover:scale-105"
+                className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 bg-white/10 border border-white/20 text-white hover:bg-white/20 font-bold gap-3 shadow-2xl backdrop-blur-xl text-xs lg:text-sm transition-all hover:scale-105"
                 onClick={() => {
                   setIsSelectionMode(true);
                   setSelectedPhotos(new Set());
                 }}
               >
-                <CheckSquare className="w-5 h-5 lg:w-6 lg:h-6" /> Select Photos
+                <CheckSquare className="w-4 h-4 lg:w-5 lg:h-5" /> Select Photos
               </Button>
             )}
 
-            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-10 lg:px-12 h-14 lg:h-16 border-white/30 text-white hover:bg-white/10 gap-4 backdrop-blur-xl text-sm lg:text-base transition-all" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
-              <Share2 className="w-5 h-5 lg:w-6 lg:h-6" /> Share
+            <Button variant="outline" className="flex-1 sm:flex-none rounded-full px-8 lg:px-10 h-12 lg:h-14 border-white/30 text-white hover:bg-white/10 gap-3 backdrop-blur-xl text-xs lg:text-sm transition-all" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
+              <Share2 className="w-4 h-4 lg:w-5 lg:h-5" /> Share
             </Button>
           </div>
         </div>
         
-        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce flex flex-col items-center gap-2 opacity-50">
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2 animate-bounce flex flex-col items-center gap-2 opacity-50 hidden lg:flex">
            <div className="w-px h-12 bg-gradient-to-b from-primary to-transparent" />
         </div>
       </div>
@@ -1691,8 +1666,9 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-6 mt-24 space-y-20">
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
+      {/* ✅ Grid - 6 to 7 columns on large screens, smaller items */}
+      <div className="max-w-7xl mx-auto px-4 lg:px-6 mt-24 space-y-20">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 lg:gap-4 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
           {gallery.items?.map((item: any, idx: number) => (
             <GalleryItem 
               key={item.id}
@@ -1966,33 +1942,31 @@ export default function ClientGalleryPage() {
             </Button>
           )}
 
-          
-<div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
-  <img
-    src={
-      gallery.items[selectedIndex].thumbUrl ||
-      gallery.items[selectedIndex].url
-    }
-    alt="Photo preview"
-    className="absolute inset-0 w-full h-full object-contain rounded-2xl"
-    decoding="async"
-  />
+          <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
+            <img
+              src={
+                gallery.items[selectedIndex].thumbUrl ||
+                gallery.items[selectedIndex].url
+              }
+              alt="Photo preview"
+              className="absolute inset-0 w-full h-full object-contain rounded-2xl"
+              decoding="async"
+            />
 
-  <img
-    key={gallery.items[selectedIndex].url}
-    src={gallery.items[selectedIndex].url}
-    alt="Fullscreen"
-    loading="eager"
-    decoding="async"
-    onClick={(e) => e.stopPropagation()}
-    className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5"
-  />
+            <img
+              key={gallery.items[selectedIndex].url}
+              src={gallery.items[selectedIndex].url}
+              alt="Fullscreen"
+              loading="eager"
+              decoding="async"
+              onClick={(e) => e.stopPropagation()}
+              className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5"
+            />
 
-  {showWatermark && (
-    <div className="luxury-watermark pointer-events-none" />
-  )}
-</div>
-
+            {showWatermark && (
+              <div className="luxury-watermark pointer-events-none" />
+            )}
+          </div>
 
           <div 
             className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-3 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl"
@@ -2072,15 +2046,14 @@ export default function ClientGalleryPage() {
         }
       `}</style>
       
-      {/* ✅ REVIEW FORM */}
       {!isSelectionMode && galleryId && gallery && (
         <ReviewFormSection
-        galleryId={galleryId}
-        galleryTitle={gallery.title}
-        clientName={gallery.clientName}
-        eventType={gallery.category}
-        photographerId={gallery.userId || profile?.userId || null}
-      />
+          galleryId={galleryId}
+          galleryTitle={gallery.title}
+          clientName={gallery.clientName}
+          eventType={gallery.category}
+          photographerId={gallery.userId || profile?.userId || null}
+        />
       )}
 
     </div>

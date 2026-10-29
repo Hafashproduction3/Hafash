@@ -70,12 +70,13 @@ export default function EventManagementPage() {
   const [activeModalTab, setActiveModalTab] = useState<'main' | 'favorites' | 'products' | 'reviews' | 'privacy'>('main');
   
   // Local state for modal inputs to save on click
+  // ✅ FIXED: isLocked default false kar diya taake download hamesha available rahe
   const [modalSettings, setModalSettings] = useState({
     title: '',
     slug: '',
     date: '',
     isPaid: false,
-    isLocked: true,
+    isLocked: false, // ← CHANGED from true to false
     enableFavorites: true,
     favoritesLimit: 50,
     enableProducts: false,
@@ -91,7 +92,7 @@ export default function EventManagementPage() {
     albumStatus: 'New Selection',
     isPublic: true,
     isPaid: false,
-    isLocked: true
+    isLocked: false // ← CHANGED from true to false
   });
 
   useEffect(() => {
@@ -232,7 +233,7 @@ export default function EventManagementPage() {
         enableReviews: event.enableReviews ?? true,
         autoApproveReviews: event.autoApproveReviews ?? false,
         isPasswordProtected: event.isPasswordProtected ?? false,
-        password: '', // Don't show old password for security
+        password: '',
       });
     }
   }, [event]);
@@ -265,7 +266,7 @@ export default function EventManagementPage() {
         updatedAt: new Date().toISOString()
       };
 
-      // ✅ Password Hash logic (Yeh naya add kiya hai)
+      // ✅ Password Hash logic
       if (modalSettings.isPasswordProtected && modalSettings.password) {
         const encoder = new TextEncoder();
         const data = encoder.encode(modalSettings.password);
@@ -494,10 +495,12 @@ export default function EventManagementPage() {
     }
   }, [eventRef, event, deleteConfirmText, router, toast, isDeleting, firestore, id, subcollectionPhotos]);
 
+  // ✅ FIXED: updateToggle se isPaid ka isLocked override hata diya
   const updateToggle = useCallback(async (field: string, value: any) => {
     if (!eventRef) return;
     const updateData: any = { [field]: value, updatedAt: new Date().toISOString() };
-    if (field === 'isPaid') updateData.isLocked = !value;
+    // ✅ REMOVED: if (field === 'isPaid') updateData.isLocked = !value; — Yeh galat tha
+    // Ab isPaid aur isLocked independent rahenge
 
     try {
       await updateDoc(eventRef, updateData);
