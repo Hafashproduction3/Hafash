@@ -28,7 +28,7 @@ import { type PlanId } from '@/lib/plans';
 import { getFreshMusicUrl, refreshPhotoUrls } from '@/app/actions/storage';
 
 const SLIDESHOW_INTERVAL = 4000;
-const GALLERY_PAGE_SIZE = 60;
+const GALLERY_PAGE_SIZE = 100
 const DESKTOP_BATCH_SIZE = 100;
 const MOBILE_BATCH_SIZE = 30;
 
@@ -285,10 +285,15 @@ export default function ClientGalleryPage() {
           : (urlMap[p.storageKey] || p.url),
       }));
       
+      // ✅ DUPLICATE FIX: Purani photos ki IDs nikal lein
       if (reset) {
         setPhotos(newPhotos);
       } else {
-        setPhotos(prev => [...prev, ...newPhotos]);
+        setPhotos(prev => {
+          const existingIds = new Set(prev.map(p => p.id));
+          const filteredNewPhotos = newPhotos.filter(p => !existingIds.has(p.id));
+          return [...prev, ...filteredNewPhotos];
+        });
       }
       
       setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
@@ -317,7 +322,7 @@ export default function ClientGalleryPage() {
     if (!hasMore || photosLoading || selectedIndex !== null || showIntro) return;
     
     const handleScroll = () => {
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1000) {
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 1500) {
         loadPhotos(false);
       }
     };
@@ -1444,7 +1449,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
 
       <Button 
         variant="ghost" size="icon" 
-        className="fixed top-6 left-6 lg:top-10 lg:left-10 z-[60] h-12 w-12 lg:h-14 lg:w-14 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground transition-all shadow-2xl"
+        className="fixed top-4 left-4 lg:top-8 lg:left-8 z-[60] h-10 w-10 lg:h-12 lg:w-12 rounded-full bg-black/40 backdrop-blur-xl text-white border border-white/20 hover:bg-primary hover:text-primary-foreground transition-all shadow-2xl"
         onClick={() => {
           if (isSelectionMode) {
             handleClearSelection();
@@ -1453,7 +1458,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
           }
         }}
       >
-        <ArrowLeft className="w-6 h-6 lg:w-7 lg:h-7" />
+        <ArrowLeft className="w-5 h-5 lg:w-6 lg:h-6" />
       </Button>
 
       {isSelectionMode && (
@@ -1489,8 +1494,8 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         </div>
       )}
 
-            {/* ✅ HERO SECTION - Fixed Layout (Logo Top Left, Text Bottom Left) */}
-            <div className={cn(
+                              {/* ✅ HERO SECTION - Clean Layout (No Buttons) */}
+      <div className={cn(
         "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col justify-between bg-card shadow-2xl transition-all duration-1000",
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[4rem] lg:rounded-b-[6rem]"
       )}>
@@ -1507,33 +1512,33 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-tr from-black/90 via-black/40 to-transparent" />
         
-        {/* Top Logo Section - Fixed Left Position */}
+        {/* Top Logo Section */}
         <div className="relative z-10 w-full pt-24 pl-8 lg:pl-16">
           {isCustomBrandingActive ? (
             <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-top-6 duration-1000">
               <div className="flex items-center justify-start gap-4 lg:gap-6">
                 {studioLogo && (
-                  <img src={studioLogo} className="h-12 lg:h-16 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
+                  <img src={studioLogo} className="h-14 lg:h-20 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
                 )}
-                <span className="text-3xl lg:text-4xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
+                <span className="text-3xl lg:text-5xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
               </div>
             </div>
           ) : (
             <div className="flex flex-col items-start space-y-2 animate-in fade-in slide-in-from-top-6 duration-1000">
-              <div className="flex items-center justify-start gap-2">
-                <img src="/hafash-logo.png" className="h-[35px] w-auto drop-shadow-2xl" alt="Logo" />
-                <span className="text-3xl sm:text-4xl lg:text-5xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
+              <div className="flex items-center justify-start gap-3">
+                <img src="/hafash-logo.png" className="h-[45px] lg:h-[60px] w-auto drop-shadow-2xl" alt="Logo" />
+                <span className="text-4xl sm:text-5xl lg:text-6xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
               </div>
-              <span className="text-[9px] lg:text-[11px] font-bold tracking-[0.4em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
+              <span className="text-[10px] lg:text-[13px] font-bold tracking-[0.4em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
             </div>
           )}
         </div>
 
-        {/* Bottom Content Section */}
-        <div className="relative z-10 p-8 lg:p-16 pb-20 lg:pb-28 w-full max-w-4xl space-y-5">
-          <div className="space-y-3 animate-in fade-in slide-in-from-left-6 duration-1000 delay-300">
+                {/* 3. BOTTOM SECTION (Title & Details) - Shifted Lower */}
+                <div className="relative z-10 w-full pb-8 lg:pb-10 pl-8 lg:pl-16 pr-8 lg:pr-16 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
+          <div className="w-full max-w-4xl space-y-2">
             <div className="flex flex-col items-start">
-              <span className="text-primary tracking-[0.3em] text-[10px] lg:text-xs font-bold uppercase mb-2">
+              <span className="text-primary tracking-[0.3em] text-[10px] lg:text-xs font-bold uppercase mb-1">
                 {gallery.eventFormat === 'wedding' ? 'The Wedding Of' : 
                  gallery.eventFormat === 'mehndi' ? 'The Mehndi Of' :
                  gallery.eventFormat === 'mayo' ? 'The Mayo Of' :
@@ -1541,32 +1546,34 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
                  gallery.eventFormat === 'walima' ? 'The Walima Of' :
                  gallery.eventFormat === 'nikkah' ? 'The Nikkah Of' :
                  gallery.eventFormat === 'engagement' ? 'The Engagement Of' :
+                 gallery.eventFormat === 'maternity' ? 'Maternity Shoot' :
                  gallery.eventFormat === 'birthday_girl' ? 'Birthday Girl' :
                  gallery.eventFormat === 'birthday_boy' ? 'Birthday Boy' :
-                 gallery.eventFormat === 'maternity' ? 'Maternity Shoot' :
                  'Celebrating'}
               </span>
-              <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+              
+              <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                 {['wedding', 'mehndi', 'mayo', 'barat', 'walima', 'nikkah', 'engagement'].includes(gallery.eventFormat) ? (
                   <>
-                    <span className="text-4xl sm:text-5xl lg:text-6xl font-bold uppercase tracking-tight text-white">
+                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white">
                       {gallery.groomName || 'Groom'}
                     </span>
-                    <span className="text-3xl sm:text-4xl lg:text-5xl text-primary italic font-light px-1">
+                    <span className="text-2xl sm:text-3xl lg:text-4xl text-primary italic font-light px-1">
                       &amp;
                     </span>
-                    <span className="text-4xl sm:text-5xl lg:text-6xl font-bold uppercase tracking-tight text-white">
+                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white">
                       {gallery.brideName || 'Bride'}
                     </span>
                   </>
                 ) : (
-                  <span className="text-4xl sm:text-5xl lg:text-6xl font-bold uppercase tracking-tight text-white">
+                  <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white">
                     {gallery.celebrantName || gallery.title}
                   </span>
                 )}
               </h1>
             </div>
-            <p className="text-xl lg:text-2xl italic text-primary font-headline drop-shadow-xl">
+            
+            <p className="text-lg lg:text-xl italic text-primary font-headline drop-shadow-xl pt-2">
               Dear {gallery.clientName},
             </p>
             <div className="flex items-center justify-start gap-4 text-white/80 uppercase tracking-[0.3em] text-[10px] lg:text-xs font-bold pt-1">
@@ -1575,56 +1582,66 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
               <span>{gallery.date}</span>
             </div>
           </div>
-          
-          {/* Compact Buttons */}
-          <div className="mt-6 flex flex-wrap justify-start items-center gap-3 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
-            {whatsappNumber && (
-              <Button className="rounded-full px-6 h-11 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-2 shadow-xl text-xs lg:text-sm transition-all hover:scale-105" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
-                <MessageCircle className="w-4 h-4" /> Contact Studio
-              </Button>
-            )}
-
-            {totalItems > 0 && (
-              <Button 
-                className="rounded-full px-6 h-11 bg-transparent border border-white/30 text-white hover:bg-white/10 font-bold gap-2 shadow-xl backdrop-blur-md text-xs lg:text-sm transition-all hover:scale-105"
-                onClick={() => { openLightbox(0); setIsSlideshowPlaying(true); }}
-              >
-                <Play className="w-4 h-4" /> Play Slideshow
-              </Button>
-            )}
-
-            {canDownload && totalItems > 0 && (
-              <Button 
-                className="rounded-full px-6 h-11 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-bold gap-2 shadow-xl text-xs lg:text-sm transition-all hover:scale-105"
-                onClick={handleDownloadAll}
-                disabled={downloadAllActive}
-              >
-                <Package className="w-4 h-4" /> Download All ({gallery.photoCount || totalItems})
-              </Button>
-            )}
-
-            {canDownload && totalItems > 0 && (
-              <Button 
-                className="rounded-full px-6 h-11 bg-transparent border border-white/30 text-white hover:bg-white/10 font-bold gap-2 shadow-xl backdrop-blur-md text-xs lg:text-sm transition-all hover:scale-105"
-                onClick={() => {
-                  setIsSelectionMode(true);
-                  setSelectedPhotos(new Set());
-                }}
-              >
-                <CheckSquare className="w-4 h-4" /> Select Photos
-              </Button>
-            )}
-
-            <Button variant="outline" className="rounded-full px-6 h-11 border-white/30 text-white hover:bg-white/10 gap-2 backdrop-blur-md text-xs lg:text-sm transition-all hover:scale-105" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
-              <Share2 className="w-4 h-4" /> Share
-            </Button>
-          </div>
-        </div>
-        
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 animate-bounce flex flex-col items-center gap-2 opacity-50 hidden lg:flex">
-           <div className="w-px h-8 bg-gradient-to-b from-primary to-transparent" />
         </div>
       </div>
+
+      {/* ✅ NEW SECTION: Gallery Buttons (Below Hero, Above Photos) */}
+      {!isSelectionMode && (
+        <div className="max-w-7xl mx-auto px-4 lg:px-6 mt-16 mb-8 animate-in fade-in slide-in-from-bottom-6 duration-1000">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-6">
+            
+            {/* Left Side: The Gallery Heading */}
+            <div className="flex items-center shrink-0">
+              <h2 className="text-xl sm:text-2xl font-headline font-bold text-white uppercase tracking-tight">The Gallery</h2>
+            </div>
+
+            {/* Right Side: Buttons (Right Corner) */}
+            <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2 ml-auto">
+              {whatsappNumber && (
+                <Button className="rounded-full px-4 h-9 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5 shadow-xl text-[10px] lg:text-xs transition-all hover:scale-105" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
+                  <MessageCircle className="w-3 h-3" /> Contact
+                </Button>
+              )}
+
+              {totalItems > 0 && (
+                <Button 
+                  className="rounded-full px-4 h-9 bg-transparent border border-white/30 text-white hover:bg-white/10 font-bold gap-1.5 shadow-xl backdrop-blur-md text-[10px] lg:text-xs transition-all hover:scale-105"
+                  onClick={() => { openLightbox(0); setIsSlideshowPlaying(true); }}
+                >
+                  <Play className="w-3 h-3" /> Slideshow
+                </Button>
+              )}
+
+              {canDownload && totalItems > 0 && (
+                <Button 
+                  className="rounded-full px-4 h-9 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-bold gap-1.5 shadow-xl text-[10px] lg:text-xs transition-all hover:scale-105"
+                  onClick={handleDownloadAll}
+                  disabled={downloadAllActive}
+                >
+                  <Package className="w-3 h-3" /> Download
+                </Button>
+              )}
+
+              {canDownload && totalItems > 0 && (
+                <Button 
+                  className="rounded-full px-4 h-9 bg-transparent border border-white/30 text-white hover:bg-white/10 font-bold gap-1.5 shadow-xl backdrop-blur-md text-[10px] lg:text-xs transition-all hover:scale-105"
+                  onClick={() => {
+                    setIsSelectionMode(true);
+                    setSelectedPhotos(new Set());
+                  }}
+                >
+                  <CheckSquare className="w-3 h-3" /> Select
+                </Button>
+              )}
+
+              <Button variant="outline" className="rounded-full px-4 h-9 border-white/30 text-white hover:bg-white/10 gap-1.5 backdrop-blur-md text-[10px] lg:text-xs transition-all hover:scale-105" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
+                <Share2 className="w-3 h-3" /> Share
+              </Button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
       {hasNoteContent && (
         <div 
