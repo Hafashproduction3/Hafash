@@ -8,10 +8,10 @@ import imageCompression from 'browser-image-compression';
 import { requestDriveUploadUrl, completeDriveUpload } from '@/app/actions/drive';
 
 const THUMBNAIL_OPTIONS = {
-  maxSizeMB: 0.05,
-  maxWidthOrHeight: 400,
+  maxSizeMB: 0.3,
+  maxWidthOrHeight: 1200,
   useWebWorker: true,
-  initialQuality: 0.8,
+  initialQuality: 0.9,
   fileType: 'image/jpeg',
 };
 

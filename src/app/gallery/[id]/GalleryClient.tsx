@@ -31,6 +31,10 @@ const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 100
 const DESKTOP_BATCH_SIZE = 100;
 const MOBILE_BATCH_SIZE = 30;
+const DOWNLOAD_ALL_DESKTOP_BATCH_SIZE = 200;
+const DOWNLOAD_ALL_MOBILE_BATCH_SIZE = 50;
+const DOWNLOAD_ALL_DESKTOP_PARALLEL = 6;
+const DOWNLOAD_ALL_MOBILE_PARALLEL = 3;
 
 const GalleryItem = memo(({ 
   item, showWatermark, canDownload, onFavorite, onDownload, onSelect, priority,
@@ -198,7 +202,10 @@ export default function ClientGalleryPage() {
   }, []);
 
   const MAX_SELECT = isMobile ? 100 : 200;
-  const BATCH_SIZE = isMobile ? MOBILE_BATCH_SIZE : DESKTOP_BATCH_SIZE;
+  const BATCH_SIZE = isMobile
+  ? DOWNLOAD_ALL_MOBILE_BATCH_SIZE
+  : DOWNLOAD_ALL_DESKTOP_BATCH_SIZE;
+  const DOWNLOAD_ALL_PARALLEL = isMobile ? 3 : 6;
 
   const demoItems = useMemo(() => [
     { id: 'demo-1', url: 'https://picsum.photos/seed/hafash-demo-1/1200/1600', thumbUrl: 'https://picsum.photos/seed/hafash-demo-1/400/500', fileName: 'demo-1.jpg', isFavorite: false },
@@ -804,45 +811,56 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
   ): Promise<number> => {
     const zip = new JSZip();
     let successCount = 0;
+    let nextIndex = 0;
+    let completedCount = 0;
 
-    for (let i = 0; i < photos.length; i++) {
-      const item = photos[i];
-      
-      if (cancelDownloadAllRef.current) {
-        throw new Error('CANCELLED');
+    const worker = async () => {
+      while (true) {
+        if (cancelDownloadAllRef.current) return;
+
+        const i = nextIndex++;
+        if (i >= photos.length) return;
+
+        const item = photos[i];
+        const filename = item.fileName || `photo-${i + 1}.jpg`;
+
+        try {
+          const urlRes = await fetch('/api/download-original', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              key: item.originalKey,
+              filename,
+            }),
+          });
+
+          if (urlRes.ok) {
+            const { url } = await urlRes.json();
+            if (url) {
+              const fileRes = await fetch(url);
+              if (fileRes.ok) {
+                const blob = await fileRes.blob();
+                zip.file(filename, blob);
+                successCount++;
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`[ZIP] Failed: ${filename}`, err);
+        } finally {
+          completedCount++;
+          if (onProgress) onProgress(completedCount, photos.length);
+        }
       }
+    };
 
-      try {
-        const urlRes = await fetch('/api/download-original', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            key: item.originalKey,
-            filename: item.fileName || `photo-${i + 1}.jpg`,
-          }),
-        });
+    const workerCount = Math.min(DOWNLOAD_ALL_PARALLEL, photos.length);
+    await Promise.all(Array.from({ length: workerCount }, () => worker()));
 
-        if (!urlRes.ok) continue;
-        const { url } = await urlRes.json();
-        if (!url) continue;
+    if (cancelDownloadAllRef.current) throw new Error('CANCELLED');
+    if (successCount === 0) throw new Error('No photos downloaded');
 
-        const fileRes = await fetch(url);
-        if (!fileRes.ok) continue;
-        const blob = await fileRes.blob();
-        zip.file(item.fileName || `photo-${i + 1}.jpg`, blob);
-        successCount++;
-        
-        if (onProgress) onProgress(i + 1, photos.length);
-      } catch (err) {
-        console.error(`[ZIP] Failed: ${item.fileName}`, err);
-      }
-    }
-
-    if (successCount === 0) {
-      throw new Error('No photos downloaded');
-    }
-
-    const content = await zip.generateAsync({ 
+    const content = await zip.generateAsync({
       type: 'blob',
       compression: 'STORE',
     });
@@ -854,7 +872,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
 
     saveAs(content, zipName);
     return successCount;
-  }, []);
+  }, [DOWNLOAD_ALL_PARALLEL]);
 
   const handleDownloadAll = useCallback(async () => {
     if (!gallery || !galleryId || galleryId === 'demo') return;
@@ -1057,33 +1075,51 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         const zip = new JSZip();
         let successCount = 0;
 
-        for (let i = 0; i < chunk.length; i++) {
-          const item = chunk[i];
-          const globalIdx = start + i + 1;
-          setPreparationStep(`Preparing ${globalIdx}/${selectedItems.length}...`);
+        // ✅ 5 photos ek saath download karein
+        const PARALLEL = 5;
+        
+        for (let i = 0; i < chunk.length; i += PARALLEL) {
+          const subChunk = chunk.slice(i, i + PARALLEL);
+          
+          const results = await Promise.all(
+            subChunk.map(async (item: any, idx: number) => {
+              const globalIdx = start + i + idx + 1;
+              try {
+                const urlRes = await fetch('/api/download-original', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    key: item.originalKey,
+                    filename: item.fileName || `photo-${globalIdx}.jpg`,
+                  }),
+                });
 
-          try {
-            const urlRes = await fetch('/api/download-original', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                key: item.originalKey,
-                filename: item.fileName || `photo-${globalIdx}.jpg`,
-              }),
-            });
+                if (!urlRes.ok) return null;
+                const { url } = await urlRes.json();
+                if (!url) return null;
 
-            if (!urlRes.ok) continue;
-            const { url } = await urlRes.json();
-            if (!url) continue;
+                const fileRes = await fetch(url);
+                if (!fileRes.ok) return null;
+                const blob = await fileRes.blob();
+                return { item, blob, globalIdx };
+              } catch (err) {
+                console.error(`[ZIP] Failed: ${item.fileName}`, err);
+                return null;
+              }
+            })
+          );
 
-            const fileRes = await fetch(url);
-            if (!fileRes.ok) continue;
-            const blob = await fileRes.blob();
-            zip.file(item.fileName || `photo-${globalIdx}.jpg`, blob);
-            successCount++;
-          } catch (err) {
-            console.error(`[ZIP] Failed: ${item.fileName}`, err);
+          for (const result of results) {
+            if (result) {
+              zip.file(
+                result.item.fileName || `photo-${result.globalIdx}.jpg`,
+                result.blob
+              );
+              successCount++;
+            }
           }
+
+          setPreparationStep(`Preparing ${Math.min(i + PARALLEL, chunk.length)}/${chunk.length}...`);
         }
 
         if (successCount === 0) continue;
@@ -1167,10 +1203,40 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       const data = await res.json();
       if (!data.url) throw new Error('No download URL');
 
-      const fileRes = await fetch(data.url);
-      if (!fileRes.ok) throw new Error('Failed to fetch file');
-      const blob = await fileRes.blob();
+      // ✅ "Save As" dialog force karein (agar browser support kare)
+      if ('showSaveFilePicker' in window) {
+        try {
+          const fileHandle = await (window as any).showSaveFilePicker({
+            suggestedName: filename,
+            types: [{
+              description: 'Image',
+              accept: { 'image/jpeg': ['.jpg', '.jpeg', '.png'] },
+            }],
+          });
 
+          const fileRes = await fetch(data.url);
+          const blob = await fileRes.blob();
+          const writable = await fileHandle.createWritable();
+          await writable.write(blob);
+          await writable.close();
+
+          toast({
+            title: "✅ Saved",
+            description: `${filename} save ho gayi.`,
+          });
+          return;
+        } catch (err: any) {
+          if (err.name === 'AbortError') {
+            toast({ title: "Cancelled", description: "Download cancel kar diya." });
+            return;
+          }
+          // Agar showSaveFilePicker fail ho, toh fallback use karein
+        }
+      }
+
+      // Fallback: Blob download (agar browser support nahi karta)
+      const fileRes = await fetch(data.url);
+      const blob = await fileRes.blob();
       const blobUrl = URL.createObjectURL(blob);
 
       const link = document.createElement('a');
@@ -1184,8 +1250,8 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
       toast({
-        title: "✅ Download Done",
-        description: `${filename} saved to your device.`,
+        title: "✅ Download Started",
+        description: `${filename} download ho rahi hai.`,
       });
 
     } catch (error: any) {
@@ -1515,12 +1581,18 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         
         {/* Background Image */}
         {effectiveHeroImage ? (
-          <img 
-            src={effectiveHeroImage} 
-            className="absolute inset-0 w-full h-full object-cover opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]" 
-            alt="Cover" 
-            loading="eager"
-            decoding="async"
+          <Image
+            src={
+              gallery.coverImage || 
+              gallery.items?.[0]?.thumbUrl || 
+              effectiveHeroImage
+            }
+            alt="Cover"
+            fill
+            priority
+            sizes="100vw"
+            quality={80}
+            className="object-cover opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
           />
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-tr from-black/90 via-black/40 to-transparent" />
@@ -2042,18 +2114,22 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
                 gallery.items[selectedIndex].url
               }
               alt="Photo preview"
-              className="absolute inset-0 w-full h-full object-contain rounded-2xl"
+              className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-60 rounded-2xl"
               decoding="async"
             />
 
-            <img
+<Image
               key={gallery.items[selectedIndex].url}
-              src={gallery.items[selectedIndex].url}
+              src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
               alt="Fullscreen"
-              loading="eager"
-              decoding="async"
+              width={1920}
+              height={1080}
+              quality={85}
+              sizes="100vw"
+              priority
+              fetchPriority="high"
               onClick={(e) => e.stopPropagation()}
-              className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5"
+              className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
             />
 
             {showWatermark && (

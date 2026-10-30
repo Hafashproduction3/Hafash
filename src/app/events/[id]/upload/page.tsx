@@ -82,10 +82,10 @@ const MULTIPART_THRESHOLD = 1024 * 1024 * 1024;
 const MULTIPART_PART_PARALLEL_LIMIT = 2;
 
 const THUMBNAIL_OPTIONS = {
-  maxSizeMB: 0.05,
-  maxWidthOrHeight: 400,
+  maxSizeMB: 0.8,         // ✅ 800KB tak allow karein
+  maxWidthOrHeight: 1920, // ✅ Full HD resolution
   useWebWorker: true,
-  initialQuality: 0.8,
+  initialQuality: 0.9,    // ✅ High quality
   fileType: 'image/jpeg',
 };
 
