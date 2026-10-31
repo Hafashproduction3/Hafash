@@ -339,32 +339,39 @@ export function getTrialHoursRemaining(trialExpiry?: string | Date | null): numb
   return Math.floor(diffMs / (1000 * 60 * 60));
 }
 
+/**
+ * Calculate total storage usage across all galleries.
+ * - If items array exists, uses actual file sizes (fileSize + thumb + originalSize)
+ * - If items array is empty, uses photoCount * average size (6.5MB)
+ */
 export function calculateUsageGb(galleries: any[] | null): number {
   if (!galleries || !Array.isArray(galleries)) return 0;
 
   let totalBytes = 0;
 
   galleries.forEach(g => {
-    if ((!g.items || g.items.length === 0) && g.photoCount > 0) {
-      totalBytes += g.photoCount * 6.5 * 1024 * 1024;
-      return;
-    }
-
+    const photoCount = Number(g.photoCount) || 0;
     const items = Array.isArray(g.items) ? g.items : [];
-    items.forEach((item: any) => {
-      const previewSize = Number(item.fileSize) || 0;
-      const thumbSize = item.thumbKey ? (50 * 1024) : 0;
-      let originalSize = 0;
-      if (item.originalReady) {
-        if (item.originalSize && Number(item.originalSize) > 0) {
-          originalSize = Number(item.originalSize);
-        } else {
-          originalSize = previewSize * 10;
+
+    // Agar items array bhari hui hai, toh asal size calculate karo
+    if (items.length > 0) {
+      items.forEach((item: any) => {
+        const previewSize = Number(item.fileSize) || 0;
+        const thumbSize = item.thumbKey ? (50 * 1024) : 0;
+        let originalSize = 0;
+        if (item.originalReady) {
+          originalSize = Number(item.originalSize) > 0 
+            ? Number(item.originalSize) 
+            : previewSize * 10;
         }
-      }
-      const itemTotal = previewSize + thumbSize + originalSize;
-      totalBytes += itemTotal > 0 ? itemTotal : (3 * 1024 * 1024);
-    });
+        const itemTotal = previewSize + thumbSize + originalSize;
+        totalBytes += itemTotal > 0 ? itemTotal : (6.5 * 1024 * 1024);
+      });
+    } 
+    // Agar items khaali hai, toh photoCount * average size
+    else if (photoCount > 0) {
+      totalBytes += photoCount * 6.5 * 1024 * 1024;
+    }
   });
 
   return totalBytes / (1024 * 1024 * 1024);

@@ -19,7 +19,7 @@ const STATS_CACHE_TTL = 60 * 1000;
 /**
  * SERVICE: Calculate comprehensive storage telemetry for a user.
  * ✅ Owner bypass: owner ko unlimited storage milta hai.
- * ✅ Fast: photoCount use karta hai — items array iterate NAHI karta.
+ * ✅ ASAL SIZE: Har gallery ki photos subcollection se asal size fetch karta hai.
  */
 export async function getStorageStats(userId: string): Promise<StorageStats> {
   // ✅ Cache check — agar 60 seconds ke andar call hua, toh cached return karo
@@ -28,8 +28,6 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
     return cached.data;
   }
 
-  console.log(`[DEBUG] getStorageStats: Starting for user ${userId}`);
-  
   if (!adminDb) {
     throw new Error("Database offline. adminDb is null.");
   }
@@ -57,53 +55,47 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
       ? OWNER_PLAN 
       : (HAFASH_PLANS[planId] || DEFAULT_PLAN);
 
-    console.log(`[DEBUG] getStorageStats: Plan = ${plan.name} (${plan.storageGb}GB) | Owner: ${isOwner}`);
-
     // 2. Fetch All Galleries
     const galleriesSnap = await adminDb.collection('galleries')
       .where('userId', '==', userId)
       .get();
 
-    console.log(`[DEBUG] getStorageStats: Found ${galleriesSnap.size} galleries`);
-
     let totalBytes = 0;
     let totalFiles = 0;
 
-    // ✅ FAST: photoCount use karein — items iterate NAHI
-    galleriesSnap.docs.forEach(doc => {
-      const data = doc.data();
-      
-      const photoCount = Number(data.photoCount) || 0;
-      const items = Array.isArray(data.items) ? data.items : [];
-      
-      // ✅ Agar items khaali hai, photoCount use karo — 0 iterations
-      if (items.length === 0 && photoCount > 0) {
-        totalFiles += photoCount;
-        // Average 6.5 MB per photo (preview + thumb + original)
-        totalBytes += photoCount * 6.5 * 1024 * 1024;
-        return;
+    // ✅ ASAL SIZE: Har gallery ki photos subcollection se fetch karein
+    const photosPromises = galleriesSnap.docs.map(async (galleryDoc) => {
+      try {
+        const photosSnap = await adminDb!
+          .collection('galleries')
+          .doc(galleryDoc.id)
+          .collection('photos')
+          .get();
+
+        photosSnap.docs.forEach((photoDoc) => {
+          const photo = photoDoc.data();
+          
+          // ✅ Sirf originalSize use karein (jo asal file size hai)
+          const originalSize = Number(photo.originalSize) || 0;
+          
+          // Agar originalSize nahi hai, toh previewSize (fileSize) use karein
+          const previewSize = Number(photo.fileSize) || 0;
+          
+          // Jo bhi available ho, wo use karein
+          const actualSize = originalSize > 0 ? originalSize : previewSize;
+          
+          // Agar dono nahi hain, toh average 5MB maan lo
+          totalBytes += actualSize > 0 ? actualSize : (5 * 1024 * 1024);
+          totalFiles++;
+        });
+      } catch (err) {
+        console.error(`[STATS] Gallery ${galleryDoc.id} photos fetch failed:`, err);
       }
-      
-      // ✅ Agar items hain toh iterate karo (legacy support)
-      totalFiles += items.length;
-      
-      items.forEach((item: any) => {
-        const previewSize = Number(item.fileSize) || 0;
-        const thumbSize = item.thumbKey ? (50 * 1024) : 0;
-        let originalSize = 0;
-        if (item.originalReady) {
-          originalSize = Number(item.originalSize) > 0 
-            ? Number(item.originalSize) 
-            : previewSize * 10;
-        }
-        const itemTotal = previewSize + thumbSize + originalSize;
-        totalBytes += itemTotal > 0 ? itemTotal : (3 * 1024 * 1024);
-      });
     });
 
-    const usedGb = totalBytes / (1024 * 1024 * 1024);
+    await Promise.all(photosPromises);
 
-    console.log(`[DEBUG] Storage: ${usedGb.toFixed(4)} GB across ${totalFiles} assets`);
+    const usedGb = totalBytes / (1024 * 1024 * 1024);
 
     const result: StorageStats = {
       usedBytes: totalBytes,

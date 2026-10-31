@@ -29,7 +29,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useMemo, useCallback, useState, useEffect } from 'react';
 import { collection, query, where, doc } from 'firebase/firestore';
-import { calculateUsageGb, HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
+import { HAFASH_PLANS, type PlanId, DEFAULT_PLAN } from '@/lib/plans';
 
 const MENU_SECTIONS = [
   {
@@ -175,13 +175,38 @@ export function DashboardSidebar() {
     return HAFASH_PLANS[planId] || DEFAULT_PLAN;
   }, [profile?.planId]);
 
-  const usageStats = useMemo(() => {
-    const usageGb = calculateUsageGb(galleries);
-    const usagePercent = currentPlan.storageGb > 0
-      ? Math.min((usageGb / currentPlan.storageGb) * 100, 100)
-      : 0;
-    return { usageGb, usagePercent };
-  }, [galleries, currentPlan.storageGb]);
+  // ✅ ASAL STORAGE (Server API se)
+  const [usageStats, setUsageStats] = useState({ usageGb: 0, usagePercent: 0 });
+  const [storageLoading, setStorageLoading] = useState(true);
+
+  useEffect(() => {
+    const userId = user?.uid;
+    if (!userId) {
+      setStorageLoading(false);
+      return;
+    }
+
+    async function fetchStorage() {
+      try {
+        const res = await fetch(`/api/storage-stats?userId=${userId}`);
+        const data = await res.json();
+        
+        if (data.success) {
+          const usageGb = data.usedGb || 0;
+          const usagePercent = currentPlan.storageGb > 0
+            ? Math.min((usageGb / currentPlan.storageGb) * 100, 100)
+            : 0;
+          setUsageStats({ usageGb, usagePercent });
+        }
+      } catch (err) {
+        console.error('[STORAGE_FETCH]', err);
+      } finally {
+        setStorageLoading(false);
+      }
+    }
+
+    fetchStorage();
+  }, [user?.uid, currentPlan.storageGb]);
 
   const networkActive = pathname.startsWith('/network');
 
@@ -344,7 +369,7 @@ export function DashboardSidebar() {
               "text-primary",
               usageStats.usagePercent >= 90 && "text-destructive"
             )}>
-              {usageStats.usageGb.toFixed(1)} / {currentPlan.storageGb} GB
+              {storageLoading ? "..." : usageStats.usageGb.toFixed(1)} / {currentPlan.storageGb} GB
             </span>
           </div>
           <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
