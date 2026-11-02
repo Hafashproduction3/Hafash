@@ -9,7 +9,8 @@ import { HafashLoader } from '@/components/ui/hafash-loader';
 import { NotificationBell } from '@/components/network/NotificationBell';
 import { NotificationPermission } from '@/components/network/NotificationPermission';
 import { stopImpersonating } from '@/lib/impersonate';
-import { GlobalBanner } from '@/components/layout/GlobalBanner'; // 👈 Import add kiya
+import { GlobalBanner } from '@/components/layout/GlobalBanner';
+import { ContactSupportWidget } from '@/components/dashboard/ContactSupportWidget'; // 👈 Import kiya
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUser();
@@ -17,7 +18,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isImpersonating, setIsImpersonating] = useState(false);
 
   useEffect(() => {
-    // Check karein ke user admin ki tarah login hai ya nahi
     if (typeof window !== 'undefined') {
       setIsImpersonating(sessionStorage.getItem('impersonating') === 'true');
     }
@@ -60,9 +60,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* ═══ GLOBAL ANNOUNCEMENT BANNER ═══ */}
         <GlobalBanner />
 
-        {/* ═══ TOP BAR (Bell Icon) ═══ */}
+        {/* ═══ TOP BAR (Support + Bell Icon) ═══ */}
         <div className="sticky top-0 z-30 backdrop-blur-xl bg-background/70 border-b border-border/30 lg:border-b-0 lg:bg-transparent lg:backdrop-blur-none">
-          <div className="max-w-6xl mx-auto px-6 lg:px-12 flex items-center justify-end h-16 lg:h-20">
+          <div className="max-w-6xl mx-auto px-6 lg:px-12 flex items-center justify-end h-16 lg:h-20 gap-3">
+            
+            {/* 👇 Contact Support Button yahan add kiya hai */}
+            <ContactSupportWidget />
+            
             <NotificationBell />
           </div>
         </div>

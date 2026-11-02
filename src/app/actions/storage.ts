@@ -39,6 +39,14 @@ async function checkUploadPermission(userId: string, fileSize: number) {
 
   const rawData = userSnap.data() || {};
 
+  // 🛑 SECURITY CHECK: Agar user suspended hai toh upload block karein
+  if (rawData.isSuspended === true) {
+    return { 
+      success: false as const, 
+      error: 'Your account has been suspended due to a terms violation. Please contact support.' 
+    };
+  }
+
   let authEmail: string | null = null;
 
   try {
