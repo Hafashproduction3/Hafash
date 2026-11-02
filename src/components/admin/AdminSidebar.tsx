@@ -23,9 +23,11 @@ export function AdminSidebar() {
   return (
     <aside className="w-64 bg-card border-r border-border/50 h-screen sticky top-0 flex flex-col hidden lg:flex">
       <div className="h-20 flex items-center px-6 border-b border-border/50">
-        <Link href="/" className="flex items-center gap-2 text-primary font-headline font-bold text-xl italic">
+        
+        {/* 👇 Yahan link /admin kar diya hai aur text change kiya hai */}
+        <Link href="/admin" className="flex items-center gap-2 text-primary font-headline font-bold text-sm uppercase tracking-widest transition-colors hover:text-white">
           <ArrowLeft className="w-4 h-4" />
-          Back to App
+          Admin Overview
         </Link>
       </div>
 
@@ -53,8 +55,11 @@ export function AdminSidebar() {
         })}
       </div>
 
+      {/* Naya Button: Wapas Dashboard par jane ke liye */}
       <div className="p-4 border-t border-border/50">
-        <p className="text-xs text-center text-muted-foreground">Hafash.pk Admin</p>
+        <Link href="/dashboard" className="flex items-center justify-center gap-2 w-full py-3 bg-muted/50 hover:bg-muted rounded-xl text-xs font-bold text-muted-foreground transition-colors">
+          Exit to Studio Dashboard
+        </Link>
       </div>
     </aside>
   );
