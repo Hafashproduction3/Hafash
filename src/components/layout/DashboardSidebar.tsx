@@ -23,6 +23,7 @@ import {
   Sparkles,
   CalendarCheck,
   Wallet,
+  Shield, // 👈 Admin icon import kiya
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -254,6 +255,20 @@ export function DashboardSidebar() {
       </div>
 
       <nav className="flex-1 px-4 py-6 space-y-5 overflow-y-auto custom-scrollbar">
+
+        {/* ✅ ADMIN PANEL BUTTON (Sirf admin ko dikhega) */}
+        {profile?.isAdmin === true && (
+          <div className="mb-4">
+            <Link href="/admin">
+              <Button
+                className="w-full justify-start gap-3 h-12 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-xl font-bold text-[13px] shadow-[0_0_15px_rgba(212,175,55,0.1)] transition-all"
+              >
+                <Shield className="w-4 h-4 shrink-0" />
+                <span className="flex-1 text-left">Admin Panel</span>
+              </Button>
+            </Link>
+          </div>
+        )}
 
         {MENU_SECTIONS.map((section) => (
           <div key={section.label} className="space-y-1">

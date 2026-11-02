@@ -22,6 +22,7 @@ import {
   Send,
   Inbox,
   Sparkles,
+  Shield, // 👈 Admin icon import kiya
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -176,6 +177,21 @@ export function MobileNav() {
           </SheetHeader>
 
           <nav className="flex-1 px-4 py-8 space-y-1 overflow-y-auto custom-scrollbar">
+            
+            {/* ✅ ADMIN PANEL BUTTON (Mobile ke liye) */}
+            {profile?.isAdmin === true && (
+              <div className="mb-4">
+                <Link href="/admin" onClick={() => setOpen(false)}>
+                  <Button
+                    className="w-full justify-start gap-3 h-12 bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 rounded-xl font-bold text-sm shadow-[0_0_15px_rgba(212,175,55,0.1)] transition-all"
+                  >
+                    <Shield className="w-5 h-5 shrink-0" />
+                    <span className="flex-1 text-left">Admin Panel</span>
+                  </Button>
+                </Link>
+              </div>
+            )}
+
             {navItems.map((item) => {
               const isActive = pathname === item.href;
               return (

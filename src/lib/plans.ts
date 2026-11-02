@@ -90,10 +90,10 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     name: 'Starter',
     storageGb: 20,
     zipLimitGb: 999,
-    price: 'Rs. 499',
-    priceAmount: 499,
-    yearlyPrice: 'Rs. 5,400',
-    yearlyPriceAmount: 5400,
+    price: 'Rs. 349',
+    priceAmount: 349,
+    yearlyPrice: 'Rs. 3,800',
+    yearlyPriceAmount: 3800,
     features: [
       '📁 20GB Hafash Drive Storage',
       '🖼️ Max 5 Galleries per month',
@@ -131,10 +131,10 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     name: 'Professional',
     storageGb: 50,
     zipLimitGb: 999,
-    price: 'Rs. 999',
-    priceAmount: 999,
-    yearlyPrice: 'Rs. 10,800',
-    yearlyPriceAmount: 10800,
+    price: 'Rs. 799',
+    priceAmount: 799,
+    yearlyPrice: 'Rs. 8,600',
+    yearlyPriceAmount: 8600,
     features: [
       '📁 50GB Hafash Drive Storage',
       '🖼️ Unlimited Galleries',
@@ -171,10 +171,10 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     name: 'Business',
     storageGb: 100,
     zipLimitGb: 999,
-    price: 'Rs. 1,999',
-    priceAmount: 1999,
-    yearlyPrice: 'Rs. 21,600',
-    yearlyPriceAmount: 21600,
+    price: 'Rs. 1,499',
+    priceAmount: 1499,
+    yearlyPrice: 'Rs. 16,200',
+    yearlyPriceAmount: 16200,
     features: [
       '📁 100GB Hafash Drive Storage',
       '✅ Everything in Professional',
@@ -203,10 +203,10 @@ export const HAFASH_PLANS: Record<PlanId, HafashPlan> = {
     name: 'Enterprise',
     storageGb: 200,
     zipLimitGb: 9999,
-    price: 'Rs. 3,500',
-    priceAmount: 3500,
-    yearlyPrice: 'Rs. 38,000',
-    yearlyPriceAmount: 38000,
+    price: 'Rs. 2,999',
+    priceAmount: 2999,
+    yearlyPrice: 'Rs. 32,400',
+    yearlyPriceAmount: 32400,
     features: [
       '📁 200GB Hafash Drive Storage',
       '✅ Everything in Business',
@@ -341,8 +341,6 @@ export function getTrialHoursRemaining(trialExpiry?: string | Date | null): numb
 
 /**
  * Calculate total storage usage across all galleries.
- * - If items array exists, uses actual file sizes (fileSize + thumb + originalSize)
- * - If items array is empty, uses photoCount * average size (6.5MB)
  */
 export function calculateUsageGb(galleries: any[] | null): number {
   if (!galleries || !Array.isArray(galleries)) return 0;
@@ -353,7 +351,6 @@ export function calculateUsageGb(galleries: any[] | null): number {
     const photoCount = Number(g.photoCount) || 0;
     const items = Array.isArray(g.items) ? g.items : [];
 
-    // Agar items array bhari hui hai, toh asal size calculate karo
     if (items.length > 0) {
       items.forEach((item: any) => {
         const previewSize = Number(item.fileSize) || 0;
@@ -368,7 +365,6 @@ export function calculateUsageGb(galleries: any[] | null): number {
         totalBytes += itemTotal > 0 ? itemTotal : (6.5 * 1024 * 1024);
       });
     } 
-    // Agar items khaali hai, toh photoCount * average size
     else if (photoCount > 0) {
       totalBytes += photoCount * 6.5 * 1024 * 1024;
     }

@@ -1,9 +1,27 @@
+'use client'; // 👈 Yeh line sabse upar add karni zaroori hai
+
 import Link from 'next/link';
 import { Camera, Shield, Heart, Share2, ArrowRight, Check, Users, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { HAFASH_PLANS } from '@/lib/plans';
+import { useUser } from '@/firebase'; // 👈 Import add kiya
+import { useEffect } from 'react'; // 👈 Import add kiya
 
 export default function LandingPage() {
+  const { user } = useUser(); // 👈 User hook add kiya
+
+  // 👈 TEMPORARY ADMIN CHECK CODE START
+  useEffect(() => {
+    if (user) {
+      user.getIdTokenResult(true).then((token) => {
+        console.log("🔍 ADMIN CLAIM CHECK:", token.claims.admin);
+      });
+    } else {
+      console.log("🔍 ADMIN CLAIM CHECK: User logged in nahi hai");
+    }
+  }, [user]);
+  // 👈 TEMPORARY ADMIN CHECK CODE END
+
   return (
     <div className="flex flex-col min-h-screen bg-background selection:bg-primary selection:text-primary-foreground">
       {/* Navigation */}
@@ -34,10 +52,10 @@ export default function LandingPage() {
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 z-0">
           <img 
-  src="https://i.postimg.cc/MH88pvhh/nikon.jpg" 
-  alt="Luxury Photography Setup" 
-  className="w-full h-full object-cover opacity-40 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
-/>
+            src="https://i.postimg.cc/MH88pvhh/nikon.jpg" 
+            alt="Luxury Photography Setup" 
+            className="w-full h-full object-cover opacity-40 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
+          />
             {/* Cinematic Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
