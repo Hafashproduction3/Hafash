@@ -6,7 +6,8 @@ export async function updateUserPlan(
   adminUid: string,
   targetUserId: string,
   newPlanId: string,
-  durationDays: number | 'lifetime'
+  durationDays: number | 'lifetime',
+  paymentReference: string = '' // 👈 Naya parameter
 ) {
   if (!adminDb) return { success: false, error: 'DB offline' };
 
@@ -41,7 +42,7 @@ export async function updateUserPlan(
       updatedAt: new Date().toISOString(),
     });
 
-    // Audit log banayein
+    // Audit log banayein (Payment Reference ke sath)
     await adminDb.collection('admin_logs').add({
       adminId: adminUid,
       action: 'plan_changed',
@@ -50,6 +51,7 @@ export async function updateUserPlan(
       targetEmail: userData?.email || '',
       before: { planId: oldPlanId },
       after: { planId: newPlanId },
+      paymentReference: paymentReference || null, // 👈 Log mein save kiya
       timestamp: new Date().toISOString(),
     });
 

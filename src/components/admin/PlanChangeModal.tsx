@@ -6,6 +6,8 @@ import { Loader2, X } from 'lucide-react';
 import { updateUserPlan } from '@/app/actions/admin-users';
 import { useToast } from '@/hooks/use-toast';
 import { useUser } from '@/firebase';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export function PlanChangeModal({ 
   isOpen, 
@@ -21,6 +23,7 @@ export function PlanChangeModal({
   const [loading, setLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(user?.planId || 'none');
   const [duration, setDuration] = useState(30);
+  const [paymentRef, setPaymentRef] = useState(""); // 👈 Naya state
   const { toast } = useToast();
   const { user: adminUser } = useUser();
 
@@ -30,12 +33,18 @@ export function PlanChangeModal({
     if (!adminUser) return;
     setLoading(true);
 
-    const res = await updateUserPlan(adminUser.uid, user.userId, selectedPlan, selectedPlan === 'none' ? 0 : duration);
+    const res = await updateUserPlan(
+      adminUser.uid, 
+      user.userId, 
+      selectedPlan, 
+      selectedPlan === 'none' ? 0 : duration,
+      paymentRef // 👈 Reference pass kiya
+    );
     
     setLoading(false);
     if (res.success) {
       toast({ title: "Success", description: "User plan updated successfully." });
-      onSuccess(); // 👈 Yeh parent ko signal dega ke list update kare
+      onSuccess();
       onClose();
     } else {
       toast({ variant: "destructive", title: "Error", description: res.error });
@@ -71,18 +80,32 @@ export function PlanChangeModal({
           </div>
 
           {selectedPlan !== 'none' && (
-            <div>
-              <label className="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Duration</label>
-              <select 
-                value={duration} 
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className="w-full h-12 rounded-xl bg-background border border-border/50 px-4 text-white"
-              >
-                <option value={30}>30 Days</option>
-                <option value={90}>90 Days</option>
-                <option value={365}>1 Year</option>
-              </select>
-            </div>
+            <>
+              <div>
+                <label className="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Duration</label>
+                <select 
+                  value={duration} 
+                  onChange={(e) => setDuration(Number(e.target.value))}
+                  className="w-full h-12 rounded-xl bg-background border border-border/50 px-4 text-white"
+                >
+                  <option value={30}>30 Days</option>
+                  <option value={90}>90 Days</option>
+                  <option value={365}>1 Year</option>
+                </select>
+              </div>
+
+              {/* 👇 NAYA INPUT BOX 👇 */}
+              <div>
+                <Label className="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">Payment Reference (Optional)</Label>
+                <Input 
+                  value={paymentRef}
+                  onChange={(e) => setPaymentRef(e.target.value)}
+                  placeholder="E.g., Easypaisa TID, Bank Ref, Cash Note..."
+                  className="h-12 rounded-xl bg-background border border-border/50 text-white"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Record payment details for your own accounting.</p>
+              </div>
+            </>
           )}
 
           <Button 
