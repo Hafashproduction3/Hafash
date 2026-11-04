@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, Users, Image as ImageIcon, 
-  CreditCard, History, Settings, ArrowLeft, ShieldAlert, Bell 
+  CreditCard, History, Settings, ArrowLeft, ShieldAlert, Bell,
+  UserCircle // 👈 Naya Icon import kiya
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +16,7 @@ const menuItems = [
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "Security", href: "/admin/security", icon: ShieldAlert },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
+  { name: "Portfolio", href: "/admin/portfolio", icon: UserCircle }, // 👈 Naya Menu Item
   { name: "Audit Logs", href: "/admin/audit-logs", icon: History },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
@@ -25,7 +27,6 @@ export function AdminSidebar() {
   return (
     <aside className="w-64 bg-card border-r border-border/50 h-screen sticky top-0 flex flex-col hidden lg:flex">
       <div className="h-20 flex items-center px-6 border-b border-border/50">
-        {/* 👇 Yahan href="/dashboard" kar diya hai taake wapas main app par jaye */}
         <Link href="/dashboard" className="flex items-center gap-2 text-primary font-headline font-bold text-sm uppercase tracking-widest transition-colors hover:text-white">
           <ArrowLeft className="w-4 h-4" />
           Back to Studio

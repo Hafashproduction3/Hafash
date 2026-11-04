@@ -21,13 +21,19 @@ const CACHE_TTL = 6 * 24 * 60 * 60 * 1000;
 /**
  * ✅ Upload permission check
  */
-async function checkUploadPermission(userId: string, fileSize: number) {
+async function checkUploadPermission(userId: string, fileSize: number, galleryId?: string) {
   if (!adminDb || !admin) {
     return { success: false as const, error: 'Database infrastructure offline.' };
   }
 
   if (!userId || !Number.isFinite(fileSize) || fileSize <= 0) {
     return { success: false as const, error: 'Invalid upload details.' };
+  }
+
+  // 👇 PORTFOLIO UPLOADS BYPASS 👇
+  // Agar Portfolio ke liye upload ho raha hai, toh plan/storage check skip karein
+  if (galleryId === 'portfolio') {
+    return { success: true as const };
   }
 
   const userRef = adminDb.collection('users').doc(userId);
@@ -140,7 +146,7 @@ export async function requestUploadUrl({
   }
 
   try {
-    const permission = await checkUploadPermission(userId, fileSize);
+    const permission = await checkUploadPermission(userId, fileSize, galleryId);
 
     if (!permission.success) return permission;
 
@@ -274,7 +280,7 @@ export async function startMultipartUpload({
       return { success: false, error: 'Invalid multipart upload details.' };
     }
 
-    const permission = await checkUploadPermission(userId, fileSize);
+    const permission = await checkUploadPermission(userId, fileSize, galleryId);
 
     if (!permission.success) return permission;
 
