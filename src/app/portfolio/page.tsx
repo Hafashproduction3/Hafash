@@ -227,8 +227,7 @@ export default function HafashMasterPortfolio() {
               Enter The Gallery
               <ArrowRight className="ml-4 h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />
             </Button>
-
-            {/* 👇 Naya Back Button Welcome Screen Par */}
+            
             <a href="/" className="text-[10px] font-light uppercase tracking-[0.25em] text-white/40 hover:text-white transition-colors">
               Back to Platform
             </a>
@@ -278,7 +277,6 @@ export default function HafashMasterPortfolio() {
             <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/65 transition hover:border-primary hover:text-primary">
               <Instagram className="h-4 w-4" />
             </a>
-            {/* 👇 Yahan par <a href="/"> use kiya hai taake mobile par back sahi chale */}
             <a href="/">
               <Button variant="outline" className="h-9 rounded-full border-white/15 bg-white/[0.03] px-4 text-[9px] font-bold uppercase tracking-widest text-white/80 hover:border-primary hover:bg-primary hover:text-black">
                 Back to Platform
@@ -446,17 +444,18 @@ export default function HafashMasterPortfolio() {
               <button onClick={() => setMediaFilter('videos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'videos' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><Video className="w-4 h-4" /> Videos</button>
             </div>
 
-            <div className="columns-1 md:columns-2 lg:columns-3 gap-4 md:gap-6 space-y-4 md:space-y-6">
+            {/* 🚀 NAYA 3-COLUMN MOBILE GRID */}
+            <div className="grid grid-cols-3 gap-1 md:gap-2">
               {visiblePhotos.map((media: string, index: number) => (
                 media && (
-                  <button key={`${media}-${index}`} onClick={() => openLightbox(index)} className="group relative block w-full break-inside-avoid overflow-hidden rounded-xl bg-[#141414] text-left animate-in fade-in slide-in-from-bottom-4 duration-700 fill-mode-both" style={{ animationDelay: `${(index % 10) * 50}ms` }}>
+                  <button key={`${media}-${index}`} onClick={() => openLightbox(index)} className="group relative block w-full aspect-square overflow-hidden bg-[#141414] text-left">
                     {isVideo(media) ? (
-                      <div className="relative aspect-[3/4]">
+                      <div className="relative w-full h-full">
                         <video src={media} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20"><div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/50 bg-black/40 backdrop-blur"><Play className="ml-1 h-5 w-5 fill-white text-white" /></div></div>
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/20"><div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/50 bg-black/40 backdrop-blur"><Play className="ml-0.5 h-3 w-3 fill-white text-white" /></div></div>
                       </div>
                     ) : (
-                      <img src={media} alt="Portfolio" className="block h-auto w-full transition-transform duration-1000 group-hover:scale-105" loading="lazy" />
+                      <img src={media} alt="Portfolio" className="block h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105" loading="lazy" />
                     )}
                   </button>
                 )
@@ -473,18 +472,19 @@ export default function HafashMasterPortfolio() {
               <h2 className="font-headline text-5xl font-bold md:text-7xl">The Gallery<span className="text-primary">.</span></h2>
             </div>
             {loadingPhotos ? (
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
-                {Array.from({ length: 9 }).map((_, index) => (<div key={index} className={`animate-pulse rounded-lg bg-white/[0.06] ${index % 3 === 0 ? "aspect-[3/4]" : "aspect-square"}`} />))}
+              <div className="grid grid-cols-3 gap-1 md:gap-2">
+                {Array.from({ length: 9 }).map((_, index) => (<div key={index} className={`animate-pulse rounded-lg bg-white/[0.06] aspect-square`} />))}
               </div>
             ) : (
-              <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
+              // 🚀 NAYA 3-COLUMN MOBILE GRID (HOME)
+              <div className="grid grid-cols-3 gap-1 md:gap-2">
                 {allPhotos.map((media, index) => (
                    media && (
-                    <button key={index} onClick={() => openLightbox(index)} className="group relative block w-full break-inside-avoid overflow-hidden rounded-xl border border-white/5 bg-[#141414] text-left animate-in fade-in duration-700">
+                    <button key={index} onClick={() => openLightbox(index)} className="group relative block w-full aspect-square overflow-hidden border border-white/5 bg-[#141414] text-left">
                        {isVideo(media) ? (
-                         <div className="relative aspect-[3/4] bg-[#111]"><video src={media} className="h-full w-full object-cover" muted playsInline preload="metadata" /><div className="absolute inset-0 flex items-center justify-center"><Play className="h-10 w-10 text-white" /></div></div>
+                         <div className="relative w-full h-full"><video src={media} className="h-full w-full object-cover" muted playsInline preload="metadata" /><div className="absolute inset-0 flex items-center justify-center"><Play className="h-8 w-8 text-white" /></div></div>
                        ) : (
-                         <img src={media} alt="Gallery" className="block h-auto w-full transition-transform duration-1000 group-hover:scale-105" loading="lazy" />
+                         <img src={media} alt="Gallery" className="block h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105" loading="lazy" />
                        )}
                     </button>
                    )
