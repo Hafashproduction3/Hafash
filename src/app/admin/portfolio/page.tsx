@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useFirestore, useCollection, useUser, useDoc } from "@/firebase";
 import { collection, query, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
-import { Loader2, Trash2, FolderPlus, UploadCloud, X, RefreshCw } from "lucide-react";
+import { Loader2, Trash2, FolderPlus, UploadCloud, X, RefreshCw, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,8 +23,13 @@ export default function AdminPortfolioManager() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [photoCaption, setPhotoCaption] = useState(""); // 👈 Naya State
+  const [photoCaption, setPhotoCaption] = useState(""); 
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const heroInputRef = useRef<HTMLInputElement>(null);
+  const aboutInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingHero, setUploadingHero] = useState(false);
+  const [uploadingAbout, setUploadingAbout] = useState(false);
 
   const albumsQuery = useMemo(() => {
     if (!firestore) return null;
@@ -37,17 +42,27 @@ export default function AdminPortfolioManager() {
   const { data: basicData } = useDoc(dataRef);
 
   const [formData, setFormData] = useState({
-    heroImage: "", aboutImage: "", bioText: "", whatsapp: "", instagram: "",
-    yearsExperience: "5+", totalWeddings: "200+", happyClients: "100%",
+    heroImage: "",
+    aboutImage: "",
+    bioText: "",
+    whatsapp: "",
+    instagram: "",
+    yearsExperience: "5+",
+    totalWeddings: "200+",
+    happyClients: "100%",
   });
 
   useEffect(() => {
     if (basicData) {
       setFormData({
-        heroImage: basicData.heroImage || "", aboutImage: basicData.aboutImage || "",
-        bioText: basicData.bioText || "", whatsapp: basicData.whatsapp || "",
-        instagram: basicData.instagram || "", yearsExperience: basicData.yearsExperience || "5+",
-        totalWeddings: basicData.totalWeddings || "200+", happyClients: basicData.happyClients || "100%",
+        heroImage: basicData.heroImage || "",
+        aboutImage: basicData.aboutImage || "",
+        bioText: basicData.bioText || "",
+        whatsapp: basicData.whatsapp || "",
+        instagram: basicData.instagram || "",
+        yearsExperience: basicData.yearsExperience || "5+",
+        totalWeddings: basicData.totalWeddings || "200+",
+        happyClients: basicData.happyClients || "100%",
       });
     }
   }, [basicData]);
@@ -56,6 +71,57 @@ export default function AdminPortfolioManager() {
     const res = await updatePortfolioData(formData);
     if (res.success) toast({ title: "Basic Info Updated" });
     else toast({ variant: "destructive", title: "Error", description: res.error });
+  };
+
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: 'heroImage' | 'aboutImage'
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (type === 'heroImage') setUploadingHero(true);
+    else setUploadingAbout(true);
+
+    try {
+      const options = { maxSizeMB: 0.8, maxWidthOrHeight: 1920, useWebWorker: true, fileType: "image/jpeg" };
+      const compressedFile = await imageCompression(file, options);
+
+      const { success, uploadUrl, key } = await requestUploadUrl({
+        userId: user.uid,
+        galleryId: "portfolio",
+        fileName: file.name,
+        contentType: compressedFile.type,
+        fileSize: compressedFile.size,
+      });
+
+      if (!success || !uploadUrl || !key) throw new Error("Upload URL failed");
+
+      await fetch(uploadUrl, {
+        method: "PUT",
+        body: compressedFile,
+        headers: { "Content-Type": compressedFile.type },
+      });
+
+      // 👇 FIX: Fresh Signed URL generate karein
+      const urlRes = await refreshPhotoUrls([key]);
+      
+      if (!urlRes.success || !urlRes.urls[key]) {
+        throw new Error("URL generation failed");
+      }
+
+      const finalUrl = urlRes.urls[key];
+      
+      setFormData({ ...formData, [type]: finalUrl });
+      
+      toast({ title: "Image Uploaded", description: "Save karna na bhoolein!" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Upload Failed", description: err.message });
+    } finally {
+      if (type === 'heroImage') setUploadingHero(false);
+      else setUploadingAbout(false);
+      if (e.target) e.target.value = ''; 
+    }
   };
 
   const handleCreateAlbum = async () => {
@@ -94,12 +160,10 @@ export default function AdminPortfolioManager() {
     }
     setRefreshing(true);
     try {
-      // Extract keys to refresh URLs
       const keys = album.photos.map((p: any) => typeof p === 'string' ? p : p.key);
       const res = await refreshPhotoUrls(keys);
       
       if (res.success) {
-        // Map back with URLs
         const displayItems = album.photos.map((p: any) => {
           const key = typeof p === 'string' ? p : p.key;
           const caption = typeof p === 'string' ? 'General' : (p.caption || 'General');
@@ -123,7 +187,7 @@ export default function AdminPortfolioManager() {
     setUploadProgress(0);
     const newPhotoItems: any[] = [];
 
-    const captionToUse = photoCaption.trim() || "General"; // Default caption
+    const captionToUse = photoCaption.trim() || "General"; 
 
     for (let i = 0; i < files.length; i++) {
       let fileToUpload = files[i];
@@ -148,7 +212,6 @@ export default function AdminPortfolioManager() {
             body: fileToUpload,
             headers: { "Content-Type": fileToUpload.type },
           });
-          // Save Key + Caption
           newPhotoItems.push({ key, caption: captionToUse });
         }
       } catch (err) { console.error(err); }
@@ -193,9 +256,43 @@ export default function AdminPortfolioManager() {
           <Input placeholder="WhatsApp" value={formData.whatsapp} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, whatsapp: e.target.value})} className="bg-background border-border/50" />
           <Input placeholder="Instagram URL" value={formData.instagram} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, instagram: e.target.value})} className="bg-background border-border/50" />
         </div>
-        <Input placeholder="Hero Image URL" value={formData.heroImage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, heroImage: e.target.value})} className="bg-background border-border/50" />
-        <Input placeholder="About Image URL" value={formData.aboutImage} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, aboutImage: e.target.value})} className="bg-background border-border/50" />
-        
+
+        <div className="bg-background/50 p-4 rounded-xl border border-white/5">
+          <label className="text-xs font-bold text-muted-foreground mb-2 block">Hero Image (Main Top Photo)</label>
+          <div className="flex gap-3 items-center">
+             {formData.heroImage && (
+               <div className="h-16 w-16 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-black">
+                  <img src={formData.heroImage} alt="Hero" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+               </div>
+             )}
+             <div className="flex-1">
+                <input type="file" accept="image/*" className="hidden" ref={heroInputRef} onChange={(e) => handleImageUpload(e, 'heroImage')} />
+                <Button onClick={() => heroInputRef.current?.click()} disabled={uploadingHero} variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10 gap-2">
+                  {uploadingHero ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                  {uploadingHero ? "Uploading..." : "Upload Hero Image"}
+                </Button>
+             </div>
+          </div>
+        </div>
+
+        <div className="bg-background/50 p-4 rounded-xl border border-white/5">
+          <label className="text-xs font-bold text-muted-foreground mb-2 block">About Image (Arch Shape Photo)</label>
+          <div className="flex gap-3 items-center">
+             {formData.aboutImage && (
+               <div className="h-16 w-16 rounded-lg overflow-hidden border border-white/10 shrink-0 bg-black">
+                  <img src={formData.aboutImage} alt="About" className="w-full h-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
+               </div>
+             )}
+             <div className="flex-1">
+                <input type="file" accept="image/*" className="hidden" ref={aboutInputRef} onChange={(e) => handleImageUpload(e, 'aboutImage')} />
+                <Button onClick={() => aboutInputRef.current?.click()} disabled={uploadingAbout} variant="outline" className="w-full border-primary/30 text-primary hover:bg-primary/10 gap-2">
+                  {uploadingAbout ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                  {uploadingAbout ? "Uploading..." : "Upload About Image"}
+                </Button>
+             </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-3 gap-4 pt-2">
           <div><label className="text-[10px] text-muted-foreground font-bold mb-1 block">Years Exp.</label><Input placeholder="5+" value={formData.yearsExperience} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, yearsExperience: e.target.value})} className="bg-background border-border/50" /></div>
           <div><label className="text-[10px] text-muted-foreground font-bold mb-1 block">Weddings</label><Input placeholder="200+" value={formData.totalWeddings} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({...formData, totalWeddings: e.target.value})} className="bg-background border-border/50" /></div>

@@ -201,7 +201,7 @@ export default function HafashMasterPortfolio() {
              <img 
                src="/hafash-logo.png" 
                alt="Hafash Production" 
-               className="h-28 md:h-40 w-auto object-contain hafash-logo-glow transition-transform duration-700 hover:scale-105" 
+               className="h-32 md:h-48 w-auto object-contain hafash-logo-glow transition-transform duration-700 hover:scale-105" 
              />
           </div>
 
@@ -262,12 +262,10 @@ export default function HafashMasterPortfolio() {
       <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.07] bg-[#080808]/85 px-5 py-4 backdrop-blur-2xl md:px-10">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-primary/50 bg-[#111]">
-              <Aperture className="h-5 w-5 text-primary" />
-            </div>
+            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 w-10 md:h-12 md:w-12 object-contain" />
             <div className="text-left">
-              <p className="font-headline text-lg font-bold tracking-wider">HAFASH<span className="text-primary">.</span></p>
-              <p className="text-[8px] uppercase tracking-[0.3em] text-white/40">Production</p>
+              <p className="font-headline text-lg md:text-xl font-bold tracking-wider">HAFASH<span className="text-primary">.</span></p>
+              <p className="text-[8px] md:text-[9px] uppercase tracking-[0.3em] text-white/40">Production</p>
             </div>
           </button>
 
@@ -313,7 +311,7 @@ export default function HafashMasterPortfolio() {
                 <span className="h-px w-8 bg-primary lg:hidden" />
               </div>
 
-              <h1 className="font-headline text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl lg:text-8xl">
+              <h1 className="font-headline text-5xl font-bold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">
                 Hello,<br />I'm <span className="font-light italic text-primary">Hamza Khan</span>
               </h1>
 
