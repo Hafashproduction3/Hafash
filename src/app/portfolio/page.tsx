@@ -22,12 +22,12 @@ import { Button } from "@/components/ui/button";
 import { useFirestore, useDoc, useCollection } from "@/firebase";
 import { doc, collection, query } from "firebase/firestore";
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation"; // 👈 Naya import
+import { useRouter } from "next/navigation";
 import { refreshPhotoUrls } from "@/app/actions/storage";
 
 export default function HafashMasterPortfolio() {
   const firestore = useFirestore();
-  const router = useRouter(); // 👈 Router initialize kiya
+  const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
   const [hasEntered, setHasEntered] = useState(false);
@@ -151,11 +151,32 @@ export default function HafashMasterPortfolio() {
   const whatsappNumber = phoneNumber.startsWith("0") ? `92${phoneNumber.slice(1)}` : phoneNumber;
   const instagramUrl = String(instagram).startsWith("http") ? instagram : `https://instagram.com/${String(instagram).replace("@", "")}`;
 
-  const closeLightbox = useCallback(() => setLightboxIndex(null), []);
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    window.history.pushState({ lightbox: true }, ''); // 👈 History mein entry
+  };
+
+  const closeLightbox = useCallback(() => {
+    if (lightboxIndex !== null) {
+      setLightboxIndex(null);
+      window.history.back(); // 👈 History clear
+    }
+  }, [lightboxIndex]);
+
   const showPrevious = useCallback(() => { setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c - 1 + visiblePhotos.length) % visiblePhotos.length)); }, [visiblePhotos.length]);
   const showNext = useCallback(() => { setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c + 1) % visiblePhotos.length)); }, [visiblePhotos.length]);
-  const openLightbox = (index: number) => setLightboxIndex(index);
+  
   const selectedImage = lightboxIndex !== null ? visiblePhotos[lightboxIndex] : null;
+
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      if (lightboxIndex !== null) {
+        setLightboxIndex(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [lightboxIndex]);
 
   useEffect(() => {
     if (lightboxIndex === null) return;
