@@ -22,10 +22,12 @@ import { Button } from "@/components/ui/button";
 import { useFirestore, useDoc, useCollection } from "@/firebase";
 import { doc, collection, query } from "firebase/firestore";
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation"; // 👈 Naya import
 import { refreshPhotoUrls } from "@/app/actions/storage";
 
 export default function HafashMasterPortfolio() {
   const firestore = useFirestore();
+  const router = useRouter(); // 👈 Router initialize kiya
 
   const [mounted, setMounted] = useState(false);
   const [hasEntered, setHasEntered] = useState(false);
@@ -228,9 +230,12 @@ export default function HafashMasterPortfolio() {
               <ArrowRight className="ml-4 h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />
             </Button>
             
-            <a href="/" className="text-[10px] font-light uppercase tracking-[0.25em] text-white/40 hover:text-white transition-colors">
+            <button 
+              onClick={() => router.push('/')}
+              className="text-[10px] font-light uppercase tracking-[0.25em] text-white/40 hover:text-white transition-colors"
+            >
               Back to Platform
-            </a>
+            </button>
           </div>
         </div>
 
@@ -277,11 +282,12 @@ export default function HafashMasterPortfolio() {
             <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/65 transition hover:border-primary hover:text-primary">
               <Instagram className="h-4 w-4" />
             </a>
-            <a href="/">
-              <Button variant="outline" className="h-9 rounded-full border-white/15 bg-white/[0.03] px-4 text-[9px] font-bold uppercase tracking-widest text-white/80 hover:border-primary hover:bg-primary hover:text-black">
-                Back to Platform
-              </Button>
-            </a>
+            <button 
+              onClick={() => router.push('/')}
+              className="h-9 rounded-full border border-white/15 bg-white/[0.03] px-4 text-[9px] font-bold uppercase tracking-widest text-white/80 hover:border-primary hover:bg-primary hover:text-black transition-colors flex items-center"
+            >
+              Back to Platform
+            </button>
           </div>
         </div>
       </nav>
@@ -444,7 +450,6 @@ export default function HafashMasterPortfolio() {
               <button onClick={() => setMediaFilter('videos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'videos' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><Video className="w-4 h-4" /> Videos</button>
             </div>
 
-            {/* 🚀 NAYA 3-COLUMN MOBILE GRID */}
             <div className="grid grid-cols-3 gap-1 md:gap-2">
               {visiblePhotos.map((media: string, index: number) => (
                 media && (
@@ -476,7 +481,6 @@ export default function HafashMasterPortfolio() {
                 {Array.from({ length: 9 }).map((_, index) => (<div key={index} className={`animate-pulse rounded-lg bg-white/[0.06] aspect-square`} />))}
               </div>
             ) : (
-              // 🚀 NAYA 3-COLUMN MOBILE GRID (HOME)
               <div className="grid grid-cols-3 gap-1 md:gap-2">
                 {allPhotos.map((media, index) => (
                    media && (
