@@ -219,7 +219,7 @@ export default function HafashMasterPortfolio() {
             Luxury Photography · Timeless Memories
           </p>
 
-          <div className="hafash-reveal-button mt-14">
+          <div className="hafash-reveal-button mt-14 flex flex-col items-center gap-6">
             <Button
               onClick={() => setHasEntered(true)}
               className="group h-14 rounded-full border border-primary/80 bg-transparent px-10 text-xs font-bold uppercase tracking-[0.25em] text-primary transition-all duration-500 hover:bg-primary hover:text-black md:h-16 md:px-12"
@@ -227,6 +227,11 @@ export default function HafashMasterPortfolio() {
               Enter The Gallery
               <ArrowRight className="ml-4 h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />
             </Button>
+
+            {/* 👇 Naya Back Button Welcome Screen Par */}
+            <a href="/" className="text-[10px] font-light uppercase tracking-[0.25em] text-white/40 hover:text-white transition-colors">
+              Back to Platform
+            </a>
           </div>
         </div>
 
@@ -260,7 +265,7 @@ export default function HafashMasterPortfolio() {
       </a>
 
       <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.07] bg-[#080808]/85 px-5 py-4 backdrop-blur-2xl md:px-10">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between">
           <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="flex items-center gap-3">
             <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 w-10 md:h-12 md:w-12 object-contain" />
             <div className="text-left">
@@ -273,22 +278,23 @@ export default function HafashMasterPortfolio() {
             <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/65 transition hover:border-primary hover:text-primary">
               <Instagram className="h-4 w-4" />
             </a>
-            <Link href="/">
+            {/* 👇 Yahan par <a href="/"> use kiya hai taake mobile par back sahi chale */}
+            <a href="/">
               <Button variant="outline" className="h-9 rounded-full border-white/15 bg-white/[0.03] px-4 text-[9px] font-bold uppercase tracking-widest text-white/80 hover:border-primary hover:bg-primary hover:text-black">
                 Back to Platform
               </Button>
-            </Link>
+            </a>
           </div>
         </div>
       </nav>
 
       {!activeAlbum && (
-        <section className="relative mx-auto max-w-7xl px-5 pb-20 pt-32 md:px-10 md:pb-28 md:pt-40">
+        <section className="relative mx-auto max-w-[1600px] px-5 pb-20 pt-32 md:px-10 md:pb-28 md:pt-40">
           <div className="pointer-events-none absolute right-0 top-20 h-[450px] w-[450px] rounded-full bg-primary/[0.07] blur-[150px]" />
 
-          <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-20">
+          <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-24">
             <div className="portfolio-fade order-2 flex justify-center lg:order-1">
-              <div className="relative w-full max-w-[420px]">
+              <div className="relative w-full max-w-[500px]">
                 <div className="absolute -inset-4 rounded-t-full border border-primary/20" />
                 <div className="absolute -inset-8 rounded-t-full border border-white/[0.06]" />
                 <div className="relative aspect-[4/5] overflow-hidden rounded-t-full rounded-b-sm border border-primary/40 bg-[#151515]">
@@ -311,26 +317,26 @@ export default function HafashMasterPortfolio() {
                 <span className="h-px w-8 bg-primary lg:hidden" />
               </div>
 
-              <h1 className="font-headline text-5xl font-bold leading-[1.05] tracking-tight md:text-6xl lg:text-7xl">
+              <h1 className="font-headline text-6xl font-bold leading-[1.05] tracking-tight md:text-7xl lg:text-[6.5rem]">
                 Hello,<br />I'm <span className="font-light italic text-primary">Hamza Khan</span>
               </h1>
 
-              <p className="mx-auto max-w-xl text-base font-light leading-8 text-white/55 md:text-lg lg:mx-0">{bioText}</p>
+              <p className="mx-auto max-w-xl text-lg font-light leading-8 text-white/55 md:text-xl lg:mx-0">{bioText}</p>
 
               <div className="mx-auto h-px max-w-md bg-gradient-to-r from-transparent via-primary/50 to-transparent lg:mx-0 lg:from-primary/50 lg:to-transparent" />
 
-              <div className="grid grid-cols-3 gap-3 py-3">
+              <div className="grid grid-cols-3 gap-4 py-3">
                 <div>
-                  <p className="font-headline text-3xl font-bold text-primary md:text-4xl">{yearsExperience}</p>
-                  <p className="mt-2 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[10px]">Years Experience</p>
+                  <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{yearsExperience}</p>
+                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Years Experience</p>
                 </div>
                 <div className="border-x border-white/10">
-                  <p className="font-headline text-3xl font-bold text-primary md:text-4xl">{totalWeddings}</p>
-                  <p className="mt-2 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[10px]">Weddings</p>
+                  <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{totalWeddings}</p>
+                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Weddings</p>
                 </div>
                 <div>
-                  <p className="font-headline text-3xl font-bold text-primary md:text-4xl">{happyClients}</p>
-                  <p className="mt-2 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[10px]">Happy Clients</p>
+                  <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{happyClients}</p>
+                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Happy Clients</p>
                 </div>
               </div>
 
@@ -353,30 +359,30 @@ export default function HafashMasterPortfolio() {
 
       {!activeAlbum && (
         <section className="border-y border-white/[0.07] bg-[#0c0c0c] py-16 md:py-20">
-          <div className="mx-auto max-w-7xl px-5 md:px-10">
+          <div className="mx-auto max-w-[1600px] px-5 md:px-10">
             <div className="mb-10 flex items-end justify-between">
               <div>
                 <p className="mb-3 text-[9px] font-bold uppercase tracking-[0.4em] text-primary">Explore Our Work</p>
-                <h2 className="font-headline text-3xl font-bold md:text-5xl">Collections<span className="text-primary">.</span></h2>
+                <h2 className="font-headline text-4xl font-bold md:text-6xl">Collections<span className="text-primary">.</span></h2>
               </div>
               <p className="hidden text-[9px] uppercase tracking-[0.3em] text-white/35 md:block">Swipe To Explore</p>
             </div>
 
-            <div className="cinematic-scrollbar flex snap-x gap-5 overflow-x-auto pb-5">
-              <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); }} className={`group relative h-64 w-48 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-72 md:w-56 ${!activeAlbum ? "ring-2 ring-primary ring-offset-4 ring-offset-[#0c0c0c]" : "border border-white/10"}`}>
+            <div className="cinematic-scrollbar flex snap-x gap-6 overflow-x-auto pb-6">
+              <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); }} className={`group relative h-72 w-56 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-80 md:w-64 ${!activeAlbum ? "ring-2 ring-primary ring-offset-4 ring-offset-[#0c0c0c]" : "border border-white/10"}`}>
                 <img src={heroImage} alt="All works" className="portfolio-image h-full w-full object-cover opacity-60" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
                 <div className="absolute left-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/30 backdrop-blur">
                   <ImageIcon className="h-4 w-4 text-primary" />
                 </div>
                 <div className="absolute bottom-6 left-5 right-5">
-                  <p className="font-headline text-xl font-bold">All Works</p>
-                  <p className="mt-2 text-[9px] font-bold uppercase tracking-[0.2em] text-primary">{allPhotos.length} Media</p>
+                  <p className="font-headline text-2xl font-bold">All Works</p>
+                  <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">{allPhotos.length} Media</p>
                 </div>
               </button>
 
               {albumsWithPhotos.map((album: any, index: number) => (
-                <button key={album.id || index} onClick={() => { setActiveAlbum(album.id); setActiveGroup(null); setMediaFilter('all'); }} className={`group relative h-64 w-48 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-72 md:w-56 ${activeAlbum === album.id ? "ring-2 ring-primary ring-offset-4 ring-offset-[#0c0c0c]" : "border border-white/10"}`}>
+                <button key={album.id || index} onClick={() => { setActiveAlbum(album.id); setActiveGroup(null); setMediaFilter('all'); }} className={`group relative h-72 w-56 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-80 md:w-64 ${activeAlbum === album.id ? "ring-2 ring-primary ring-offset-4 ring-offset-[#0c0c0c]" : "border border-white/10"}`}>
                   {album.displayItems?.[0]?.url ? (
                     <img src={album.displayItems[0].url} alt={album.name || "Collection"} className="portfolio-image h-full w-full object-cover opacity-65" loading="lazy" />
                   ) : (
@@ -387,8 +393,8 @@ export default function HafashMasterPortfolio() {
                     <Aperture className="h-4 w-4 text-primary" />
                   </div>
                   <div className="absolute bottom-6 left-5 right-5">
-                    <p className="font-headline text-xl font-bold capitalize">{album.name || "Collection"}</p>
-                    <p className="mt-2 text-[9px] font-bold uppercase tracking-[0.2em] text-primary">{album.displayItems?.length || 0} Media</p>
+                    <p className="font-headline text-2xl font-bold capitalize">{album.name || "Collection"}</p>
+                    <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">{album.displayItems?.length || 0} Media</p>
                   </div>
                 </button>
               ))}
@@ -397,7 +403,7 @@ export default function HafashMasterPortfolio() {
         </section>
       )}
 
-      <section className="mx-auto max-w-7xl px-5 py-20 md:px-10 md:py-28">
+      <section className="mx-auto max-w-[1600px] px-5 py-20 md:px-10 md:py-28">
         {activeAlbum ? (
           <div className="animate-in fade-in duration-1000">
             <div className="relative mb-10 text-center">
@@ -412,7 +418,7 @@ export default function HafashMasterPortfolio() {
               <div className="flex justify-center gap-6 md:gap-8 overflow-x-auto pb-8 pt-4 custom-scrollbar">
                 <button onClick={() => setActiveGroup(null)} className="flex flex-col items-center gap-3 shrink-0 group">
                   <div className={`p-[3px] rounded-full transition-all duration-300 ${!activeGroup ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
-                     <div className="w-16 h-16 md:w-24 md:h-24 rounded-full border-[3px] border-[#080808] overflow-hidden bg-[#111] flex items-center justify-center"><ImageIcon className={`w-6 h-6 ${!activeGroup ? 'text-primary' : 'text-white/50'}`} /></div>
+                     <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#080808] overflow-hidden bg-[#111] flex items-center justify-center"><ImageIcon className={`w-8 h-8 ${!activeGroup ? 'text-primary' : 'text-white/50'}`} /></div>
                   </div>
                   <span className={`text-xs md:text-sm font-headline font-bold ${!activeGroup ? 'text-primary' : 'text-white/60'}`}>All Work</span>
                 </button>
@@ -422,7 +428,7 @@ export default function HafashMasterPortfolio() {
                   return (
                     <button key={i} onClick={() => setActiveGroup(group)} className="flex flex-col items-center gap-3 shrink-0 group">
                       <div className={`p-[3px] rounded-full transition-all duration-300 ${activeGroup === group ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
-                         <div className="w-16 h-16 md:w-24 md:h-24 rounded-full border-[3px] border-[#080808] overflow-hidden bg-[#111] relative">
+                         <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#080808] overflow-hidden bg-[#111] relative">
                            {firstPhoto?.url ? <img src={firstPhoto.url} alt={String(group)} className="w-full h-full object-cover" /> : <span className="text-xs text-white/50 absolute inset-0 flex items-center justify-center">No Img</span>}
                            {activeGroup !== group && <div className="absolute inset-0 bg-black/30 transition-colors" />}
                          </div>
@@ -464,7 +470,7 @@ export default function HafashMasterPortfolio() {
         ) : (
           <div className="animate-in fade-in">
             <div className="mb-12 text-center">
-              <h2 className="font-headline text-4xl font-bold md:text-7xl">The Gallery<span className="text-primary">.</span></h2>
+              <h2 className="font-headline text-5xl font-bold md:text-7xl">The Gallery<span className="text-primary">.</span></h2>
             </div>
             {loadingPhotos ? (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-5">
