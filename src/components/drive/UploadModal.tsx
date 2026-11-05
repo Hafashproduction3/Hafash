@@ -1,5 +1,6 @@
 "use client";
 
+import { uploadVideoInChunks } from '@/lib/upload-video';
 import { useState, useRef } from 'react';
 import { Upload, Loader2, X, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -83,11 +84,52 @@ export function UploadModal({ open, onClose, userId, folderId, onComplete }: Upl
       if (item.status === 'completed') continue;
 
       try {
+        // ✅ Agar file VIDEO hai, to chunks wala system use karein
+        if (item.file.type.startsWith('video/')) {
+          setFiles((prev) =>
+            prev.map((f) => (f.id === item.id ? { ...f, status: 'uploading' } : f))
+          );
+
+          const result = await uploadVideoInChunks(item.file, (percent) => {
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.id === item.id ? { ...f, progress: percent } : f
+              )
+            );
+          });
+
+          const completeResult = await completeDriveUpload({
+            userId,
+            folderId,
+            task: {
+              id: item.id,
+              key: (result as any).Key || '',
+              thumbKey: undefined,
+              file: {
+                name: item.file.name,
+                size: item.file.size,
+                type: item.file.type,
+              },
+            },
+          });
+
+          if (!completeResult.success) {
+            throw new Error(completeResult.error || 'Failed to finalize');
+          }
+
+          setFiles((prev) =>
+            prev.map((f) =>
+              f.id === item.id ? { ...f, status: 'completed', progress: 100 } : f
+            )
+          );
+          continue; // Agli file par jayein
+        }
+
+        // ⬇️ Neeche wala code sirf photos ke liye hai
         setFiles((prev) =>
           prev.map((f) => (f.id === item.id ? { ...f, status: 'compressing' } : f))
         );
 
-        // Compress if image
         let fileToUpload = item.file;
         if (item.file.type.startsWith('image/') && item.file.size > 4 * 1024 * 1024) {
           try {
@@ -97,7 +139,6 @@ export function UploadModal({ open, onClose, userId, folderId, onComplete }: Upl
           }
         }
 
-        // Generate thumbnail
         let thumbFile: File | null = null;
         if (item.file.type.startsWith('image/')) {
           try {
@@ -109,7 +150,6 @@ export function UploadModal({ open, onClose, userId, folderId, onComplete }: Upl
           prev.map((f) => (f.id === item.id ? { ...f, status: 'uploading' } : f))
         );
 
-        // Get upload URL
         const urlResult = await requestDriveUploadUrl({
           userId,
           folderId,
@@ -122,7 +162,6 @@ export function UploadModal({ open, onClose, userId, folderId, onComplete }: Upl
           throw new Error(urlResult.error || 'Failed to get upload URL');
         }
 
-        // Upload original
         await uploadToR2(urlResult.uploadUrl, fileToUpload, (loaded, total) => {
           const pct = Math.round((loaded / total) * 100);
           setFiles((prev) =>
@@ -130,7 +169,6 @@ export function UploadModal({ open, onClose, userId, folderId, onComplete }: Upl
           );
         });
 
-        // Upload thumbnail
         let thumbKey: string | undefined;
         if (thumbFile) {
           try {
@@ -148,7 +186,6 @@ export function UploadModal({ open, onClose, userId, folderId, onComplete }: Upl
           } catch (e) {}
         }
 
-        // Complete
         const completeResult = await completeDriveUpload({
           userId,
           folderId,

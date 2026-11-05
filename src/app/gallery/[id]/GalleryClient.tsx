@@ -31,7 +31,7 @@ const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 100
 const DESKTOP_BATCH_SIZE = 100;
 const MOBILE_BATCH_SIZE = 30;
-const DOWNLOAD_ALL_DESKTOP_BATCH_SIZE = 200;
+const DOWNLOAD_ALL_DESKTOP_BATCH_SIZE = 300;
 const DOWNLOAD_ALL_MOBILE_BATCH_SIZE = 50;
 const DOWNLOAD_ALL_DESKTOP_PARALLEL = 6;
 const DOWNLOAD_ALL_MOBILE_PARALLEL = 3;
@@ -58,6 +58,8 @@ const GalleryItem = memo(({
     }
   };
 
+  // ✅ Check karein ke file video hai ya image
+  const isVideo = item.contentType?.startsWith('video/') || item.url?.match(/\.(mp4|webm|mov|avi|mkv)$/i);
   const imageSrc = item.thumbUrl || item.url;
 
   return (
@@ -75,9 +77,25 @@ const GalleryItem = memo(({
       {imgError ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-muted/10 text-muted-foreground">
           <Camera className="w-12 h-12 mb-3 opacity-30" />
-          <span className="text-xs font-bold uppercase tracking-widest opacity-50">Image Unavailable</span>
+          <span className="text-xs font-bold uppercase tracking-widest opacity-50">Media Unavailable</span>
         </div>
-      ) : (
+            ) : isVideo ? (
+              // ✅ Agar video hai to <video> tag use karein
+              <video
+                src={item.masterUrl || item.url} // 👈 masterUrl use karein
+                className={cn(
+                  "w-full h-full object-cover transition-all duration-1000",
+                  loaded ? "opacity-100" : "opacity-0"
+                )}
+                muted
+                loop
+                playsInline
+                preload="metadata" // 👈 Yeh add karein taake pehla frame load ho
+                onLoadedData={() => setLoaded(true)}
+                onError={() => { setImgError(true); setLoaded(true); }}
+              />
+            ) : (
+        // ✅ Agar photo hai to <Image> tag use karein
         <Image
           src={imageSrc}
           alt={item.fileName || "Gallery Asset"}
@@ -189,6 +207,7 @@ export default function ClientGalleryPage() {
   const [downloadAllActive, setDownloadAllActive] = useState(false);
   const [downloadAllBatch, setDownloadAllBatch] = useState(0);
   const [downloadAllTotalBatches, setDownloadAllTotalBatches] = useState(0);
+  const [videoDownloadProgress, setVideoDownloadProgress] = useState<{ current: number; total: number } | null>(null);
   const [downloadAllProgress, setDownloadAllProgress] = useState(0);
   const [downloadAllCompleted, setDownloadAllCompleted] = useState(false);
   const [showBatchPopup, setShowBatchPopup] = useState(false);
@@ -908,50 +927,114 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
     } catch (err) {
       console.error('[DOWNLOAD_ALL] Fetch failed:', err);
       setIsPreparing(false);
-      toast({
-        variant: "destructive",
-        title: "Fetch Failed",
-        description: "Photos load nahi ho sakin. Dobara try karein.",
-      });
+      toast({ variant: "destructive", title: "Fetch Failed", description: "Photos load nahi ho sakin." });
       return;
     }
 
     setIsPreparing(false);
 
-    if (allPhotos.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "No photos",
-        description: "Is gallery mein photos nahi hain.",
-      });
+    // ✅ Videos aur photos alag karein
+    const allItems = allPhotos.filter((it: any) => 
+      it.originalReady && 
+      it.originalKey && 
+      (!it.contentType || !it.contentType.startsWith('video/'))
+    );
+
+    const videoItems = allPhotos.filter((it: any) => 
+      it.contentType && it.contentType.startsWith('video/')
+    );
+
+    // ✅ Agar sirf videos hain (koi photo nahi)
+    if (allItems.length === 0) {
+      if (videoItems.length > 0) {
+        cancelDownloadAllRef.current = false;
+        setVideoDownloadProgress({ current: 0, total: videoItems.length });
+        
+        for (let i = 0; i < videoItems.length; i++) {
+          if (cancelDownloadAllRef.current) break;
+
+          const item = videoItems[i];
+          if (!item.originalKey) continue;
+
+          setVideoDownloadProgress({ current: i + 1, total: videoItems.length });
+
+          try {
+            const res = await fetch('/api/download-original', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: item.originalKey, filename: item.fileName || `video-${i + 1}.mp4` }),
+            });
+            
+            if (res.ok) {
+              const { url } = await res.json();
+              if (url) {
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = item.fileName || `video-${i + 1}.mp4`;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }
+            }
+          } catch (err) {
+            console.error('[VIDEO_DOWNLOAD]', err);
+          }
+
+          await new Promise(r => setTimeout(r, 2000)); // 2 second ka gap
+        }
+
+        setVideoDownloadProgress(null);
+        toast({
+          title: "✅ Videos Download Complete!",
+          description: "Saari videos download ho gayi hain.",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "⏳ Koi Media Nahi",
+          description: "Gallery mein koi photo ya video nahi hai.",
+        });
+      }
       return;
     }
 
-    const allItems = allPhotos.filter((it: any) => it.originalReady && it.originalKey);
-
-    if (allItems.length === 0) {
+    // ✅ Agar photos ke saath videos hain, to user ko batayein
+    if (videoItems.length > 0) {
       toast({
-        variant: "destructive",
-        title: "⏳ Photos processing",
-        description: "Photos abhi upload ho rahi hain. Thora wait karein.",
+        title: "🎬 Videos Alag Hain",
+        description: `${videoItems.length} video(s) ZIP mein nahi aayengi. Unhein alag se download karein.`,
       });
-      return;
     }
 
     const totalBatches = Math.ceil(allItems.length / BATCH_SIZE);
     
+    // ✅ SMART RESUME LOGIC
+    const storageKey = `hafash_download_progress_${galleryId}`;
+    let savedProgress = { completedBatches: [] as number[] };
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) savedProgress = JSON.parse(stored);
+    } catch (e) {}
+
     cancelDownloadAllRef.current = false;
     setDownloadAllActive(true);
     setDownloadAllCompleted(false);
     setDownloadAllTotalBatches(totalBatches);
-    setDownloadAllBatch(0);
     setDownloadAllProgress(0);
 
     let completedSuccessfully = 0;
+    let batchesDoneThisSession = 0;
 
     try {
       for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
         if (cancelDownloadAllRef.current) break;
+
+        // ✅ SKIP LOGIC: Agar yeh batch pehle download ho chuka hai, to skip karein
+        if (savedProgress.completedBatches.includes(batchIdx)) {
+          console.log(`[RESUME] Skipping Batch ${batchIdx + 1} (already downloaded)`);
+          continue;
+        }
 
         const start = batchIdx * BATCH_SIZE;
         const end = Math.min(start + BATCH_SIZE, allItems.length);
@@ -972,6 +1055,12 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
             }
           );
           completedSuccessfully += count;
+          batchesDoneThisSession++;
+
+          // ✅ SAVE PROGRESS
+          savedProgress.completedBatches.push(batchIdx);
+          localStorage.setItem(storageKey, JSON.stringify(savedProgress));
+
         } catch (err: any) {
           if (err.message === 'CANCELLED') break;
           console.error(`[DOWNLOAD_ALL] Batch ${batchIdx + 1} failed:`, err);
@@ -981,7 +1070,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
           setBatchPopupMessage(`Batch ${batchIdx + 1} of ${totalBatches} complete!`);
           setShowBatchPopup(true);
           
-          for (let i = 4; i > 0; i--) {
+          for (let i = 1; i > 0; i--) {
             if (cancelDownloadAllRef.current) break;
             setAutoContinueCountdown(i);
             await new Promise(r => setTimeout(r, 1000));
@@ -993,11 +1082,21 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
 
       if (!cancelDownloadAllRef.current) {
         setDownloadAllCompleted(true);
-        toast({
-          title: "✅ Download Complete!",
-          description: `${completedSuccessfully} photos successfully downloaded.`,
-        });
         
+        if (batchesDoneThisSession > 0) {
+          toast({
+            title: "✅ Download Complete!",
+            description: `${completedSuccessfully} photos successfully downloaded.`,
+          });
+        } else {
+          toast({
+            title: "✅ All Batches Already Downloaded",
+            description: "Saari ZIP files pehle hi download ho chuki hain.",
+          });
+        }
+        
+        localStorage.removeItem(storageKey);
+
         setTimeout(() => {
           setDownloadAllActive(false);
           setDownloadAllCompleted(false);
@@ -1185,12 +1284,15 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       toast({
         variant: "destructive",
         title: "⏳ Original Processing",
-        description: "Full quality photo abhi upload ho rahi hai. Thora wait karein.",
+        description: "Full quality media abhi upload ho rahi hai. Thora wait karein.",
       });
       return;
     }
 
-    const filename = item.fileName || `photo-${item.id}.jpg`;
+    // ✅ Video aur Image ke liye alag extension
+    const isVideo = item.contentType?.startsWith('video/') || item.fileName?.match(/\.(mp4|mov|webm|avi|mkv)$/i);
+    const extension = isVideo ? 'mp4' : 'jpg';
+    const filename = item.fileName || `media-${item.id}.${extension}`;
 
     try {
       const res = await fetch('/api/download-original', {
@@ -1203,56 +1305,25 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       const data = await res.json();
       if (!data.url) throw new Error('No download URL');
 
-      // ✅ "Save As" dialog force karein (agar browser support kare)
-      if ('showSaveFilePicker' in window) {
-        try {
-          const fileHandle = await (window as any).showSaveFilePicker({
-            suggestedName: filename,
-            types: [{
-              description: 'Image',
-              accept: { 'image/jpeg': ['.jpg', '.jpeg', '.png'] },
-            }],
-          });
-
-          const fileRes = await fetch(data.url);
-          const blob = await fileRes.blob();
-          const writable = await fileHandle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-
-          toast({
-            title: "✅ Saved",
-            description: `${filename} save ho gayi.`,
-          });
-          return;
-        } catch (err: any) {
-          if (err.name === 'AbortError') {
-            toast({ title: "Cancelled", description: "Download cancel kar diya." });
-            return;
-          }
-          // Agar showSaveFilePicker fail ho, toh fallback use karein
-        }
-      }
-
-      // Fallback: Blob download (agar browser support nahi karta)
-      const fileRes = await fetch(data.url);
-      const blob = await fileRes.blob();
-      const blobUrl = URL.createObjectURL(blob);
-
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      link.style.display = 'none';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-
+      // ✅ USER KO FORAN BATAYEIN
       toast({
         title: "✅ Download Started",
-        description: `${filename} download ho rahi hai.`,
+        description: `${filename} download ho rahi hai. Browser ke downloads mein check karein.`,
       });
+
+      // ✅ SEEDHA DOWNLOAD (Bina kisi dialog ke, foran shuru)
+            // ✅ SEEDHA DOWNLOAD (Bina nayi tab ke)
+            const link = document.createElement('a');
+            link.href = data.url;
+            link.download = filename;
+            link.style.display = 'none'; 
+            // link.target = "_blank";  <-- YEH LINE HONI HI NAHI CHAHIYE
+            document.body.appendChild(link);
+            
+            setTimeout(() => {
+              link.click();
+              document.body.removeChild(link);
+            }, 100);
 
     } catch (error: any) {
       console.error('[DOWNLOAD] Error:', error);
@@ -1991,6 +2062,40 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         </div>
       )}
 
+{videoDownloadProgress && (
+        <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in duration-500">
+          <div className="w-full max-w-md bg-card border border-primary/30 rounded-[2.5rem] p-10 space-y-8 shadow-[0_50px_100px_rgba(0,0,0,0.6)] text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 border-2 border-primary/30 relative">
+              <Package className="w-10 h-10 text-primary" />
+              <div className="absolute inset-0 rounded-full border-4 border-primary/30 border-t-primary animate-spin" />
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="text-2xl font-headline font-bold text-white">
+                Downloading Videos...
+              </h3>
+              <p className="text-primary text-lg font-bold">
+                {videoDownloadProgress.current} / {videoDownloadProgress.total}
+              </p>
+              <p className="text-muted-foreground text-sm italic">
+                Har video ke beech 2 second ka gap hai taake browser block na kare.
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              onClick={() => {
+                cancelDownloadAllRef.current = true;
+                setVideoDownloadProgress(null);
+              }}
+              className="rounded-full px-8 h-12 border-white/20 text-white hover:bg-white/10"
+            >
+              Cancel Downloads
+            </Button>
+          </div>
+        </div>
+      )}
+
       {totalItems > 0 && !isSelectionMode && (
         <div className="relative mt-40 py-32 lg:py-40 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
@@ -2118,19 +2223,32 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
               decoding="async"
             />
 
-<Image
-              key={gallery.items[selectedIndex].url}
-              src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
-              alt="Fullscreen"
-              width={1920}
-              height={1080}
-              quality={85}
-              sizes="100vw"
-              priority
-              fetchPriority="high"
-              onClick={(e) => e.stopPropagation()}
-              className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
-            />
+{gallery.items[selectedIndex].contentType?.startsWith('video/') || 
+ gallery.items[selectedIndex].url?.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
+  <video
+    key={gallery.items[selectedIndex].url}
+    src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
+    controls
+    autoPlay
+    playsInline
+    onClick={(e) => e.stopPropagation()}
+    className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
+  />
+) : (
+  <Image
+    key={gallery.items[selectedIndex].url}
+    src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
+    alt="Fullscreen"
+    width={1920}
+    height={1080}
+    quality={85}
+    sizes="100vw"
+    priority
+    fetchPriority="high"
+    onClick={(e) => e.stopPropagation()}
+    className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
+  />
+)}
 
             {showWatermark && (
               <div className="luxury-watermark pointer-events-none" />
