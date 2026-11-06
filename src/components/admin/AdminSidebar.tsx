@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { 
   LayoutDashboard, Users, Image as ImageIcon, 
   CreditCard, History, Settings, ArrowLeft, ShieldAlert, Bell,
-  UserCircle // 👈 Naya Icon import kiya
+  UserCircle 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,18 +16,23 @@ const menuItems = [
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "Security", href: "/admin/security", icon: ShieldAlert },
   { name: "Notifications", href: "/admin/notifications", icon: Bell },
-  { name: "Portfolio", href: "/admin/portfolio", icon: UserCircle }, // 👈 Naya Menu Item
+  { name: "Portfolio", href: "/admin/portfolio", icon: UserCircle },
   { name: "Audit Logs", href: "/admin/audit-logs", icon: History },
   { name: "Settings", href: "/admin/settings", icon: Settings },
 ];
 
-export function AdminSidebar() {
+// ✅ Ab yeh function onClose prop accept karta hai
+export function AdminSidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-card border-r border-border/50 h-screen sticky top-0 flex flex-col hidden lg:flex">
+    <aside className="w-64 bg-card border-r border-border/50 h-full flex flex-col">
       <div className="h-20 flex items-center px-6 border-b border-border/50">
-        <Link href="/dashboard" className="flex items-center gap-2 text-primary font-headline font-bold text-sm uppercase tracking-widest transition-colors hover:text-white">
+        <Link 
+          href="/dashboard" 
+          onClick={onClose}
+          className="flex items-center gap-2 text-primary font-headline font-bold text-sm uppercase tracking-widest transition-colors hover:text-white"
+        >
           <ArrowLeft className="w-4 h-4" />
           Back to Studio
         </Link>
@@ -43,6 +48,7 @@ export function AdminSidebar() {
             <Link
               key={item.name}
               href={item.href}
+              onClick={onClose} // ✅ Mobile par click karne se menu band ho jaye
               className={cn(
                 "flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium",
                 isActive 
@@ -58,7 +64,11 @@ export function AdminSidebar() {
       </div>
 
       <div className="p-4 border-t border-border/50">
-        <Link href="/dashboard" className="flex items-center justify-center gap-2 w-full py-3 bg-muted/50 hover:bg-muted rounded-xl text-xs font-bold text-muted-foreground transition-colors">
+        <Link 
+          href="/dashboard" 
+          onClick={onClose}
+          className="flex items-center justify-center gap-2 w-full py-3 bg-muted/50 hover:bg-muted rounded-xl text-xs font-bold text-muted-foreground transition-colors"
+        >
           Exit to Studio Dashboard
         </Link>
       </div>

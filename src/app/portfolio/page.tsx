@@ -13,7 +13,7 @@ import {
   MessageCircle,
   Video,
   Grid,
-  X, // 👈 YEH ADD KAREIN
+  X,
 } from "lucide-react";
 
 import Link from "next/link";
@@ -110,7 +110,7 @@ export default function HafashMasterPortfolio() {
   
   const yearsExperience = basicData?.yearsExperience || "5+";
   const totalWeddings = basicData?.totalWeddings || "200+";
-  const projectsCompleted = basicData?.happyClients || "100%"; // 👈 "Happy Clients" ki jagah "Projects Completed"
+  const projectsCompleted = basicData?.happyClients || "100%";
 
   const currentAlbum = albumsWithPhotos.find((a: any) => a.id === activeAlbum);
   
@@ -288,8 +288,6 @@ export default function HafashMasterPortfolio() {
               <p className="text-[8px] md:text-[9px] uppercase tracking-[0.3em] text-white/40">Production</p>
             </div>
           </button>
-
-          {/* ✅ Instagram aur Back to Platform remove kar diye gaye hain */}
         </div>
       </nav>
 
@@ -318,7 +316,7 @@ export default function HafashMasterPortfolio() {
             <div className="portfolio-fade order-1 space-y-7 text-center lg:order-2 lg:text-left">
               <div className="inline-flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.35em] text-primary">
                 <span className="h-px w-8 bg-primary" />
-                Welcome To Hafash Production {/* 👈 Text change kiya */}
+                Welcome To Hafash Production
                 <span className="h-px w-8 bg-primary lg:hidden" />
               </div>
 
@@ -341,7 +339,7 @@ export default function HafashMasterPortfolio() {
                 </div>
                 <div>
                   <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{projectsCompleted}</p>
-                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Projects Completed</p> {/* 👈 Label change kiya */}
+                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Projects Completed</p>
                 </div>
               </div>
 
@@ -351,7 +349,6 @@ export default function HafashMasterPortfolio() {
                     <Phone className="mr-2 h-5 w-5" /> Book Your Shoot
                   </Button>
                 </a>
-                {/* ✅ Instagram "Follow Us" button remove kar diya gaya hai */}
               </div>
             </div>
           </div>
@@ -370,17 +367,8 @@ export default function HafashMasterPortfolio() {
             </div>
 
             <div className="cinematic-scrollbar flex snap-x gap-6 overflow-x-auto pb-6">
-              <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); }} className={`group relative h-72 w-56 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-80 md:w-64 ${!activeAlbum ? "ring-2 ring-primary ring-offset-4 ring-offset-[#0c0c0c]" : "border border-white/10"}`}>
-                <img src={heroImage} alt="All works" className="portfolio-image h-full w-full object-cover opacity-60" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-                <div className="absolute left-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/30 backdrop-blur">
-                  <ImageIcon className="h-4 w-4 text-primary" />
-                </div>
-                <div className="absolute bottom-6 left-5 right-5">
-                  <p className="font-headline text-2xl font-bold">All Works</p>
-                  <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">{allPhotos.length} Media</p>
-                </div>
-              </button>
+              
+              {/* ✅ "All Works" wala button yahan se delete kar diya gaya hai */}
 
               {albumsWithPhotos.map((album: any, index: number) => (
                 <button key={album.id || index} onClick={() => { setActiveAlbum(album.id); setActiveGroup(null); setMediaFilter('all'); }} className={`group relative h-72 w-56 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-80 md:w-64 ${activeAlbum === album.id ? "ring-2 ring-primary ring-offset-4 ring-offset-[#0c0c0c]" : "border border-white/10"}`}>
