@@ -603,7 +603,12 @@ export default function ClientGalleryPage() {
 
   // ✅ FIXED WATERMARK LOGIC: Agar download on (isPaid) hai toh watermark nahi hoga
   // ✅ Download sirf isPaid par depend — isLocked se koi lena dena nahi
-const canDownload = useMemo(() => gallery ? !!gallery.isPaid : false, [gallery]);
+  const canDownload = useMemo(() => {
+    const overrides = profile?.featureOverrides || {};
+    if (overrides.allowDownload === false) return false;
+    if (overrides.allowDownload === true) return true;
+    return gallery ? !!gallery.isPaid : false;
+  }, [gallery, profile]);
 // ✅ Watermark tab dikhe jab isLocked true ho
 const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [gallery]);
   const totalItems = gallery?.items?.length || 0;

@@ -31,7 +31,6 @@ async function checkUploadPermission(userId: string, fileSize: number, galleryId
   }
 
   // 👇 PORTFOLIO UPLOADS BYPASS 👇
-  // Agar Portfolio ke liye upload ho raha hai, toh plan/storage check skip karein
   if (galleryId === 'portfolio') {
     return { success: true as const };
   }
@@ -59,10 +58,7 @@ async function checkUploadPermission(userId: string, fileSize: number, galleryId
     const userRecord = await admin.auth().getUser(userId);
     authEmail = userRecord.email || null;
   } catch (e: unknown) {
-    console.warn(
-      '[AUTH_EMAIL] Failed:',
-      e instanceof Error ? e.message : e
-    );
+    console.warn('[AUTH_EMAIL] Failed:', e instanceof Error ? e.message : e);
   }
 
   const subscriptionStatus = rawData.subscriptionStatus || (
@@ -83,7 +79,10 @@ async function checkUploadPermission(userId: string, fileSize: number, galleryId
   const subscription = getSubscriptionInfo(userData);
   const isLocationOwner = rawData.role === 'location-owner';
 
-  if (!isLocationOwner && subscription.state !== 'active') {
+  // ✅ NAYA LOGIC: Agar admin ne custom storage di hai, to subscription check skip karein
+  const hasCustomStorage = rawData.customStorageLimitGb !== undefined && rawData.customStorageLimitGb !== null;
+
+  if (!isLocationOwner && !hasCustomStorage && subscription.state !== 'active') {
     return {
       success: false as const,
       error: subscription.state === 'grace'
