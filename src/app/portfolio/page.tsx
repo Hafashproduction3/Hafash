@@ -10,7 +10,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Image as ImageIcon,
-  MessageCircle,
   Video,
   Grid,
   X,
@@ -37,7 +36,6 @@ export default function HafashMasterPortfolio() {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const [albumsWithPhotos, setAlbumsWithPhotos] = useState<any[]>([]);
-  const [allPhotos, setAllPhotos] = useState<string[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
 
   const dataRef = useMemo(() => firestore ? doc(firestore, "portfolio_data", "master") : null, [firestore]);
@@ -56,7 +54,6 @@ export default function HafashMasterPortfolio() {
       if (!albums) return;
       if (albums.length === 0) {
         setAlbumsWithPhotos([]);
-        setAllPhotos([]);
         setLoadingPhotos(false);
         return;
       }
@@ -92,7 +89,6 @@ export default function HafashMasterPortfolio() {
 
         if (cancelled) return;
         setAlbumsWithPhotos(updatedAlbums);
-        setAllPhotos(updatedAlbums.flatMap((album: any) => (album.displayItems || []).map((i: any) => i.url)).filter(Boolean));
       } catch (error) {
         console.error(error);
       } finally {
@@ -120,24 +116,19 @@ export default function HafashMasterPortfolio() {
   }, []);
 
   const visiblePhotos = useMemo(() => {
-    if (!activeAlbum) {
-      return allPhotos.filter(url => {
-        if (mediaFilter === 'videos') return isVideo(url);
-        if (mediaFilter === 'photos') return !isVideo(url);
-        return true;
-      });
-    }
+    if (!activeAlbum) return [];
     if (!currentAlbum || !currentAlbum.displayItems) return [];
     
     let items = currentAlbum.displayItems;
     if (activeGroup) items = items.filter((i: any) => i.caption === activeGroup);
     
     return items.map((i: any) => i.url).filter((url: string) => {
+      if (!url || !url.startsWith("http")) return false;
       if (mediaFilter === 'videos') return isVideo(url);
       if (mediaFilter === 'photos') return !isVideo(url);
       return true;
     });
-  }, [activeAlbum, activeGroup, currentAlbum, allPhotos, mediaFilter, isVideo]);
+  }, [activeAlbum, activeGroup, currentAlbum, mediaFilter, isVideo]);
 
   const currentGroups = useMemo((): string[] => {
     if (!currentAlbum || !currentAlbum.displayItems) return [];
@@ -258,7 +249,23 @@ export default function HafashMasterPortfolio() {
   }
 
   return (
-    <main className="min-h-screen overflow-hidden bg-[#080808] pb-20 font-sans text-white selection:bg-primary selection:text-black">
+    <main className="min-h-screen overflow-hidden bg-[#0f1115] relative pb-20 font-sans text-white selection:bg-primary selection:text-black">
+      
+      {/* ✅ Premium Studio Background */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[#0f1115]">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-[#0f1115] to-[#0f1115]" />
+        <img 
+          src="https://i.postimg.cc/4yyH6jMt/Whats-App-Image-2026-11-07-at-2-30-38-AM.jpg" 
+          alt="Nikon Camera Setup" 
+          className="w-full h-full object-cover opacity-90 relative z-0"
+        />
+        <div className="absolute top-1/2 right-10 -translate-y-1/2 z-10 opacity-[0.1]">
+          <img src="/hafash-logo.png" alt="Hafash Watermark" className="w-[300px] md:w-[500px] h-auto object-contain brightness-0" />
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-r from-[#0f1115] via-[#0f1115]/80 to-transparent z-20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0f1115] via-transparent to-[#0f1115]/60 z-20" />
+      </div>
+
       <style jsx global>{`
         @keyframes portfolioFade { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .portfolio-fade { animation: portfolioFade .9s ease-out both; }
@@ -267,256 +274,304 @@ export default function HafashMasterPortfolio() {
         .cinematic-scrollbar::-webkit-scrollbar-thumb { background: rgba(212,175,55,.6); border-radius: 20px; }
         .portfolio-image { transition: transform 1s cubic-bezier(.2,.7,.2,1); }
         .portfolio-card:hover .portfolio-image { transform: scale(1.06); }
+        html { scroll-behavior: smooth; scroll-padding-top: 100px; }
       `}</style>
 
-      <a 
-        href={`https://wa.me/${whatsappNumber}`} 
-        target="_blank" 
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-[100] flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-[0_0_20px_rgba(37,211,102,0.4)] transition-transform hover:scale-110 md:h-16 md:w-16"
-        aria-label="Book via WhatsApp"
-      >
-        <MessageCircle className="h-7 w-7 md:h-8 md:w-8" />
-      </a>
-
-      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-white/[0.07] bg-[#080808]/85 px-5 py-4 backdrop-blur-2xl md:px-10">
-        <div className="mx-auto flex max-w-[1600px] items-center justify-between">
-          <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="flex items-center gap-3">
-            <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 w-10 md:h-12 md:w-12 object-contain" />
-            <div className="text-left">
-              <p className="font-headline text-lg md:text-xl font-bold tracking-wider">HAFASH<span className="text-primary">.</span></p>
-              <p className="text-[8px] md:text-[9px] uppercase tracking-[0.3em] text-white/40">Production</p>
-            </div>
-          </button>
-        </div>
-      </nav>
-
-      {!activeAlbum && (
-        <section className="relative mx-auto max-w-[1600px] px-5 pb-20 pt-32 md:px-10 md:pb-28 md:pt-40">
-          <div className="pointer-events-none absolute right-0 top-20 h-[450px] w-[450px] rounded-full bg-primary/[0.07] blur-[150px]" />
-
-          <div className="grid items-center gap-14 lg:grid-cols-2 lg:gap-24">
-            <div className="portfolio-fade order-2 flex justify-center lg:order-1">
-              <div className="relative w-full max-w-[500px]">
-                <div className="absolute -inset-4 rounded-t-full border border-primary/20" />
-                <div className="absolute -inset-8 rounded-t-full border border-white/[0.06]" />
-                <div className="relative aspect-[4/5] overflow-hidden rounded-t-full rounded-b-sm border border-primary/40 bg-[#151515]">
-                  <img src={aboutImage} alt="Hafash Production" className="h-full w-full object-cover transition-transform duration-[2s] hover:scale-105" loading="eager" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-                  <div className="absolute bottom-7 left-0 right-0 text-center">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.45em] text-white/80">Behind The Lens</p>
-                  </div>
-                </div>
-                <div className="absolute -bottom-5 -right-3 flex h-20 w-20 items-center justify-center rounded-full border border-primary/50 bg-[#0b0b0b] shadow-2xl md:-right-8">
-                  <Aperture className="h-9 w-9 text-primary" strokeWidth={1} />
-                </div>
+      <div className="relative z-10">
+        
+        <nav className="fixed left-0 right-0 top-0 z-50 px-5 py-6 md:px-10 border-b border-white/5 bg-[#0f1115]/50 backdrop-blur-md">
+          <div className="mx-auto flex max-w-[1600px] items-center justify-between">
+            <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="flex items-center gap-3">
+              <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 w-10 md:h-12 md:w-12 object-contain" />
+              <div className="text-left">
+                <p className="font-headline text-lg md:text-xl font-bold tracking-wider">HAFASH<span className="text-primary">.</span></p>
+                <p className="text-[8px] md:text-[9px] uppercase tracking-[0.3em] text-white/40">Production</p>
               </div>
-            </div>
-
-            <div className="portfolio-fade order-1 space-y-7 text-center lg:order-2 lg:text-left">
-              <div className="inline-flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.35em] text-primary">
-                <span className="h-px w-8 bg-primary" />
-                Welcome To Hafash Production
-                <span className="h-px w-8 bg-primary lg:hidden" />
-              </div>
-
-              <h1 className="font-headline text-6xl font-bold leading-[1.05] tracking-tight md:text-7xl lg:text-[6.5rem]">
-                Hello,<br />I'm <span className="font-light italic text-primary">Hamza Khan</span>
-              </h1>
-
-              <p className="mx-auto max-w-xl text-lg font-light leading-8 text-white/55 md:text-xl lg:mx-0">{bioText}</p>
-
-              <div className="mx-auto h-px max-w-md bg-gradient-to-r from-transparent via-primary/50 to-transparent lg:mx-0 lg:from-primary/50 lg:to-transparent" />
-
-              <div className="grid grid-cols-3 gap-4 py-3">
-                <div>
-                  <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{yearsExperience}</p>
-                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Years Experience</p>
-                </div>
-                <div className="border-x border-white/10">
-                  <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{totalWeddings}</p>
-                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Weddings</p>
-                </div>
-                <div>
-                  <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{projectsCompleted}</p>
-                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Projects Completed</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col justify-center gap-3 pt-3 sm:flex-row lg:justify-start">
-                <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer">
-                  <Button className="h-14 w-full rounded-xl bg-primary px-8 font-bold text-black shadow-[0_0_30px_rgba(212,175,55,0.12)] transition-all hover:scale-[1.03] hover:bg-primary/90 sm:w-auto">
-                    <Phone className="mr-2 h-5 w-5" /> Book Your Shoot
-                  </Button>
-                </a>
-              </div>
+            </button>
+            
+            <div className="hidden md:flex items-center gap-8 text-[11px] font-bold uppercase tracking-widest text-white/60">
+              <Link href="#home" className="hover:text-primary transition-colors">Home</Link>
+              <Link href="#gallery" className="hover:text-primary transition-colors">Portfolio</Link>
+              <Link href="#about" className="hover:text-primary transition-colors">About</Link>
+              <Link href="#contact" className="hover:text-primary transition-colors">Contact</Link>
             </div>
           </div>
-        </section>
-      )}
+        </nav>
 
-      {!activeAlbum && (
-        <section className="border-y border-white/[0.07] bg-[#0c0c0c] py-16 md:py-20">
-          <div className="mx-auto max-w-[1600px] px-5 md:px-10">
-            <div className="mb-10 flex items-end justify-between">
-              <div>
-                <p className="mb-3 text-[9px] font-bold uppercase tracking-[0.4em] text-primary">Explore Our Work</p>
-                <h2 className="font-headline text-4xl font-bold md:text-6xl">Collections<span className="text-primary">.</span></h2>
-              </div>
-              <p className="hidden text-[9px] uppercase tracking-[0.3em] text-white/35 md:block">Swipe To Explore</p>
-            </div>
-
-            <div className="cinematic-scrollbar flex snap-x gap-6 overflow-x-auto pb-6">
+        {/* ✅ HERO SECTION */}
+        {!activeAlbum && (
+          <section className="relative mx-auto max-w-[1600px] px-5 pb-20 pt-40 md:px-10 md:pb-28 md:pt-48" id="home">
+            <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
               
-              {/* ✅ "All Works" wala button yahan se delete kar diya gaya hai */}
+              <div className="order-2 flex justify-center lg:order-1 relative">
+                <div className="relative w-full max-w-[420px]">
+                  <div className="absolute -inset-4 rounded-t-[220px] rounded-b-xl border border-primary/20" />
+                  <div className="absolute -inset-8 rounded-t-[240px] rounded-b-2xl border border-white/5" />
+                  
+                  <div className="relative aspect-[3/4] overflow-hidden rounded-t-[200px] rounded-b-lg border-[3px] border-primary/60 bg-[#111] shadow-[0_20px_80px_rgba(212,175,55,0.15)] group p-2">
+                    <div className="relative w-full h-full overflow-hidden rounded-t-[190px] rounded-b-md">
+                      <img src={aboutImage} alt="Hafash Production" className="h-full w-full object-cover transition-transform duration-[3s] group-hover:scale-110" loading="eager" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+                    </div>
+                  </div>
 
-              {albumsWithPhotos.map((album: any, index: number) => (
-                <button key={album.id || index} onClick={() => { setActiveAlbum(album.id); setActiveGroup(null); setMediaFilter('all'); }} className={`group relative h-72 w-56 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-80 md:w-64 ${activeAlbum === album.id ? "ring-2 ring-primary ring-offset-4 ring-offset-[#0c0c0c]" : "border border-white/10"}`}>
-                  {album.displayItems?.[0]?.url ? (
-                    <img src={album.displayItems[0].url} alt={album.name || "Collection"} className="portfolio-image h-full w-full object-cover opacity-65" loading="lazy" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center bg-[#171717]"><Camera className="h-12 w-12 text-primary/40" /></div>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-                  <div className="absolute left-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-white/30 bg-black/30 backdrop-blur">
-                    <Aperture className="h-4 w-4 text-primary" />
+                  <div className="absolute -bottom-8 -right-8 flex h-24 w-24 items-center justify-center rounded-full border border-primary/40 bg-[#0a0a0a] shadow-[0_10px_40px_rgba(0,0,0,0.8)] z-10">
+                    <Aperture className="h-10 w-10 text-primary animate-[spin_15s_linear_infinite]" strokeWidth={1} />
                   </div>
-                  <div className="absolute bottom-6 left-5 right-5">
-                    <p className="font-headline text-2xl font-bold capitalize">{album.name || "Collection"}</p>
-                    <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">{album.displayItems?.length || 0} Media</p>
+                </div>
+              </div>
+
+              <div className="order-1 space-y-8 text-center lg:order-2 lg:text-left relative">
+                <div className="inline-flex items-center gap-4 text-[10px] font-bold uppercase tracking-[0.4em] text-primary">
+                  <span className="h-px w-10 bg-primary" />
+                  Welcome To Hafash Production
+                </div>
+
+                <h1 className="font-headline text-5xl sm:text-6xl font-bold leading-[1.1] tracking-tight md:text-7xl lg:text-[5.5rem]">
+                  Hello,<br />
+                  I'm <span className="font-light italic text-primary">Hamza Khan</span>
+                </h1>
+
+                <p className="mx-auto max-w-xl text-lg font-light leading-relaxed text-white/60 md:text-xl lg:mx-0">
+                  {bioText}
+                </p>
+
+                <div className="mx-auto h-px w-full max-w-sm bg-gradient-to-r from-primary/50 via-white/10 to-transparent lg:mx-0" />
+
+                <div className="grid grid-cols-3 gap-4 py-4 max-w-lg mx-auto lg:mx-0">
+                  <div className="flex flex-col items-center lg:items-start p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
+                    <Camera className="w-4 h-4 text-primary mb-2" />
+                    <p className="font-headline text-2xl sm:text-3xl font-bold text-white">{yearsExperience}</p>
+                    <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.15em] text-white/50">Years of Exp</p>
                   </div>
-                </button>
-              ))}
+                  <div className="flex flex-col items-center lg:items-start p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
+                    <ImageIcon className="w-4 h-4 text-primary mb-2" />
+                    <p className="font-headline text-2xl sm:text-3xl font-bold text-white">{totalWeddings}</p>
+                    <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.15em] text-white/50">Weddings</p>
+                  </div>
+                  <div className="flex flex-col items-center lg:items-start p-4 rounded-xl bg-white/[0.03] border border-white/[0.08] backdrop-blur-sm transition-colors hover:bg-white/[0.05]">
+                    <Aperture className="w-4 h-4 text-primary mb-2" />
+                    <p className="font-headline text-2xl sm:text-3xl font-bold text-white">{projectsCompleted}</p>
+                    <p className="mt-1 text-[8px] font-bold uppercase tracking-[0.15em] text-white/50">Projects</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col justify-center gap-4 pt-4 sm:flex-row lg:justify-start">
+                  <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer">
+                    <Button className="group h-14 w-full sm:w-auto rounded-full bg-primary px-8 font-bold text-black shadow-[0_0_30px_rgba(212,175,55,0.2)] transition-all duration-300 hover:scale-105 hover:bg-primary/90">
+                      <Phone className="mr-2 h-4 w-4 transition-transform group-hover:-rotate-12" /> Book Your Shoot
+                    </Button>
+                  </a>
+                </div>
+              </div>
             </div>
-          </div>
-        </section>
-      )}
+          </section>
+        )}
 
-      <section className="mx-auto max-w-[1600px] px-5 py-20 md:px-10 md:py-28">
-        {activeAlbum ? (
-          <div className="animate-in fade-in duration-1000">
-            <div className="relative mb-10 text-center">
-              <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); }} className="mb-8 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary transition hover:text-white border border-primary/30 px-6 py-3 rounded-full hover:bg-primary/10">
-                <ArrowLeft className="h-4 w-4" /> Back To All Collections
-              </button>
-              <h1 className="font-headline text-5xl md:text-8xl font-bold text-white capitalize mb-4">{currentAlbum?.name}</h1>
-              <p className="text-white/50 tracking-widest uppercase text-sm">{currentAlbum?.displayItems?.length || 0} Masterpieces</p>
-            </div>
+        {/* ✅ COLLECTIONS (ALBUMS) SECTION */}
+        {!activeAlbum && (
+          <section className="border-t border-white/5 py-16 md:py-24" id="gallery">
+            <div className="mx-auto max-w-[1600px] px-5 md:px-10">
+              <div className="mb-10 flex items-end justify-between">
+                <div>
+                  <p className="mb-3 text-[9px] font-bold uppercase tracking-[0.4em] text-primary">Explore Our Work</p>
+                  <h2 className="font-headline text-4xl font-bold md:text-5xl">Collections<span className="text-primary">.</span></h2>
+                </div>
+              </div>
 
-            {currentGroups.length > 0 && (
-              <div className="flex justify-center gap-6 md:gap-8 overflow-x-auto pb-8 pt-4 custom-scrollbar">
-                <button onClick={() => setActiveGroup(null)} className="flex flex-col items-center gap-3 shrink-0 group">
-                  <div className={`p-[3px] rounded-full transition-all duration-300 ${!activeGroup ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
-                     <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#080808] overflow-hidden bg-[#111] flex items-center justify-center"><ImageIcon className={`w-8 h-8 ${!activeGroup ? 'text-primary' : 'text-white/50'}`} /></div>
-                  </div>
-                  <span className={`text-xs md:text-sm font-headline font-bold ${!activeGroup ? 'text-primary' : 'text-white/60'}`}>All Work</span>
-                </button>
-
-                {currentGroups.map((group: string, i: number) => {
-                  const firstPhoto = currentAlbum?.displayItems.find((item:any) => item.caption === group);
-                  return (
-                    <button key={i} onClick={() => setActiveGroup(group)} className="flex flex-col items-center gap-3 shrink-0 group">
-                      <div className={`p-[3px] rounded-full transition-all duration-300 ${activeGroup === group ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
-                         <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#080808] overflow-hidden bg-[#111] relative">
-                           {firstPhoto?.url ? <img src={firstPhoto.url} alt={String(group)} className="w-full h-full object-cover" /> : <span className="text-xs text-white/50 absolute inset-0 flex items-center justify-center">No Img</span>}
-                           {activeGroup !== group && <div className="absolute inset-0 bg-black/30 transition-colors" />}
-                         </div>
+              {loadingPhotos ? (
+                 <div className="flex gap-6 overflow-hidden pb-6">
+                   {Array.from({ length: 3 }).map((_, i) => (
+                     <div key={i} className="animate-pulse h-72 w-56 md:h-80 md:w-64 bg-white/[0.06] rounded-xl shrink-0" />
+                   ))}
+                 </div>
+              ) : (
+                <div className="cinematic-scrollbar flex snap-x gap-6 overflow-x-auto pb-6">
+                  {albumsWithPhotos.map((album: any, index: number) => (
+                    <button 
+                      key={album.id || index} 
+                      onClick={() => { 
+                        setActiveAlbum(album.id); 
+                        setActiveGroup(null); 
+                        setMediaFilter('all'); 
+                        window.scrollTo({ top: 0, behavior: 'smooth' }); 
+                      }} 
+                      className="group relative h-72 w-56 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-80 md:w-64 border border-white/10 hover:border-primary/50 transition-colors"
+                    >
+                      {album.displayItems?.[0]?.url ? (
+                        <img src={album.displayItems[0].url} alt={album.name || "Collection"} className="portfolio-image h-full w-full object-cover opacity-80" loading="lazy" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-[#171717]"><Camera className="h-12 w-12 text-primary/40" /></div>
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                      <div className="absolute bottom-6 left-5 right-5">
+                        <p className="font-headline text-2xl font-bold capitalize">{album.name || "Collection"}</p>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">{album.displayItems?.length || 0} Media</p>
                       </div>
-                      <span className={`text-xs md:text-sm font-headline font-bold capitalize ${activeGroup === group ? 'text-primary' : 'text-white/60'}`}>{String(group)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* ✅ ALBUM INSIDE GALLERY */}
+        {activeAlbum && (
+          <section className="mx-auto max-w-[1600px] px-5 py-20 md:px-10 md:py-28">
+            <div className="animate-in fade-in duration-1000">
+              <div className="relative mb-10 text-center">
+                <button 
+                  onClick={() => { 
+                    setActiveAlbum(null); 
+                    setActiveGroup(null); 
+                    window.scrollTo({ top: 0, behavior: 'smooth' }); 
+                  }} 
+                  className="mb-8 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary transition hover:text-white border border-primary/30 px-6 py-3 rounded-full hover:bg-primary/10"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Back To All Collections
+                </button>
+                <h1 className="font-headline text-5xl md:text-8xl font-bold text-white capitalize mb-4">{currentAlbum?.name}</h1>
+                <p className="text-white/50 tracking-widest uppercase text-sm">{visiblePhotos.length} Masterpieces</p>
+              </div>
+
+              {currentGroups.length > 0 && (
+                <div className="flex justify-center gap-6 md:gap-8 overflow-x-auto pb-8 pt-4 custom-scrollbar">
+                  <button onClick={() => setActiveGroup(null)} className="flex flex-col items-center gap-3 shrink-0 group">
+                    <div className={`p-[3px] rounded-full transition-all duration-300 ${!activeGroup ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
+                       <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#0f1115] overflow-hidden bg-[#111] flex items-center justify-center"><ImageIcon className={`w-8 h-8 ${!activeGroup ? 'text-primary' : 'text-white/50'}`} /></div>
+                    </div>
+                    <span className={`text-xs md:text-sm font-headline font-bold ${!activeGroup ? 'text-primary' : 'text-white/60'}`}>All Work</span>
+                  </button>
+
+                  {currentGroups.map((group: string, i: number) => {
+                    const firstPhoto = currentAlbum?.displayItems.find((item:any) => item.caption === group && item.url);
+                    return (
+                      <button key={i} onClick={() => setActiveGroup(group)} className="flex flex-col items-center gap-3 shrink-0 group">
+                        <div className={`p-[3px] rounded-full transition-all duration-300 ${activeGroup === group ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
+                           <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#0f1115] overflow-hidden bg-[#111] relative">
+                             {firstPhoto?.url ? <img src={firstPhoto.url} alt={String(group)} className="w-full h-full object-cover" /> : <span className="text-xs text-white/50 absolute inset-0 flex items-center justify-center">No Img</span>}
+                             {activeGroup !== group && <div className="absolute inset-0 bg-black/30 transition-colors" />}
+                           </div>
+                        </div>
+                        <span className={`text-xs md:text-sm font-headline font-bold capitalize ${activeGroup === group ? 'text-primary' : 'text-white/60'}`}>{String(group)}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="flex justify-center gap-2 mb-10 border-b border-white/10 pb-4">
+                <button onClick={() => setMediaFilter('all')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><Grid className="w-4 h-4" /> All</button>
+                <button onClick={() => setMediaFilter('photos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'photos' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><ImageIcon className="w-4 h-4" /> Photos</button>
+                <button onClick={() => setMediaFilter('videos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'videos' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><Video className="w-4 h-4" /> Videos</button>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1 md:gap-2">
+                {visiblePhotos.map((media: string, index: number) => (
+                  media && (
+                    <button key={`${media}-${index}`} onClick={() => openLightbox(index)} className="group relative block w-full aspect-square overflow-hidden bg-[#141414] text-left">
+                      {isVideo(media) ? (
+                        <div className="relative w-full h-full">
+                          <video src={media} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20"><div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/50 bg-black/40 backdrop-blur"><Play className="ml-0.5 h-3 w-3 fill-white text-white" /></div></div>
+                        </div>
+                      ) : (
+                        <img 
+                          src={media} 
+                          alt="Portfolio" 
+                          onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }} 
+                          className="block h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105" 
+                          loading="lazy" 
+                        />
+                      )}
                     </button>
                   )
-                })}
-              </div>
-            )}
-
-            <div className="flex justify-center gap-2 mb-10 border-b border-white/10 pb-4">
-              <button onClick={() => setMediaFilter('all')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'all' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><Grid className="w-4 h-4" /> All</button>
-              <button onClick={() => setMediaFilter('photos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'photos' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><ImageIcon className="w-4 h-4" /> Photos</button>
-              <button onClick={() => setMediaFilter('videos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'videos' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><Video className="w-4 h-4" /> Videos</button>
-            </div>
-
-            <div className="grid grid-cols-3 gap-1 md:gap-2">
-              {visiblePhotos.map((media: string, index: number) => (
-                media && (
-                  <button key={`${media}-${index}`} onClick={() => openLightbox(index)} className="group relative block w-full aspect-square overflow-hidden bg-[#141414] text-left">
-                    {isVideo(media) ? (
-                      <div className="relative w-full h-full">
-                        <video src={media} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/20"><div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/50 bg-black/40 backdrop-blur"><Play className="ml-0.5 h-3 w-3 fill-white text-white" /></div></div>
-                      </div>
-                    ) : (
-                      <img src={media} alt="Portfolio" className="block h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105" loading="lazy" />
-                    )}
-                  </button>
-                )
-              ))}
-            </div>
-
-            {visiblePhotos.length === 0 && (
-              <div className="text-center py-20 text-white/40 italic">No media found in this filter.</div>
-            )}
-          </div>
-        ) : (
-          <div className="animate-in fade-in">
-            <div className="mb-12 text-center">
-              <h2 className="font-headline text-5xl font-bold md:text-7xl">The Gallery<span className="text-primary">.</span></h2>
-            </div>
-            {loadingPhotos ? (
-              <div className="grid grid-cols-3 gap-1 md:gap-2">
-                {Array.from({ length: 9 }).map((_, index) => (<div key={index} className={`animate-pulse rounded-lg bg-white/[0.06] aspect-square`} />))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-1 md:gap-2">
-                {allPhotos.map((media, index) => (
-                   media && (
-                    <button key={index} onClick={() => openLightbox(index)} className="group relative block w-full aspect-square overflow-hidden border border-white/5 bg-[#141414] text-left">
-                       {isVideo(media) ? (
-                         <div className="relative w-full h-full"><video src={media} className="h-full w-full object-cover" muted playsInline preload="metadata" /><div className="absolute inset-0 flex items-center justify-center"><Play className="h-8 w-8 text-white" /></div></div>
-                       ) : (
-                         <img src={media} alt="Gallery" className="block h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105" loading="lazy" />
-                       )}
-                    </button>
-                   )
                 ))}
               </div>
-            )}
-          </div>
+
+              {visiblePhotos.length === 0 && (
+                <div className="text-center py-20 text-white/40 italic">No media found in this album.</div>
+              )}
+            </div>
+          </section>
         )}
-      </section>
 
-      {selectedImage && (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/95 p-3 backdrop-blur-xl md:p-8" onClick={closeLightbox}>
-          <button onClick={closeLightbox} aria-label="Close viewer" className="absolute right-5 top-5 z-[160] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:border-primary hover:text-primary md:right-8 md:top-8">
-            <X className="h-5 w-5" />
-          </button>
-
-          {visiblePhotos.length > 1 && (
-            <button onClick={(event) => { event.stopPropagation(); showPrevious(); }} aria-label="Previous media" className="absolute left-3 top-1/2 z-[160] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white transition hover:border-primary hover:text-primary md:left-8 md:h-14 md:w-14">
-              <ChevronLeft className="h-6 w-6" />
-            </button>
-          )}
-
-          <div className="flex max-h-[88vh] max-w-[90vw] items-center justify-center" onClick={(event) => event.stopPropagation()}>
-            {isVideo(selectedImage) ? (
-              <video key={selectedImage} src={selectedImage} controls autoPlay playsInline className="max-h-[85vh] max-w-full rounded-lg shadow-2xl" />
-            ) : (
-              <img key={selectedImage} src={selectedImage} alt="Hafash fullscreen portfolio" className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl" />
-            )}
-          </div>
-
-          {visiblePhotos.length > 1 && (
-            <button onClick={(event) => { event.stopPropagation(); showNext(); }} aria-label="Next media" className="absolute right-3 top-1/2 z-[160] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white transition hover:border-primary hover:text-primary md:right-8 md:h-14 md:w-14">
-              <ChevronRight className="h-6 w-6" />
-            </button>
-          )}
-
-          <div className="absolute bottom-6 left-0 right-0 text-center">
-            <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/55">
-              {lightboxIndex !== null ? lightboxIndex + 1 : 0} / {visiblePhotos.length}
+        {/* ✅ About Section */}
+        <section id="about" className="relative z-10 border-t border-white/5 py-24 px-5 md:px-10 bg-[#0a0a0a]/80 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto text-center space-y-8">
+            <h2 className="font-headline text-4xl md:text-6xl font-bold text-white">About <span className="text-primary italic">Me</span></h2>
+            <p className="text-lg md:text-xl text-white/60 leading-relaxed max-w-2xl mx-auto">
+              I am a passionate photographer dedicated to capturing the beauty of your special moments. With years of experience in wedding and event photography, I turn fleeting moments into timeless memories.
             </p>
           </div>
-        </div>
-      )}
+        </section>
+
+        {/* ✅ Contact Section */}
+        <section id="contact" className="relative z-10 border-t border-white/5 py-24 px-5 md:px-10 bg-[#0a0a0a]/80 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto text-center space-y-8">
+            <h2 className="font-headline text-4xl md:text-6xl font-bold text-white">Get In <span className="text-primary italic">Touch</span></h2>
+            <p className="text-lg text-white/60">Ready to book your shoot or have a question? Let's connect.</p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-4">
+              <a href={`https://wa.me/${whatsappNumber}`} target="_blank" rel="noopener noreferrer">
+                <Button className="h-14 rounded-full bg-primary px-8 font-bold text-black hover:bg-primary/90">
+                  <Phone className="mr-2 h-5 w-5" /> WhatsApp
+                </Button>
+              </a>
+              <a href="mailto:info@hafash.pk">
+                <Button variant="outline" className="h-14 rounded-full border-white/20 text-white hover:bg-white/10 px-8 font-bold">
+                  Email Us
+                </Button>
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* ✅ LIGHTBOX */}
+        {selectedImage && (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/95 p-3 backdrop-blur-xl md:p-8" onClick={closeLightbox}>
+            <button onClick={closeLightbox} aria-label="Close viewer" className="absolute right-5 top-5 z-[160] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:border-primary hover:text-primary md:right-8 md:top-8">
+              <X className="h-5 w-5" />
+            </button>
+
+            {visiblePhotos.length > 1 && (
+              <button onClick={(event) => { event.stopPropagation(); showPrevious(); }} aria-label="Previous media" className="absolute left-3 top-1/2 z-[160] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white transition hover:border-primary hover:text-primary md:left-8 md:h-14 md:w-14">
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+            )}
+
+            <div className="flex max-h-[88vh] max-w-[90vw] items-center justify-center" onClick={(event) => event.stopPropagation()}>
+              {isVideo(selectedImage) ? (
+                <video key={selectedImage} src={selectedImage} controls autoPlay playsInline className="max-h-[85vh] max-w-full rounded-lg shadow-2xl" />
+              ) : (
+                <img 
+                  key={selectedImage} 
+                  src={selectedImage} 
+                  alt="Hafash fullscreen portfolio" 
+                  onError={(e) => {
+                    console.error("Corrupt Image URL Found:", selectedImage);
+                    alert("Yeh picture corrupt hai ya Firebase se delete ho chuki hai. Console check karein.");
+                    closeLightbox();
+                  }}
+                  className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl" 
+                />
+              )}
+            </div>
+
+            {visiblePhotos.length > 1 && (
+              <button onClick={(event) => { event.stopPropagation(); showNext(); }} aria-label="Next media" className="absolute right-3 top-1/2 z-[160] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white transition hover:border-primary hover:text-primary md:right-8 md:h-14 md:w-14">
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            )}
+
+            <div className="absolute bottom-6 left-0 right-0 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/55">
+                {lightboxIndex !== null ? lightboxIndex + 1 : 0} / {visiblePhotos.length}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </main>
   );
 }
