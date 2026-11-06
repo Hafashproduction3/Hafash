@@ -71,6 +71,18 @@ export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: PlanChange
     setSavingStorage(false);
   };
 
+  // ✅ 8 FEATURES
+  const featuresList = [
+    { key: 'allowDownload', label: 'Allow Downloads' },
+    { key: 'allowPasswordProtection', label: 'Password Protection' },
+    { key: 'allowCustomBranding', label: 'Custom Branding' },
+    { key: 'allowVideoUpload', label: 'Video Uploads' },
+    { key: 'allowSubdomainChange', label: 'Custom Subdomain' },
+    { key: 'allowMusic', label: 'Gallery Music' },
+    { key: 'allowWatermark', label: 'Watermark' },
+    { key: 'allowSlideshow', label: 'Slideshow' },
+  ];
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
       <div className="w-full max-w-lg bg-card border border-border/50 rounded-3xl p-6 lg:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
@@ -111,7 +123,7 @@ export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: PlanChange
           <div className="border-t border-white/10 pt-4"></div>
 
           {/* Plan Selection */}
-          <div className="space-y-3">
+          <div className="space-y-3 relative z-50">
             <Label className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
               <CreditCard className="w-4 h-4" /> Assign Subscription Plan
             </Label>
@@ -119,7 +131,8 @@ export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: PlanChange
               <SelectTrigger className="h-12 bg-background border-border/50">
                 <SelectValue placeholder="Select a plan" />
               </SelectTrigger>
-              <SelectContent>
+              {/* ✅ z-index barha kar 9999 kiya hai */}
+              <SelectContent className="z-[9999]">
                 <SelectItem value="none">No Plan (Inactive)</SelectItem>
                 {Object.values(HAFASH_PLANS).map((plan) => (
                   <SelectItem key={plan.id} value={plan.id}>
@@ -131,13 +144,14 @@ export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: PlanChange
           </div>
 
           {selectedPlan !== 'none' && (
-            <div className="space-y-3">
+            <div className="space-y-3 relative z-50">
               <Label className="text-xs font-bold uppercase tracking-widest text-primary">Duration</Label>
               <Select value={duration} onValueChange={setDuration}>
                 <SelectTrigger className="h-12 bg-background border-border/50">
                   <SelectValue placeholder="Select duration" />
                 </SelectTrigger>
-                <SelectContent>
+                {/* ✅ z-index barha kar 9999 kiya hai */}
+                <SelectContent className="z-[9999]">
                   <SelectItem value="30">1 Month (30 Days)</SelectItem>
                   <SelectItem value="90">3 Months (90 Days)</SelectItem>
                   <SelectItem value="365">1 Year (365 Days)</SelectItem>
@@ -148,18 +162,13 @@ export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: PlanChange
           )}
 
           {/* Feature Toggles */}
-          <div className="p-4 bg-background border border-border/50 rounded-xl space-y-3">
+          <div className="p-4 bg-background border border-border/50 rounded-xl space-y-3 relative z-50">
             <div className="flex items-center gap-2 text-primary mb-2">
               <ShieldAlert className="w-4 h-4" />
               <Label className="text-xs font-bold uppercase tracking-widest">Manual Feature Overrides</Label>
             </div>
             <div className="grid grid-cols-1 gap-2">
-              {[
-                { key: 'allowDownload', label: 'Allow Downloads' },
-                { key: 'allowPasswordProtection', label: 'Password Protection' },
-                { key: 'allowCustomBranding', label: 'Custom Branding' },
-                { key: 'allowVideoUpload', label: 'Video Uploads' },
-              ].map((feat) => {
+              {featuresList.map((feat) => {
                 const currentVal = user.featureOverrides?.[feat.key];
                 return (
                   <div key={feat.key} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
@@ -181,11 +190,12 @@ export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: PlanChange
                       <SelectTrigger className="w-32 h-8 text-xs bg-background">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="z-[200]">
-  <SelectItem value="default">Default (Plan)</SelectItem>
-  <SelectItem value="on">Force ON</SelectItem>
-  <SelectItem value="off">Force OFF</SelectItem>
-</SelectContent>
+                      {/* ✅ z-index barha kar 9999 kiya hai */}
+                      <SelectContent className="z-[9999]">
+                        <SelectItem value="default">Default (Plan)</SelectItem>
+                        <SelectItem value="on">Force ON</SelectItem>
+                        <SelectItem value="off">Force OFF</SelectItem>
+                      </SelectContent>
                     </Select>
                   </div>
                 );

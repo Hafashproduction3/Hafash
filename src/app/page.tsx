@@ -1,16 +1,15 @@
-'use client'; // 👈 Yeh line sabse upar add karni zaroori hai
+'use client';
 
 import Link from 'next/link';
 import { Camera, Shield, Heart, Share2, ArrowRight, Check, Users, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { HAFASH_PLANS } from '@/lib/plans';
-import { useUser } from '@/firebase'; // 👈 Import add kiya
-import { useEffect } from 'react'; // 👈 Import add kiya
+import { useUser } from '@/firebase';
+import { useEffect } from 'react';
 
 export default function LandingPage() {
-  const { user } = useUser(); // 👈 User hook add kiya
+  const { user } = useUser();
 
-  // 👈 TEMPORARY ADMIN CHECK CODE START
   useEffect(() => {
     if (user) {
       user.getIdTokenResult(true).then((token) => {
@@ -20,7 +19,6 @@ export default function LandingPage() {
       console.log("🔍 ADMIN CLAIM CHECK: User logged in nahi hai");
     }
   }, [user]);
-  // 👈 TEMPORARY ADMIN CHECK CODE END
 
   return (
     <div className="flex flex-col min-h-screen bg-background selection:bg-primary selection:text-primary-foreground">
@@ -56,7 +54,6 @@ export default function LandingPage() {
             alt="Luxury Photography Setup" 
             className="w-full h-full object-cover opacity-40 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
           />
-            {/* Cinematic Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
           </div>
@@ -191,6 +188,8 @@ export default function LandingPage() {
           <div className="flex gap-8 text-sm font-medium text-white/50">
             <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
+            {/* ✅ YEH NAYA LINK ADD KIYA HAI */}
+            <Link href="/refund-policy" className="hover:text-primary transition-colors">Refund Policy</Link>
             <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
           </div>
         </div>
