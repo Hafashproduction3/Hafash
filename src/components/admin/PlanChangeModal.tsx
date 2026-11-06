@@ -181,11 +181,11 @@ export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: PlanChange
                       <SelectTrigger className="w-32 h-8 text-xs bg-background">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="default">Default (Plan)</SelectItem>
-                        <SelectItem value="on">Force ON</SelectItem>
-                        <SelectItem value="off">Force OFF</SelectItem>
-                      </SelectContent>
+                      <SelectContent className="z-[200]">
+  <SelectItem value="default">Default (Plan)</SelectItem>
+  <SelectItem value="on">Force ON</SelectItem>
+  <SelectItem value="off">Force OFF</SelectItem>
+</SelectContent>
                     </Select>
                   </div>
                 );

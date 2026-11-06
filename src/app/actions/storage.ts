@@ -149,6 +149,15 @@ export async function requestUploadUrl({
 
     if (!permission.success) return permission;
 
+    // ✅ VIDEO UPLOAD CHECK
+    if (contentType && contentType.startsWith('video/')) {
+      const userSnap = await adminDb.collection('users').doc(userId).get();
+      const userData = userSnap.data();
+      if (userData?.featureOverrides?.allowVideoUpload === false) {
+        return { success: false, error: 'Video uploads are disabled for this account by the admin.' };
+      }
+    }
+
     const fileId = crypto.randomUUID();
     const extension = fileName.split('.').pop() || 'bin';
     const safeExtension = /^[a-zA-Z0-9]{1,10}$/.test(extension)
@@ -282,6 +291,15 @@ export async function startMultipartUpload({
     const permission = await checkUploadPermission(userId, fileSize, galleryId);
 
     if (!permission.success) return permission;
+
+    // ✅ VIDEO UPLOAD CHECK
+    if (contentType && contentType.startsWith('video/')) {
+      const userSnap = await adminDb.collection('users').doc(userId).get();
+      const userData = userSnap.data();
+      if (userData?.featureOverrides?.allowVideoUpload === false) {
+        return { success: false, error: 'Video uploads are disabled for this account by the admin.' };
+      }
+    }
 
     const extension = fileName.split('.').pop() || 'bin';
     const safeExtension = /^[a-zA-Z0-9]{1,10}$/.test(extension)

@@ -58,7 +58,6 @@ const GalleryItem = memo(({
     }
   };
 
-  // ✅ Check karein ke file video hai ya image
   const isVideo = item.contentType?.startsWith('video/') || item.url?.match(/\.(mp4|webm|mov|avi|mkv)$/i);
   const imageSrc = item.thumbUrl || item.url;
 
@@ -79,23 +78,21 @@ const GalleryItem = memo(({
           <Camera className="w-12 h-12 mb-3 opacity-30" />
           <span className="text-xs font-bold uppercase tracking-widest opacity-50">Media Unavailable</span>
         </div>
-            ) : isVideo ? (
-              // ✅ Agar video hai to <video> tag use karein
-              <video
-                src={item.masterUrl || item.url} // 👈 masterUrl use karein
-                className={cn(
-                  "w-full h-full object-cover transition-all duration-1000",
-                  loaded ? "opacity-100" : "opacity-0"
-                )}
-                muted
-                loop
-                playsInline
-                preload="metadata" // 👈 Yeh add karein taake pehla frame load ho
-                onLoadedData={() => setLoaded(true)}
-                onError={() => { setImgError(true); setLoaded(true); }}
-              />
-            ) : (
-        // ✅ Agar photo hai to <Image> tag use karein
+      ) : isVideo ? (
+        <video
+          src={item.masterUrl || item.url}
+          className={cn(
+            "w-full h-full object-cover transition-all duration-1000",
+            loaded ? "opacity-100" : "opacity-0"
+          )}
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          onLoadedData={() => setLoaded(true)}
+          onError={() => { setImgError(true); setLoaded(true); }}
+        />
+      ) : (
         <Image
           src={imageSrc}
           alt={item.fileName || "Gallery Asset"}
@@ -240,7 +237,6 @@ export default function ClientGalleryPage() {
     return doc(firestore, 'galleries', galleryId);
   }, [firestore, galleryId]);
 
-  // ✅ REAL-TIME LISTENER FOR GALLERY UPDATES
   useEffect(() => {
     if (!galleryRef || galleryId === 'demo') {
       setDocLoading(false);
@@ -311,7 +307,6 @@ export default function ClientGalleryPage() {
           : (urlMap[p.storageKey] || p.url),
       }));
       
-      // ✅ DUPLICATE + SORTING FIX: Purani photos hata kar, order ke hisaab se sort karein
       if (reset) {
         const sortedPhotos = [...newPhotos].sort((a, b) => (a.order || 0) - (b.order || 0));
         setPhotos(sortedPhotos);
@@ -320,7 +315,6 @@ export default function ClientGalleryPage() {
           const existingIds = new Set(prev.map(p => p.id));
           const filteredNewPhotos = newPhotos.filter(p => !existingIds.has(p.id));
           const combined = [...prev, ...filteredNewPhotos];
-          // Purani aur nayi sab photos ko order ke hisaab se sort karein
           return combined.sort((a, b) => (a.order || 0) - (b.order || 0));
         });
       }
@@ -601,20 +595,32 @@ export default function ClientGalleryPage() {
     return gallery.isPublic === true;
   }, [gallery, isResolving, docLoading, authLoading, galleryId, galleryParam]);
 
-  // ✅ FIXED WATERMARK LOGIC: Agar download on (isPaid) hai toh watermark nahi hoga
-  // ✅ Download sirf isPaid par depend — isLocked se koi lena dena nahi
+  // ✅ DOWNLOAD CHECK
   const canDownload = useMemo(() => {
     const overrides = profile?.featureOverrides || {};
     if (overrides.allowDownload === false) return false;
     if (overrides.allowDownload === true) return true;
     return gallery ? !!gallery.isPaid : false;
   }, [gallery, profile]);
-// ✅ Watermark tab dikhe jab isLocked true ho
-const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [gallery]);
+
+  // ✅ WATERMARK CHECK
+  const showWatermark = useMemo(() => {
+    const overrides = profile?.featureOverrides || {};
+    if (overrides.allowWatermark === false) return false;
+    if (overrides.allowWatermark === true) return true;
+    return gallery ? !!gallery.isLocked : true;
+  }, [gallery, profile]);
+
   const totalItems = gallery?.items?.length || 0;
-  
   const musicUrl = freshMusicUrl || gallery?.musicUrl || gallery?.backgroundMusic || '';
-  const hasMusic = !!musicUrl;
+  
+  // ✅ MUSIC CHECK
+  const hasMusic = useMemo(() => {
+    const overrides = profile?.featureOverrides || {};
+    if (overrides.allowMusic === false) return false;
+    if (overrides.allowMusic === true) return true;
+    return !!musicUrl;
+  }, [musicUrl, profile]);
 
   const handleEnterGallery = useCallback(() => {
     setIntroLeaving(true);
@@ -723,7 +729,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
   }, [selectedIndex, closeLightbox, goNext, goPrev]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Agar touch image par hai, toh swipe detect mat karein
     if ((e.target as HTMLElement).tagName === 'IMG') {
       touchStartX.current = 0;
       return;
@@ -732,7 +737,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    // Agar touch image par shuru hua tha, toh kuch na karein (zoom ke liye)
     if (touchStartX.current === 0) return;
     if ((e.target as HTMLElement).tagName === 'IMG') return;
 
@@ -938,7 +942,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
 
     setIsPreparing(false);
 
-    // ✅ Videos aur photos alag karein
     const allItems = allPhotos.filter((it: any) => 
       it.originalReady && 
       it.originalKey && 
@@ -949,7 +952,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       it.contentType && it.contentType.startsWith('video/')
     );
 
-    // ✅ Agar sirf videos hain (koi photo nahi)
     if (allItems.length === 0) {
       if (videoItems.length > 0) {
         cancelDownloadAllRef.current = false;
@@ -986,7 +988,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
             console.error('[VIDEO_DOWNLOAD]', err);
           }
 
-          await new Promise(r => setTimeout(r, 2000)); // 2 second ka gap
+          await new Promise(r => setTimeout(r, 2000));
         }
 
         setVideoDownloadProgress(null);
@@ -1004,7 +1006,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       return;
     }
 
-    // ✅ Agar photos ke saath videos hain, to user ko batayein
     if (videoItems.length > 0) {
       toast({
         title: "🎬 Videos Alag Hain",
@@ -1014,7 +1015,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
 
     const totalBatches = Math.ceil(allItems.length / BATCH_SIZE);
     
-    // ✅ SMART RESUME LOGIC
     const storageKey = `hafash_download_progress_${galleryId}`;
     let savedProgress = { completedBatches: [] as number[] };
     try {
@@ -1035,7 +1035,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
         if (cancelDownloadAllRef.current) break;
 
-        // ✅ SKIP LOGIC: Agar yeh batch pehle download ho chuka hai, to skip karein
         if (savedProgress.completedBatches.includes(batchIdx)) {
           console.log(`[RESUME] Skipping Batch ${batchIdx + 1} (already downloaded)`);
           continue;
@@ -1062,7 +1061,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
           completedSuccessfully += count;
           batchesDoneThisSession++;
 
-          // ✅ SAVE PROGRESS
           savedProgress.completedBatches.push(batchIdx);
           localStorage.setItem(storageKey, JSON.stringify(savedProgress));
 
@@ -1179,7 +1177,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         const zip = new JSZip();
         let successCount = 0;
 
-        // ✅ 5 photos ek saath download karein
         const PARALLEL = 5;
         
         for (let i = 0; i < chunk.length; i += PARALLEL) {
@@ -1294,7 +1291,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       return;
     }
 
-    // ✅ Video aur Image ke liye alag extension
     const isVideo = item.contentType?.startsWith('video/') || item.fileName?.match(/\.(mp4|mov|webm|avi|mkv)$/i);
     const extension = isVideo ? 'mp4' : 'jpg';
     const filename = item.fileName || `media-${item.id}.${extension}`;
@@ -1310,25 +1306,21 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
       const data = await res.json();
       if (!data.url) throw new Error('No download URL');
 
-      // ✅ USER KO FORAN BATAYEIN
       toast({
         title: "✅ Download Started",
         description: `${filename} download ho rahi hai. Browser ke downloads mein check karein.`,
       });
 
-      // ✅ SEEDHA DOWNLOAD (Bina kisi dialog ke, foran shuru)
-            // ✅ SEEDHA DOWNLOAD (Bina nayi tab ke)
-            const link = document.createElement('a');
-            link.href = data.url;
-            link.download = filename;
-            link.style.display = 'none'; 
-            // link.target = "_blank";  <-- YEH LINE HONI HI NAHI CHAHIYE
-            document.body.appendChild(link);
-            
-            setTimeout(() => {
-              link.click();
-              document.body.removeChild(link);
-            }, 100);
+      const link = document.createElement('a');
+      link.href = data.url;
+      link.download = filename;
+      link.style.display = 'none'; 
+      document.body.appendChild(link);
+      
+      setTimeout(() => {
+        link.click();
+        document.body.removeChild(link);
+      }, 100);
 
     } catch (error: any) {
       console.error('[DOWNLOAD] Error:', error);
@@ -1411,7 +1403,9 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
     );
   }
 
-  if (!!gallery?.isPasswordProtected && !isUnlocked) {
+  const isPasswordProtectionAllowed = profile?.featureOverrides?.allowPasswordProtection !== false;
+
+  if (!!gallery?.isPasswordProtected && !isUnlocked && isPasswordProtectionAllowed) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 z-0 opacity-15">
@@ -1475,7 +1469,14 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
   if (!gallery) return null;
 
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
-  const isCustomBrandingActive = photographerPlan === 'enterprise';
+  
+  const isCustomBrandingActive = useMemo(() => {
+    const overrides = profile?.featureOverrides || {};
+    if (overrides.allowCustomBranding === false) return false;
+    if (overrides.allowCustomBranding === true) return true;
+    return photographerPlan === 'enterprise';
+  }, [photographerPlan, profile]);
+
   const studioName = gallery.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = freshBranding.studioLogo || profile?.studioLogo || gallery.studioLogo;
   const whatsappNumber = gallery.whatsappNumber || profile?.whatsappNumber;
@@ -1649,13 +1650,11 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         </div>
       )}
 
-                              {/* ✅ HERO SECTION - Clean Layout (No Buttons) */}
       <div className={cn(
         "h-[85vh] lg:h-[90vh] relative overflow-hidden flex flex-col justify-between bg-card shadow-2xl transition-all duration-1000",
         isCustomBrandingActive && profile?.studioBanner && "rounded-b-[4rem] lg:rounded-b-[6rem]"
       )}>
         
-        {/* Background Image */}
         {effectiveHeroImage ? (
           <Image
             src={
@@ -1673,7 +1672,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-tr from-black/90 via-black/40 to-transparent" />
         
-        {/* Top Logo Section */}
         <div className="relative z-10 w-full pt-24 pl-8 lg:pl-16">
           {isCustomBrandingActive ? (
             <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-top-6 duration-1000">
@@ -1695,8 +1693,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
           )}
         </div>
 
-                {/* 3. BOTTOM SECTION (Title & Details) - Shifted Lower */}
-                <div className="relative z-10 w-full pb-8 lg:pb-10 pl-8 lg:pl-16 pr-8 lg:pr-16 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
+        <div className="relative z-10 w-full pb-8 lg:pb-10 pl-8 lg:pl-16 pr-8 lg:pr-16 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
           <div className="w-full max-w-4xl space-y-2">
             <div className="flex flex-col items-start">
               <span className="text-primary tracking-[0.3em] text-[10px] lg:text-xs font-bold uppercase mb-1">
@@ -1746,17 +1743,14 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         </div>
       </div>
 
-      {/* ✅ NEW SECTION: Gallery Buttons (Below Hero, Above Photos) */}
       {!isSelectionMode && (
         <div className="max-w-7xl mx-auto px-4 lg:px-6 mt-16 mb-8 animate-in fade-in slide-in-from-bottom-6 duration-1000">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-white/10 pb-6">
             
-            {/* Left Side: The Gallery Heading */}
             <div className="flex items-center shrink-0">
               <h2 className="text-xl sm:text-2xl font-headline font-bold text-white uppercase tracking-tight">The Gallery</h2>
             </div>
 
-            {/* Right Side: Buttons (Right Corner) */}
             <div className="flex flex-wrap justify-center sm:justify-end items-center gap-2 ml-auto">
               {whatsappNumber && (
                 <Button className="rounded-full px-4 h-9 bg-primary text-primary-foreground hover:bg-primary/90 font-bold gap-1.5 shadow-xl text-[10px] lg:text-xs transition-all hover:scale-105" onClick={() => window.open(`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`, '_blank')}>
@@ -1764,7 +1758,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
                 </Button>
               )}
 
-              {totalItems > 0 && (
+              {totalItems > 0 && profile?.featureOverrides?.allowSlideshow !== false && (
                 <Button 
                   className="rounded-full px-4 h-9 bg-transparent border border-white/30 text-white hover:bg-white/10 font-bold gap-1.5 shadow-xl backdrop-blur-md text-[10px] lg:text-xs transition-all hover:scale-105"
                   onClick={() => { openLightbox(0); setIsSlideshowPlaying(true); }}
@@ -1907,7 +1901,6 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         </div>
       )}
 
-      {/* ✅ Grid - 6 to 7 columns on large screens, smaller items */}
       <div className="max-w-7xl mx-auto px-4 lg:px-6 mt-24 space-y-20">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 lg:gap-4 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
           {gallery.items?.map((item: any, idx: number) => (
@@ -2067,7 +2060,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
         </div>
       )}
 
-{videoDownloadProgress && (
+      {videoDownloadProgress && (
         <div className="fixed inset-0 z-[100] bg-background/95 backdrop-blur-3xl flex items-center justify-center p-6 animate-in fade-in duration-500">
           <div className="w-full max-w-md bg-card border border-primary/30 rounded-[2.5rem] p-10 space-y-8 shadow-[0_50px_100px_rgba(0,0,0,0.6)] text-center">
             <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 border-2 border-primary/30 relative">
@@ -2228,32 +2221,32 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
               decoding="async"
             />
 
-{gallery.items[selectedIndex].contentType?.startsWith('video/') || 
- gallery.items[selectedIndex].url?.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
-  <video
-    key={gallery.items[selectedIndex].url}
-    src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
-    controls
-    autoPlay
-    playsInline
-    onClick={(e) => e.stopPropagation()}
-    className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
-  />
-) : (
-  <Image
-    key={gallery.items[selectedIndex].url}
-    src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
-    alt="Fullscreen"
-    width={1920}
-    height={1080}
-    quality={85}
-    sizes="100vw"
-    priority
-    fetchPriority="high"
-    onClick={(e) => e.stopPropagation()}
-    className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
-  />
-)}
+            {gallery.items[selectedIndex].contentType?.startsWith('video/') || 
+             gallery.items[selectedIndex].url?.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
+              <video
+                key={gallery.items[selectedIndex].url}
+                src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
+                controls
+                autoPlay
+                playsInline
+                onClick={(e) => e.stopPropagation()}
+                className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
+              />
+            ) : (
+              <Image
+                key={gallery.items[selectedIndex].url}
+                src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
+                alt="Fullscreen"
+                width={1920}
+                height={1080}
+                quality={85}
+                sizes="100vw"
+                priority
+                fetchPriority="high"
+                onClick={(e) => e.stopPropagation()}
+                className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
+              />
+            )}
 
             {showWatermark && (
               <div className="luxury-watermark pointer-events-none" />
@@ -2264,7 +2257,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
             className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-3 rounded-full bg-black/60 backdrop-blur-xl border border-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {totalItems > 1 && (
+            {totalItems > 1 && profile?.featureOverrides?.allowSlideshow !== false && (
               <Button 
                 variant="ghost" 
                 size="icon"
@@ -2313,7 +2306,7 @@ const showWatermark = useMemo(() => gallery ? !!gallery.isLocked : true, [galler
             </Button>
           </div>
 
-          {isSlideshowPlaying && (
+          {isSlideshowPlaying && profile?.featureOverrides?.allowSlideshow !== false && (
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10 z-40">
               <div 
                 className="h-full bg-primary transition-all ease-linear"
