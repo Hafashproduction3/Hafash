@@ -2,8 +2,6 @@
 
 import {
   Phone,
-  Instagram,
-  X,
   Camera,
   Play,
   Aperture,
@@ -15,6 +13,7 @@ import {
   MessageCircle,
   Video,
   Grid,
+  X, // 👈 YEH ADD KAREIN
 } from "lucide-react";
 
 import Link from "next/link";
@@ -108,11 +107,10 @@ export default function HafashMasterPortfolio() {
   const aboutImage = basicData?.aboutImage || "https://images.unsplash.com/photo-1537633552985-df8429e8048b?q=80&w=1000";
   const bioText = basicData?.bioText || "I don't just take pictures; I curate timeless memories.";
   const whatsapp = basicData?.whatsapp || "923001234567";
-  const instagram = basicData?.instagram || "https://instagram.com";
   
   const yearsExperience = basicData?.yearsExperience || "5+";
   const totalWeddings = basicData?.totalWeddings || "200+";
-  const happyClients = basicData?.happyClients || "100%";
+  const projectsCompleted = basicData?.happyClients || "100%"; // 👈 "Happy Clients" ki jagah "Projects Completed"
 
   const currentAlbum = albumsWithPhotos.find((a: any) => a.id === activeAlbum);
   
@@ -149,17 +147,16 @@ export default function HafashMasterPortfolio() {
 
   const phoneNumber = String(whatsapp).replace(/\D/g, "");
   const whatsappNumber = phoneNumber.startsWith("0") ? `92${phoneNumber.slice(1)}` : phoneNumber;
-  const instagramUrl = String(instagram).startsWith("http") ? instagram : `https://instagram.com/${String(instagram).replace("@", "")}`;
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
-    window.history.pushState({ lightbox: true }, ''); // 👈 History mein entry
+    window.history.pushState({ lightbox: true }, ''); 
   };
 
   const closeLightbox = useCallback(() => {
     if (lightboxIndex !== null) {
       setLightboxIndex(null);
-      window.history.back(); // 👈 History clear
+      window.history.back(); 
     }
   }, [lightboxIndex]);
 
@@ -250,13 +247,6 @@ export default function HafashMasterPortfolio() {
               Enter The Gallery
               <ArrowRight className="ml-4 h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />
             </Button>
-            
-            <button 
-              onClick={() => router.push('/')}
-              className="text-[10px] font-light uppercase tracking-[0.25em] text-white/40 hover:text-white transition-colors"
-            >
-              Back to Platform
-            </button>
           </div>
         </div>
 
@@ -299,17 +289,7 @@ export default function HafashMasterPortfolio() {
             </div>
           </button>
 
-          <div className="flex items-center gap-3">
-            <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/65 transition hover:border-primary hover:text-primary">
-              <Instagram className="h-4 w-4" />
-            </a>
-            <button 
-              onClick={() => router.push('/')}
-              className="h-9 rounded-full border border-white/15 bg-white/[0.03] px-4 text-[9px] font-bold uppercase tracking-widest text-white/80 hover:border-primary hover:bg-primary hover:text-black transition-colors flex items-center"
-            >
-              Back to Platform
-            </button>
-          </div>
+          {/* ✅ Instagram aur Back to Platform remove kar diye gaye hain */}
         </div>
       </nav>
 
@@ -338,7 +318,7 @@ export default function HafashMasterPortfolio() {
             <div className="portfolio-fade order-1 space-y-7 text-center lg:order-2 lg:text-left">
               <div className="inline-flex items-center gap-3 text-[10px] font-bold uppercase tracking-[0.35em] text-primary">
                 <span className="h-px w-8 bg-primary" />
-                Welcome To My World
+                Welcome To Hafash Production {/* 👈 Text change kiya */}
                 <span className="h-px w-8 bg-primary lg:hidden" />
               </div>
 
@@ -360,8 +340,8 @@ export default function HafashMasterPortfolio() {
                   <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Weddings</p>
                 </div>
                 <div>
-                  <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{happyClients}</p>
-                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Happy Clients</p>
+                  <p className="font-headline text-4xl font-bold text-primary md:text-5xl">{projectsCompleted}</p>
+                  <p className="mt-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/45 md:text-[11px]">Projects Completed</p> {/* 👈 Label change kiya */}
                 </div>
               </div>
 
@@ -371,11 +351,7 @@ export default function HafashMasterPortfolio() {
                     <Phone className="mr-2 h-5 w-5" /> Book Your Shoot
                   </Button>
                 </a>
-                <a href={instagramUrl} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" className="h-14 w-full rounded-xl border-white/20 bg-transparent px-8 font-bold text-white hover:border-primary hover:bg-white/[0.05] sm:w-auto">
-                    <Instagram className="mr-2 h-5 w-5" /> Follow Us
-                  </Button>
-                </a>
+                {/* ✅ Instagram "Follow Us" button remove kar diya gaya hai */}
               </div>
             </div>
           </div>
