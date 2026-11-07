@@ -167,6 +167,7 @@ export default function ClientGalleryPage() {
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [lightboxImgLoaded, setLightboxImgLoaded] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preparationStep, setPreparationStep] = useState<string>('');
   
@@ -689,6 +690,7 @@ export default function ClientGalleryPage() {
   }, [isMusicMuted]);
 
   const openLightbox = useCallback((index: number) => {
+    setLightboxImgLoaded(false);
     if (typeof window !== 'undefined' && galleryParam) {
       const scrollY = window.scrollY;
       scrollPositionRef.current = scrollY;
@@ -707,6 +709,7 @@ export default function ClientGalleryPage() {
   }, [galleryParam]);
 
   const closeLightbox = useCallback(() => {
+    setLightboxImgLoaded(false);
     const savedScroll = scrollPositionRef.current;
     
     if (!isClosingViaPopstateRef.current && lightboxOpenRef.current) {
@@ -2208,17 +2211,19 @@ export default function ClientGalleryPage() {
             </Button>
           )}
 
-          <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
+<div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
+            
+            {/* ✅ 1. Thumbnail - Foran dikhegi (jab tak high quality load na ho) */}
             <img
-              src={
-                gallery.items[selectedIndex].thumbUrl ||
-                gallery.items[selectedIndex].url
-              }
-              alt="Photo preview"
-              className="absolute inset-0 w-full h-full object-cover blur-xl scale-110 opacity-60 rounded-2xl"
-              decoding="async"
+              src={gallery.items[selectedIndex].thumbUrl || gallery.items[selectedIndex].url}
+              alt="Preview"
+              className={cn(
+                "absolute max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl transition-opacity duration-300",
+                lightboxImgLoaded ? "opacity-0" : "opacity-100"
+              )}
             />
 
+            {/* ✅ 2. High Quality - Peeche se load hogi */}
             {gallery.items[selectedIndex].contentType?.startsWith('video/') || 
              gallery.items[selectedIndex].url?.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
               <video
@@ -2242,7 +2247,15 @@ export default function ClientGalleryPage() {
                 priority
                 fetchPriority="high"
                 onClick={(e) => e.stopPropagation()}
-                className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
+                onLoad={() => setLightboxImgLoaded(true)}
+                onError={() => {
+                  // Agar high-res load na ho, toh thumbnail hi dikhti rahe
+                  setLightboxImgLoaded(false);
+                }}
+                className={cn(
+                  "relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 transition-opacity duration-300",
+                  lightboxImgLoaded ? "opacity-100" : "opacity-0"
+                )}
               />
             )}
 
