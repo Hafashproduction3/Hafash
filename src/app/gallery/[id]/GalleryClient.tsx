@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useState, useEffect, useMemo, memo, useCallback, useRef } from 'react';
 import { 
   collection, query, where, getDocs, doc, updateDoc, increment, 
-  limit, arrayUnion, orderBy, startAfter, getDocFromServer, onSnapshot 
+  limit, orderBy, startAfter, onSnapshot 
 } from 'firebase/firestore';
 import { HafashLoader } from '@/components/ui/hafash-loader';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,7 @@ import { ReviewFormSection } from '@/components/gallery/ReviewFormSection';
 import { saveAs } from 'file-saver';
 import { type PlanId } from '@/lib/plans';
 import { getFreshMusicUrl, refreshPhotoUrls } from '@/app/actions/storage';
+import CryptoJS from 'crypto-js';
 
 const SLIDESHOW_INTERVAL = 4000;
 const GALLERY_PAGE_SIZE = 100
@@ -162,6 +163,7 @@ export default function ClientGalleryPage() {
   const { toast } = useToast();
   const router = useRouter();
   
+  // ✅ STATES
   const [galleryId, setGalleryId] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -189,18 +191,13 @@ export default function ClientGalleryPage() {
   const [isSlideshowPlaying, setIsSlideshowPlaying] = useState(false);
   const [isMusicMuted, setIsMusicMuted] = useState(false);
   const [freshMusicUrl, setFreshMusicUrl] = useState<string>('');
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const touchStartX = useRef<number>(0);
-  const touchEndX = useRef<number>(0);
+  const [freshBranding, setFreshBranding] = useState<{
+    studioLogo?: string;
+    studioBanner?: string;
+    photographerPhoto?: string;
+  }>({});
   
-  const scrollPositionRef = useRef<number>(0);
-  const hasRestoredScrollRef = useRef<boolean>(false);
-  const lightboxOpenRef = useRef<boolean>(false);
-  const isClosingViaPopstateRef = useRef<boolean>(false);
-  
-  const noteRef = useRef<HTMLDivElement | null>(null);
   const [noteVisible, setNoteVisible] = useState(false);
-
   const [downloadAllActive, setDownloadAllActive] = useState(false);
   const [downloadAllBatch, setDownloadAllBatch] = useState(0);
   const [downloadAllTotalBatches, setDownloadAllTotalBatches] = useState(0);
@@ -210,17 +207,26 @@ export default function ClientGalleryPage() {
   const [showBatchPopup, setShowBatchPopup] = useState(false);
   const [batchPopupMessage, setBatchPopupMessage] = useState('');
   const [autoContinueCountdown, setAutoContinueCountdown] = useState(0);
+
+  // ✅ REFS
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const touchStartX = useRef<number>(0);
+  const touchEndX = useRef<number>(0);
+  const scrollPositionRef = useRef<number>(0);
+  const hasRestoredScrollRef = useRef<boolean>(false);
+  const lightboxOpenRef = useRef<boolean>(false);
+  const isClosingViaPopstateRef = useRef<boolean>(false);
+  const noteRef = useRef<HTMLDivElement | null>(null);
   const cancelDownloadAllRef = useRef<boolean>(false);
 
+  // ✅ MEMOIZED CONSTANTS (Top - No dependencies on later variables)
   const isMobile = useMemo(() => {
     if (typeof navigator === 'undefined') return false;
     return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   }, []);
 
   const MAX_SELECT = isMobile ? 100 : 200;
-  const BATCH_SIZE = isMobile
-  ? DOWNLOAD_ALL_MOBILE_BATCH_SIZE
-  : DOWNLOAD_ALL_DESKTOP_BATCH_SIZE;
+  const BATCH_SIZE = isMobile ? DOWNLOAD_ALL_MOBILE_BATCH_SIZE : DOWNLOAD_ALL_DESKTOP_BATCH_SIZE;
   const DOWNLOAD_ALL_PARALLEL = isMobile ? 3 : 6;
 
   const demoItems = useMemo(() => [
@@ -237,6 +243,98 @@ export default function ClientGalleryPage() {
     return doc(firestore, 'galleries', galleryId);
   }, [firestore, galleryId]);
 
+  // ✅ ALL CALCULATIONS (Top - Before callbacks that depend on them)
+  const gallery = useMemo(() => {
+    if (galleryParam === 'demo' || galleryId === 'demo') {
+      return {
+        id: 'demo',
+        title: 'Hafash Showcase',
+        clientName: 'Luxury Experience',
+        date: 'Dec 2024',
+        category: 'Wedding',
+        coverImage: 'https://picsum.photos/seed/hafash-demo-1/1920/1080',
+        items: demoItems,
+        mediaCount: 6,
+        isPublic: true,
+        isLocked: false,
+        isPaid: true,
+        photographerNote: "Every photograph here is a moment we held on to — a laugh, a tear, a promise whispered in the middle of the celebration. It was an honour to witness your story.",
+        welcomeTitle: "Explore Your Moments",
+        studioName: "Hafash.pk Studios",
+        whatsappNumber: "+920000000000",
+        musicUrl: ''
+      };
+    }
+    if (!dbGallery) return null;
+    return { ...dbGallery, items: photos };
+  }, [dbGallery, photos, galleryId, galleryParam, demoItems]);
+
+  const photographerRef = useMemo(() => {
+    if (!firestore || !gallery?.userId) return null;
+    return doc(firestore, 'publicProfiles', gallery.userId);
+  }, [firestore, gallery?.userId]);
+
+  const { data: profile } = useDoc(photographerRef);
+
+  const isAvailable = useMemo(() => {
+    if (galleryParam === 'demo') return true;
+    if (isResolving || (galleryId && docLoading) || authLoading) return false;
+    if (!gallery) return false;
+    return gallery.isPublic === true;
+  }, [gallery, isResolving, docLoading, authLoading, galleryId, galleryParam]);
+
+  const canDownload = useMemo(() => {
+    const overrides = profile?.featureOverrides || {};
+    if (overrides.allowDownload === false) return false;
+    if (overrides.allowDownload === true) return true;
+    return gallery ? !!gallery.isPaid : false;
+  }, [gallery, profile]);
+
+  const showWatermark = useMemo(() => {
+    const overrides = profile?.featureOverrides || {};
+    if (overrides.allowWatermark === false) return false;
+    if (overrides.allowWatermark === true) return true;
+    return gallery ? !!gallery.isLocked : true;
+  }, [gallery, profile]);
+
+  const totalItems = gallery?.items?.length || 0;
+  const musicUrl = freshMusicUrl || gallery?.musicUrl || gallery?.backgroundMusic || '';
+  
+  const hasMusic = useMemo(() => {
+    const overrides = profile?.featureOverrides || {};
+    if (overrides.allowMusic === false) return false;
+    if (overrides.allowMusic === true) return true;
+    return !!musicUrl;
+  }, [musicUrl, profile]);
+
+  const isOwner = useMemo(() => {
+    if (!user?.uid || !gallery?.userId) return false;
+    return user.uid === gallery.userId;
+  }, [user?.uid, gallery?.userId]);
+
+  const photographerPlan = (profile?.planId || 'starter') as PlanId;
+  
+  const isCustomBrandingActive = useMemo(() => {
+    const overrides = profile?.featureOverrides || {};
+    if (overrides.allowCustomBranding === false) return false;
+    if (overrides.allowCustomBranding === true) return true;
+    return photographerPlan === 'enterprise';
+  }, [photographerPlan, profile]);
+
+  const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
+  const studioLogo = freshBranding.studioLogo || profile?.studioLogo || gallery?.studioLogo;
+  const whatsappNumber = gallery?.whatsappNumber || profile?.whatsappNumber;
+  const effectiveHeroImage = (isCustomBrandingActive && (freshBranding.studioBanner || profile?.studioBanner)) 
+    ? (freshBranding.studioBanner || profile?.studioBanner)
+    : (gallery?.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
+  const hasNoteContent = !!(gallery?.photographerNote && gallery.photographerNote.trim().length > 0);
+
+  const isLoading = useMemo(() => {
+    if (galleryParam === 'demo') return isResolving || authLoading;
+    return isResolving || (galleryId && docLoading) || authLoading;
+  }, [galleryParam, isResolving, galleryId, docLoading, authLoading]);
+
+  // ✅ EFFECTS
   useEffect(() => {
     if (!galleryRef || galleryId === 'demo') {
       setDocLoading(false);
@@ -452,31 +550,6 @@ export default function ClientGalleryPage() {
     resolve();
   }, [firestore, galleryParam]);
 
-  const gallery = useMemo(() => {
-    if (galleryParam === 'demo' || galleryId === 'demo') {
-      return {
-        id: 'demo',
-        title: 'Hafash Showcase',
-        clientName: 'Luxury Experience',
-        date: 'Dec 2024',
-        category: 'Wedding',
-        coverImage: 'https://picsum.photos/seed/hafash-demo-1/1920/1080',
-        items: demoItems,
-        mediaCount: 6,
-        isPublic: true,
-        isLocked: false,
-        isPaid: true,
-        photographerNote: "Every photograph here is a moment we held on to — a laugh, a tear, a promise whispered in the middle of the celebration. It was an honour to witness your story.",
-        welcomeTitle: "Explore Your Moments",
-        studioName: "Hafash.pk Studios",
-        whatsappNumber: "+920000000000",
-        musicUrl: ''
-      };
-    }
-    if (!dbGallery) return null;
-    return { ...dbGallery, items: photos };
-  }, [dbGallery, photos, galleryId, galleryParam, demoItems]);
-
   useEffect(() => {
     if (galleryId) {
       const stored = sessionStorage.getItem(`unlocked_gallery_${galleryId}`);
@@ -542,19 +615,6 @@ export default function ClientGalleryPage() {
     };
   }, [gallery?.photographerNote, showIntro]);
 
-  const photographerRef = useMemo(() => {
-    if (!firestore || !gallery?.userId) return null;
-    return doc(firestore, 'publicProfiles', gallery.userId);
-  }, [firestore, gallery?.userId]);
-
-  const { data: profile } = useDoc(photographerRef);
-
-  const [freshBranding, setFreshBranding] = useState<{
-    studioLogo?: string;
-    studioBanner?: string;
-    photographerPhoto?: string;
-  }>({});
-
   useEffect(() => {
     async function refreshBranding() {
       if (!profile) return;
@@ -583,44 +643,27 @@ export default function ClientGalleryPage() {
     refreshBranding();
   }, [profile]);
 
-  const isOwner = useMemo(() => {
-    if (!user?.uid || !gallery?.userId) return false;
-    return user.uid === gallery.userId;
-  }, [user?.uid, gallery?.userId]);
+  // ✅ ALL CALLBACKS (After all calculations)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if ((e.target as HTMLElement).tagName === 'IMG') {
+      touchStartX.current = 0;
+      return;
+    }
+    touchStartX.current = e.touches[0].clientX;
+  };
 
-  const isAvailable = useMemo(() => {
-    if (galleryParam === 'demo') return true;
-    if (isResolving || (galleryId && docLoading) || authLoading) return false;
-    if (!gallery) return false;
-    return gallery.isPublic === true;
-  }, [gallery, isResolving, docLoading, authLoading, galleryId, galleryParam]);
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX.current === 0) return;
+    if ((e.target as HTMLElement).tagName === 'IMG') return;
 
-  // ✅ DOWNLOAD CHECK
-  const canDownload = useMemo(() => {
-    const overrides = profile?.featureOverrides || {};
-    if (overrides.allowDownload === false) return false;
-    if (overrides.allowDownload === true) return true;
-    return gallery ? !!gallery.isPaid : false;
-  }, [gallery, profile]);
-
-  // ✅ WATERMARK CHECK
-  const showWatermark = useMemo(() => {
-    const overrides = profile?.featureOverrides || {};
-    if (overrides.allowWatermark === false) return false;
-    if (overrides.allowWatermark === true) return true;
-    return gallery ? !!gallery.isLocked : true;
-  }, [gallery, profile]);
-
-  const totalItems = gallery?.items?.length || 0;
-  const musicUrl = freshMusicUrl || gallery?.musicUrl || gallery?.backgroundMusic || '';
-  
-  // ✅ MUSIC CHECK
-  const hasMusic = useMemo(() => {
-    const overrides = profile?.featureOverrides || {};
-    if (overrides.allowMusic === false) return false;
-    if (overrides.allowMusic === true) return true;
-    return !!musicUrl;
-  }, [musicUrl, profile]);
+    touchEndX.current = e.changedTouches[0].clientX;
+    const diff = touchStartX.current - touchEndX.current;
+    if (Math.abs(diff) > 60) {
+      setIsSlideshowPlaying(false);
+      if (diff > 0) goNext();
+      else goPrev();
+    }
+  };
 
   const handleEnterGallery = useCallback(() => {
     setIntroLeaving(true);
@@ -727,27 +770,6 @@ export default function ClientGalleryPage() {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [selectedIndex, closeLightbox, goNext, goPrev]);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if ((e.target as HTMLElement).tagName === 'IMG') {
-      touchStartX.current = 0;
-      return;
-    }
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === 0) return;
-    if ((e.target as HTMLElement).tagName === 'IMG') return;
-
-    touchEndX.current = e.changedTouches[0].clientX;
-    const diff = touchStartX.current - touchEndX.current;
-    if (Math.abs(diff) > 60) {
-      setIsSlideshowPlaying(false);
-      if (diff > 0) goNext();
-      else goPrev();
-    }
-  };
 
   useEffect(() => {
     if (!firestore || !galleryId || galleryId === 'demo') return;
@@ -1340,11 +1362,7 @@ export default function ClientGalleryPage() {
     setPasswordError(false);
     
     try {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(passwordInput);
-      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashedInput = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      const hashedInput = CryptoJS.SHA256(passwordInput).toString();
       
       if (hashedInput === gallery.hashedPassword) {
         setIsUnlocked(true);
@@ -1372,11 +1390,8 @@ export default function ClientGalleryPage() {
     }
   }, [galleryParam]);
 
-  const isLoading = useMemo(() => {
-    if (galleryParam === 'demo') return isResolving || authLoading;
-    return isResolving || (galleryId && docLoading) || authLoading;
-  }, [galleryParam, isResolving, galleryId, docLoading, authLoading]);
-
+  // ✅ EARLY RETURNS
+  
   if (isLoading) {
     return <HafashLoader text="Synchronizing Luxury Assets..." />;
   }
@@ -1467,23 +1482,6 @@ export default function ClientGalleryPage() {
   }
 
   if (!gallery) return null;
-
-  const photographerPlan = (profile?.planId || 'starter') as PlanId;
-  
-  const isCustomBrandingActive = useMemo(() => {
-    const overrides = profile?.featureOverrides || {};
-    if (overrides.allowCustomBranding === false) return false;
-    if (overrides.allowCustomBranding === true) return true;
-    return photographerPlan === 'enterprise';
-  }, [photographerPlan, profile]);
-
-  const studioName = gallery.studioName || profile?.studioName || 'Professional Studio';
-  const studioLogo = freshBranding.studioLogo || profile?.studioLogo || gallery.studioLogo;
-  const whatsappNumber = gallery.whatsappNumber || profile?.whatsappNumber;
-  const effectiveHeroImage = (isCustomBrandingActive && (freshBranding.studioBanner || profile?.studioBanner)) 
-    ? (freshBranding.studioBanner || profile?.studioBanner)
-    : (gallery.coverImage || 'https://picsum.photos/seed/hafash-hero/1920/1080');
-  const hasNoteContent = !!(gallery.photographerNote && gallery.photographerNote.trim().length > 0);
 
   if (showIntro) {
     return (
