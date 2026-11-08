@@ -130,7 +130,7 @@ const GalleryItem = memo(({
       {showWatermark && <div className="luxury-watermark" />}
       
       {!isSelectionMode && (
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm">
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm pointer-events-none group-hover:pointer-events-auto">
           <div className="flex gap-3 scale-75 group-hover:scale-100 transition-transform duration-500">
             <Button 
               size="icon" 
@@ -2213,17 +2213,15 @@ export default function ClientGalleryPage() {
 
 <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
             
-            {/* ✅ 1. Thumbnail - Foran dikhegi (jab tak high quality load na ho) */}
             <img
               src={gallery.items[selectedIndex].thumbUrl || gallery.items[selectedIndex].url}
               alt="Preview"
               className={cn(
-                "absolute max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl transition-opacity duration-300",
+                "absolute inset-0 m-auto max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-2xl transition-opacity duration-300",
                 lightboxImgLoaded ? "opacity-0" : "opacity-100"
               )}
             />
 
-            {/* ✅ 2. High Quality - Peeche se load hogi */}
             {gallery.items[selectedIndex].contentType?.startsWith('video/') || 
              gallery.items[selectedIndex].url?.match(/\.(mp4|webm|mov|avi|mkv)$/i) ? (
               <video
@@ -2249,11 +2247,10 @@ export default function ClientGalleryPage() {
                 onClick={(e) => e.stopPropagation()}
                 onLoad={() => setLightboxImgLoaded(true)}
                 onError={() => {
-                  // Agar high-res load na ho, toh thumbnail hi dikhti rahe
                   setLightboxImgLoaded(false);
                 }}
                 className={cn(
-                  "relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 transition-opacity duration-300",
+                  "absolute inset-0 m-auto max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 transition-opacity duration-300",
                   lightboxImgLoaded ? "opacity-100" : "opacity-0"
                 )}
               />
