@@ -1,7 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { Camera, Shield, Heart, Share2, ArrowRight, Check, Users, Sparkles } from 'lucide-react';
+import { 
+  Camera, Shield, Heart, Share2, ArrowRight, Check, Users, Sparkles,
+  Gift, HardDrive, Award, Image as ImageIcon, Video
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { HAFASH_PLANS } from '@/lib/plans';
 import { useUser } from '@/firebase';
@@ -15,8 +18,6 @@ export default function LandingPage() {
       user.getIdTokenResult(true).then((token) => {
         console.log("🔍 ADMIN CLAIM CHECK:", token.claims.admin);
       });
-    } else {
-      console.log("🔍 ADMIN CLAIM CHECK: User logged in nahi hai");
     }
   }, [user]);
 
@@ -33,6 +34,7 @@ export default function LandingPage() {
         <nav className="hidden md:flex gap-10">
           <Link href="#features" className="text-sm font-medium text-white/70 hover:text-primary transition-colors">Features</Link>
           <Link href="#pricing" className="text-sm font-medium text-white/70 hover:text-primary transition-colors">Pricing</Link>
+          <Link href="#referral" className="text-sm font-medium text-white/70 hover:text-primary transition-colors">Refer & Earn</Link>
           <Link href="#about" className="text-sm font-medium text-white/70 hover:text-primary transition-colors">About</Link>
         </nav>
         <div className="flex items-center gap-3 lg:gap-5">
@@ -49,11 +51,11 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="relative h-screen flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 z-0">
-          <img 
-            src="https://i.postimg.cc/MH88pvhh/nikon.jpg" 
-            alt="Luxury Photography Setup" 
-            className="w-full h-full object-cover opacity-40 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
-          />
+            <img 
+              src="https://images.unsplash.com/photo-1516035069371-29a1b244cc32?q=80&w=2070&auto=format&fit=crop" 
+              alt="Luxury Photography Setup" 
+              className="w-full h-full object-cover opacity-40 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
+            />
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.6)_100%)]" />
           </div>
@@ -118,15 +120,90 @@ export default function LandingPage() {
                 description="One-click sharing via WhatsApp or direct links for an effortless client experience."
               />
               <FeatureCard 
-                icon={<Users className="w-6 h-6" />}
-                title="Role-Based Access"
-                description="Tailored experiences for both photographers managing assets and clients enjoying them."
+                icon={<HardDrive className="w-6 h-6" />}
+                title="Hafash Drive"
+                description="A powerful cloud storage for your raw files. Manage, organize, and create galleries from your drive."
               />
               <FeatureCard 
-                icon={<Sparkles className="w-6 h-6" />}
-                title="Storage Plans"
-                description="Flexible storage options from 50GB to 250GB to grow with your photography business."
+                icon={<Video className="w-6 h-6" />}
+                title="HD Video Support"
+                description="Deliver cinematic videos in up to 4K quality alongside your photos."
               />
+              <FeatureCard 
+                icon={<Gift className="w-6 h-6" />}
+                title="Refer & Earn"
+                description="Invite fellow photographers and earn 10GB bonus storage for every active referral."
+              />
+              <FeatureCard 
+                icon={<Award className="w-6 h-6" />}
+                title="Custom Branding"
+                description="White-label your galleries with your own logo, colors, and custom subdomain."
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Referral Highlight Section */}
+        <section id="referral" className="py-24 px-6 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 via-background to-background" />
+          <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-500/10 blur-3xl rounded-full" />
+          
+          <div className="max-w-5xl mx-auto relative z-10">
+            <div className="grid md:grid-cols-2 gap-12 items-center">
+              <div className="space-y-6">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-violet-500/15 border border-violet-500/30 text-violet-400 text-[10px] font-bold uppercase tracking-widest">
+                  <Gift className="w-3 h-3" /> Referral Program
+                </div>
+                <h2 className="text-4xl lg:text-5xl font-headline font-bold leading-tight">
+                  Invite Friends,<br />
+                  <span className="text-violet-400 italic">Earn 10GB Free</span>
+                </h2>
+                <p className="text-lg text-white/60 leading-relaxed">
+                  Share your unique referral link with fellow photographers. Every time a friend subscribes to a paid plan, you get <span className="text-violet-400 font-bold">10GB bonus storage</span> — completely free, for as long as they stay subscribed.
+                </p>
+                <div className="flex flex-wrap gap-4 pt-4">
+                  <div className="flex items-center gap-2">
+                    <Check className="w-5 h-5 text-violet-400" />
+                    <span className="text-sm text-white/80">Unlimited referrals</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-5 h-5 text-violet-400" />
+                    <span className="text-sm text-white/80">Automatic rewards</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Check className="w-5 h-5 text-violet-400" />
+                    <span className="text-sm text-white/80">No expiration</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-br from-violet-500/20 to-transparent blur-2xl rounded-3xl" />
+                <div className="relative bg-card/80 backdrop-blur-2xl border border-violet-500/30 rounded-3xl p-8 space-y-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                      <Gift className="w-6 h-6 text-violet-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-widest text-white/50 font-bold">Your Rewards</p>
+                      <p className="text-2xl font-headline font-bold text-white">+30 GB</p>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-white/60">Active Referrals</span>
+                      <span className="text-violet-400 font-bold">3 Friends</span>
+                    </div>
+                    <div className="h-2 bg-background/50 rounded-full overflow-hidden">
+                      <div className="h-full w-full bg-gradient-to-r from-violet-500 to-violet-400 rounded-full" />
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-white/40">Storage Bonus</span>
+                      <span className="text-white/80 font-bold">+30GB</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -139,10 +216,12 @@ export default function LandingPage() {
               <p className="text-muted-foreground text-lg max-w-2xl mx-auto">Scalable cloud storage and tiered processing for studios of all sizes.</p>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {Object.values(HAFASH_PLANS).map((plan) => (
-                <PricingCard key={plan.id} plan={plan} />
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {Object.values(HAFASH_PLANS)
+                .filter((plan) => plan.id !== 'trial')
+                .map((plan) => (
+                  <PricingCard key={plan.id} plan={plan} />
+                ))}
             </div>
           </div>
         </section>
@@ -177,6 +256,29 @@ export default function LandingPage() {
             <p className="text-white/50 text-lg uppercase tracking-[0.3em] font-bold">— Hafash.pk Philosophy</p>
           </div>
         </section>
+
+        {/* CTA Section */}
+        <section className="py-24 px-6 relative overflow-hidden">
+          <div className="max-w-4xl mx-auto text-center space-y-8">
+            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-[11px] font-bold uppercase tracking-[0.3em]">
+              <Sparkles className="w-3.5 h-3.5" /> Start Free Today
+            </div>
+            <h2 className="text-4xl lg:text-6xl font-headline font-bold leading-tight">
+              Ready to Deliver <span className="text-primary italic">Beautifully?</span>
+            </h2>
+            <p className="text-lg text-white/60 max-w-2xl mx-auto">
+              Join hundreds of photographers who are transforming how they deliver memories.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+              <Link href="/signup">
+                <Button size="lg" className="h-14 px-10 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-sm shadow-[0_0_40px_rgba(212,175,55,0.3)] hover:scale-105 transition-all">
+                  Start Free Trial
+                  <ArrowRight className="ml-2 w-4 h-4" />
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
 
       <footer className="py-12 px-6 border-t border-white/5 bg-black/40">
@@ -188,7 +290,6 @@ export default function LandingPage() {
           <div className="flex gap-8 text-sm font-medium text-white/50">
             <Link href="/terms" className="hover:text-primary transition-colors">Terms</Link>
             <Link href="/privacy" className="hover:text-primary transition-colors">Privacy</Link>
-            {/* ✅ YEH NAYA LINK ADD KIYA HAI */}
             <Link href="/refund-policy" className="hover:text-primary transition-colors">Refund Policy</Link>
             <Link href="/contact" className="hover:text-primary transition-colors">Contact</Link>
           </div>
@@ -211,13 +312,15 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode, titl
 }
 
 function PricingCard({ plan }: { plan: any }) {
+  const isPopular = plan.id === 'professional';
+  
   return (
     <div className={`flex flex-col p-8 lg:p-10 rounded-[2rem] border transition-all duration-500 relative group overflow-hidden ${
-      plan.id === 'pro' 
-        ? 'bg-gradient-to-b from-primary/10 to-transparent border-primary/40 shadow-[0_0_50px_rgba(212,175,55,0.1)]' 
+      isPopular 
+        ? 'bg-gradient-to-b from-primary/10 to-transparent border-primary/40 shadow-[0_0_50px_rgba(212,175,55,0.1)] lg:scale-105' 
         : 'bg-white/[0.02] border-white/5 hover:border-primary/30'
     }`}>
-      {plan.id === 'pro' && (
+      {isPopular && (
         <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-bold px-5 py-1.5 rounded-bl-xl uppercase tracking-widest">
           Most Popular
         </div>
@@ -240,7 +343,7 @@ function PricingCard({ plan }: { plan: any }) {
       </ul>
       <Link href="/signup">
         <Button className={`w-full rounded-xl font-bold h-12 transition-all duration-300 ${
-          plan.id === 'pro'
+          isPopular
             ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(212,175,55,0.3)]'
             : 'bg-white/5 text-white hover:bg-white/10 border border-white/10'
         }`}>
