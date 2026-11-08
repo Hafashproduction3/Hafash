@@ -49,25 +49,51 @@ export default function HafashMasterPortfolio() {
     setMounted(true);
   }, []);
 
-  // ✅ Smart Back Button Handler
+  // ✅ SMART BACK BUTTON: Step-by-step navigate karo
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const handlePopState = () => {
-      // Agar lightbox khula hai toh band karo
+      // 1. Agar lightbox khula hai toh band karo (album mein wapas)
       if (lightboxIndex !== null) {
         setLightboxIndex(null);
+        window.history.pushState({ step: 'lightbox' }, '');
+        return;
       }
-      // Agar album khula hai toh band karo
-      else if (activeAlbum !== null) {
+
+      // 2. Agar album khula hai toh band karo (home par wapas)
+      if (activeAlbum !== null) {
         setActiveAlbum(null);
         setActiveGroup(null);
+        window.history.pushState({ step: 'album' }, '');
+        return;
       }
+
+      // 3. Agar home par hai, toh bahar mat jane do
+      window.history.pushState({ step: 'home' }, '');
     };
 
     window.addEventListener('popstate', handlePopState);
+    
+    // Shuru mein hi ek history step push karo
+    window.history.pushState({ step: 'home' }, '');
+
     return () => window.removeEventListener('popstate', handlePopState);
   }, [lightboxIndex, activeAlbum]);
+
+  // ✅ Jab album khule, toh history mein step push karo
+  useEffect(() => {
+    if (activeAlbum !== null) {
+      window.history.pushState({ step: 'album' }, '');
+    }
+  }, [activeAlbum]);
+
+  // ✅ Jab lightbox khule, toh history mein step push karo
+  useEffect(() => {
+    if (lightboxIndex !== null) {
+      window.history.pushState({ step: 'lightbox' }, '');
+    }
+  }, [lightboxIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,17 +235,11 @@ export default function HafashMasterPortfolio() {
   const phoneNumber = String(whatsapp).replace(/\D/g, "");
   const whatsappNumber = phoneNumber.startsWith("0") ? `92${phoneNumber.slice(1)}` : phoneNumber;
 
-  // ✅ Smart Back Button Handling (No History Lock)
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
-    // Mobile back ke liye ek fake history step add karo
-    if (typeof window !== 'undefined') {
-      window.history.pushState({ lightbox: true }, '');
-    }
   };
 
   const closeLightbox = useCallback(() => {
-    // Sirf band karo, history change na karo
     setLightboxIndex(null);
   }, []);
 
