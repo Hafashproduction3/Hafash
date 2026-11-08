@@ -36,7 +36,6 @@ export default function HafashMasterPortfolio() {
   const [albumsWithPhotos, setAlbumsWithPhotos] = useState<any[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
   
-  // ✅ Album ki photos alag se save karenge
   const [albumPhotos, setAlbumPhotos] = useState<any[]>([]);
   const [loadingAlbumPhotos, setLoadingAlbumPhotos] = useState(false);
 
@@ -50,7 +49,6 @@ export default function HafashMasterPortfolio() {
     setMounted(true);
   }, []);
 
-  // ✅ STEP 1: Sirf albums ke cover load karo (Bijli ki speed)
   useEffect(() => {
     let cancelled = false;
     async function fetchAlbums() {
@@ -68,7 +66,6 @@ export default function HafashMasterPortfolio() {
             const photoItems = Array.isArray(album.photos) ? album.photos : [];
             if (photoItems.length === 0) return { ...album, displayItems: [] };
 
-            // Sirf pehli photo (cover) ka link mangwayo
             const firstPhoto = photoItems[0];
             const key = typeof firstPhoto === "string" ? firstPhoto : firstPhoto.key || '';
             
@@ -104,7 +101,6 @@ export default function HafashMasterPortfolio() {
     return () => { cancelled = true; };
   }, [albums]);
 
-  // ✅ STEP 2: Jab album khule, tab uski saari photos load karo
   useEffect(() => {
     if (!activeAlbum) {
       setAlbumPhotos([]);
@@ -114,7 +110,6 @@ export default function HafashMasterPortfolio() {
     const currentAlbum = albumsWithPhotos.find((a: any) => a.id === activeAlbum);
     if (!currentAlbum) return;
 
-    // Agar pehle se photos load hain (cache) toh wapas mat load karo
     if (albumPhotos.length > 1 && albumPhotos[0]?.albumId === activeAlbum) return;
 
     let cancelled = false;
@@ -171,14 +166,12 @@ export default function HafashMasterPortfolio() {
     return /\.(mp4|webm|ogg|mov|m4v)$/i.test(url.split("?")[0].split("#")[0]);
   }, []);
 
-  // ✅ Ab visiblePhotos albumPhotos state se aayengi
   const visiblePhotos = useMemo(() => {
     if (!activeAlbum) return [];
     
     let items = albumPhotos;
     if (activeGroup) items = items.filter((i: any) => i.caption === activeGroup);
     
-    // ✅ Ab grid ke liye bhi original url use hoga (taake lightbox mein sahi photo aaye)
     return items.map((i: any) => i.url).filter((url: string) => {
       if (!url || !url.startsWith("http")) return false;
       if (mediaFilter === 'videos') return isVideo(url);
@@ -196,12 +189,18 @@ export default function HafashMasterPortfolio() {
   const phoneNumber = String(whatsapp).replace(/\D/g, "");
   const whatsappNumber = phoneNumber.startsWith("0") ? `92${phoneNumber.slice(1)}` : phoneNumber;
 
+  // ✅ FIX: Mobile Back Button Handling
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
+    // Mobile back ke liye history push karo (sirf ek dafa)
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ lightbox: true }, '');
+    }
   };
 
   const closeLightbox = useCallback(() => {
     setLightboxIndex(null);
+    // NOTE: Yahan history.back() nahi karenge, warna loop ban jayega
   }, []);
 
   const showPrevious = useCallback(() => { 
@@ -215,7 +214,7 @@ export default function HafashMasterPortfolio() {
   const selectedImage = lightboxIndex !== null ? visiblePhotos[lightboxIndex] : null;
 
   useEffect(() => {
-    // ✅ Jab 'Back' button dabaye toh Lightbox band ho jaye
+    // ✅ Mobile back dabane par photo band ho jaye
     const handlePopState = () => {
       if (lightboxIndex !== null) {
         setLightboxIndex(null);
@@ -231,7 +230,7 @@ export default function HafashMasterPortfolio() {
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setLightboxIndex(null); // ✅ Sirf band karein, history change na karein
+        setLightboxIndex(null);
       }
       if (event.key === "ArrowLeft") showPrevious();
       if (event.key === "ArrowRight") showNext();
@@ -585,7 +584,6 @@ export default function HafashMasterPortfolio() {
             onClick={closeLightbox}
             onContextMenu={(e) => e.preventDefault()}
           >
-            {/* Top Bar (Counter + Close) */}
             <div className="absolute top-0 left-0 right-0 z-[160] flex items-center justify-between p-4 md:p-8 bg-gradient-to-b from-black/80 to-transparent">
               <div className="px-4 py-2 rounded-full bg-white/10 border border-white/10 backdrop-blur-md text-white text-xs font-bold tracking-[0.2em]">
                 {lightboxIndex !== null ? lightboxIndex + 1 : 0} / {visiblePhotos.length}
@@ -598,7 +596,6 @@ export default function HafashMasterPortfolio() {
               </button>
             </div>
 
-            {/* Left Arrow */}
             {visiblePhotos.length > 1 && (
               <button 
                 onClick={(e) => { e.stopPropagation(); showPrevious(); }} 
@@ -608,7 +605,6 @@ export default function HafashMasterPortfolio() {
               </button>
             )}
 
-            {/* Main Image Area (Protected) */}
             <div 
               className="relative flex max-h-[80vh] max-w-[95vw] items-center justify-center animate-in zoom-in-95 duration-300"
               onClick={(e) => e.stopPropagation()}
@@ -637,7 +633,6 @@ export default function HafashMasterPortfolio() {
               )}
             </div>
 
-            {/* Right Arrow */}
             {visiblePhotos.length > 1 && (
               <button 
                 onClick={(e) => { e.stopPropagation(); showNext(); }} 
