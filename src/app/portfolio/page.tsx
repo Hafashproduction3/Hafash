@@ -20,12 +20,10 @@ import { Button } from "@/components/ui/button";
 import { useFirestore, useDoc, useCollection } from "@/firebase";
 import { doc, collection, query } from "firebase/firestore";
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { refreshPhotoUrls } from "@/app/actions/storage";
 
 export default function HafashMasterPortfolio() {
   const firestore = useFirestore();
-  const router = useRouter();
 
   const [mounted, setMounted] = useState(false);
   const [hasEntered, setHasEntered] = useState(false);
@@ -37,6 +35,10 @@ export default function HafashMasterPortfolio() {
 
   const [albumsWithPhotos, setAlbumsWithPhotos] = useState<any[]>([]);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
+  
+  // ✅ Album ki photos alag se save karenge
+  const [albumPhotos, setAlbumPhotos] = useState<any[]>([]);
+  const [loadingAlbumPhotos, setLoadingAlbumPhotos] = useState(false);
 
   const dataRef = useMemo(() => firestore ? doc(firestore, "portfolio_data", "master") : null, [firestore]);
   const { data: basicData } = useDoc(dataRef);
@@ -48,61 +50,40 @@ export default function HafashMasterPortfolio() {
     setMounted(true);
   }, []);
 
+  // ✅ STEP 1: Sirf albums ke cover load karo (Bijli ki speed)
   useEffect(() => {
     let cancelled = false;
-    async function fetchPhotos() {
+    async function fetchAlbums() {
       if (!albums) return;
       if (albums.length === 0) {
         setAlbumsWithPhotos([]);
         setLoadingPhotos(false);
         return;
       }
-
-      // Step 1: Pehle browser cache se photos uthao (taake foran dikhein)
-      const cacheKey = "hafash_portfolio_cache";
-      try {
-        const cached = localStorage.getItem(cacheKey);
-        if (cached) {
-          const cachedData = JSON.parse(cached);
-          if (cachedData.length > 0 && !cancelled) {
-            setAlbumsWithPhotos(cachedData);
-            setLoadingPhotos(false);
-          }
-        }
-      } catch (e) {}
-
-      // Step 2: Peeche se fresh data load karo
       setLoadingPhotos(true);
+      
       try {
         const updatedAlbums = await Promise.all(
           albums.map(async (album: any) => {
             const photoItems = Array.isArray(album.photos) ? album.photos : [];
             if (photoItems.length === 0) return { ...album, displayItems: [] };
 
-            const keys = photoItems.map((p: any) => typeof p === "string" ? p : p.key || '');
-            const validKeys = keys.filter((k: string) => k.length > 0);
+            // Sirf pehli photo (cover) ka link mangwayo
+            const firstPhoto = photoItems[0];
+            const key = typeof firstPhoto === "string" ? firstPhoto : firstPhoto.key || '';
             
-            try {
-              if (validKeys.length === 0) return { ...album, displayItems: [] };
+            if (!key) return { ...album, displayItems: [] };
 
-              const res = await refreshPhotoUrls(validKeys);
+            try {
+              const res = await refreshPhotoUrls([key]);
               if (res?.success && res?.urls) {
-                const displayItems = photoItems.map((p: any) => {
-                  const key = typeof p === "string" ? p : p.key || '';
-                  // ✅ Check karo ke thumbKey mojood hai ya nahi
-                  const thumbKey = typeof p === "string" ? null : (p.thumbKey || null);
-                  const caption = typeof p === "string" ? 'General' : (p.caption || 'General');
-                  
+                const url = res.urls[key] || '';
+                if (url && url.startsWith("http")) {
                   return { 
-                    key, 
-                    url: res.urls[key] || '', 
-                    // ✅ Thumbnail link use karo (fast load)
-                    thumbUrl: thumbKey ? (res.urls[thumbKey] || res.urls[key]) : res.urls[key], 
-                    caption 
+                    ...album, 
+                    displayItems: [{ key, url, thumbUrl: url, caption: 'Cover' }] 
                   };
-                }).filter((item: any) => item.url && item.url.startsWith("http"));
-                
-                return { ...album, displayItems };
+                }
               }
             } catch (error) {
               console.error(error);
@@ -113,21 +94,66 @@ export default function HafashMasterPortfolio() {
 
         if (cancelled) return;
         setAlbumsWithPhotos(updatedAlbums);
-        
-        // Step 3: Fresh data ko cache mein save karo agli baar ke liye
-        try {
-          localStorage.setItem(cacheKey, JSON.stringify(updatedAlbums));
-        } catch (e) {}
-
       } catch (error) {
         console.error(error);
       } finally {
         if (!cancelled) setLoadingPhotos(false);
       }
     }
-    fetchPhotos();
+    fetchAlbums();
     return () => { cancelled = true; };
   }, [albums]);
+
+  // ✅ STEP 2: Jab album khule, tab uski saari photos load karo
+  useEffect(() => {
+    if (!activeAlbum) {
+      setAlbumPhotos([]);
+      return;
+    }
+
+    const currentAlbum = albumsWithPhotos.find((a: any) => a.id === activeAlbum);
+    if (!currentAlbum) return;
+
+    // Agar pehle se photos load hain (cache) toh wapas mat load karo
+    if (albumPhotos.length > 1 && albumPhotos[0]?.albumId === activeAlbum) return;
+
+    let cancelled = false;
+    async function loadAlbumPhotos() {
+      setLoadingAlbumPhotos(true);
+      try {
+        const photoItems = Array.isArray(currentAlbum.photos) ? currentAlbum.photos : [];
+        const keys = photoItems.map((p: any) => typeof p === "string" ? p : p.key || '');
+        const validKeys = keys.filter((k: string) => k.length > 0);
+        
+        const res = await refreshPhotoUrls(validKeys);
+        if (res?.success && res?.urls) {
+          const displayItems = photoItems.map((p: any, idx: number) => {
+            const key = typeof p === "string" ? p : p.key || '';
+            const thumbKey = typeof p === "string" ? null : (p.thumbKey || null);
+            const caption = typeof p === "string" ? 'General' : (p.caption || 'General');
+            
+            return { 
+              key, 
+              albumId: activeAlbum,
+              index: idx,
+              url: res.urls[key] || '', 
+              thumbUrl: thumbKey ? (res.urls[thumbKey] || res.urls[key]) : res.urls[key], 
+              caption 
+            };
+          }).filter((item: any) => item.url && item.url.startsWith("http"));
+          
+          if (!cancelled) setAlbumPhotos(displayItems);
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (!cancelled) setLoadingAlbumPhotos(false);
+      }
+    }
+
+    loadAlbumPhotos();
+    return () => { cancelled = true; };
+  }, [activeAlbum, albumsWithPhotos]);
 
   const heroImage = basicData?.heroImage || "https://images.unsplash.com/photo-1519741497674-611481863552?q=80&w=2070";
   const aboutImage = basicData?.aboutImage || "https://images.unsplash.com/photo-1537633552985-df8429e8048b?q=80&w=1000";
@@ -145,50 +171,52 @@ export default function HafashMasterPortfolio() {
     return /\.(mp4|webm|ogg|mov|m4v)$/i.test(url.split("?")[0].split("#")[0]);
   }, []);
 
+  // ✅ Ab visiblePhotos albumPhotos state se aayengi
   const visiblePhotos = useMemo(() => {
     if (!activeAlbum) return [];
-    if (!currentAlbum || !currentAlbum.displayItems) return [];
     
-    let items = currentAlbum.displayItems;
+    let items = albumPhotos;
     if (activeGroup) items = items.filter((i: any) => i.caption === activeGroup);
     
-    // ✅ Thumbnail use karo grid ke liye (fast load)
-    return items.map((i: any) => i.thumbUrl || i.url).filter((url: string) => {
+    // ✅ Ab grid ke liye bhi original url use hoga (taake lightbox mein sahi photo aaye)
+    return items.map((i: any) => i.url).filter((url: string) => {
       if (!url || !url.startsWith("http")) return false;
       if (mediaFilter === 'videos') return isVideo(url);
       if (mediaFilter === 'photos') return !isVideo(url);
       return true;
     });
-  }, [activeAlbum, activeGroup, currentAlbum, mediaFilter, isVideo]);
+  }, [activeAlbum, activeGroup, albumPhotos, mediaFilter, isVideo]);
 
   const currentGroups = useMemo((): string[] => {
-    if (!currentAlbum || !currentAlbum.displayItems) return [];
-    const groups: string[] = currentAlbum.displayItems.map((i: any) => String(i.caption));
+    if (!albumPhotos) return [];
+    const groups: string[] = albumPhotos.map((i: any) => String(i.caption));
     return Array.from(new Set(groups)).filter((g: string) => g !== 'General' && g !== 'All'); 
-  }, [currentAlbum]);
+  }, [albumPhotos]);
 
   const phoneNumber = String(whatsapp).replace(/\D/g, "");
   const whatsappNumber = phoneNumber.startsWith("0") ? `92${phoneNumber.slice(1)}` : phoneNumber;
 
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
-    window.history.pushState({ lightbox: true }, ''); 
   };
 
   const closeLightbox = useCallback(() => {
-    if (lightboxIndex !== null) {
-      setLightboxIndex(null);
-      window.history.back(); 
-    }
-  }, [lightboxIndex]);
+    setLightboxIndex(null);
+  }, []);
 
-  const showPrevious = useCallback(() => { setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c - 1 + visiblePhotos.length) % visiblePhotos.length)); }, [visiblePhotos.length]);
-  const showNext = useCallback(() => { setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c + 1) % visiblePhotos.length)); }, [visiblePhotos.length]);
+  const showPrevious = useCallback(() => { 
+    setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c - 1 + visiblePhotos.length) % visiblePhotos.length)); 
+  }, [visiblePhotos.length]);
+  
+  const showNext = useCallback(() => { 
+    setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c + 1) % visiblePhotos.length)); 
+  }, [visiblePhotos.length]);
   
   const selectedImage = lightboxIndex !== null ? visiblePhotos[lightboxIndex] : null;
 
   useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
+    // ✅ Jab 'Back' button dabaye toh Lightbox band ho jaye
+    const handlePopState = () => {
       if (lightboxIndex !== null) {
         setLightboxIndex(null);
       }
@@ -202,7 +230,9 @@ export default function HafashMasterPortfolio() {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeLightbox();
+      if (event.key === "Escape") {
+        setLightboxIndex(null); // ✅ Sirf band karein, history change na karein
+      }
       if (event.key === "ArrowLeft") showPrevious();
       if (event.key === "ArrowRight") showNext();
     };
@@ -211,7 +241,7 @@ export default function HafashMasterPortfolio() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [lightboxIndex, closeLightbox, showPrevious, showNext]);
+  }, [lightboxIndex, showPrevious, showNext]);
 
   if (!mounted) return null;
 
@@ -240,26 +270,16 @@ export default function HafashMasterPortfolio() {
         <div className="relative z-10 mx-auto w-full max-w-5xl px-6 text-center flex flex-col items-center">
           
           <div className="hafash-reveal mb-8 flex justify-center">
-             <img 
-               src="/hafash-logo.png" 
-               alt="Hafash Production" 
-               className="h-32 md:h-48 w-auto object-contain hafash-logo-glow transition-transform duration-700 hover:scale-105" 
-             />
+             <img src="/hafash-logo.png" alt="Hafash Production" className="h-32 md:h-48 w-auto object-contain hafash-logo-glow transition-transform duration-700 hover:scale-105" />
           </div>
 
-          <h1 className="hafash-reveal font-headline text-4xl md:text-7xl font-bold tracking-[0.2em] text-white">
-            HAFASH
-          </h1>
+          <h1 className="hafash-reveal font-headline text-4xl md:text-7xl font-bold tracking-[0.2em] text-white">HAFASH</h1>
 
-          <div className="hafash-reveal-delay mt-3 text-sm font-light uppercase tracking-[0.6em] text-primary md:text-xl">
-            Production
-          </div>
+          <div className="hafash-reveal-delay mt-3 text-sm font-light uppercase tracking-[0.6em] text-primary md:text-xl">Production</div>
 
           <div className="mx-auto my-8 h-px w-24 bg-primary/50" />
 
-          <p className="hafash-reveal-delay text-xs font-light uppercase tracking-[0.3em] text-white/60">
-            Luxury Photography · Timeless Memories
-          </p>
+          <p className="hafash-reveal-delay text-xs font-light uppercase tracking-[0.3em] text-white/60">Luxury Photography · Timeless Memories</p>
 
           <div className="hafash-reveal-button mt-14 flex flex-col items-center gap-6">
             <Button
@@ -272,9 +292,7 @@ export default function HafashMasterPortfolio() {
           </div>
         </div>
 
-        <div className="absolute bottom-10 left-0 right-0 text-center text-[9px] uppercase tracking-[0.45em] text-white/30">
-          A Story Worth Remembering
-        </div>
+        <div className="absolute bottom-10 left-0 right-0 text-center text-[9px] uppercase tracking-[0.45em] text-white/30">A Story Worth Remembering</div>
       </main>
     );
   }
@@ -284,11 +302,7 @@ export default function HafashMasterPortfolio() {
       
       <div className="fixed inset-0 pointer-events-none z-0 bg-[#0f1115]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-[#0f1115] to-[#0f1115]" />
-        <img 
-          src="https://i.postimg.cc/4yyH6jMt/Whats-App-Image-2026-11-07-at-2-30-38-AM.jpg" 
-          alt="Nikon Camera Setup" 
-          className="w-full h-full object-cover opacity-90 relative z-0"
-        />
+        <img src="https://i.postimg.cc/4yyH6jMt/Whats-App-Image-2026-11-07-at-2-30-38-AM.jpg" alt="Nikon Camera Setup" className="w-full h-full object-cover opacity-90 relative z-0" />
         <div className="absolute top-1/2 right-10 -translate-y-1/2 z-10 opacity-[0.1]">
           <img src="/hafash-logo.png" alt="Hafash Watermark" className="w-[300px] md:w-[500px] h-auto object-contain brightness-0" />
         </div>
@@ -357,13 +371,10 @@ export default function HafashMasterPortfolio() {
                 </div>
 
                 <h1 className="font-headline text-5xl sm:text-6xl font-bold leading-[1.1] tracking-tight md:text-7xl lg:text-[5.5rem]">
-                  Hello,<br />
-                  I'm <span className="font-light italic text-primary">Hamza Khan</span>
+                  Hello,<br />I'm <span className="font-light italic text-primary">Hamza Khan</span>
                 </h1>
 
-                <p className="mx-auto max-w-xl text-lg font-light leading-relaxed text-white/60 md:text-xl lg:mx-0">
-                  {bioText}
-                </p>
+                <p className="mx-auto max-w-xl text-lg font-light leading-relaxed text-white/60 md:text-xl lg:mx-0">{bioText}</p>
 
                 <div className="mx-auto h-px w-full max-w-sm bg-gradient-to-r from-primary/50 via-white/10 to-transparent lg:mx-0" />
 
@@ -434,7 +445,7 @@ export default function HafashMasterPortfolio() {
                       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                       <div className="absolute bottom-6 left-5 right-5">
                         <p className="font-headline text-2xl font-bold capitalize">{album.name || "Collection"}</p>
-                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">{album.displayItems?.length || 0} Media</p>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">{album.photos?.length || 0} Media</p>
                       </div>
                     </button>
                   ))}
@@ -459,7 +470,9 @@ export default function HafashMasterPortfolio() {
                   <ArrowLeft className="h-4 w-4" /> Back To All Collections
                 </button>
                 <h1 className="font-headline text-5xl md:text-8xl font-bold text-white capitalize mb-4">{currentAlbum?.name}</h1>
-                <p className="text-white/50 tracking-widest uppercase text-sm">{visiblePhotos.length} Masterpieces</p>
+                <p className="text-white/50 tracking-widest uppercase text-sm">
+                  {loadingAlbumPhotos ? "Loading..." : `${visiblePhotos.length} Masterpieces`}
+                </p>
               </div>
 
               {currentGroups.length > 0 && (
@@ -472,12 +485,12 @@ export default function HafashMasterPortfolio() {
                   </button>
 
                   {currentGroups.map((group: string, i: number) => {
-                    const firstPhoto = currentAlbum?.displayItems.find((item:any) => item.caption === group && item.url);
+                    const firstPhoto = albumPhotos.find((item:any) => item.caption === group && item.thumbUrl);
                     return (
                       <button key={i} onClick={() => setActiveGroup(group)} className="flex flex-col items-center gap-3 shrink-0 group">
                         <div className={`p-[3px] rounded-full transition-all duration-300 ${activeGroup === group ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#0f1115] overflow-hidden bg-[#111] relative">
-                             {firstPhoto?.url ? <img src={firstPhoto.url} alt={String(group)} className="w-full h-full object-cover" /> : <span className="text-xs text-white/50 absolute inset-0 flex items-center justify-center">No Img</span>}
+                             {firstPhoto?.thumbUrl ? <img src={firstPhoto.thumbUrl} alt={String(group)} className="w-full h-full object-cover" /> : <span className="text-xs text-white/50 absolute inset-0 flex items-center justify-center">No Img</span>}
                              {activeGroup !== group && <div className="absolute inset-0 bg-black/30 transition-colors" />}
                            </div>
                         </div>
@@ -494,60 +507,45 @@ export default function HafashMasterPortfolio() {
                 <button onClick={() => setMediaFilter('videos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'videos' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><Video className="w-4 h-4" /> Videos</button>
               </div>
 
-              {/* ✅ GRID (NO BLACK BOXES) */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
-                {currentAlbum?.displayItems?.filter((item: any) => {
-                  if (activeGroup && item.caption !== activeGroup) return false;
-                  if (mediaFilter === 'photos' && isVideo(item.url)) return false;
-                  if (mediaFilter === 'videos' && !isVideo(item.url)) return false;
-                  return true;
-                }).map((item: any, index: number) => (
-                  item.url && (
-                    <button 
-                      key={`${item.key}-${index}`} 
-                      onClick={() => openLightbox(index)} 
-                      className="group relative block w-full aspect-square overflow-hidden rounded-lg bg-[#141414] text-left"
-                    >
-                      {isVideo(item.url) ? (
-                        <div className="relative w-full h-full">
-                          <video src={item.url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/50 bg-black/40 backdrop-blur">
-                              <Play className="ml-1 h-4 w-4 fill-white text-white" />
+              {loadingAlbumPhotos ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <div key={i} className="animate-pulse aspect-square rounded-lg bg-white/[0.06]" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+                  {visiblePhotos.map((media: string, index: number) => (
+                    media && (
+                      <button 
+                        key={`${media}-${index}`} 
+                        onClick={() => openLightbox(index)} 
+                        className="group relative block w-full aspect-square overflow-hidden rounded-lg bg-[#141414] text-left"
+                      >
+                        {isVideo(media) ? (
+                          <div className="relative w-full h-full">
+                            <video src={media} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/50 bg-black/40 backdrop-blur">
+                                <Play className="ml-1 h-4 w-4 fill-white text-white" />
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ) : (
-                        <>
-                          {/* ✅ Step 1: Pehle blur thumbnail dikhao (foran) */}
+                        ) : (
                           <img 
-                            src={item.thumbUrl || item.url} 
-                            alt="Thumbnail" 
-                            className="absolute inset-0 h-full w-full object-cover blur-md scale-110"
-                          />
-                          
-                          {/* ✅ Step 2: Peeche se high quality load karo */}
-                          <img 
-                            src={item.url} 
+                            src={media} 
                             alt="Portfolio" 
-                            onLoad={(e) => {
-                              e.currentTarget.classList.remove('opacity-0');
-                            }}
                             onError={(e) => { 
                               e.currentTarget.parentElement!.style.display = 'none'; 
                             }}
-                            className="relative block h-full w-full object-cover opacity-0 transition-all duration-700 group-hover:scale-105" 
+                            className="block h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105" 
                             loading="lazy" 
                           />
-                        </>
-                      )}
-                    </button>
-                  )
-                ))}
-              </div>
-
-              {visiblePhotos.length === 0 && (
-                <div className="text-center py-20 text-white/40 italic">No media found in this album.</div>
+                        )}
+                      </button>
+                    )
+                  ))}
+                </div>
               )}
             </div>
           </section>
@@ -599,11 +597,11 @@ export default function HafashMasterPortfolio() {
               ) : (
                 <img 
                   key={selectedImage} 
-                  src={currentAlbum?.displayItems[lightboxIndex || 0]?.url || selectedImage} 
+                  src={selectedImage} 
                   alt="Hafash fullscreen portfolio" 
                   onError={() => {
                     console.error("Corrupt Image URL Found:", selectedImage);
-                    alert("Yeh picture corrupt hai ya Firebase se delete ho chuki hai. Console check karein.");
+                    alert("Yeh picture corrupt hai ya delete ho chuki hai. Console check karein.");
                     closeLightbox();
                   }}
                   className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl" 
