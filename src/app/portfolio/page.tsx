@@ -580,46 +580,72 @@ export default function HafashMasterPortfolio() {
         </section>
 
         {selectedImage && (
-          <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/95 p-3 backdrop-blur-xl md:p-8" onClick={closeLightbox}>
-            <button onClick={closeLightbox} aria-label="Close viewer" className="absolute right-5 top-5 z-[160] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:border-primary hover:text-primary md:right-8 md:top-8">
-              <X className="h-5 w-5" />
-            </button>
+          <div 
+            className="fixed inset-0 z-[150] flex flex-col items-center justify-center bg-black/98 p-4 backdrop-blur-xl select-none"
+            onClick={closeLightbox}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            {/* Top Bar (Counter + Close) */}
+            <div className="absolute top-0 left-0 right-0 z-[160] flex items-center justify-between p-4 md:p-8 bg-gradient-to-b from-black/80 to-transparent">
+              <div className="px-4 py-2 rounded-full bg-white/10 border border-white/10 backdrop-blur-md text-white text-xs font-bold tracking-[0.2em]">
+                {lightboxIndex !== null ? lightboxIndex + 1 : 0} / {visiblePhotos.length}
+              </div>
+              <button 
+                onClick={closeLightbox} 
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 border border-white/20 text-white hover:bg-primary hover:text-black transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
+            {/* Left Arrow */}
             {visiblePhotos.length > 1 && (
-              <button onClick={(event) => { event.stopPropagation(); showPrevious(); }} aria-label="Previous media" className="absolute left-3 top-1/2 z-[160] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white transition hover:border-primary hover:text-primary md:left-8 md:h-14 md:w-14">
-                <ChevronLeft className="h-6 w-6" />
+              <button 
+                onClick={(e) => { e.stopPropagation(); showPrevious(); }} 
+                className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 z-[160] flex h-12 w-12 md:h-14 md:w-14 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white hover:bg-primary hover:text-black transition-all backdrop-blur-md"
+              >
+                <ChevronLeft className="h-6 w-6 md:h-8 md:w-8" />
               </button>
             )}
 
-            <div className="flex max-h-[88vh] max-w-[90vw] items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            {/* Main Image Area (Protected) */}
+            <div 
+              className="relative flex max-h-[80vh] max-w-[95vw] items-center justify-center animate-in zoom-in-95 duration-300"
+              onClick={(e) => e.stopPropagation()}
+              onContextMenu={(e) => e.preventDefault()}
+            >
               {isVideo(selectedImage) ? (
-                <video key={selectedImage} src={selectedImage} controls autoPlay playsInline className="max-h-[85vh] max-w-full rounded-lg shadow-2xl" />
+                <video 
+                  key={selectedImage} 
+                  src={selectedImage} 
+                  controls 
+                  autoPlay 
+                  playsInline 
+                  className="max-h-[80vh] max-w-full rounded-lg shadow-2xl" 
+                />
               ) : (
                 <img 
                   key={selectedImage} 
                   src={selectedImage} 
                   alt="Hafash fullscreen portfolio" 
                   onError={() => {
-                    console.error("Corrupt Image URL Found:", selectedImage);
-                    alert("Yeh picture corrupt hai ya delete ho chuki hai. Console check karein.");
+                    alert("Yeh picture corrupt hai. Console check karein.");
                     closeLightbox();
                   }}
-                  className="max-h-[85vh] max-w-full rounded-lg object-contain shadow-2xl" 
+                  className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-[0_0_100px_rgba(0,0,0,0.8)] pointer-events-none select-none" 
                 />
               )}
             </div>
 
+            {/* Right Arrow */}
             {visiblePhotos.length > 1 && (
-              <button onClick={(event) => { event.stopPropagation(); showNext(); }} aria-label="Next media" className="absolute right-3 top-1/2 z-[160] flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/15 bg-black/50 text-white transition hover:border-primary hover:text-primary md:right-8 md:h-14 md:w-14">
-                <ChevronRight className="h-6 w-6" />
+              <button 
+                onClick={(e) => { e.stopPropagation(); showNext(); }} 
+                className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 z-[160] flex h-12 w-12 md:h-14 md:w-14 items-center justify-center rounded-full border border-white/20 bg-black/50 text-white hover:bg-primary hover:text-black transition-all backdrop-blur-md"
+              >
+                <ChevronRight className="h-6 w-6 md:h-8 md:w-8" />
               </button>
             )}
-
-            <div className="absolute bottom-6 left-0 right-0 text-center">
-              <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/55">
-                {lightboxIndex !== null ? lightboxIndex + 1 : 0} / {visiblePhotos.length}
-              </p>
-            </div>
           </div>
         )}
       </div>
