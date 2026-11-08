@@ -196,57 +196,54 @@ export default function HafashMasterPortfolio() {
   const phoneNumber = String(whatsapp).replace(/\D/g, "");
   const whatsappNumber = phoneNumber.startsWith("0") ? `92${phoneNumber.slice(1)}` : phoneNumber;
 
-    // ✅ Back button ke liye history push karo
-    const openLightbox = (index: number) => {
-      setLightboxIndex(index);
-      if (typeof window !== 'undefined') {
-        window.history.pushState({ lightbox: true }, '');
+      // ✅ Photo khulte hi history push karo
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ lightbox: true }, '');
+    }
+  };
+
+  const closeLightbox = useCallback(() => {
+    setLightboxIndex(null);
+  }, []);
+
+  const showPrevious = useCallback(() => { 
+    setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c - 1 + visiblePhotos.length) % visiblePhotos.length)); 
+  }, [visiblePhotos.length]);
+  
+  const showNext = useCallback(() => { 
+    setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c + 1) % visiblePhotos.length)); 
+  }, [visiblePhotos.length]);
+  
+  const selectedImage = lightboxIndex !== null ? visiblePhotos[lightboxIndex] : null;
+
+  // ✅ Back button se step-by-step navigate karo
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      // 1. Agar photo khuli hai toh band karo (album mein wapas)
+      if (lightboxIndex !== null) {
+        setLightboxIndex(null);
+        return;
       }
-    };
-  
-    const closeLightbox = useCallback(() => {
-      setLightboxIndex(null);
-    }, []);
-  
-    const showPrevious = useCallback(() => { 
-      setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c - 1 + visiblePhotos.length) % visiblePhotos.length)); 
-    }, [visiblePhotos.length]);
-    
-    const showNext = useCallback(() => { 
-      setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c + 1) % visiblePhotos.length)); 
-    }, [visiblePhotos.length]);
-    
-    const selectedImage = lightboxIndex !== null ? visiblePhotos[lightboxIndex] : null;
-  
-    // ✅ Back button se step-by-step navigate karo
-    useEffect(() => {
-      if (typeof window === 'undefined') return;
-  
-      const handlePopState = () => {
-        // 1. Agar photo khuli hai toh band karo (album mein wapas)
-        if (lightboxIndex !== null) {
-          setLightboxIndex(null);
-          return;
-        }
-  
-        // 2. Agar album khula hai toh band karo (home par wapas)
-        if (activeAlbum !== null) {
-          setActiveAlbum(null);
-          setActiveGroup(null);
-          return;
-        }
-  
-        // 3. Portfolio home par hai, toh bahar mat jane do
-        window.history.pushState({ step: 'home' }, '');
-      };
-  
-      window.addEventListener('popstate', handlePopState);
-      
-      // Shuru mein hi ek history step push karo
+
+      // 2. Agar album khula hai toh band karo (home par wapas)
+      if (activeAlbum !== null) {
+        setActiveAlbum(null);
+        setActiveGroup(null);
+        return;
+      }
+
+      // 3. Portfolio home par hai, toh bahar mat jane do
       window.history.pushState({ step: 'home' }, '');
-  
-      return () => window.removeEventListener('popstate', handlePopState);
-    }, [lightboxIndex, activeAlbum]);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.history.pushState({ step: 'home' }, '');
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [lightboxIndex, activeAlbum]);
 
   useEffect(() => {
     if (lightboxIndex === null) return;
@@ -450,17 +447,17 @@ export default function HafashMasterPortfolio() {
               ) : (
                 <div className="cinematic-scrollbar flex snap-x gap-6 overflow-x-auto pb-6">
                   {albumsWithPhotos.map((album: any, index: number) => (
-                    <button 
-                      key={album.id || index} 
-                      onClick={() => { 
-                        setActiveAlbum(album.id); 
-                        setActiveGroup(null); 
-                        setMediaFilter('all'); 
-                        window.scrollTo({ top: 0, behavior: 'smooth' }); 
-                        if (typeof window !== 'undefined') {
-                          window.history.pushState({ album: true }, '');
-                        }
-                      }} 
+                                        <button 
+                                        key={album.id || index} 
+                                        onClick={() => { 
+                                          setActiveAlbum(album.id); 
+                                          setActiveGroup(null); 
+                                          setMediaFilter('all'); 
+                                          window.scrollTo({ top: 0, behavior: 'smooth' }); 
+                                          if (typeof window !== 'undefined') {
+                                            window.history.pushState({ album: true }, '');
+                                          }
+                                        }} 
                       className="group relative h-72 w-56 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-80 md:w-64 border border-white/10 hover:border-primary/50 transition-colors"
                     >
                       {album.displayItems?.[0]?.url ? (
@@ -486,14 +483,14 @@ export default function HafashMasterPortfolio() {
             <div className="animate-in fade-in duration-1000">
               <div className="relative mb-10 text-center">
                 <button 
-                  onClick={() => { 
-                    setActiveAlbum(null); 
-                    setActiveGroup(null); 
-                    window.scrollTo({ top: 0, behavior: 'smooth' }); 
-                    if (typeof window !== 'undefined') {
-                      window.history.back();
-                    }
-                  }} 
+                                    onClick={() => { 
+                                      setActiveAlbum(null); 
+                                      setActiveGroup(null); 
+                                      window.scrollTo({ top: 0, behavior: 'smooth' }); 
+                                      if (typeof window !== 'undefined') {
+                                        window.history.back();
+                                      }
+                                    }} 
                   className="mb-8 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary transition hover:text-white border border-primary/30 px-6 py-3 rounded-full hover:bg-primary/10"
                 >
                   <ArrowLeft className="h-4 w-4" /> Back To All Collections
