@@ -196,17 +196,132 @@ export default function HafashMasterPortfolio() {
   const phoneNumber = String(whatsapp).replace(/\D/g, "");
   const whatsappNumber = phoneNumber.startsWith("0") ? `92${phoneNumber.slice(1)}` : phoneNumber;
 
-      // ✅ Photo khulte hi history push karo
-  const openLightbox = (index: number) => {
-    setLightboxIndex(index);
-    if (typeof window !== 'undefined') {
-      window.history.pushState({ lightbox: true }, '');
+  // ============================================================
+  // ✅ PORTFOLIO HISTORY / MOBILE BACK FIX
+  // Har portfolio screen ki apni history entry hogi:
+  // root -> album -> group(s) -> lightbox
+  // Existing Next.js history state ko preserve kiya jata hai.
+  // ============================================================
+
+  const HAFASH_HISTORY_KEY = "__hafashPortfolio";
+
+  const getPortfolioHistory = useCallback(() => {
+    return window.history.state?.[HAFASH_HISTORY_KEY] || null;
+  }, []);
+
+  const pushPortfolioHistory = useCallback((
+    layer: "album" | "group" | "lightbox",
+    details: { albumId?: string | null; group?: string | null; index?: number | null }
+  ) => {
+    const previous = getPortfolioHistory();
+    const depth = (typeof previous?.depth === "number" ? previous.depth : 0) + 1;
+
+    window.history.pushState(
+      {
+        ...(window.history.state || {}),
+        [HAFASH_HISTORY_KEY]: {
+          layer,
+          depth,
+          albumId: details.albumId !== undefined ? details.albumId : activeAlbum,
+          group: details.group !== undefined ? details.group : activeGroup,
+          index: details.index ?? null,
+        },
+      },
+      ""
+    );
+  }, [getPortfolioHistory, activeAlbum, activeGroup]);
+
+  // Current portfolio view ko root history entry ke taur par mark karein.
+  useEffect(() => {
+    const current = window.history.state?.[HAFASH_HISTORY_KEY];
+    if (!current) {
+      window.history.replaceState(
+        {
+          ...(window.history.state || {}),
+          [HAFASH_HISTORY_KEY]: { layer: "root", depth: 0, albumId: null, group: null, index: null },
+        },
+        ""
+      );
     }
-  };
+  }, []);
+
+  const openAlbum = useCallback((albumId: string) => {
+    pushPortfolioHistory("album", { albumId, group: null, index: null });
+    setActiveAlbum(albumId);
+    setActiveGroup(null);
+    setLightboxIndex(null);
+    setMediaFilter("all");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [pushPortfolioHistory]);
+
+  const openGroup = useCallback((group: string | null) => {
+    if (group === activeGroup) return;
+    pushPortfolioHistory("group", { albumId: activeAlbum, group, index: null });
+    setActiveGroup(group);
+    setLightboxIndex(null);
+  }, [activeGroup, activeAlbum, pushPortfolioHistory]);
+
+  const openLightbox = useCallback((index: number) => {
+    pushPortfolioHistory("lightbox", { albumId: activeAlbum, group: activeGroup, index });
+    setLightboxIndex(index);
+  }, [activeAlbum, activeGroup, pushPortfolioHistory]);
 
   const closeLightbox = useCallback(() => {
-    setLightboxIndex(null);
+    if (lightboxIndex === null) return;
+    const current = getPortfolioHistory();
+    if (current?.layer === "lightbox") {
+      window.history.back();
+    } else {
+      setLightboxIndex(null);
+    }
+  }, [lightboxIndex, getPortfolioHistory]);
+
+  const backToAllAlbums = useCallback(() => {
+    if (!activeAlbum) return;
+    const current = getPortfolioHistory();
+    const depth = typeof current?.depth === "number" ? current.depth : 0;
+
+    // Group ke andar ho tab bhi seedha portfolio root par wapas aaye.
+    if (depth > 0) {
+      window.history.go(-depth);
+    } else {
+      setLightboxIndex(null);
+      setActiveGroup(null);
+      setActiveAlbum(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [activeAlbum, getPortfolioHistory]);
+
+  // Browser/mobile Back: target history entry ke mutabiq exact screen restore karein.
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      const view = event.state?.[HAFASH_HISTORY_KEY];
+
+      if (!view || view.layer === "root") {
+        setLightboxIndex(null);
+        setActiveGroup(null);
+        setActiveAlbum(null);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+
+      setActiveAlbum(view.albumId ?? null);
+      setActiveGroup(view.group ?? null);
+      setLightboxIndex(view.layer === "lightbox" ? (view.index ?? null) : null);
+
+      if (view.layer === "album") {
+        setActiveGroup(null);
+        setLightboxIndex(null);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  // ============================================================
+  // ✅ END PORTFOLIO HISTORY FIX
+  // ============================================================
 
   const showPrevious = useCallback(() => { 
     setLightboxIndex((c) => (c === null || visiblePhotos.length === 0 ? c : (c - 1 + visiblePhotos.length) % visiblePhotos.length)); 
@@ -218,40 +333,13 @@ export default function HafashMasterPortfolio() {
   
   const selectedImage = lightboxIndex !== null ? visiblePhotos[lightboxIndex] : null;
 
-  // ✅ Back button se step-by-step navigate karo
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handlePopState = () => {
-      // 1. Agar photo khuli hai toh band karo (album mein wapas)
-      if (lightboxIndex !== null) {
-        setLightboxIndex(null);
-        return;
-      }
-
-      // 2. Agar album khula hai toh band karo (home par wapas)
-      if (activeAlbum !== null) {
-        setActiveAlbum(null);
-        setActiveGroup(null);
-        return;
-      }
-
-      // 3. Portfolio home par hai, toh bahar mat jane do
-      window.history.pushState({ step: 'home' }, '');
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    window.history.pushState({ step: 'home' }, '');
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [lightboxIndex, activeAlbum]);
-
   useEffect(() => {
     if (lightboxIndex === null) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setLightboxIndex(null); // ✅ Sirf band karein, history change na karein
+        closeLightbox();
       }
       if (event.key === "ArrowLeft") showPrevious();
       if (event.key === "ArrowRight") showNext();
@@ -261,7 +349,7 @@ export default function HafashMasterPortfolio() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [lightboxIndex, showPrevious, showNext]);
+  }, [lightboxIndex, showPrevious, showNext, closeLightbox]);
 
   if (!mounted) return null;
 
@@ -345,7 +433,7 @@ export default function HafashMasterPortfolio() {
         
         <nav className="fixed left-0 right-0 top-0 z-50 px-5 py-6 md:px-10 border-b border-white/5 bg-[#0f1115]/50 backdrop-blur-md">
           <div className="mx-auto flex max-w-[1600px] items-center justify-between">
-            <button onClick={() => { setActiveAlbum(null); setActiveGroup(null); window.scrollTo({ top: 0, behavior: "smooth" }); }} className="flex items-center gap-3">
+            <button onClick={() => { if (activeAlbum) backToAllAlbums(); else window.scrollTo({ top: 0, behavior: "smooth" }); }} className="flex items-center gap-3">
               <img src="/hafash-logo.png" alt="Hafash Logo" className="h-10 w-10 md:h-12 md:w-12 object-contain" />
               <div className="text-left">
                 <p className="font-headline text-lg md:text-xl font-bold tracking-wider">HAFASH<span className="text-primary">.</span></p>
@@ -447,17 +535,9 @@ export default function HafashMasterPortfolio() {
               ) : (
                 <div className="cinematic-scrollbar flex snap-x gap-6 overflow-x-auto pb-6">
                   {albumsWithPhotos.map((album: any, index: number) => (
-                                        <button 
-                                        key={album.id || index} 
-                                        onClick={() => { 
-                                          setActiveAlbum(album.id); 
-                                          setActiveGroup(null); 
-                                          setMediaFilter('all'); 
-                                          window.scrollTo({ top: 0, behavior: 'smooth' }); 
-                                          if (typeof window !== 'undefined') {
-                                            window.history.pushState({ album: true }, '');
-                                          }
-                                        }} 
+                    <button 
+                      key={album.id || index} 
+                      onClick={() => openAlbum(album.id)} 
                       className="group relative h-72 w-56 shrink-0 snap-start overflow-hidden rounded-xl text-left md:h-80 md:w-64 border border-white/10 hover:border-primary/50 transition-colors"
                     >
                       {album.displayItems?.[0]?.url ? (
@@ -483,14 +563,7 @@ export default function HafashMasterPortfolio() {
             <div className="animate-in fade-in duration-1000">
               <div className="relative mb-10 text-center">
                 <button 
-                                    onClick={() => { 
-                                      setActiveAlbum(null); 
-                                      setActiveGroup(null); 
-                                      window.scrollTo({ top: 0, behavior: 'smooth' }); 
-                                      if (typeof window !== 'undefined') {
-                                        window.history.back();
-                                      }
-                                    }} 
+                  onClick={backToAllAlbums} 
                   className="mb-8 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-primary transition hover:text-white border border-primary/30 px-6 py-3 rounded-full hover:bg-primary/10"
                 >
                   <ArrowLeft className="h-4 w-4" /> Back To All Collections
@@ -503,7 +576,7 @@ export default function HafashMasterPortfolio() {
 
               {currentGroups.length > 0 && (
                 <div className="flex justify-center gap-6 md:gap-8 overflow-x-auto pb-8 pt-4 custom-scrollbar">
-                  <button onClick={() => setActiveGroup(null)} className="flex flex-col items-center gap-3 shrink-0 group">
+                  <button onClick={() => openGroup(null)} className="flex flex-col items-center gap-3 shrink-0 group">
                     <div className={`p-[3px] rounded-full transition-all duration-300 ${!activeGroup ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
                        <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#0f1115] overflow-hidden bg-[#111] flex items-center justify-center"><ImageIcon className={`w-8 h-8 ${!activeGroup ? 'text-primary' : 'text-white/50'}`} /></div>
                     </div>
@@ -513,7 +586,7 @@ export default function HafashMasterPortfolio() {
                   {currentGroups.map((group: string, i: number) => {
                     const firstPhoto = albumPhotos.find((item:any) => item.caption === group && item.thumbUrl);
                     return (
-                      <button key={i} onClick={() => setActiveGroup(group)} className="flex flex-col items-center gap-3 shrink-0 group">
+                      <button key={i} onClick={() => openGroup(group)} className="flex flex-col items-center gap-3 shrink-0 group">
                         <div className={`p-[3px] rounded-full transition-all duration-300 ${activeGroup === group ? 'bg-gradient-to-tr from-primary via-yellow-200 to-primary scale-105 shadow-[0_0_20px_rgba(212,175,55,0.3)]' : 'bg-white/10 group-hover:bg-white/20'}`}>
                            <div className="w-20 h-20 md:w-24 md:h-24 rounded-full border-[3px] border-[#0f1115] overflow-hidden bg-[#111] relative">
                              {firstPhoto?.thumbUrl ? <img src={firstPhoto.thumbUrl} alt={String(group)} className="w-full h-full object-cover" /> : <span className="text-xs text-white/50 absolute inset-0 flex items-center justify-center">No Img</span>}
