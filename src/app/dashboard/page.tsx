@@ -38,6 +38,7 @@ import {
   Gift,
   Clock,
   CheckCircle2,
+  Star
 } from 'lucide-react';
 import { PaymentWidget } from '@/components/dashboard/PaymentWidget';
 import { Button } from '@/components/ui/button';
@@ -61,12 +62,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
-import { collection, query, where, doc, deleteDoc, updateDoc } from 'firebase/firestore';
+// ✅ SINGLE IMPORT (getDocs added)
+import { collection, query, where, doc, deleteDoc, updateDoc, getDocs } from 'firebase/firestore';
 import { deleteGalleryFiles } from '@/app/actions/storage';
 import { cn } from '@/lib/utils';
 import { Skeleton } from "@/components/ui/skeleton";
 import { getUserPlan, calculateUsageGb, isOwnerEmail, getTrialDaysRemaining, getTrialHoursRemaining } from '@/lib/plans';
-import { Star } from 'lucide-react';
 import type { Booking } from '@/lib/portfolio-types';
 
 export default function DashboardPage() {
@@ -355,48 +356,51 @@ export default function DashboardPage() {
     }
   }, [galleryToDelete]);
 
-  const confirmDelete = useCallback(() => {
+  const confirmDelete = useCallback(async () => {
     if (!firestore || !user || !galleryToDelete || isDeleting) return;
 
     const idToDelete = galleryToDelete;
-    const galleryDoc = (galleries || []).find((g: any) => g.id === idToDelete);
-
     setIsDeleting(true);
     setGalleryToDelete(null);
 
-    const storageKeys = Array.isArray(galleryDoc?.items)
-      ? galleryDoc.items
-          .map((item: any) => item?.storageKey)
-          .filter((key: any): key is string => typeof key === 'string' && key.length > 0)
-      : [];
-
-    const deletionPromise = deleteDoc(doc(firestore, "galleries", idToDelete));
-
-    deletionPromise
-      .then(() => {
-        toast({
-          title: "Gallery Record Removed",
-          description: "The luxury event has been removed from your studio registry.",
-        });
-      })
-      .catch((err: any) => {
-        console.error("[DASHBOARD_DELETE] Firestore deletion failed:", err);
-        toast({
-          variant: "destructive",
-          title: "Delete Failed",
-          description: "A database error occurred while removing the record.",
-        });
-      })
-      .finally(() => {
-        setIsDeleting(false);
+    try {
+      // ✅ 1. Pehle saari photos ka data fetch karein taake storageKeys mil sakein
+      const photosRef = collection(firestore, "galleries", idToDelete, "photos");
+      const photosSnap = await getDocs(photosRef);
+      
+      const storageKeys: string[] = [];
+      photosSnap.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.storageKey) storageKeys.push(data.storageKey);
+        if (data.thumbKey) storageKeys.push(data.thumbKey);
+        if (data.originalKey) storageKeys.push(data.originalKey);
       });
 
-    if (storageKeys.length > 0) {
-      void deleteGalleryFiles(storageKeys).catch((e: any) =>
-        console.error('[DASHBOARD_DELETE] R2 cleanup error:', e)
-      );
+      // ✅ 2. Pehle R2 se files delete karein
+      if (storageKeys.length > 0) {
+        await deleteGalleryFiles(storageKeys).catch((e: any) =>
+          console.error('[DASHBOARD_DELETE] R2 cleanup error:', e)
+        );
+      }
+
+      // ✅ 3. Phir Database (Firestore) se Gallery delete karein
+      await deleteDoc(doc(firestore, "galleries", idToDelete));
+
+      toast({
+        title: "✅ Gallery Deleted",
+        description: "Gallery aur uski saari photos storage se delete ho gayi hain.",
+      });
+    } catch (err: any) {
+      console.error("[DASHBOARD_DELETE] Error:", err);
+      toast({
+        variant: "destructive",
+        title: "Delete Failed",
+        description: err.message || "Kuch masla hua. Please try again.",
+      });
+    } finally {
+      setIsDeleting(false);
     }
-  }, [firestore, user, galleryToDelete, galleries, toast, isDeleting]);
+  }, [firestore, user, galleryToDelete, isDeleting, toast]);
 
   return (
     <div className="space-y-10 pb-20 animate-in fade-in duration-1000">
@@ -908,6 +912,73 @@ export default function DashboardPage() {
                 </Button>
               </Link>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ REFERRAL WIDGET ═══ */}
+      {!profileLoading && profile?.referralCode && (
+        <div className="relative overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/8 via-card/60 to-background p-5 lg:p-6 shadow-lg">
+          <div className="absolute -top-20 -right-20 h-40 w-40 rounded-full bg-violet-500/10 blur-3xl pointer-events-none" />
+
+          <div className="relative space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-500/15 border border-violet-500/25 flex items-center justify-center shrink-0">
+                  <Gift className="w-5 h-5 text-violet-400" />
+                </div>
+                <div>
+                  <h3 className="font-headline font-bold text-base text-white">
+                    Referral Rewards
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Apne dost ko invite karein aur 10GB per friend kamayein
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-xl bg-background/40 border border-white/5 p-4">
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  Active Referrals
+                </p>
+                <p className="text-2xl font-headline font-bold leading-tight mt-1 text-violet-400">
+                  {profile?.activeReferrals || 0}
+                </p>
+              </div>
+              <div className="rounded-xl bg-background/40 border border-white/5 p-4">
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
+                  Bonus Storage
+                </p>
+                <p className="text-2xl font-headline font-bold leading-tight mt-1 text-violet-400">
+                  {(profile?.activeReferrals || 0) * 10} GB
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-background/40 border border-white/5 p-4">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground mb-2">
+                YOUR REFERRAL LINK
+              </p>
+              <div className="flex gap-2">
+                <Input
+                  value={`https://hafash.pk/signup?ref=${profile.referralCode}`}
+                  readOnly
+                  className="text-xs font-mono bg-background/60 border-white/10"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`https://hafash.pk/signup?ref=${profile.referralCode}`);
+                    toast({ title: "✅ Link Copied!", description: "Ab share karein aur earn karein!" });
+                  }}
+                  className="bg-violet-500 hover:bg-violet-600 text-white shrink-0"
+                >
+                  Copy
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

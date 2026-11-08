@@ -373,6 +373,18 @@ export function calculateUsageGb(galleries: any[] | null): number {
   return totalBytes / (1024 * 1024 * 1024);
 }
 
+/**
+ * ✅ NAYA: Total Storage Limit calculate karna (Base + Bonus)
+ * Har active referral par 10GB bonus milta hai.
+ */
+export function calculateTotalStorageLimit(
+  planStorageGb: number,
+  activeReferrals: number = 0
+): number {
+  const bonusGb = activeReferrals * 10;
+  return planStorageGb + bonusGb;
+}
+
 export function calculateTotalUsageGb(
   galleries: any[] | null,
   driveItems: any[] | null

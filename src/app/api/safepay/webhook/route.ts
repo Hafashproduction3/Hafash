@@ -121,6 +121,62 @@ export async function POST(request: Request) {
       `[SAFEPAY WEBHOOK] ✅ LIVE PAYMENT — Activated plan "${planId}" for user ${userId}, expires ${expiryDate.toISOString()}`
     );
 
+    // ═══════════════════════════════════════════════════════════════
+    // ✅ NAYA: REFERRAL REWARD LOGIC
+    // Agar yeh user kisi ke referral se aaya tha, toh usko 10GB dein
+    // ═══════════════════════════════════════════════════════════════
+    try {
+      const userSnap = await admin.firestore().collection('users').doc(userId).get();
+      const userData = userSnap.data();
+
+      if (userData?.referredBy && !userData?.hasGivenReward) {
+        // Inviter ko dhoondein
+        const inviterQuery = await admin.firestore()
+          .collection('users')
+          .where('referralCode', '==', userData.referredBy)
+          .limit(1)
+          .get();
+
+        if (!inviterQuery.empty) {
+          const inviterId = inviterQuery.docs[0].id;
+
+          // Inviter ko 10GB bonus dein (activeReferrals +1)
+          await admin.firestore().collection('users').doc(inviterId).update({
+            activeReferrals: admin.firestore.FieldValue.increment(1),
+            updatedAt: new Date().toISOString(),
+          });
+
+          // Naye user ko mark karein ke usne reward dilwaya
+          await admin.firestore().collection('users').doc(userId).update({
+            hasGivenReward: true,
+            updatedAt: new Date().toISOString(),
+          });
+
+          console.log(
+            `[REFERRAL REWARD] ✅ User ${userId} rewarded inviter ${inviterId} with +10GB bonus`
+          );
+        } else {
+          console.log(
+            `[REFERRAL REWARD] Inviter not found for code: ${userData.referredBy}`
+          );
+        }
+      } else if (userData?.hasGivenReward) {
+        console.log(
+          `[REFERRAL REWARD] User ${userId} already gave reward — skipping`
+        );
+      } else {
+        console.log(
+          `[REFERRAL REWARD] User ${userId} was not referred — skipping`
+        );
+      }
+    } catch (referralError) {
+      console.error(
+        '[REFERRAL REWARD] Error giving reward:',
+        referralError
+      );
+      // Don't fail the whole webhook if referral logic fails
+    }
+
     // Send genuine payment receipt email
     try {
       const userRecord = await admin.auth().getUser(userId);

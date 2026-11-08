@@ -40,7 +40,12 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
 
     // ✅ CUSTOM STORAGE
     const hasCustomStorage = userData.customStorageLimitGb !== undefined && userData.customStorageLimitGb !== null;
-    const totalGb = isOwner ? plan.storageGb : (hasCustomStorage ? Number(userData.customStorageLimitGb) : plan.storageGb);
+    const baseStorageGb = isOwner ? plan.storageGb : (hasCustomStorage ? Number(userData.customStorageLimitGb) : plan.storageGb);
+    
+    // ✅ NAYA: Referral Bonus (Har active referral par 10GB)
+    const activeReferrals = Number(userData.activeReferrals) || 0;
+    const bonusStorageGb = activeReferrals * 10;
+    const totalGb = baseStorageGb + bonusStorageGb;
 
     const galleriesSnap = await adminDb.collection('galleries').where('userId', '==', userId).get();
     let totalBytes = 0;
@@ -70,7 +75,11 @@ export async function getStorageStats(userId: string): Promise<StorageStats> {
       remainingGb: Math.max(totalGb - usedGb, 0),
       fileCount: totalFiles,
       galleryCount: galleriesSnap.size,
-      planName: hasCustomStorage && !isOwner ? `Custom (${totalGb}GB)` : plan.name,
+      planName: hasCustomStorage && !isOwner 
+        ? `Custom (${totalGb}GB)` 
+        : activeReferrals > 0 
+          ? `${plan.name} + ${bonusStorageGb}GB Bonus` 
+          : plan.name,
       isOverQuota: !isOwner && usedGb >= totalGb,
     };
 

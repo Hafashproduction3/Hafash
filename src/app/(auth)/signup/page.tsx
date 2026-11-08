@@ -1,4 +1,3 @@
-
 "use client";
 
 import { getFirebaseErrorMessage } from '@/lib/firebase-errors';
@@ -37,7 +36,6 @@ import { cn } from '@/lib/utils';
 
 type UserRole = 'photographer' | 'location-owner';
 
-// Terms update hon to version ko manually update karein.
 const TERMS_VERSION = 'v1';
 
 export default function SignupPage() {
@@ -59,12 +57,25 @@ export default function SignupPage() {
   const [subdomainAvailable, setSubdomainAvailable] =
     useState<boolean | null>(null);
   const [checkingSubdomain, setCheckingSubdomain] = useState(false);
+  
+  // ✅ NAYA: Referral Code State
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   const auth = useAuth();
   const firestore = useFirestore();
   const { user, loading: authLoading } = useUser();
   const router = useRouter();
   const { toast } = useToast();
+
+  // ✅ NAYA: URL se Referral Code uthana
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const ref = urlParams.get('ref');
+    if (ref) {
+      setReferralCode(ref);
+      localStorage.setItem('hafash_referred_by', ref);
+    }
+  }, []);
 
   const suggestedSubdomain = useMemo(() => {
     if (role !== 'photographer') return '';
@@ -239,12 +250,15 @@ export default function SignupPage() {
 
       const normalizedWhatsApp = whatsappNumber.replace(/\s+/g, '');
       const now = new Date().toISOString();
+      
+      // ✅ NAYA: Referral Code generate karna
+      const myReferralCode = newUser.uid.substring(0, 8).toUpperCase();
+      const referredBy = referralCode || localStorage.getItem('hafash_referred_by') || null;
 
       if (role === 'photographer') {
         let finalSubdomain = suggestedSubdomain;
         let counter = 1;
 
-        // Recheck availability during signup.
         while (counter < 100) {
           const q = query(
             collection(firestore, 'users'),
@@ -281,6 +295,11 @@ export default function SignupPage() {
           planId: 'starter',
           subscriptionStatus: 'inactive',
           theme: 'mixed',
+          // ✅ NAYA: Referral Fields
+          referralCode: myReferralCode,
+          referredBy: referredBy,
+          referralEarnings: 0,
+          referralCount: 0,
           updatedAt: now,
           ...acceptedTerms,
         };
@@ -363,6 +382,9 @@ export default function SignupPage() {
           });
         }
       }
+      
+      // ✅ Referral local storage clear karein
+      localStorage.removeItem('hafash_referred_by');
 
       router.push('/verify-email');
     } catch (error: unknown) {
@@ -683,7 +705,6 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Mandatory Terms acceptance */}
             <div
               className={cn(
                 'rounded-2xl border p-4 transition-colors',
