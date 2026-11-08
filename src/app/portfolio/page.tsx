@@ -19,11 +19,12 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { useFirestore, useDoc, useCollection } from "@/firebase";
 import { doc, collection, query } from "firebase/firestore";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { refreshPhotoUrls } from "@/app/actions/storage";
 
 export default function HafashMasterPortfolio() {
   const firestore = useFirestore();
+  const isLockedRef = useRef(false);
 
   const [mounted, setMounted] = useState(false);
   const [hasEntered, setHasEntered] = useState(false);
@@ -48,6 +49,35 @@ export default function HafashMasterPortfolio() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // ✅ LOCK PORTFOLIO: Client ko bahar jaane se roko
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Shuru mein hi ek fake history push karo
+    if (!isLockedRef.current) {
+      window.history.pushState({ locked: true }, '', window.location.href);
+      isLockedRef.current = true;
+    }
+
+    const handlePopState = () => {
+      // Agar lightbox khula hai toh pehle usko band karo
+      if (lightboxIndex !== null) {
+        setLightboxIndex(null);
+      } 
+      // Agar album khula hai toh usko band karo
+      else if (activeAlbum !== null) {
+        setActiveAlbum(null);
+        setActiveGroup(null);
+      }
+
+      // ✅ Har haal mein history wapas push karo taake bahar na jaye
+      window.history.pushState({ locked: true }, '', window.location.href);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [lightboxIndex, activeAlbum]);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,18 +219,12 @@ export default function HafashMasterPortfolio() {
   const phoneNumber = String(whatsapp).replace(/\D/g, "");
   const whatsappNumber = phoneNumber.startsWith("0") ? `92${phoneNumber.slice(1)}` : phoneNumber;
 
-  // ✅ FIX: Mobile Back Button Handling
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
-    // Mobile back ke liye history push karo (sirf ek dafa)
-    if (typeof window !== 'undefined') {
-      window.history.pushState({ lightbox: true }, '');
-    }
   };
 
   const closeLightbox = useCallback(() => {
     setLightboxIndex(null);
-    // NOTE: Yahan history.back() nahi karenge, warna loop ban jayega
   }, []);
 
   const showPrevious = useCallback(() => { 
@@ -214,23 +238,12 @@ export default function HafashMasterPortfolio() {
   const selectedImage = lightboxIndex !== null ? visiblePhotos[lightboxIndex] : null;
 
   useEffect(() => {
-    // ✅ Mobile back dabane par photo band ho jaye
-    const handlePopState = () => {
-      if (lightboxIndex !== null) {
-        setLightboxIndex(null);
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [lightboxIndex]);
-
-  useEffect(() => {
     if (lightboxIndex === null) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setLightboxIndex(null);
+        closeLightbox();
       }
       if (event.key === "ArrowLeft") showPrevious();
       if (event.key === "ArrowRight") showNext();
@@ -240,7 +253,7 @@ export default function HafashMasterPortfolio() {
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [lightboxIndex, showPrevious, showNext]);
+  }, [lightboxIndex, closeLightbox, showPrevious, showNext]);
 
   if (!mounted) return null;
 
