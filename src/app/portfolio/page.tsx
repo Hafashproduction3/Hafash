@@ -57,7 +57,6 @@ export default function HafashMasterPortfolio() {
       // 1. Agar lightbox khula hai toh band karo (album mein wapas)
       if (lightboxIndex !== null) {
         setLightboxIndex(null);
-        window.history.pushState({ step: 'lightbox' }, '');
         return;
       }
 
@@ -65,7 +64,6 @@ export default function HafashMasterPortfolio() {
       if (activeAlbum !== null) {
         setActiveAlbum(null);
         setActiveGroup(null);
-        window.history.pushState({ step: 'album' }, '');
         return;
       }
 
