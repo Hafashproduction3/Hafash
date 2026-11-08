@@ -23,6 +23,7 @@ export default function AdminPortfolioManager() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [photoCaption, setPhotoCaption] = useState(""); 
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -103,7 +104,6 @@ export default function AdminPortfolioManager() {
         headers: { "Content-Type": compressedFile.type },
       });
 
-      // 👇 FIX: Fresh Signed URL generate karein
       const urlRes = await refreshPhotoUrls([key]);
       
       if (!urlRes.success || !urlRes.urls[key]) {
@@ -153,25 +153,62 @@ export default function AdminPortfolioManager() {
     } catch (err: any) { toast({ variant: "destructive", title: "Error", description: err.message }); }
   };
 
+  // ✅ SMART LOADING: Pehle 20 photos foran load karein
   const refreshAlbumUrls = async (album: any) => {
     if (!album.photos || album.photos.length === 0) {
       setSelectedAlbum({ ...album, displayItems: [] });
       return;
     }
     setRefreshing(true);
+    
     try {
-      const keys = album.photos.map((p: any) => typeof p === 'string' ? p : p.key);
+      // Sirf pehli 20 photos ke URLs foran load karein
+      const firstBatch = album.photos.slice(0, 20);
+      const keys = firstBatch.map((p: any) => typeof p === 'string' ? p : p.key);
+      
       const res = await refreshPhotoUrls(keys);
       
       if (res.success) {
-        const displayItems = album.photos.map((p: any) => {
+        const displayItems = firstBatch.map((p: any) => {
           const key = typeof p === 'string' ? p : p.key;
           const caption = typeof p === 'string' ? 'General' : (p.caption || 'General');
           return { key, url: res.urls[key] || '', caption };
         });
         setSelectedAlbum({ ...album, displayItems });
+        setRefreshing(false);
+
+        // Baqi photos background mein load karein
+        if (album.photos.length > 20) {
+          setLoadingMore(true);
+          const remainingPhotos = album.photos.slice(20);
+          const remainingKeys = remainingPhotos.map((p: any) => typeof p === 'string' ? p : p.key);
+          
+          try {
+            const remainingRes = await refreshPhotoUrls(remainingKeys);
+            if (remainingRes.success) {
+              const allDisplayItems = [
+                ...displayItems,
+                ...remainingPhotos.map((p: any) => {
+                  const key = typeof p === 'string' ? p : p.key;
+                  const caption = typeof p === 'string' ? 'General' : (p.caption || 'General');
+                  return { key, url: remainingRes.urls[key] || '', caption };
+                })
+              ];
+              setSelectedAlbum({ ...album, displayItems: allDisplayItems });
+            }
+          } catch (e) {
+            console.error("Background load failed", e);
+          } finally {
+            setLoadingMore(false);
+          }
+        }
+      } else {
+        setRefreshing(false);
       }
-    } catch (err) { console.error(err); } finally { setRefreshing(false); }
+    } catch (err) { 
+      console.error(err); 
+      setRefreshing(false);
+    }
   };
 
   const handleSelectAlbum = (album: any) => {
@@ -382,9 +419,19 @@ export default function AdminPortfolioManager() {
                 item.url && (
                   <div key={i} className="relative aspect-square rounded-xl overflow-hidden group border border-border/30">
                     {item.url.match(/\.(mp4|webm|ogg|mov|m4v)/i) ? (
-                       <video src={item.url} className="w-full h-full object-cover" muted />
+                       <video 
+                         src={item.url} 
+                         className="w-full h-full object-cover" 
+                         muted 
+                         onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }}
+                       />
                     ) : (
-                       <img src={item.url} alt="Portfolio" className="w-full h-full object-cover" />
+                       <img 
+                         src={item.url} 
+                         alt="Portfolio" 
+                         className="w-full h-full object-cover" 
+                         onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }}
+                       />
                     )}
                     <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded">
                       {item.caption}
@@ -393,6 +440,12 @@ export default function AdminPortfolioManager() {
                   </div>
                 )
               ))}
+            </div>
+          )}
+
+          {loadingMore && (
+            <div className="flex justify-center py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-primary" />
             </div>
           )}
 

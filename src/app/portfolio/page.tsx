@@ -57,6 +57,21 @@ export default function HafashMasterPortfolio() {
         setLoadingPhotos(false);
         return;
       }
+
+      // Step 1: Pehle browser cache se photos uthao (taake foran dikhein)
+      const cacheKey = "hafash_portfolio_cache";
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const cachedData = JSON.parse(cached);
+          if (cachedData.length > 0 && !cancelled) {
+            setAlbumsWithPhotos(cachedData);
+            setLoadingPhotos(false);
+          }
+        }
+      } catch (e) {}
+
+      // Step 2: Peeche se fresh data load karo
       setLoadingPhotos(true);
       try {
         const updatedAlbums = await Promise.all(
@@ -74,8 +89,17 @@ export default function HafashMasterPortfolio() {
               if (res?.success && res?.urls) {
                 const displayItems = photoItems.map((p: any) => {
                   const key = typeof p === "string" ? p : p.key || '';
+                  // ✅ Check karo ke thumbKey mojood hai ya nahi
+                  const thumbKey = typeof p === "string" ? null : (p.thumbKey || null);
                   const caption = typeof p === "string" ? 'General' : (p.caption || 'General');
-                  return { key, url: res.urls[key] || '', caption };
+                  
+                  return { 
+                    key, 
+                    url: res.urls[key] || '', 
+                    // ✅ Thumbnail link use karo (fast load)
+                    thumbUrl: thumbKey ? (res.urls[thumbKey] || res.urls[key]) : res.urls[key], 
+                    caption 
+                  };
                 }).filter((item: any) => item.url && item.url.startsWith("http"));
                 
                 return { ...album, displayItems };
@@ -89,6 +113,12 @@ export default function HafashMasterPortfolio() {
 
         if (cancelled) return;
         setAlbumsWithPhotos(updatedAlbums);
+        
+        // Step 3: Fresh data ko cache mein save karo agli baar ke liye
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(updatedAlbums));
+        } catch (e) {}
+
       } catch (error) {
         console.error(error);
       } finally {
@@ -122,7 +152,8 @@ export default function HafashMasterPortfolio() {
     let items = currentAlbum.displayItems;
     if (activeGroup) items = items.filter((i: any) => i.caption === activeGroup);
     
-    return items.map((i: any) => i.url).filter((url: string) => {
+    // ✅ Thumbnail use karo grid ke liye (fast load)
+    return items.map((i: any) => i.thumbUrl || i.url).filter((url: string) => {
       if (!url || !url.startsWith("http")) return false;
       if (mediaFilter === 'videos') return isVideo(url);
       if (mediaFilter === 'photos') return !isVideo(url);
@@ -251,7 +282,6 @@ export default function HafashMasterPortfolio() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#0f1115] relative pb-20 font-sans text-white selection:bg-primary selection:text-black">
       
-      {/* ✅ Premium Studio Background */}
       <div className="fixed inset-0 pointer-events-none z-0 bg-[#0f1115]">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/10 via-[#0f1115] to-[#0f1115]" />
         <img 
@@ -298,7 +328,6 @@ export default function HafashMasterPortfolio() {
           </div>
         </nav>
 
-        {/* ✅ HERO SECTION */}
         {!activeAlbum && (
           <section className="relative mx-auto max-w-[1600px] px-5 pb-20 pt-40 md:px-10 md:pb-28 md:pt-48" id="home">
             <div className="grid items-center gap-16 lg:grid-cols-2 lg:gap-24">
@@ -368,7 +397,6 @@ export default function HafashMasterPortfolio() {
           </section>
         )}
 
-        {/* ✅ COLLECTIONS (ALBUMS) SECTION */}
         {!activeAlbum && (
           <section className="border-t border-white/5 py-16 md:py-24" id="gallery">
             <div className="mx-auto max-w-[1600px] px-5 md:px-10">
@@ -416,7 +444,6 @@ export default function HafashMasterPortfolio() {
           </section>
         )}
 
-        {/* ✅ ALBUM INSIDE GALLERY */}
         {activeAlbum && (
           <section className="mx-auto max-w-[1600px] px-5 py-20 md:px-10 md:py-28">
             <div className="animate-in fade-in duration-1000">
@@ -467,23 +494,52 @@ export default function HafashMasterPortfolio() {
                 <button onClick={() => setMediaFilter('videos')} className={`px-4 py-2 text-xs font-bold uppercase tracking-wider rounded-full flex items-center gap-2 transition-colors ${mediaFilter === 'videos' ? 'bg-white/10 text-white' : 'text-white/40 hover:text-white'}`}><Video className="w-4 h-4" /> Videos</button>
               </div>
 
-              <div className="grid grid-cols-3 gap-1 md:gap-2">
-                {visiblePhotos.map((media: string, index: number) => (
-                  media && (
-                    <button key={`${media}-${index}`} onClick={() => openLightbox(index)} className="group relative block w-full aspect-square overflow-hidden bg-[#141414] text-left">
-                      {isVideo(media) ? (
+              {/* ✅ GRID (NO BLACK BOXES) */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4">
+                {currentAlbum?.displayItems?.filter((item: any) => {
+                  if (activeGroup && item.caption !== activeGroup) return false;
+                  if (mediaFilter === 'photos' && isVideo(item.url)) return false;
+                  if (mediaFilter === 'videos' && !isVideo(item.url)) return false;
+                  return true;
+                }).map((item: any, index: number) => (
+                  item.url && (
+                    <button 
+                      key={`${item.key}-${index}`} 
+                      onClick={() => openLightbox(index)} 
+                      className="group relative block w-full aspect-square overflow-hidden rounded-lg bg-[#141414] text-left"
+                    >
+                      {isVideo(item.url) ? (
                         <div className="relative w-full h-full">
-                          <video src={media} className="h-full w-full object-cover" muted playsInline preload="metadata" />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20"><div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/50 bg-black/40 backdrop-blur"><Play className="ml-0.5 h-3 w-3 fill-white text-white" /></div></div>
+                          <video src={item.url} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/50 bg-black/40 backdrop-blur">
+                              <Play className="ml-1 h-4 w-4 fill-white text-white" />
+                            </div>
+                          </div>
                         </div>
                       ) : (
-                        <img 
-                          src={media} 
-                          alt="Portfolio" 
-                          onError={(e) => { e.currentTarget.parentElement!.style.display = 'none'; }} 
-                          className="block h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105" 
-                          loading="lazy" 
-                        />
+                        <>
+                          {/* ✅ Step 1: Pehle blur thumbnail dikhao (foran) */}
+                          <img 
+                            src={item.thumbUrl || item.url} 
+                            alt="Thumbnail" 
+                            className="absolute inset-0 h-full w-full object-cover blur-md scale-110"
+                          />
+                          
+                          {/* ✅ Step 2: Peeche se high quality load karo */}
+                          <img 
+                            src={item.url} 
+                            alt="Portfolio" 
+                            onLoad={(e) => {
+                              e.currentTarget.classList.remove('opacity-0');
+                            }}
+                            onError={(e) => { 
+                              e.currentTarget.parentElement!.style.display = 'none'; 
+                            }}
+                            className="relative block h-full w-full object-cover opacity-0 transition-all duration-700 group-hover:scale-105" 
+                            loading="lazy" 
+                          />
+                        </>
                       )}
                     </button>
                   )
@@ -497,7 +553,6 @@ export default function HafashMasterPortfolio() {
           </section>
         )}
 
-        {/* ✅ About Section */}
         <section id="about" className="relative z-10 border-t border-white/5 py-24 px-5 md:px-10 bg-[#0a0a0a]/80 backdrop-blur-sm">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <h2 className="font-headline text-4xl md:text-6xl font-bold text-white">About <span className="text-primary italic">Me</span></h2>
@@ -507,7 +562,6 @@ export default function HafashMasterPortfolio() {
           </div>
         </section>
 
-        {/* ✅ Contact Section */}
         <section id="contact" className="relative z-10 border-t border-white/5 py-24 px-5 md:px-10 bg-[#0a0a0a]/80 backdrop-blur-sm">
           <div className="max-w-4xl mx-auto text-center space-y-8">
             <h2 className="font-headline text-4xl md:text-6xl font-bold text-white">Get In <span className="text-primary italic">Touch</span></h2>
@@ -527,7 +581,6 @@ export default function HafashMasterPortfolio() {
           </div>
         </section>
 
-        {/* ✅ LIGHTBOX */}
         {selectedImage && (
           <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/95 p-3 backdrop-blur-xl md:p-8" onClick={closeLightbox}>
             <button onClick={closeLightbox} aria-label="Close viewer" className="absolute right-5 top-5 z-[160] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white transition hover:border-primary hover:text-primary md:right-8 md:top-8">
@@ -546,9 +599,9 @@ export default function HafashMasterPortfolio() {
               ) : (
                 <img 
                   key={selectedImage} 
-                  src={selectedImage} 
+                  src={currentAlbum?.displayItems[lightboxIndex || 0]?.url || selectedImage} 
                   alt="Hafash fullscreen portfolio" 
-                  onError={(e) => {
+                  onError={() => {
                     console.error("Corrupt Image URL Found:", selectedImage);
                     alert("Yeh picture corrupt hai ya Firebase se delete ho chuki hai. Console check karein.");
                     closeLightbox();
