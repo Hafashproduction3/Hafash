@@ -81,21 +81,25 @@
 
 /* Dynamic Photographer Watermark (Enterprise plan ke liye) */
 .watermark-custom {
+  position: absolute;
+  inset: 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: rgba(0, 0, 0, 0.05);
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 10;
 }
 
 .watermark-custom-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
-  width: 100%;
-  height: 100%;
-  transform: rotate(-25deg) scale(1.5); /* Diagonal effect */
-  opacity: 0.6;
+  width: 120%;
+  height: 120%;
+  transform: rotate(-30deg);
+  opacity: 0.15; /* Halka (transparent) kar diya */
+  gap: 100px;
 }
 
 .watermark-custom-item {
@@ -103,27 +107,24 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
+  white-space: nowrap; 
 }
 
 .watermark-custom-logo {
-  height: 50px;
-  width: 50px;
+  height: 40px;
+  width: auto;
   object-fit: contain;
-  opacity: 0.8;
-  filter: brightness(0.8) sepia(1) hue-rotate(5deg) saturate(3); /* Goldish tint */
+  filter: brightness(0.8) sepia(1) hue-rotate(5deg) saturate(3); 
 }
 
 .watermark-custom-text {
   font-family: 'Playfair Display', serif;
   font-weight: 700;
-  font-size: 24px;
-  color: #8B6914; /* Royal Gold */
-  opacity: 0.8;
+  font-size: 20px;
+  color: #D4AF37; /* Royal Gold */
   text-transform: uppercase;
-  letter-spacing: 2px;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-  white-space: nowrap;
+  letter-spacing: 4px;
 }
 
 /* Global Animations */
