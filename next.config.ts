@@ -10,7 +10,8 @@ const nextConfig: NextConfig = {
   },
 
   images: {
-    formats: ['image/webp'], // ✅ YEH LINE ADD KI HAI WEBP KE LIYE
+    unoptimized: true, // ✅ YEH NAYI LINE ADD KI HAI (Gallery images block hone ka masla fix karegi)
+    formats: ['image/webp'], 
     remotePatterns: [
       {
         protocol: 'https',

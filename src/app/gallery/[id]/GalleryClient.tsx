@@ -96,24 +96,18 @@ const GalleryItem = memo(({
           onError={() => { setImgError(true); setLoaded(true); }}
         />
       ) : (
-        <Image
-          src={imageSrc}
-          alt={item.fileName || "Gallery Asset"}
-          fill
-          sizes="(max-width: 768px) 33vw, (max-width: 1200px) 20vw, 15vw"
-          className={cn(
-            "object-cover transition-all duration-1000",
-            loaded ? "opacity-100" : "opacity-0",
-            !isSelectionMode && "group-hover:scale-110"
-          )}
-          loading={priority ? "eager" : "lazy"}
-          onLoad={() => setLoaded(true)}
-          onError={async (e) => {
-            // Agar image load na ho, to error state set karein
-            setImgError(true); 
-            setLoaded(true);
-          }}
-        />
+        <img
+        src={imageSrc}
+        alt={item.fileName || "Gallery Asset"}
+        className={cn(
+          "absolute inset-0 w-full h-full object-cover transition-all duration-1000",
+          loaded ? "opacity-100" : "opacity-0",
+          !isSelectionMode && "group-hover:scale-110"
+        )}
+        loading={priority ? "eager" : "lazy"}
+        onLoad={() => setLoaded(true)}
+        onError={() => { setImgError(true); setLoaded(true); }}
+      />
       )}
       
       {isSelectionMode && (
@@ -1530,14 +1524,16 @@ export default function ClientGalleryPage() {
         
         <div className="relative z-10 max-w-3xl space-y-6">
           <div className="animate-in fade-in slide-in-from-left-8 duration-1200 delay-200">
-            {isCustomBrandingActive && studioLogo ? (
-              <img src={studioLogo} className="h-16 lg:h-24 w-auto object-contain drop-shadow-[0_10px_40px_rgba(212,175,55,0.3)] mb-4" alt="Logo" />
-            ) : (
-              <div className="flex items-center gap-3 mb-4">
-                <img src="/hafash-logo.png" className="h-10 w-auto drop-shadow-2xl" alt="Logo" />
-                <span className="text-2xl lg:text-4xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
-              </div>
-            )}
+          {!profile ? (
+  <div className="h-16 w-16 mb-4"></div> // Loading state (Kuch nahi dikhega)
+) : isCustomBrandingActive && studioLogo ? (
+  <img src={studioLogo} className="h-16 lg:h-24 w-auto object-contain drop-shadow-[0_10px_40px_rgba(212,175,55,0.3)] mb-4" alt="Logo" />
+) : (
+  <div className="flex items-center gap-3 mb-4">
+    <img src="/hafash-logo.png" className="h-10 w-auto drop-shadow-2xl" alt="Logo" />
+    <span className="text-2xl lg:text-4xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
+  </div>
+)}
             <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg mb-2">
               {studioName}
             </p>
@@ -1695,24 +1691,26 @@ export default function ClientGalleryPage() {
         <div className="absolute inset-0 bg-gradient-to-tr from-black/90 via-black/40 to-transparent" />
         
         <div className="relative z-10 w-full pt-24 pl-8 lg:pl-16">
-          {isCustomBrandingActive ? (
-            <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-top-6 duration-1000">
-              <div className="flex items-center justify-start gap-4 lg:gap-6">
-                {studioLogo && (
-                  <img src={studioLogo} className="h-14 lg:h-20 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
-                )}
-                <span className="text-3xl lg:text-5xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-start space-y-2 animate-in fade-in slide-in-from-top-6 duration-1000">
-              <div className="flex items-center justify-start gap-3">
-                <img src="/hafash-logo.png" className="h-[45px] lg:h-[60px] w-auto drop-shadow-2xl" alt="Logo" />
-                <span className="text-4xl sm:text-5xl lg:text-6xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
-              </div>
-              <span className="text-[10px] lg:text-[13px] font-bold tracking-[0.4em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
-            </div>
-          )}
+        {!profile ? (
+  <div className="h-20 w-full"></div> // Loading state
+) : isCustomBrandingActive ? (
+  <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-top-6 duration-1000">
+    <div className="flex items-center justify-start gap-4 lg:gap-6">
+      {studioLogo && (
+        <img src={studioLogo} className="h-14 lg:h-20 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
+      )}
+      <span className="text-3xl lg:text-5xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
+    </div>
+  </div>
+) : (
+  <div className="flex flex-col items-start space-y-2 animate-in fade-in slide-in-from-top-6 duration-1000">
+    <div className="flex items-center justify-start gap-3">
+      <img src="/hafash-logo.png" className="h-[45px] lg:h-[60px] w-auto drop-shadow-2xl" alt="Logo" />
+      <span className="text-4xl sm:text-5xl lg:text-6xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
+    </div>
+    <span className="text-[10px] lg:text-[13px] font-bold tracking-[0.4em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
+  </div>
+)}
         </div>
 
         <div className="relative z-10 w-full pb-8 lg:pb-10 pl-8 lg:pl-16 pr-8 lg:pr-16 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
@@ -2259,16 +2257,10 @@ export default function ClientGalleryPage() {
                 className="relative max-w-full max-h-[85vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5 animate-in fade-in duration-500"
               />
             ) : (
-              <Image
+              <img
                 key={gallery.items[selectedIndex].url}
                 src={gallery.items[selectedIndex].masterUrl || gallery.items[selectedIndex].url}
                 alt="Fullscreen"
-                width={1920}
-                height={1080}
-                quality={85}
-                sizes="100vw"
-                priority
-                fetchPriority="high"
                 onClick={(e) => e.stopPropagation()}
                 onLoad={() => setLightboxImgLoaded(true)}
                 onError={() => {
