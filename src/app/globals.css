@@ -79,52 +79,100 @@
   background-position: center;
 }
 
-/* Dynamic Photographer Watermark (Enterprise plan ke liye) */
+/* ✅ NAYA 3-PLACE WATERMARK (Center + Top + Bottom) */
 .watermark-custom {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   pointer-events: none;
   overflow: hidden;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .watermark-custom-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  width: 120%;
-  height: 120%;
-  transform: rotate(-30deg);
-  opacity: 0.15; /* Halka (transparent) kar diya */
-  gap: 100px;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  transform: rotate(-30deg); /* Poora group tilt hai */
 }
 
+/* Base style for all 3 items */
 .watermark-custom-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  white-space: nowrap; 
+  gap: 15px;
+  white-space: nowrap;
+  position: absolute;
+  opacity: 0.7; /* Dark aur visible */
 }
 
+/* ✅ 1. CENTER WATERMARK (Face ke bilkul upar) */
+.watermark-custom-item:nth-child(1) {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1.2);
+  z-index: 3;
+}
+
+/* ✅ 2. TOP WATERMARK (Kinaron se door, center ke upar) */
+.watermark-custom-item:nth-child(2) {
+  top: 25%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  z-index: 2;
+}
+
+/* ✅ 3. BOTTOM WATERMARK (Kinaron se door, center ke neeche) */
+.watermark-custom-item:nth-child(3) {
+  bottom: 25%;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  z-index: 1;
+}
+
+/* React ke baki 6 items ko hide karein */
+.watermark-custom-item:nth-child(n+4) {
+  display: none;
+}
+
+/* ✅ LOGO FIX: Logo dark, bright aur clear */
 .watermark-custom-logo {
-  height: 40px;
+  height: 90px; 
   width: auto;
   object-fit: contain;
-  filter: brightness(0.8) sepia(1) hue-rotate(5deg) saturate(3); 
+  filter: brightness(0.2) sepia(1) hue-rotate(5deg) saturate(6) contrast(2); 
+  opacity: 0.95;
 }
 
+/* ✅ TEXT FIX: Dark, Bada aur AI Proof */
 .watermark-custom-text {
   font-family: 'Playfair Display', serif;
-  font-weight: 700;
-  font-size: 20px;
-  color: #D4AF37; /* Royal Gold */
+  font-weight: 900; 
+  font-size: 65px; 
+  color: #D4AF37; 
   text-transform: uppercase;
-  letter-spacing: 4px;
+  letter-spacing: 10px;
+  text-shadow: 
+    -2px -2px 0 rgba(0,0,0,1),  
+     2px -2px 0 rgba(0,0,0,1),
+    -2px  2px 0 rgba(0,0,0,1),
+     2px  2px 0 rgba(0,0,0,1),
+     0px 10px 25px rgba(0,0,0,1);
+}
+
+/* Chote watermarks (Top/Bottom) ka size adjust karna */
+.watermark-custom-item:nth-child(2) .watermark-custom-logo,
+.watermark-custom-item:nth-child(3) .watermark-custom-logo {
+  height: 70px;
+}
+
+.watermark-custom-item:nth-child(2) .watermark-custom-text,
+.watermark-custom-item:nth-child(3) .watermark-custom-text {
+  font-size: 50px;
 }
 
 /* Global Animations */

@@ -108,7 +108,11 @@ const GalleryItem = memo(({
           )}
           loading={priority ? "eager" : "lazy"}
           onLoad={() => setLoaded(true)}
-          onError={() => { setImgError(true); setLoaded(true); }}
+          onError={async (e) => {
+            // Agar image load na ho, to error state set karein
+            setImgError(true); 
+            setLoaded(true);
+          }}
         />
       )}
       
