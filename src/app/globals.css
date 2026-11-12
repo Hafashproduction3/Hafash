@@ -64,6 +64,80 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
+/* 6 PREMIUM STUDIO NAME STYLES                                    */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* 1. The Royal Gold (Jo abhi aapne pasand kiya hai) */
+.premium-style-1 {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  letter-spacing: 0.15em; 
+  background: linear-gradient(to right, #BF953F, #FCF6BA, #B38728, #FBF5B7, #AA771C);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0px 4px 15px rgba(212, 175, 55, 0.4)); 
+  position: relative;
+}
+.premium-style-1::after {
+  content: ''; display: block; width: 60%; height: 1px;
+  background: linear-gradient(to right, transparent, #D4AF37, transparent);
+  margin: 8px auto 0 auto;
+}
+
+/* 2. The Classic White (Elegant & Clean) */
+.premium-style-2 {
+  font-family: 'Cinzel', serif;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #FFFFFF;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+}
+
+/* 3. The Silver Metal (Modern Luxury) */
+.premium-style-3 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  background: linear-gradient(to bottom, #E0E0E0, #FFFFFF, #9E9E9E);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0px 2px 5px rgba(0,0,0,0.5));
+}
+
+/* 4. The Rose Gold (Wedding Vibes) */
+.premium-style-4 {
+  font-family: 'Cormorant Garamond', serif;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  background: linear-gradient(to right, #B76E79, #F4C2C2, #B76E79);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0px 4px 10px rgba(183, 110, 121, 0.4));
+}
+
+/* 5. The Cinematic Outline (Bold & Different) */
+.premium-style-5 {
+  font-family: 'Playfair Display', serif;
+  font-weight: 900;
+  letter-spacing: 0.2em;
+  color: transparent;
+  -webkit-text-stroke: 1px #D4AF37;
+  text-shadow: 0 0 20px rgba(212, 175, 55, 0.3);
+}
+
+/* 6. The Vintage Gold (Classic Royal) */
+.premium-style-6 {
+  font-family: 'Alex Brush', cursive;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: #D4AF37;
+  text-shadow: 
+    1px 1px 0px #8B6914,
+    2px 2px 5px rgba(0,0,0,0.6);
+  font-size: 1.2em; /* Script fonts thode bade lagte hain */
+}
+
+/* ═══════════════════════════════════════════════════════════════ */
 /* DYNAMIC LUXURY WATERMARK                                        */
 /* ═══════════════════════════════════════════════════════════════ */
 
@@ -79,7 +153,7 @@
   background-position: center;
 }
 
-/* ✅ NAYA 3-PLACE WATERMARK (Center + Top + Bottom) */
+/* ✅ 3-PLACE WATERMARK (Center + Top + Bottom) */
 .watermark-custom {
   position: absolute;
   inset: 0;
@@ -175,11 +249,78 @@
   font-size: 50px;
 }
 
-/* Global Animations */
-.animate-breathing {
-  will-change: transform, filter, opacity;
+/* ✅ LOGO BREATHING ANIMATION */
+@keyframes breathing {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.2));
+  }
+  50% {
+    transform: scale(1.08); /* 8% bada hoga */
+    filter: drop-shadow(0 0 25px rgba(212, 175, 55, 0.6)); /* Golden Glow */
+  }
 }
 
+/* ═══════════════════════════════════════════════════════════════ */
+/* LOGO ANIMATIONS                                                 */
+/* ═══════════════════════════════════════════════════════════════ */
+
+/* 1. Breathing Effect (Halka sa bada-chota hona) */
+@keyframes breathing {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.2));
+  }
+  50% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 25px rgba(212, 175, 55, 0.6));
+  }
+}
+
+.animate-breathing {
+  animation: breathing 3s ease-in-out infinite;
+  will-change: transform, filter;
+}
+
+/* 2. 360 Degree Spin Effect (Sikka ghoomne jaisa) */
+@keyframes spin-360 {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+
+.animate-spin-360 {
+  animation: spin-360 4s linear infinite;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* 3. Shimmer Effect (Golden Light Sweep) */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.animate-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.8), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 3s infinite linear;
+  mix-blend-mode: overlay;
+}
 /* Custom Luxury Utilities */
 @layer utilities {
   .custom-scrollbar::-webkit-scrollbar {
@@ -198,6 +339,30 @@
   .luxury-card-hover {
     @apply transition-all duration-500 hover:border-primary/40 hover:shadow-2xl hover:shadow-primary/5 hover:translate-y-[-2px];
   }
+}
+
+/* 3. Shimmer Effect (Golden Light Sweep) */
+@keyframes shimmer {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+.animate-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.animate-shimmer::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.8), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 3s infinite linear;
+  mix-blend-mode: overlay;
 }
 
 /* ═══════════════════════════════════════════════════════════════ */

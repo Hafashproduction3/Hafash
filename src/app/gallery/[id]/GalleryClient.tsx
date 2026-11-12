@@ -1525,15 +1525,15 @@ export default function ClientGalleryPage() {
         <div className="relative z-10 max-w-3xl space-y-6">
           <div className="animate-in fade-in slide-in-from-left-8 duration-1200 delay-200">
           {!profile ? (
-  <div className="h-16 w-16 mb-4"></div> // Loading state (Kuch nahi dikhega)
-) : isCustomBrandingActive && studioLogo ? (
-  <img src={studioLogo} className="h-16 lg:h-24 w-auto object-contain drop-shadow-[0_10px_40px_rgba(212,175,55,0.3)] mb-4" alt="Logo" />
-) : (
-  <div className="flex items-center gap-3 mb-4">
-    <img src="/hafash-logo.png" className="h-10 w-auto drop-shadow-2xl" alt="Logo" />
-    <span className="text-2xl lg:text-4xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
-  </div>
-)}
+            <div className="h-16 w-16 mb-4"></div> 
+          ) : isCustomBrandingActive && studioLogo ? (
+            <img src={studioLogo} className="h-20 lg:h-28 w-auto object-contain drop-shadow-[0_10px_40px_rgba(212,175,55,0.5)] mb-4" alt="Logo" />
+          ) : (
+            <div className="flex items-center gap-3 mb-4">
+              <img src="/hafash-logo.png" className="h-10 w-auto drop-shadow-2xl" alt="Logo" />
+              <span className="text-2xl lg:text-4xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
+            </div>
+          )}
             <p className="text-primary italic font-headline tracking-[0.4em] text-xs lg:text-sm uppercase drop-shadow-lg mb-2">
               {studioName}
             </p>
@@ -1674,49 +1674,59 @@ export default function ClientGalleryPage() {
       )}>
         
         {effectiveHeroImage ? (
-          <Image
+          <img
             src={
               gallery.coverImage || 
               gallery.items?.[0]?.thumbUrl || 
               effectiveHeroImage
             }
             alt="Cover"
-            fill
-            priority
-            sizes="100vw"
-            quality={80}
-            className="object-cover opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
+            className="absolute inset-0 w-full h-full object-cover object-center opacity-80 scale-105 animate-[slow-zoom_20s_infinite_alternate]"
           />
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-tr from-black/90 via-black/40 to-transparent" />
         
-        <div className="relative z-10 w-full pt-24 pl-8 lg:pl-16">
-        {!profile ? (
-  <div className="h-20 w-full"></div> // Loading state
-) : isCustomBrandingActive ? (
-  <div className="flex flex-col items-start space-y-4 animate-in fade-in slide-in-from-top-6 duration-1000">
-    <div className="flex items-center justify-start gap-4 lg:gap-6">
-      {studioLogo && (
-        <img src={studioLogo} className="h-14 lg:h-20 w-auto object-contain drop-shadow-2xl" alt="Logo" decoding="async" />
-      )}
-      <span className="text-3xl lg:text-5xl font-headline font-bold uppercase tracking-tighter drop-shadow-2xl" style={{ color: 'var(--portfolio-primary)' }}>{studioName}</span>
-    </div>
-  </div>
-) : (
-  <div className="flex flex-col items-start space-y-2 animate-in fade-in slide-in-from-top-6 duration-1000">
-    <div className="flex items-center justify-start gap-3">
-      <img src="/hafash-logo.png" className="h-[45px] lg:h-[60px] w-auto drop-shadow-2xl" alt="Logo" />
-      <span className="text-4xl sm:text-5xl lg:text-6xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
-    </div>
-    <span className="text-[10px] lg:text-[13px] font-bold tracking-[0.4em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
-  </div>
-)}
-        </div>
+                {/* ✅ HERO DESIGNER APPLIED (Fixed Position for all screens) */}
+                {!profile ? (
+          <div className="relative z-10 w-full h-full flex items-center justify-center opacity-0"></div>
+        ) : isCustomBrandingActive && gallery?.heroDesign ? (
+          <>
+            {/* 1. Branding (Logo + Name) */}
+            <div 
+              className="absolute z-10 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-700 w-full"
+              style={{ 
+                left: `${gallery.heroDesign.brandPos?.x || 50}%`, 
+                top: `${gallery.heroDesign.brandPos?.y || 30}%`, 
+                transform: 'translate(-50%, -50%)' 
+              }}
+            >
+              {studioLogo && gallery.heroDesign.showLogo !== false && (
+                <img src={studioLogo} className={cn(
+                  "h-16 lg:h-28 w-auto object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.8)] mb-3",
+                  gallery.heroDesign.logoAnimation === 'breathing' && "animate-breathing",
+                  gallery.heroDesign.logoAnimation === 'spin-360' && "animate-spin-360",
+                  gallery.heroDesign.logoAnimation === 'shimmer' && "animate-shimmer"
+                )} alt="Logo" />
+              )}
+              {gallery.heroDesign.showStudioName !== false && (
+                <span 
+                  className={`${gallery.heroDesign.premiumStyle || 'premium-style-1'} text-3xl lg:text-5xl text-center whitespace-nowrap`}
+                >
+                  {studioName}
+                </span>
+              )}
+            </div>
 
-        <div className="relative z-10 w-full pb-8 lg:pb-10 pl-8 lg:pl-16 pr-8 lg:pr-16 animate-in fade-in slide-in-from-left-6 duration-1000 delay-500">
-          <div className="w-full max-w-4xl space-y-2">
-            <div className="flex flex-col items-start">
-              <span className="text-primary tracking-[0.3em] text-[10px] lg:text-xs font-bold uppercase mb-1">
+            {/* 2. Details (Bride/Groom + Date) */}
+            <div 
+              className="absolute z-10 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95 duration-700 delay-200 w-full"
+              style={{ 
+                left: `${gallery.heroDesign.detailPos?.x || 50}%`, 
+                top: `${gallery.heroDesign.detailPos?.y || 80}%`, 
+                transform: 'translate(-50%, -50%)' 
+              }}
+            >
+              <p className="text-primary tracking-[0.3em] text-[10px] lg:text-xs font-bold uppercase mb-1 drop-shadow-md">
                 {gallery.eventFormat === 'wedding' ? 'The Wedding Of' : 
                  gallery.eventFormat === 'mehndi' ? 'The Mehndi Of' :
                  gallery.eventFormat === 'mayo' ? 'The Mayo Of' :
@@ -1728,39 +1738,77 @@ export default function ClientGalleryPage() {
                  gallery.eventFormat === 'birthday_girl' ? 'Birthday Girl' :
                  gallery.eventFormat === 'birthday_boy' ? 'Birthday Boy' :
                  'Celebrating'}
-              </span>
+              </p>
               
-              <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center justify-center gap-1 sm:gap-2 whitespace-nowrap">
                 {['wedding', 'mehndi', 'mayo', 'barat', 'walima', 'nikkah', 'engagement'].includes(gallery.eventFormat) ? (
                   <>
-                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white">
+                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white drop-shadow-lg">
                       {gallery.groomName || 'Groom'}
                     </span>
-                    <span className="text-2xl sm:text-3xl lg:text-4xl text-primary italic font-light px-1">
+                    <span className="text-2xl sm:text-3xl lg:text-4xl text-primary italic font-light px-1 drop-shadow-lg">
                       &amp;
                     </span>
-                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white">
+                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white drop-shadow-lg">
                       {gallery.brideName || 'Bride'}
                     </span>
                   </>
                 ) : (
-                  <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white">
+                  <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white drop-shadow-lg">
                     {gallery.celebrantName || gallery.title}
                   </span>
                 )}
               </h1>
+              
+              <p className="text-sm lg:text-base text-white/90 italic mt-2 drop-shadow-md">
+                {gallery.heroDesign.emoji || ''} {gallery.date} {gallery.heroDesign.emoji || ''}
+              </p>
             </div>
-            
-            <p className="text-lg lg:text-xl italic text-primary font-headline drop-shadow-xl pt-2">
-              Dear {gallery.clientName},
-            </p>
-            <div className="flex items-center justify-start gap-4 text-white/80 uppercase tracking-[0.3em] text-[10px] lg:text-xs font-bold pt-1">
-              <span>{gallery.category}</span>
-              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-              <span>{gallery.date}</span>
+          </>
+        ) : (
+          /* ✅ FALLBACK: Agar Photographer ne Custom Design save nahi kiya (Purani Galleries) */
+          <>
+            <div className="relative z-10 w-full pt-12 lg:pt-16 pl-8 lg:pl-16 flex flex-col items-start justify-start text-left">
+              {isCustomBrandingActive && studioLogo ? (
+                <div className="flex flex-col items-start justify-start space-y-2 animate-in fade-in slide-in-from-top-6 duration-1000">
+                  <img src={studioLogo} className="h-20 lg:h-32 w-auto object-contain drop-shadow-[0_10px_30px_rgba(212,175,55,0.5)]" alt="Logo" decoding="async" />
+                  <span className="premium-hero-name text-3xl lg:text-5xl">{studioName}</span>
+                </div>
+              ) : (
+                <div className="flex flex-col items-start justify-start space-y-2 animate-in fade-in slide-in-from-top-6 duration-1000">
+                  <div className="flex items-center justify-start gap-3">
+                    <img src="/hafash-logo.png" className="h-[45px] lg:h-[60px] w-auto drop-shadow-2xl" alt="Logo" />
+                    <span className="text-4xl sm:text-5xl lg:text-6xl font-headline font-bold text-white italic drop-shadow-2xl">Hafash.pk</span>
+                  </div>
+                  <span className="text-[10px] lg:text-[13px] font-bold tracking-[0.4em] text-primary/80 uppercase drop-shadow-lg">LUXURY GALLERY DELIVERY</span>
+                </div>
+              )}
             </div>
-          </div>
-        </div>
+
+            <div className="relative z-10 w-full pb-8 lg:pb-10 pl-8 lg:pl-16 pr-8 lg:pr-16">
+              <div className="w-full max-w-4xl space-y-2">
+                <div className="flex flex-col items-start">
+                  <span className="text-primary tracking-[0.3em] text-[10px] lg:text-xs font-bold uppercase mb-1">
+                    {gallery.eventFormat === 'wedding' ? 'The Wedding Of' : 'Celebrating'}
+                  </span>
+                  <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white">
+                      {gallery.groomName || gallery.title}
+                    </span>
+                  </h1>
+                </div>
+                <p className="text-lg lg:text-xl italic text-primary font-headline drop-shadow-xl pt-2">
+                  Dear {gallery.clientName},
+                </p>
+                <div className="flex items-center justify-start gap-4 text-white/80 uppercase tracking-[0.3em] text-[10px] lg:text-xs font-bold pt-1">
+                  <span>{gallery.category}</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  <span>{gallery.date}</span>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {!isSelectionMode && (

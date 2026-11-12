@@ -35,6 +35,7 @@ import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { HafashLoader } from '@/components/ui/hafash-loader';
+import HeroDesigner from '@/components/dashboard/HeroDesigner'; // ✅ IMPORT KIYA
 
 export default function EventManagementPage() {
   const params = useParams();
@@ -68,6 +69,9 @@ export default function EventManagementPage() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [activeModalTab, setActiveModalTab] = useState<'main' | 'favorites' | 'products' | 'reviews' | 'privacy'>('main');
   
+  // ✅ NAYA STATE HERO DESIGNER KE LIYE
+  const [showHeroDesigner, setShowHeroDesigner] = useState(false);
+
   const [modalSettings, setModalSettings] = useState({
     title: '',
     slug: '',
@@ -250,6 +254,20 @@ export default function EventManagementPage() {
       }
     };
   }, []);
+
+  const handleSaveHeroDesign = async (newSettings: any) => {
+    if (!eventRef) return;
+    try {
+      await updateDoc(eventRef, {
+        heroDesign: newSettings,
+        updatedAt: new Date().toISOString()
+      });
+      toast({ title: "Design Settings Saved Successfully!" });
+      setShowHeroDesigner(false);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Save Failed", description: err.message });
+    }
+  };
 
   const handleSaveModalSettings = async () => {
     if (!eventRef) return;
@@ -745,10 +763,12 @@ export default function EventManagementPage() {
               >
                 <SettingsIcon className="w-4 h-4 mr-3 text-primary" /> Settings
               </Button>
+              
+              {/* ✅ BUTTON UPDATED TO OPEN HERO DESIGNER MODAL */}
               <Button 
                 variant="ghost" 
                 className="w-full justify-start h-11 px-4 text-sm font-bold text-white hover:bg-[#222]"
-                onClick={() => toast({title: "Coming soon", description: "Design & Cover options are coming soon."})}
+                onClick={() => setShowHeroDesigner(true)}
               >
                 <PaletteIcon className="w-4 h-4 mr-3 text-primary" /> Design and cover
               </Button>
@@ -799,7 +819,29 @@ export default function EventManagementPage() {
         </div>
       </div>
 
+      {/* ✅ NAYA DIALOG: Hero Designer Ke Liye */}
+      <Dialog open={showHeroDesigner} onOpenChange={setShowHeroDesigner}>
+        <DialogContent className="bg-[#111] border border-white/10 rounded-3xl max-w-5xl p-0 overflow-hidden shadow-2xl [&>button]:hidden">
+          <div className="flex items-center justify-between p-6 border-b border-white/10">
+            <DialogTitle className="text-2xl font-headline font-bold text-white flex items-center gap-2">
+              <PaletteIcon className="w-6 h-6 text-primary" /> Gallery Cover Designer
+            </DialogTitle>
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 text-muted-foreground" onClick={() => setShowHeroDesigner(false)}>
+              <XIcon className="w-5 h-5" />
+            </Button>
+          </div>
+          <div className="p-6 bg-[#0A0A0A] max-h-[80vh] overflow-y-auto custom-scrollbar">
+             <HeroDesigner 
+                initialData={event?.heroDesign} 
+                coverImage={event?.coverImage} 
+                onSave={handleSaveHeroDesign} 
+             />
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+        {/* ... (Purana Settings Modal code same rahega) ... */}
         <DialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-2xl p-0 overflow-hidden shadow-2xl [&>button]:hidden">
           
           <div className="flex items-center justify-between p-6 border-b border-white/10">
@@ -1070,6 +1112,7 @@ export default function EventManagementPage() {
       </Dialog>
 
       <Dialog open={showAllAssets} onOpenChange={setShowAllAssets}>
+        {/* ... (Purana All Assets Modal code same rahega) ... */}
         <DialogContent className="max-w-[100vw] w-screen h-screen bg-black border-none rounded-none p-0 overflow-hidden flex flex-col gap-0 [&>button]:hidden">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 lg:px-8 lg:py-6 border-b border-white/10 bg-[#0A0A0A] shrink-0 z-50">
             <div className="flex items-center gap-4">
@@ -1149,6 +1192,7 @@ export default function EventManagementPage() {
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        {/* ... (Purana Delete Dialog code same rahega) ... */}
         <AlertDialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-sm p-6 shadow-2xl">
           <AlertDialogHeader>
             <div className="bg-destructive/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
