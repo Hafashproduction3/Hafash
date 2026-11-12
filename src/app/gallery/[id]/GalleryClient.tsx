@@ -39,12 +39,14 @@ const DOWNLOAD_ALL_MOBILE_PARALLEL = 3;
 
 const GalleryItem = memo(({ 
   item, showWatermark, canDownload, onFavorite, onDownload, onSelect, priority,
-  isSelectionMode, isSelected, onToggleSelect
+  isSelectionMode, isSelected, onToggleSelect,
+  isCustomBrandingActive, studioLogo, studioName
 }: { 
   item: any, showWatermark: boolean, canDownload: boolean,
   onFavorite: (id: string, current: boolean) => void, onDownload: (item: any) => void,
   onSelect: () => void, priority?: boolean,
-  isSelectionMode?: boolean, isSelected?: boolean, onToggleSelect?: () => void
+  isSelectionMode?: boolean, isSelected?: boolean, onToggleSelect?: () => void,
+  isCustomBrandingActive?: boolean, studioLogo?: string, studioName?: string
 }) => {
   const [loaded, setLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -127,7 +129,22 @@ const GalleryItem = memo(({
         </div>
       )}
       
-      {showWatermark && <div className="luxury-watermark" />}
+      {showWatermark && (
+  isCustomBrandingActive && (studioName || studioLogo) ? (
+    <div className="luxury-watermark watermark-custom">
+      <div className="watermark-custom-grid">
+        {[...Array(9)].map((_, i) => (
+          <div key={i} className="watermark-custom-item">
+            {studioLogo && <img src={studioLogo} alt="" className="watermark-custom-logo" />}
+            {studioName && <span className="watermark-custom-text">{studioName}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div className="luxury-watermark watermark-default" />
+  )
+)}
       
       {!isSelectionMode && (
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-3 backdrop-blur-sm pointer-events-none group-hover:pointer-events-auto">
@@ -1905,19 +1922,23 @@ export default function ClientGalleryPage() {
       <div className="max-w-7xl mx-auto px-4 lg:px-6 mt-24 space-y-20">
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 lg:gap-4 animate-in fade-in slide-in-from-bottom-10 duration-1000 delay-700">
           {gallery.items?.map((item: any, idx: number) => (
-            <GalleryItem 
-              key={item.id}
-              item={item}
-              showWatermark={showWatermark}
-              canDownload={canDownload}
-              onFavorite={handleFavorite}
-              onDownload={handleDownloadSingle}
-              onSelect={() => openLightbox(idx)}
-              priority={idx < 6}
-              isSelectionMode={isSelectionMode}
-              isSelected={selectedPhotos.has(item.id)}
-              onToggleSelect={() => togglePhotoSelection(item.id)}
-            />
+           <GalleryItem 
+           key={item.id}
+           item={item}
+           showWatermark={showWatermark}
+           canDownload={canDownload}
+           onFavorite={handleFavorite}
+           onDownload={handleDownloadSingle}
+           onSelect={() => openLightbox(idx)}
+           priority={idx < 6}
+           isSelectionMode={isSelectionMode}
+           isSelected={selectedPhotos.has(item.id)}
+           onToggleSelect={() => togglePhotoSelection(item.id)}
+           
+           isCustomBrandingActive={isCustomBrandingActive}
+           studioLogo={studioLogo}
+           studioName={studioName}
+         />
           ))}
         </div>
 
@@ -2256,9 +2277,22 @@ export default function ClientGalleryPage() {
               />
             )}
 
-            {showWatermark && (
-              <div className="luxury-watermark pointer-events-none" />
-            )}
+{showWatermark && (
+  isCustomBrandingActive && (studioName || studioLogo) ? (
+    <div className="luxury-watermark watermark-custom pointer-events-none">
+      <div className="watermark-custom-grid">
+        {[...Array(9)].map((_, i) => (
+          <div key={i} className="watermark-custom-item">
+            {studioLogo && <img src={studioLogo} alt="" className="watermark-custom-logo" />}
+            {studioName && <span className="watermark-custom-text">{studioName}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div className="luxury-watermark watermark-default pointer-events-none" />
+  )
+)}
           </div>
 
           <div 

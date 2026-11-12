@@ -64,14 +64,66 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════ */
-/* LUXURY WATERMARK — Dark & Bold                                  */
-/* Gehra, bara aur saaf nazar aane wala watermark                  */
+/* DYNAMIC LUXURY WATERMARK                                        */
 /* ═══════════════════════════════════════════════════════════════ */
+
+/* Base style for watermark container */
 .luxury-watermark {
-  @apply absolute inset-0 pointer-events-none select-none z-10;
+  @apply absolute inset-0 pointer-events-none select-none z-10 overflow-hidden;
+}
+
+/* Default Hafash Watermark (Baqi plans ke liye) */
+.watermark-default {
   background-image: url("data:image/svg+xml,%3Csvg width='600' height='600' viewBox='0 0 600 600' xmlns='http://www.w3.org/2000/svg'%3E%3Cg transform='rotate(-30 300 300)'%3E%3Crect x='-500' y='220' width='2000' height='160' fill='%23000' fill-opacity='0.10' /%3E%3Ctext x='300' y='285' font-family='serif' font-weight='900' font-size='80' fill='%238B6914' fill-opacity='0.65' text-anchor='middle'%3EHAFASH%3C/text%3E%3Ctext x='300' y='340' font-family='sans-serif' font-weight='bold' font-size='20' fill='%238B6914' fill-opacity='0.55' letter-spacing='12' text-anchor='middle'%3EPREVIEW ONLY%3C/text%3E%3C/g%3E%3C/svg%3E");
   background-repeat: repeat;
   background-position: center;
+}
+
+/* Dynamic Photographer Watermark (Enterprise plan ke liye) */
+.watermark-custom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.watermark-custom-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+  transform: rotate(-25deg) scale(1.5); /* Diagonal effect */
+  opacity: 0.6;
+}
+
+.watermark-custom-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.watermark-custom-logo {
+  height: 50px;
+  width: 50px;
+  object-fit: contain;
+  opacity: 0.8;
+  filter: brightness(0.8) sepia(1) hue-rotate(5deg) saturate(3); /* Goldish tint */
+}
+
+.watermark-custom-text {
+  font-family: 'Playfair Display', serif;
+  font-weight: 700;
+  font-size: 24px;
+  color: #8B6914; /* Royal Gold */
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  white-space: nowrap;
 }
 
 /* Global Animations */

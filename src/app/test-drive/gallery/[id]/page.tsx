@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useStore } from '@/lib/store';
@@ -67,7 +66,10 @@ const TestGalleryItem = memo(({
         className="w-full h-auto object-cover transition-transform duration-1000 group-hover:scale-110"
         loading={priority ? "eager" : "lazy"}
       />
-      {showWatermark && <div className="luxury-watermark" />}
+      
+      {/* ✅ FIXED: Test drive mein sirf Hafash ka default watermark aayega */}
+      {showWatermark && <div className="luxury-watermark watermark-default" />}
+      
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all duration-500 flex flex-col items-center justify-center gap-4 backdrop-blur-sm">
         <div className="flex gap-4 scale-75 group-hover:scale-100 transition-transform duration-500">
           <Button 
@@ -277,7 +279,10 @@ export default function TestDriveGalleryPage() {
         <div className="fixed inset-0 z-[100] bg-background/98 backdrop-blur-3xl flex items-center justify-center p-4 lg:p-10 animate-in fade-in duration-500" onClick={() => setSelectedImage(null)}>
           <div className="relative w-full h-full flex items-center justify-center animate-in zoom-in-95 duration-500">
             <img src={selectedImage} className="max-w-full max-h-[95vh] object-contain rounded-2xl shadow-[0_0_80px_rgba(0,0,0,0.5)] border border-white/5" alt="Fullscreen" />
-            {showWatermark && <div className="luxury-watermark" />}
+            
+            {/* ✅ FIXED: Lightbox mein bhi sirf default watermark */}
+            {showWatermark && <div className="luxury-watermark watermark-default pointer-events-none" />}
+            
           </div>
           <Button variant="ghost" size="icon" className="absolute top-6 right-6 lg:top-12 lg:right-12 text-white h-12 w-12 lg:h-16 lg:w-16 hover:bg-primary hover:text-primary-foreground rounded-full transition-all shadow-2xl">
             <X className="w-8 h-8 lg:w-10 lg:h-10" />
