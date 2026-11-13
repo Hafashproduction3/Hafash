@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 
 const FALLBACK_IMAGE = 'https://hafash.pk/hafash-logo.png';
-const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev';
+const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb07178b8a2.r2.dev';
 
 export async function GET(
   _request: Request,

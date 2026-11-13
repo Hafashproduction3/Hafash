@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 const FALLBACK_IMAGE = 'https://hafash.pk/hafash-logo.png';
 
 const R2_PUBLIC_URL =
-  'https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev';
+  'https://pub-e2f68400ff8d4c72ae59bfb07178b8a2.r2.dev';
 
 const MAX_IMAGE_SIZE = 15 * 1024 * 1024;
 
@@ -26,7 +26,7 @@ function isAllowedImageUrl(value: string): boolean {
     const hostname = url.hostname.toLowerCase();
 
     return (
-      hostname === 'pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev' ||
+      hostname === 'pub-e2f68400ff8d4c72ae59bfb07178b8a2.r2.dev' ||
       hostname === 'hafash.pk' ||
       hostname.endsWith('.hafash.pk')
     );

@@ -6,7 +6,7 @@ import { storage } from '@/lib/storage/storage';
 import { getStorageStats, clearStorageStatsCache } from '@/lib/storage/stats';
 import type { MultipartCompletedPart } from '@/lib/storage/storage';
 
-const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev';
+const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb07178b8a2.r2.dev';
 
 function getPublicUrl(key: string | null | undefined): string {
   if (!key) return '';

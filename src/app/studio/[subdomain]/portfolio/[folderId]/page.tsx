@@ -180,7 +180,7 @@ export default function FolderDetailPage() {
         });
 
         const photoId = Math.random().toString(36).substring(2, 11);
-        const publicUrl = `https://pub-e2f68400ff8d4c72ae59bfb7f78a2.r2.dev/${uploadResult.key!}`;
+        const publicUrl = `https://pub-e2f68400ff8d4c72ae59bfb07178b8a2.r2.dev/${uploadResult.key!}`;
 
         const newPhoto = {
           id: photoId,
