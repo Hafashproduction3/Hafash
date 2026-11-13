@@ -45,16 +45,23 @@ export async function generateMetadata({
       };
     }
 
-    // ✅ Groom & Bride ka naam aur Date nikal rahe hain
-    const groomName = data.groomName?.trim() || 'Groom';
-    const brideName = data.brideName?.trim() || 'Bride';
+    // ✅ Data Extract Karein
+    const clientName = data.clientName?.trim() || 'Client';
+    const groomName = data.groomName?.trim() || '';
+    const brideName = data.brideName?.trim() || '';
     const eventDate = data.date || '';
+    const studioName = data.studioName?.trim() || 'Professional Studio';
     
-    // Title: "Ahmed & Bride"
-    const title = `${groomName} & ${brideName}`;
+    // ✅ Title: Client ka naam (Jaise aapne kaha)
+    const title = clientName;
     
-    // Description: "The Wedding Of Ahmed & Bride • 2026-11-10"
-    const description = `The Wedding Of ${groomName} & ${brideName} • ${eventDate}`;
+    // ✅ Description: Groom & Bride + Date
+    let description = '';
+    if (groomName && brideName) {
+      description = `The Wedding Of ${groomName} & ${brideName} • ${eventDate}`;
+    } else {
+      description = `${studioName} • ${eventDate}`;
+    }
 
     return {
       title,
@@ -62,8 +69,8 @@ export async function generateMetadata({
       openGraph: {
         title,
         description,
-        url: `https://hafash.pk/gallery/${id}`, // ✅ Yeh line add ki hai
-        siteName: `${groomName} & ${brideName}`,
+        url: `https://hafash.pk/gallery/${id}`,
+        siteName: clientName, // ✅ Title ki tarah siteName bhi client ka naam
         type: 'website',
         images: [
           {
