@@ -11,7 +11,9 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { id } = await params;
   
-  const ogImageUrl = `https://hafash.pk/api/gallery-og/${id}`;
+  // ✅ Cache Buster: Taake WhatsApp hamesha naya preview banaye
+  const cacheBuster = Date.now();
+  const ogImageUrl = `https://hafash.pk/api/gallery-og/${id}?v=${cacheBuster}`;
 
   try {
     if (!adminDb) throw new Error('DB not initialized');
@@ -43,12 +45,12 @@ export async function generateMetadata({
       };
     }
 
-    // ✅ Yahan hum Groom & Bride ka naam nikal rahe hain
+    // ✅ Groom & Bride ka naam aur Date nikal rahe hain
     const groomName = data.groomName?.trim() || 'Groom';
     const brideName = data.brideName?.trim() || 'Bride';
     const eventDate = data.date || '';
     
-    // Title: "Ahmed & Bride" (Client Name hata diya)
+    // Title: "Ahmed & Bride"
     const title = `${groomName} & ${brideName}`;
     
     // Description: "The Wedding Of Ahmed & Bride • 2026-11-10"
@@ -60,7 +62,8 @@ export async function generateMetadata({
       openGraph: {
         title,
         description,
-        siteName: groomName + ' & ' + brideName, // Hafash ya Client ka naam nahi aayega
+        url: `https://hafash.pk/gallery/${id}`, // ✅ Yeh line add ki hai
+        siteName: `${groomName} & ${brideName}`,
         type: 'website',
         images: [
           {
