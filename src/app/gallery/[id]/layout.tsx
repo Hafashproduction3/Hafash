@@ -20,23 +20,29 @@ export async function generateMetadata({ params }: { params: { id: string } }): 
     const studioName = data?.studioName || 'Hafash Studio';
     const title = data?.title || 'A Beautiful Gallery';
     
-    // ✅ OG Image API URL (Yeh humari nayi route file hai)
+    // ✅ OG Image API URL (Hamesha main domain se serve karein, subdomain se nahi)
     const ogImageUrl = `https://hafash.pk/api/gallery-og/${galleryId}`;
 
+    // ✅ Jab WhatsApp link kholega, woh subdomain par jayega
+    // Lekin image main domain se aayegi
     return {
       title: title,
       description: `A beautiful gallery by ${studioName}.`,
+      metadataBase: new URL('https://hafash.pk'), // ✅ Base URL main domain
       openGraph: {
         title: title,
         description: `A beautiful gallery by ${studioName}.`,
+        siteName: studioName, // ✅ Hafash ka naam nahi, photographer ka naam
         images: [
           {
-            url: ogImageUrl, // ✅ Humari generated image
+            url: ogImageUrl,
             width: 1200,
             height: 630,
             alt: title,
           },
         ],
+        type: 'website',
+        locale: 'en_US',
       },
       twitter: {
         card: 'summary_large_image',
