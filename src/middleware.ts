@@ -42,7 +42,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
-    pathname.startsWith("/gallery") ||  // ✅ Gallery ko rewrite hone se rokein
+    pathname.startsWith("/gallery") || 
     pathname.includes(".")
   ) {
     return NextResponse.next();

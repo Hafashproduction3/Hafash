@@ -13,7 +13,7 @@ export async function generateMetadata({
   
   // ✅ Cache Buster: Taake WhatsApp hamesha naya preview banaye
   const cacheBuster = Date.now();
-  const ogImageUrl = `https://hafash.pk/api/gallery-og/${id}?v=${cacheBuster}`;
+  const ogImageUrl = `/api/gallery-og/${id}?v=${cacheBuster}`;
 
   try {
     if (!adminDb) throw new Error('DB not initialized');
@@ -63,7 +63,8 @@ export async function generateMetadata({
       description = `${studioName} • ${eventDate}`;
     }
 
-    return {
+ return {
+      metadataBase: new URL('https://hafash.pk'), // ✅ Yeh line yahan add karein
       title,
       description,
       openGraph: {
