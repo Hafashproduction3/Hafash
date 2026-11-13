@@ -1857,9 +1857,17 @@ export default function ClientGalleryPage() {
                 </Button>
               )}
 
-              <Button variant="outline" className="rounded-full px-4 h-9 border-white/30 text-white hover:bg-white/10 gap-1.5 backdrop-blur-md text-[10px] lg:text-xs transition-all hover:scale-105" onClick={() => { navigator.clipboard.writeText(window.location.href); toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); }}>
-                <Share2 className="w-3 h-3" /> Share
-              </Button>
+<Button variant="outline" className="..." onClick={() => { 
+  // ✅ Gallery ke andar bhi subdomain wala link copy ho
+  const subdomain = gallery?.photographerSubdomain || profile?.subdomain;
+  const shareUrl = subdomain 
+    ? `https://${subdomain}.hafash.pk/gallery/${gallery?.slug || gallery?.id}`
+    : window.location.href;
+  navigator.clipboard.writeText(shareUrl); 
+  toast({ title: "Link Copied", description: "Gallery access link is ready to share." }); 
+}}>
+  <Share2 className="w-3 h-3" /> Share
+</Button>
             </div>
 
           </div>

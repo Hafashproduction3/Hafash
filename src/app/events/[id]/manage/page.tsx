@@ -35,7 +35,7 @@ import Link from 'next/link';
 import { useMemo, useEffect, useState, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { HafashLoader } from '@/components/ui/hafash-loader';
-import HeroDesigner from '@/components/dashboard/HeroDesigner'; // ✅ IMPORT KIYA
+import HeroDesigner from '@/components/dashboard/HeroDesigner';
 
 export default function EventManagementPage() {
   const params = useParams();
@@ -69,7 +69,6 @@ export default function EventManagementPage() {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [activeModalTab, setActiveModalTab] = useState<'main' | 'favorites' | 'products' | 'reviews' | 'privacy'>('main');
   
-  // ✅ NAYA STATE HERO DESIGNER KE LIYE
   const [showHeroDesigner, setShowHeroDesigner] = useState(false);
 
   const [modalSettings, setModalSettings] = useState({
@@ -114,6 +113,14 @@ export default function EventManagementPage() {
   }, [firestore, id]);
 
   const { data: eventRaw, loading: dataLoading, error } = useDoc(eventRef);
+
+  // ✅ Photographer ka profile fetch karein (Subdomain ke liye)
+  const profileRef = useMemo(() => {
+    if (!firestore || !eventRaw?.userId) return null;
+    return doc(firestore, 'publicProfiles', eventRaw.userId);
+  }, [firestore, eventRaw?.userId]);
+
+  const { data: profile } = useDoc(profileRef);
 
   const photosQuery = useMemo(() => {
     if (!firestore || !id) return null;
@@ -561,7 +568,12 @@ export default function EventManagementPage() {
     </div>
   );
 
-  const galleryUrl = `${origin}/gallery/${event.slug || event.id}`;
+  // ✅ Photographer ke subdomain ke sath link banayein (Profile se uthaya hai)
+  const photographerSubdomain = profile?.subdomain;
+  const galleryUrl = photographerSubdomain 
+    ? `https://${photographerSubdomain}.hafash.pk/gallery/${event.slug || event.id}`
+    : `${origin}/gallery/${event.slug || event.id}`;
+
   const favoritesCount = Array.isArray(event.items) ? event.items.filter((i: any) => i.isFavorite).length : 0;
   const totalItems = event.items?.length || 0;
 
@@ -764,7 +776,6 @@ export default function EventManagementPage() {
                 <SettingsIcon className="w-4 h-4 mr-3 text-primary" /> Settings
               </Button>
               
-              {/* ✅ BUTTON UPDATED TO OPEN HERO DESIGNER MODAL */}
               <Button 
                 variant="ghost" 
                 className="w-full justify-start h-11 px-4 text-sm font-bold text-white hover:bg-[#222]"
@@ -819,7 +830,6 @@ export default function EventManagementPage() {
         </div>
       </div>
 
-      {/* ✅ NAYA DIALOG: Hero Designer Ke Liye */}
       <Dialog open={showHeroDesigner} onOpenChange={setShowHeroDesigner}>
         <DialogContent className="bg-[#111] border border-white/10 rounded-3xl max-w-5xl p-0 overflow-hidden shadow-2xl [&>button]:hidden">
           <div className="flex items-center justify-between p-6 border-b border-white/10">
@@ -841,7 +851,6 @@ export default function EventManagementPage() {
       </Dialog>
 
       <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
-        {/* ... (Purana Settings Modal code same rahega) ... */}
         <DialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-2xl p-0 overflow-hidden shadow-2xl [&>button]:hidden">
           
           <div className="flex items-center justify-between p-6 border-b border-white/10">
@@ -1112,7 +1121,6 @@ export default function EventManagementPage() {
       </Dialog>
 
       <Dialog open={showAllAssets} onOpenChange={setShowAllAssets}>
-        {/* ... (Purana All Assets Modal code same rahega) ... */}
         <DialogContent className="max-w-[100vw] w-screen h-screen bg-black border-none rounded-none p-0 overflow-hidden flex flex-col gap-0 [&>button]:hidden">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 lg:px-8 lg:py-6 border-b border-white/10 bg-[#0A0A0A] shrink-0 z-50">
             <div className="flex items-center gap-4">
@@ -1192,7 +1200,6 @@ export default function EventManagementPage() {
       </Dialog>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-        {/* ... (Purana Delete Dialog code same rahega) ... */}
         <AlertDialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-sm p-6 shadow-2xl">
           <AlertDialogHeader>
             <div className="bg-destructive/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
