@@ -11,14 +11,11 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { id } = await params;
   
-  const fallbackTitle = 'Hafash Wedding Gallery';
-  const fallbackDescription = 'Beautiful photography galleries, delivered by Hafash.pk.';
   const ogImageUrl = `https://hafash.pk/api/gallery-og/${id}`;
 
   try {
     if (!adminDb) throw new Error('DB not initialized');
 
-    // ✅ Direct Firebase Admin se fetch karein (API call nahi)
     let snap = await adminDb.collection('galleries').doc(id).get();
     let data = snap.exists ? snap.data() : null;
 
@@ -33,7 +30,7 @@ export async function generateMetadata({
 
     if (!data) throw new Error('Gallery not found');
 
-    // ✅ Private gallery security check
+    // Security Check
     const safe =
       data.isPublic === true &&
       data.isPasswordProtected !== true &&
@@ -46,13 +43,16 @@ export async function generateMetadata({
       };
     }
 
-    const clientName = data.clientName?.trim() || '';
-    const studioName = data.studioName?.trim() || 'Professional Studio';
-    const galleryTitle = data.title?.trim() || 'Wedding Gallery';
-    const category = data.category?.trim() || 'Wedding Photography';
-
-    const title = clientName ? `${galleryTitle} — ${clientName}` : `${galleryTitle} | ${studioName}`;
-    const description = `${category} gallery by ${studioName}. Beautiful moments, delivered with Hafash.pk.`;
+    // ✅ Yahan hum Groom & Bride ka naam nikal rahe hain
+    const groomName = data.groomName?.trim() || 'Groom';
+    const brideName = data.brideName?.trim() || 'Bride';
+    const eventDate = data.date || '';
+    
+    // Title: "Ahmed & Bride" (Client Name hata diya)
+    const title = `${groomName} & ${brideName}`;
+    
+    // Description: "The Wedding Of Ahmed & Bride • 2026-11-10"
+    const description = `The Wedding Of ${groomName} & ${brideName} • ${eventDate}`;
 
     return {
       title,
@@ -60,7 +60,7 @@ export async function generateMetadata({
       openGraph: {
         title,
         description,
-        siteName: studioName, // ✅ Hafash nahi, Studio ka naam
+        siteName: groomName + ' & ' + brideName, // Hafash ya Client ka naam nahi aayega
         type: 'website',
         images: [
           {
@@ -82,11 +82,11 @@ export async function generateMetadata({
   } catch (error) {
     console.error('Metadata error:', error);
     return {
-      title: fallbackTitle,
-      description: fallbackDescription,
+      title: 'Hafash Wedding Gallery',
+      description: 'Beautiful photography galleries, delivered by Hafash.pk.',
       openGraph: {
-        title: fallbackTitle,
-        description: fallbackDescription,
+        title: 'Hafash Wedding Gallery',
+        description: 'Beautiful photography galleries, delivered by Hafash.pk.',
         siteName: 'Hafash.pk',
         type: 'website',
         images: [`${ogImageUrl}`],
