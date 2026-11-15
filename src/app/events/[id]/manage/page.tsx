@@ -266,7 +266,12 @@ export default function EventManagementPage() {
     if (!eventRef) return;
     try {
       await updateDoc(eventRef, {
-        heroDesign: newSettings,
+        heroDesign: {
+          ...newSettings,
+          // ✅ Photographer ka asli naam aur logo save karein
+          photographerName: profile?.studioName || 'Professional Studio',
+          studioLogo: profile?.studioLogo || '',
+        },
         updatedAt: new Date().toISOString()
       });
       toast({ title: "Design Settings Saved Successfully!" });
@@ -782,6 +787,10 @@ export default function EventManagementPage() {
                 onClick={() => setShowHeroDesigner(true)}
               >
                 <PaletteIcon className="w-4 h-4 mr-3 text-primary" /> Design and cover
+                {/* ✅ Enterprise walon ke liye naya badge */}
+                {profile?.planId === 'enterprise' && (
+                   <Badge className="ml-auto bg-primary/20 text-primary border-primary/30 text-[9px]">PRO</Badge>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -842,7 +851,12 @@ export default function EventManagementPage() {
           </div>
           <div className="p-6 bg-[#0A0A0A] max-h-[80vh] overflow-y-auto custom-scrollbar">
              <HeroDesigner 
-                initialData={event?.heroDesign} 
+                initialData={{
+                  ...event?.heroDesign,
+                  // ✅ Agar pehle se saved naam hai to woh, warna profile ka naam
+                  photographerName: event?.heroDesign?.photographerName || profile?.studioName || 'Your Studio Name',
+                  studioLogo: event?.heroDesign?.studioLogo || profile?.studioLogo || '',
+                }} 
                 coverImage={event?.coverImage} 
                 onSave={handleSaveHeroDesign} 
              />

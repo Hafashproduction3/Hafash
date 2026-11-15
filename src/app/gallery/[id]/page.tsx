@@ -13,7 +13,8 @@ export async function generateMetadata({
   
   // ✅ Cache Buster: Taake WhatsApp hamesha naya preview banaye
   const cacheBuster = Date.now();
-  const ogImageUrl = `/api/gallery-og/${id}?v=${cacheBuster}`;
+  // ✅ Direct absolute URL (WhatsApp ke liye zaroori hai)
+  const ogImageUrl = `https://hafash.pk/api/gallery-og/${id}?v=${cacheBuster}`;
 
   try {
     if (!adminDb) throw new Error('DB not initialized');

@@ -331,11 +331,14 @@ export default function ClientGalleryPage() {
   const photographerPlan = (profile?.planId || 'starter') as PlanId;
   
   const isCustomBrandingActive = useMemo(() => {
+    // ✅ Agar photographer ne designer save kiya hai, to usay har plan par dikhayein
+    if (gallery?.heroDesign) return true;
+    
     const overrides = profile?.featureOverrides || {};
     if (overrides.allowCustomBranding === false) return false;
     if (overrides.allowCustomBranding === true) return true;
     return photographerPlan === 'enterprise';
-  }, [photographerPlan, profile]);
+  }, [photographerPlan, profile, gallery?.heroDesign]);
 
   const studioName = gallery?.studioName || profile?.studioName || 'Professional Studio';
   const studioLogo = freshBranding.studioLogo || profile?.studioLogo || gallery?.studioLogo;
@@ -1708,11 +1711,13 @@ export default function ClientGalleryPage() {
                   gallery.heroDesign.logoAnimation === 'shimmer' && "animate-shimmer"
                 )} alt="Logo" />
               )}
-              {gallery.heroDesign.showStudioName !== false && (
+                            {gallery.heroDesign.showStudioName !== false && (
                 <span 
-                  className={`${gallery.heroDesign.premiumStyle || 'premium-style-1'} text-3xl lg:text-5xl text-center whitespace-nowrap`}
+                  className={`${gallery.heroDesign.premiumStyle || 'premium-style-1'} text-center whitespace-nowrap`}
+                  style={{ fontSize: `${gallery.heroDesign.brandSize || 50}px` }}
                 >
-                  {studioName}
+                  {/* ✅ Photographer ka apna naam yahan show hoga */}
+                  {gallery.heroDesign.photographerName || studioName}
                 </span>
               )}
             </div>
@@ -1740,21 +1745,23 @@ export default function ClientGalleryPage() {
                  'Celebrating'}
               </p>
               
-              <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center justify-center gap-1 sm:gap-2 whitespace-nowrap">
+              <h1 className="font-headline drop-shadow-2xl flex flex-col sm:flex-row sm:items-center justify-center gap-1 sm:gap-2 whitespace-nowrap"
+                  style={{ fontSize: `${gallery.heroDesign.detailSize || 50}px` }} // ✅ Details Size yahan apply hoga
+              >
                 {['wedding', 'mehndi', 'mayo', 'barat', 'walima', 'nikkah', 'engagement'].includes(gallery.eventFormat) ? (
                   <>
-                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white drop-shadow-lg">
+                    <span className="font-bold uppercase tracking-tight text-white drop-shadow-lg">
                       {gallery.groomName || 'Groom'}
                     </span>
-                    <span className="text-2xl sm:text-3xl lg:text-4xl text-primary italic font-light px-1 drop-shadow-lg">
+                    <span className="text-primary italic font-light px-1 drop-shadow-lg">
                       &amp;
                     </span>
-                    <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white drop-shadow-lg">
+                    <span className="font-bold uppercase tracking-tight text-white drop-shadow-lg">
                       {gallery.brideName || 'Bride'}
                     </span>
                   </>
                 ) : (
-                  <span className="text-3xl sm:text-4xl lg:text-5xl font-bold uppercase tracking-tight text-white drop-shadow-lg">
+                  <span className="font-bold uppercase tracking-tight text-white drop-shadow-lg">
                     {gallery.celebrantName || gallery.title}
                   </span>
                 )}

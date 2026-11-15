@@ -271,13 +271,14 @@ export default function HeroDesigner({ initialData, coverImage, onSave }: { init
                     <Crown className="text-white drop-shadow-lg" style={{ width: `${settings.brandSize / 2}px`, height: `${settings.brandSize / 2}px` }} />
                   </div>
                 )}
-                {settings.showStudioName && (
-                  <span 
-                    className={`${settings.premiumStyle} whitespace-nowrap text-center leading-none`}
-                    style={{ fontSize: `${settings.brandSize}px` }}
-                  >
-                    ANAS CAPTURE
-                  </span>
+                                {settings.showStudioName && (
+                                    <span 
+                                    className={`${settings.premiumStyle} whitespace-nowrap text-center leading-none`}
+                                    style={{ fontSize: `${settings.brandSize}px` }}
+                                  >
+                                    {/* ✅ Direct photographer ka naam use karein */}
+                                    {initialData?.photographerName || 'YOUR STUDIO NAME'}
+                                  </span>
                 )}
               </div>
 
@@ -337,7 +338,7 @@ export default function HeroDesigner({ initialData, coverImage, onSave }: { init
                       className={`${settings.premiumStyle} whitespace-nowrap text-center leading-none`}
                       style={{ fontSize: `${settings.brandSize * 0.6}px` }}
                     >
-                      ANAS CAPTURE
+                      {(initialData as any)?.photographerName || 'YOUR STUDIO NAME'}
                     </span>
                   )}
                 </div>

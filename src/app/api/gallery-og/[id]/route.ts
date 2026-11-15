@@ -201,7 +201,7 @@ export async function GET(
         },
       })
       .jpeg({
-        quality: 80,
+        quality: 60, // ✅ Quality kam ki taake image ka size 600KB se neeche rahe
         mozjpeg: true,
       })
       .toBuffer();
