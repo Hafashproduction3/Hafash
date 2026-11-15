@@ -573,11 +573,25 @@ export default function EventManagementPage() {
     </div>
   );
 
-  // ✅ Photographer ke subdomain ke sath link banayein (Profile se uthaya hai)
+  // ✅ Photographer ka subdomain check karein
   const photographerSubdomain = profile?.subdomain;
-  const galleryUrl = photographerSubdomain 
-    ? `https://${photographerSubdomain}.hafash.pk/gallery/${event.slug || event.id}`
-    : `${origin}/gallery/${event.slug || event.id}`;
+  
+  // ✅ OWNER EMAIL CHECK (Sirf aapke liye direct hafash.pk link)
+  const OWNER_EMAILS = ['hafashgroup60@gmail.com']; // Apne owner email yahan daalein
+  const isOwner = OWNER_EMAILS.includes(profile?.email || '') || OWNER_EMAILS.includes(profile?.userEmail || '');
+
+  let galleryUrl = '';
+
+  if (isOwner) {
+    // ✅ Owner ke liye direct hafash.pk (bina subdomain)
+    galleryUrl = `https://hafash.pk/gallery/${event.slug || event.id}`;
+  } else if (photographerSubdomain) {
+    // ✅ Baqi photographers ke liye unka subdomain
+    galleryUrl = `https://${photographerSubdomain}.hafash.pk/gallery/${event.slug || event.id}`;
+  } else {
+    // Fallback
+    galleryUrl = `${origin}/gallery/${event.slug || event.id}`;
+  }
 
   const favoritesCount = Array.isArray(event.items) ? event.items.filter((i: any) => i.isFavorite).length : 0;
   const totalItems = event.items?.length || 0;
