@@ -1,229 +1,240 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useUser } from "@/firebase";
-import { updateUserPlan, updateUserCustomStorage, updateUserFeatureOverrides } from "@/app/actions/admin-users";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { Loader2, X, CreditCard, HardDrive, ShieldAlert } from "lucide-react";
-import { HAFASH_PLANS } from "@/lib/plans";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from 'react';
+import { 
+  Dialog, DialogContent, DialogTitle 
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  X, Crown, Loader2, Calendar, CreditCard, HardDrive, Globe, CheckCircle2 
+} from 'lucide-react';
+import { updateUserPlan, updateUserCustomStorage } from '@/app/actions/admin-users';
+import { updateSubdomain } from '@/app/actions/subdomain';
+import { HAFASH_PLANS } from '@/lib/plans';
 
-interface PlanChangeModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  user: any;
-  onSuccess: () => void;
-}
-
-export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: PlanChangeModalProps) {
-  const { user: adminUser } = useUser(); 
+export function PlanChangeModal({ isOpen, onClose, user, onSuccess }: any) {
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
   
-  const [selectedPlan, setSelectedPlan] = useState("none");
-  const [duration, setDuration] = useState("30");
-  const [paymentRef, setPaymentRef] = useState("");
+  const [selectedPlan, setSelectedPlan] = useState(user?.planId || 'starter');
+  const [duration, setDuration] = useState<number | 'lifetime'>(30);
+  const [customStorage, setCustomStorage] = useState<number | ''>(user?.customStorageLimitGb || '');
+  const [newSubdomain, setNewSubdomain] = useState(user?.subdomain || '');
   
-  const [customStorage, setCustomStorage] = useState<string>('');
-  const [savingStorage, setSavingStorage] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      setSelectedPlan(user.planId || "none");
-      setPaymentRef("");
-      setCustomStorage(user.customStorageLimitGb ? String(user.customStorageLimitGb) : '');
-    }
-  }, [user, isOpen]);
-
-  if (!isOpen || !user) return null;
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdatingSubdomain, setIsUpdatingSubdomain] = useState(false);
 
   const handleSavePlan = async () => {
-    if (!adminUser) return;
-    setLoading(true);
-    const durationDays = duration === 'lifetime' ? 'lifetime' : parseInt(duration);
-    const res = await updateUserPlan(adminUser.uid, user.userId || user.id, selectedPlan, durationDays as any, paymentRef);
-    
-    if (res.success) {
-      toast({ title: "Plan Updated", description: "User plan has been updated." });
-      onSuccess();
-      onClose();
-    } else {
-      toast({ variant: "destructive", title: "Error", description: res.error });
+    setIsLoading(true);
+    try {
+      // ✅ User ID dono tarah se check karein
+      const targetUserId = user.userId || user.id;
+      
+      const res = await updateUserPlan(
+        'admin', // Admin UID (placeholder)
+        targetUserId,
+        selectedPlan,
+        duration,
+        'manual_admin_change'
+      );
+      
+      if (res.success) {
+        toast({ title: "Success", description: "Plan updated successfully!" });
+        onSuccess();
+        onClose();
+      } else {
+        toast({ variant: "destructive", title: "Failed", description: res.error });
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    } finally {
+      setIsLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSaveCustomStorage = async () => {
-    if (!adminUser) return;
-    setSavingStorage(true);
-    const val = customStorage ? parseInt(customStorage) : null;
-    const res = await updateUserCustomStorage(adminUser.uid, user.userId || user.id, val);
-    
-    if (res.success) {
-      toast({ title: "Storage Updated", description: val ? `${val}GB limit set.` : "Default plan storage restored." });
-      onSuccess();
-    } else {
-      toast({ variant: "destructive", title: "Error", description: res.error });
+    setIsLoading(true);
+    try {
+      const targetUserId = user.userId || user.id;
+      
+      const res = await updateUserCustomStorage(
+        'admin',
+        targetUserId,
+        customStorage === '' ? null : Number(customStorage)
+      );
+      
+      if (res.success) {
+        toast({ title: "Success", description: "Custom storage updated!" });
+        onSuccess();
+      } else {
+        toast({ variant: "destructive", title: "Failed", description: res.error });
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    } finally {
+      setIsLoading(false);
     }
-    setSavingStorage(false);
   };
 
-  // ✅ 8 FEATURES
-  const featuresList = [
-    { key: 'allowDownload', label: 'Allow Downloads' },
-    { key: 'allowPasswordProtection', label: 'Password Protection' },
-    { key: 'allowCustomBranding', label: 'Custom Branding' },
-    { key: 'allowVideoUpload', label: 'Video Uploads' },
-    { key: 'allowSubdomainChange', label: 'Custom Subdomain' },
-    { key: 'allowMusic', label: 'Gallery Music' },
-    { key: 'allowWatermark', label: 'Watermark' },
-    { key: 'allowSlideshow', label: 'Slideshow' },
-  ];
+  const handleSubdomainUpdate = async () => {
+    if (!newSubdomain || newSubdomain === user?.subdomain) {
+      toast({ title: "No Changes", description: "Subdomain same hai ya khali hai." });
+      return;
+    }
+    
+    setIsUpdatingSubdomain(true);
+    try {
+      // ✅ User ID dono tarah se check karein
+      const targetUserId = user.userId || user.id;
+      
+      const res = await updateSubdomain(targetUserId, newSubdomain);
+      if (res.success) {
+        toast({ title: "Success", description: "Subdomain updated successfully!" });
+        onSuccess();
+      } else {
+        toast({ variant: "destructive", title: "Failed", description: res.error });
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    } finally {
+      setIsUpdatingSubdomain(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
-      <div className="w-full max-w-lg bg-card border border-border/50 rounded-3xl p-6 lg:p-8 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto">
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="bg-[#111] border border-white/10 rounded-2xl max-w-lg p-0 overflow-hidden shadow-2xl [&>button]:hidden">
         
-        <div className="flex justify-between items-start">
+        <div className="flex items-center justify-between p-6 border-b border-white/10 bg-[#161616]">
           <div>
-            <h2 className="text-2xl font-headline font-bold text-white">Manage User</h2>
-            <p className="text-xs text-muted-foreground mt-1">{user.studioName || user.email}</p>
+            <DialogTitle className="text-xl font-headline font-bold text-white">
+              Manage User Account
+            </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              {user?.studioName || user?.email}
+            </p>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
-            <X className="w-5 h-5 text-muted-foreground" />
-          </button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-white/10 text-muted-foreground" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </Button>
         </div>
 
-        <div className="space-y-6">
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
           
-          {/* Custom Storage */}
-          <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl space-y-3">
-            <div className="flex items-center gap-2 text-primary mb-1">
-              <HardDrive className="w-4 h-4" />
-              <Label className="text-xs font-bold uppercase tracking-widest">Owner Custom Storage Limit (GB)</Label>
-            </div>
+          {/* ✅ 1. Plan Update */}
+          <div className="space-y-3">
+            <Label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+              <Crown className="w-3 h-3 text-primary" /> Subscription Plan
+            </Label>
+            <select 
+              value={selectedPlan}
+              onChange={(e) => setSelectedPlan(e.target.value)}
+              className="w-full h-11 px-3 rounded-lg bg-background border border-white/10 text-sm focus:border-primary outline-none"
+            >
+              {Object.values(HAFASH_PLANS).map((plan: any) => (
+                <option key={plan.id} value={plan.id}>{plan.name} (Rs. {plan.price})</option>
+              ))}
+              <option value="none">None (Deactivate)</option>
+            </select>
+
+            <Label className="text-xs font-bold text-muted-foreground flex items-center gap-2 mt-2">
+              <Calendar className="w-3 h-3 text-primary" /> Duration
+            </Label>
             <div className="flex gap-2">
-              <Input
-                type="number"
-                placeholder="E.g., 500"
-                value={customStorage}
-                onChange={(e) => setCustomStorage(e.target.value)}
-                className="bg-background border-border/50"
-              />
-              <Button type="button" onClick={handleSaveCustomStorage} disabled={savingStorage} className="bg-primary text-black font-bold">
-                {savingStorage ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Set'}
+              {[30, 90, 365, 'lifetime'].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => setDuration(d as any)}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                    duration === d ? 'bg-primary text-primary-foreground' : 'bg-white/5 text-muted-foreground hover:bg-white/10'
+                  }`}
+                >
+                  {d === 'lifetime' ? 'Lifetime' : `${d} Days`}
+                </button>
+              ))}
+            </div>
+
+            <Button 
+              onClick={handleSavePlan} 
+              disabled={isLoading}
+              className="w-full h-11 bg-primary text-primary-foreground font-bold rounded-lg mt-2"
+            >
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Save Plan
+            </Button>
+          </div>
+
+          <div className="h-px bg-white/10" />
+
+          {/* ✅ 2. Custom Storage */}
+          <div className="space-y-3">
+            <Label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+              <HardDrive className="w-3 h-3 text-primary" /> Custom Storage Limit
+            </Label>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input 
+                  type="number"
+                  value={customStorage}
+                  onChange={(e) => setCustomStorage(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="h-10 bg-[#161616] border-white/10 pr-12"
+                  placeholder="Leave empty for default"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-mono">
+                  GB
+                </span>
+              </div>
+              <Button 
+                onClick={handleSaveCustomStorage}
+                disabled={isLoading}
+                variant="outline"
+                className="h-10 border-white/10 font-bold px-4"
+              >
+                Set
               </Button>
             </div>
-            <p className="text-[10px] text-muted-foreground italic">Reset karne ke liye khali chhod kar Set dabayein.</p>
+            <p className="text-[10px] text-muted-foreground">
+              Default limit: {HAFASH_PLANS[selectedPlan as keyof typeof HAFASH_PLANS]?.storageGb || 0} GB
+            </p>
           </div>
 
-          <div className="border-t border-white/10 pt-4"></div>
+          <div className="h-px bg-white/10" />
 
-          {/* Plan Selection */}
-          <div className="space-y-3 relative z-50">
-            <Label className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
-              <CreditCard className="w-4 h-4" /> Assign Subscription Plan
+          {/* ✅ 3. Subdomain Update */}
+          <div className="space-y-3">
+            <Label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
+              <Globe className="w-3 h-3 text-primary" /> Subdomain
             </Label>
-            <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-              <SelectTrigger className="h-12 bg-background border-border/50">
-                <SelectValue placeholder="Select a plan" />
-              </SelectTrigger>
-              {/* ✅ z-index barha kar 9999 kiya hai */}
-              <SelectContent className="z-[9999]">
-                <SelectItem value="none">No Plan (Inactive)</SelectItem>
-                {Object.values(HAFASH_PLANS).map((plan) => (
-                  <SelectItem key={plan.id} value={plan.id}>
-                    {plan.name} - {plan.storageGb}GB ({plan.price})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Input 
+                  value={newSubdomain}
+                  onChange={(e) => setNewSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                  className="h-10 bg-[#161616] border-white/10 pr-20"
+                  placeholder="e.g. ahmedwedding"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground font-mono">
+                  .hafash.pk
+                </span>
+              </div>
+              <Button 
+                onClick={handleSubdomainUpdate}
+                disabled={isUpdatingSubdomain || !newSubdomain}
+                className="h-10 bg-primary text-primary-foreground font-bold px-4"
+              >
+                {isUpdatingSubdomain ? "Updating..." : "Update"}
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Sirf chote letters (a-z), numbers (0-9) aur dash (-) allow hain.
+            </p>
           </div>
-
-          {selectedPlan !== 'none' && (
-            <div className="space-y-3 relative z-50">
-              <Label className="text-xs font-bold uppercase tracking-widest text-primary">Duration</Label>
-              <Select value={duration} onValueChange={setDuration}>
-                <SelectTrigger className="h-12 bg-background border-border/50">
-                  <SelectValue placeholder="Select duration" />
-                </SelectTrigger>
-                {/* ✅ z-index barha kar 9999 kiya hai */}
-                <SelectContent className="z-[9999]">
-                  <SelectItem value="30">1 Month (30 Days)</SelectItem>
-                  <SelectItem value="90">3 Months (90 Days)</SelectItem>
-                  <SelectItem value="365">1 Year (365 Days)</SelectItem>
-                  <SelectItem value="lifetime">Lifetime</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Feature Toggles */}
-          <div className="p-4 bg-background border border-border/50 rounded-xl space-y-3 relative z-50">
-            <div className="flex items-center gap-2 text-primary mb-2">
-              <ShieldAlert className="w-4 h-4" />
-              <Label className="text-xs font-bold uppercase tracking-widest">Manual Feature Overrides</Label>
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              {featuresList.map((feat) => {
-                const currentVal = user.featureOverrides?.[feat.key];
-                return (
-                  <div key={feat.key} className="flex items-center justify-between p-2 bg-white/5 rounded-lg">
-                    <span className="text-xs font-bold text-white">{feat.label}</span>
-                    <Select 
-                      value={currentVal === undefined ? 'default' : (currentVal ? 'on' : 'off')}
-                      onValueChange={async (val) => {
-                        if (!adminUser) return;
-                        const boolVal = val === 'default' ? null : (val === 'on');
-                        const res = await updateUserFeatureOverrides(adminUser.uid, user.userId || user.id, feat.key, boolVal);
-                        if (res.success) {
-                          toast({ title: "Feature Updated", description: `${feat.label} set to ${val}` });
-                          onSuccess();
-                        } else {
-                          toast({ variant: "destructive", title: "Error", description: res.error });
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="w-32 h-8 text-xs bg-background">
-                        <SelectValue />
-                      </SelectTrigger>
-                      {/* ✅ z-index barha kar 9999 kiya hai */}
-                      <SelectContent className="z-[9999]">
-                        <SelectItem value="default">Default (Plan)</SelectItem>
-                        <SelectItem value="on">Force ON</SelectItem>
-                        <SelectItem value="off">Force OFF</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Payment Ref */}
-          {selectedPlan !== 'none' && (
-            <div className="space-y-3">
-              <Label className="text-xs font-bold uppercase tracking-widest text-primary">Payment Reference (Optional)</Label>
-              <Input placeholder="E.g., Bank Transfer #1234" value={paymentRef} onChange={(e) => setPaymentRef(e.target.value)} className="bg-background border-border/50 h-12" />
-            </div>
-          )}
 
         </div>
 
-        {/* Actions */}
-        <div className="flex gap-3 pt-4 border-t border-white/10">
-          <Button variant="outline" onClick={onClose} disabled={loading} className="flex-1 h-12 rounded-xl border-border/50">
-            Cancel
-          </Button>
-          <Button onClick={handleSavePlan} disabled={loading || selectedPlan === "none"} className="flex-1 h-12 rounded-xl bg-primary text-primary-foreground font-bold">
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Save Plan"}
-          </Button>
-        </div>
-
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
