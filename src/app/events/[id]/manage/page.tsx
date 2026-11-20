@@ -114,7 +114,6 @@ export default function EventManagementPage() {
 
   const { data: eventRaw, loading: dataLoading, error } = useDoc(eventRef);
 
-  // ✅ Photographer ka profile fetch karein (Subdomain ke liye)
   const profileRef = useMemo(() => {
     if (!firestore || !eventRaw?.userId) return null;
     return doc(firestore, 'publicProfiles', eventRaw.userId);
@@ -268,7 +267,6 @@ export default function EventManagementPage() {
       await updateDoc(eventRef, {
         heroDesign: {
           ...newSettings,
-          // ✅ Photographer ka asli naam aur logo save karein
           photographerName: profile?.studioName || 'Professional Studio',
           studioLogo: profile?.studioLogo || '',
         },
@@ -573,23 +571,19 @@ export default function EventManagementPage() {
     </div>
   );
 
-  // ✅ Photographer ka subdomain check karein
   const photographerSubdomain = profile?.subdomain;
   
-  // ✅ OWNER EMAIL CHECK (Sirf aapke liye direct hafash.pk link)
-  const OWNER_EMAILS = ['hafashgroup60@gmail.com']; // Apne owner email yahan daalein
-  const isOwner = OWNER_EMAILS.includes(profile?.email || '') || OWNER_EMAILS.includes(profile?.userEmail || '');
+  // ✅ OWNER CHECK (Login user ki email se check karein)
+  const OWNER_EMAILS = ['hafashgroup60@gmail.com']; 
+  const isOwner = user?.email ? OWNER_EMAILS.includes(user.email.toLowerCase().trim()) : false;
 
   let galleryUrl = '';
 
   if (isOwner) {
-    // ✅ Owner ke liye direct hafash.pk (bina subdomain)
     galleryUrl = `https://hafash.pk/gallery/${event.slug || event.id}`;
   } else if (photographerSubdomain) {
-    // ✅ Baqi photographers ke liye unka subdomain
     galleryUrl = `https://${photographerSubdomain}.hafash.pk/gallery/${event.slug || event.id}`;
   } else {
-    // Fallback
     galleryUrl = `${origin}/gallery/${event.slug || event.id}`;
   }
 
@@ -801,7 +795,6 @@ export default function EventManagementPage() {
                 onClick={() => setShowHeroDesigner(true)}
               >
                 <PaletteIcon className="w-4 h-4 mr-3 text-primary" /> Design and cover
-                {/* ✅ Enterprise walon ke liye naya badge */}
                 {profile?.planId === 'enterprise' && (
                    <Badge className="ml-auto bg-primary/20 text-primary border-primary/30 text-[9px]">PRO</Badge>
                 )}
@@ -867,7 +860,6 @@ export default function EventManagementPage() {
              <HeroDesigner 
                 initialData={{
                   ...event?.heroDesign,
-                  // ✅ Agar pehle se saved naam hai to woh, warna profile ka naam
                   photographerName: event?.heroDesign?.photographerName || profile?.studioName || 'Your Studio Name',
                   studioLogo: event?.heroDesign?.studioLogo || profile?.studioLogo || '',
                 }} 
