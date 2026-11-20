@@ -16,20 +16,11 @@ function fallback() {
   return NextResponse.redirect(FALLBACK_IMAGE, 302);
 }
 
-// Sirf trusted image domains allow karein
+// ✅ Har valid https image ko allow karein (Har account ke liye)
 function isAllowedImageUrl(value: string): boolean {
   try {
     const url = new URL(value);
-
-    if (url.protocol !== 'https:') return false;
-
-    const hostname = url.hostname.toLowerCase();
-
-    return (
-      hostname === 'pub-e2f68400ff8d4c72ae59bfb07178b8a2.r2.dev' ||
-      hostname === 'hafash.pk' ||
-      hostname.endsWith('.hafash.pk')
-    );
+    return url.protocol === 'https:';
   } catch {
     return false;
   }

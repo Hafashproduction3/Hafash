@@ -11,9 +11,8 @@ export async function generateMetadata({
 }: PageProps): Promise<Metadata> {
   const { id } = await params;
   
-  // ✅ Cache Buster: Taake WhatsApp hamesha naya preview banaye
+  // ✅ Cache Buster aur Absolute URL
   const cacheBuster = Date.now();
-  // ✅ Direct absolute URL (WhatsApp ke liye zaroori hai)
   const ogImageUrl = `https://hafash.pk/api/gallery-og/${id}?v=${cacheBuster}`;
 
   try {
@@ -53,7 +52,7 @@ export async function generateMetadata({
     const eventDate = data.date || '';
     const studioName = data.studioName?.trim() || 'Professional Studio';
     
-    // ✅ Title: Client ka naam (Jaise aapne kaha)
+    // ✅ Title: Client ka naam
     const title = clientName;
     
     // ✅ Description: Groom & Bride + Date
@@ -64,15 +63,15 @@ export async function generateMetadata({
       description = `${studioName} • ${eventDate}`;
     }
 
- return {
-      metadataBase: new URL('https://hafash.pk'), // ✅ Yeh line yahan add karein
+    return {
+      metadataBase: new URL('https://hafash.pk'), // ✅ Base URL
       title,
       description,
       openGraph: {
         title,
         description,
         url: `https://hafash.pk/gallery/${id}`,
-        siteName: clientName, // ✅ Title ki tarah siteName bhi client ka naam
+        siteName: clientName,
         type: 'website',
         images: [
           {
@@ -101,7 +100,8 @@ export async function generateMetadata({
         description: 'Beautiful photography galleries, delivered by Hafash.pk.',
         siteName: 'Hafash.pk',
         type: 'website',
-        images: [`${ogImageUrl}`],
+        // ✅ Fallback image agar gallery na mile
+        images: [`https://hafash.pk/hafash-logo.png`], 
       },
     };
   }
