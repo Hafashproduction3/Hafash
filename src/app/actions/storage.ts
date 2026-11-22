@@ -4,9 +4,11 @@ import { getSubscriptionInfo } from '@/lib/subscription/status';
 import { adminDb, admin } from '@/lib/firebase-admin';
 import { storage } from '@/lib/storage/storage';
 import { getStorageStats, clearStorageStatsCache } from '@/lib/storage/stats';
+import { incrementStorageCounter } from '@/lib/storage/counters';
 import type { MultipartCompletedPart } from '@/lib/storage/storage';
 
-const R2_PUBLIC_URL = 'https://pub-e2f68400ff8d4c72ae59bfb07178b8a2.r2.dev';
+const R2_PUBLIC_URL =
+  'https://pub-e2f68400ff8d4c72ae59bfb07178b8a2.r2.dev';
 
 function getPublicUrl(key: string | null | undefined): string {
   if (!key) return '';
@@ -20,10 +22,18 @@ const CACHE_TTL = 6 * 24 * 60 * 60 * 1000;
 
 /**
  * ✅ Upload permission check
+ * ⚠️ NO Firebase Auth call — Firestore email se kaam chalta hai.
  */
-async function checkUploadPermission(userId: string, fileSize: number, galleryId?: string) {
+async function checkUploadPermission(
+  userId: string,
+  fileSize: number,
+  galleryId?: string
+) {
   if (!adminDb || !admin) {
-    return { success: false as const, error: 'Database infrastructure offline.' };
+    return {
+      success: false as const,
+      error: 'Database infrastructure offline.',
+    };
   }
 
   if (!userId || !Number.isFinite(fileSize) || fileSize <= 0) {
@@ -44,55 +54,48 @@ async function checkUploadPermission(userId: string, fileSize: number, galleryId
 
   const rawData = userSnap.data() || {};
 
-  // 🛑 SECURITY CHECK: Agar user suspended hai toh upload block karein
+  // 🛑 SECURITY CHECK: suspended user
   if (rawData.isSuspended === true) {
-    return { 
-      success: false as const, 
-      error: 'Your account has been suspended due to a terms violation. Please contact support.' 
+    return {
+      success: false as const,
+      error:
+        'Your account has been suspended due to a terms violation. Please contact support.',
     };
   }
 
-  let authEmail: string | null = null;
-
-  try {
-    const userRecord = await admin.auth().getUser(userId);
-    authEmail = userRecord.email || null;
-  } catch (e: unknown) {
-    console.warn('[AUTH_EMAIL] Failed:', e instanceof Error ? e.message : e);
-  }
-
-  const subscriptionStatus = rawData.subscriptionStatus || (
-    rawData.subscriptionNextRenewal &&
+  // ✅ admin.auth().getUser() HATA DIYA — Firestore email hi kaafi
+  const subscriptionStatus =
+    rawData.subscriptionStatus ||
+    (rawData.subscriptionNextRenewal &&
     new Date(rawData.subscriptionNextRenewal) > new Date()
       ? 'active'
-      : rawData.subscriptionStatus
-  );
+      : rawData.subscriptionStatus);
 
   const userData = {
     ...rawData,
-    email: rawData.email || authEmail,
-    userEmail: rawData.userEmail || authEmail,
-    photographerEmail: rawData.photographerEmail || authEmail,
+    email: rawData.email || null,
+    userEmail: rawData.userEmail || null,
+    photographerEmail: rawData.photographerEmail || null,
     subscriptionStatus,
   };
 
   const subscription = getSubscriptionInfo(userData);
   const isLocationOwner = rawData.role === 'location-owner';
-
-  // ✅ NAYA LOGIC: Agar admin ne custom storage di hai, to subscription check skip karein
-  const hasCustomStorage = rawData.customStorageLimitGb !== undefined && rawData.customStorageLimitGb !== null;
+  const hasCustomStorage =
+    rawData.customStorageLimitGb !== undefined &&
+    rawData.customStorageLimitGb !== null;
 
   if (!isLocationOwner && !hasCustomStorage && subscription.state !== 'active') {
     return {
       success: false as const,
-      error: subscription.state === 'grace'
-        ? 'Your subscription has expired. Please renew your plan.'
-        : 'Your subscription is inactive. Please complete payment.',
+      error:
+        subscription.state === 'grace'
+          ? 'Your subscription has expired. Please renew your plan.'
+          : 'Your subscription is inactive. Please complete payment.',
     };
   }
 
   if (!isLocationOwner) {
-    // ✅ getStorageStats ab internally cached hai
     const stats = await getStorageStats(userId);
     const incomingSizeGb = fileSize / (1024 * 1024 * 1024);
 
@@ -113,15 +116,32 @@ function validateMultipartKey(
   key: string
 ): boolean {
   if (!userId || !galleryId || !key) return false;
-
   const expectedPrefix = `uploads/${userId}/${galleryId}/`;
-
   return (
     key.startsWith(expectedPrefix) &&
     !key.includes('..') &&
     !key.startsWith('/') &&
     !key.includes('\\')
   );
+}
+
+/**
+ * Internal URL generator (no permission check).
+ */
+async function generateUploadUrl(
+  userId: string,
+  galleryId: string,
+  fileName: string,
+  contentType: string
+): Promise<{ uploadUrl: string; key: string }> {
+  const fileId = crypto.randomUUID();
+  const extension = fileName.split('.').pop() || 'bin';
+  const safeExtension = /^[a-zA-Z0-9]{1,10}$/.test(extension)
+    ? extension
+    : 'bin';
+  const key = `uploads/${userId}/${galleryId}/${fileId}.${safeExtension}`;
+  const uploadUrl = await storage.getSignedUploadUrl(key, contentType, 300);
+  return { uploadUrl, key };
 }
 
 /**
@@ -146,30 +166,30 @@ export async function requestUploadUrl({
 
   try {
     const permission = await checkUploadPermission(userId, fileSize, galleryId);
-
     if (!permission.success) return permission;
 
-    // ✅ VIDEO UPLOAD CHECK
     if (contentType && contentType.startsWith('video/')) {
       const userSnap = await adminDb.collection('users').doc(userId).get();
       const userData = userSnap.data();
       if (userData?.featureOverrides?.allowVideoUpload === false) {
-        return { success: false, error: 'Video uploads are disabled for this account by the admin.' };
+        return {
+          success: false,
+          error: 'Video uploads are disabled for this account by the admin.',
+        };
       }
     }
 
-    const fileId = crypto.randomUUID();
-    const extension = fileName.split('.').pop() || 'bin';
-    const safeExtension = /^[a-zA-Z0-9]{1,10}$/.test(extension)
-      ? extension
-      : 'bin';
-
-    const key = `uploads/${userId}/${galleryId}/${fileId}.${safeExtension}`;
-    const uploadUrl = await storage.getSignedUploadUrl(key, contentType, 300);
+    const { uploadUrl, key } = await generateUploadUrl(
+      userId,
+      galleryId,
+      fileName,
+      contentType
+    );
 
     return { success: true, uploadUrl, key };
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Internal error.';
+    const message =
+      error instanceof Error ? error.message : 'Internal error.';
     console.error('[DEBUG] Upload auth failure:', error);
     return { success: false, error: message };
   }
@@ -177,6 +197,7 @@ export async function requestUploadUrl({
 
 /**
  * Request upload URLs for multiple files.
+ * ✅ Sirf EK permission check poore batch ke liye — parallel firestore/auth calls nahi.
  */
 export async function requestUploadUrls({
   userId,
@@ -203,50 +224,79 @@ export async function requestUploadUrls({
     };
   }
 
-  const results = await Promise.all(
-    files.map(async (file) => {
-      const id = file.id || '';
-      const fileName = file.fileName || file.name || '';
-      const contentType =
-        file.contentType || file.type || 'application/octet-stream';
-      const fileSize = file.fileSize ?? file.size ?? 0;
+  const normalized = files.map((f) => ({
+    id: f.id || '',
+    fileName: f.fileName || f.name || '',
+    contentType: f.contentType || f.type || 'application/octet-stream',
+    fileSize: f.fileSize ?? f.size ?? 0,
+  }));
 
+  const totalSize = normalized.reduce((sum, f) => sum + f.fileSize, 0);
+
+  // ✅ EK permission check — poore batch ke total size pe
+  const permission = await checkUploadPermission(
+    userId,
+    totalSize,
+    galleryId
+  );
+
+  if (!permission.success) {
+    return {
+      success: false,
+      error: permission.error,
+      results: normalized.map((f) => ({
+        id: f.id,
+        success: false,
+        error: permission.error,
+      })),
+    };
+  }
+
+  // Video check — ek dafa poore batch ke liye
+  const hasVideo = normalized.some((f) =>
+    f.contentType.startsWith('video/')
+  );
+  if (hasVideo && adminDb) {
+    const userSnap = await adminDb.collection('users').doc(userId).get();
+    const userData = userSnap.data();
+    if (userData?.featureOverrides?.allowVideoUpload === false) {
+      return {
+        success: false,
+        error: 'Video uploads are disabled for this account by the admin.',
+        results: normalized.map((f) => ({
+          id: f.id,
+          success: false,
+          error: 'Video uploads disabled.',
+        })),
+      };
+    }
+  }
+
+  // ✅ Parallel URL generation — koi permission check nahi andar
+  const results = await Promise.all(
+    normalized.map(async (file) => {
       try {
-        const result = await requestUploadUrl({
+        const { uploadUrl, key } = await generateUploadUrl(
           userId,
           galleryId,
-          fileName,
-          contentType,
-          fileSize,
-        });
-
-        if (!result.success) {
-          return {
-            id,
-            success: false,
-            error: result.error,
-          };
-        }
-
-        return {
-          id,
-          success: true,
-          uploadUrl: result.uploadUrl,
-          key: result.key,
-        };
+          file.fileName,
+          file.contentType
+        );
+        return { id: file.id, success: true, uploadUrl, key };
       } catch (error: unknown) {
         return {
-          id,
+          id: file.id,
           success: false,
-          error: error instanceof Error
-            ? error.message
-            : 'Upload URL request failed.',
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Upload URL request failed.',
         };
       }
     })
   );
 
-  const failed = results.some((result) => !result.success);
+  const failed = results.some((r) => !r.success);
 
   return {
     success: !failed,
@@ -289,15 +339,16 @@ export async function startMultipartUpload({
     }
 
     const permission = await checkUploadPermission(userId, fileSize, galleryId);
-
     if (!permission.success) return permission;
 
-    // ✅ VIDEO UPLOAD CHECK
     if (contentType && contentType.startsWith('video/')) {
       const userSnap = await adminDb.collection('users').doc(userId).get();
       const userData = userSnap.data();
       if (userData?.featureOverrides?.allowVideoUpload === false) {
-        return { success: false, error: 'Video uploads are disabled for this account by the admin.' };
+        return {
+          success: false,
+          error: 'Video uploads are disabled for this account by the admin.',
+        };
       }
     }
 
@@ -315,9 +366,10 @@ export async function startMultipartUpload({
 
     return {
       success: false,
-      error: error instanceof Error
-        ? error.message
-        : 'Could not start multipart upload.',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Could not start multipart upload.',
     };
   }
 }
@@ -364,9 +416,8 @@ export async function getMultipartPartUrl({
 
     return {
       success: false,
-      error: error instanceof Error
-        ? error.message
-        : 'Could not create part URL.',
+      error:
+        error instanceof Error ? error.message : 'Could not create part URL.',
     };
   }
 }
@@ -413,11 +464,11 @@ export async function finishMultipartUpload({
     await storage.completeMultipartUpload(key, uploadId, parts);
 
     const exists = await storage.fileExists(key);
-
     if (!exists) {
       return {
         success: false,
-        error: 'Multipart upload completed, but the object could not be verified.',
+        error:
+          'Multipart upload completed, but the object could not be verified.',
       };
     }
 
@@ -427,9 +478,10 @@ export async function finishMultipartUpload({
 
     return {
       success: false,
-      error: error instanceof Error
-        ? error.message
-        : 'Could not complete multipart upload.',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Could not complete multipart upload.',
     };
   }
 }
@@ -461,16 +513,19 @@ export async function abortMultipartUpload({
 
     return {
       success: false,
-      error: error instanceof Error
-        ? error.message
-        : 'Could not abort multipart upload.',
+      error:
+        error instanceof Error
+          ? error.message
+          : 'Could not abort multipart upload.',
     };
   }
 }
 
 /**
  * Save uploaded photo metadata in Firestore.
- * ✅ Parallel: fileExists + gallery fetch ek saath
+ * ✅ Sharded counters + race-safe photoCount.
+ * ⚠️ NO clearStorageStatsCache — cache TTL pe expire hoga.
+ * ⚠️ NO fileExists R2 HEAD call — client ne PUT 200 pe verify kiya.
  */
 export async function completeUpload({
   userId,
@@ -495,27 +550,24 @@ export async function completeUpload({
   try {
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
 
-    // ✅ Parallel: fileExists + gallery fetch
-    const [exists, gallerySnap] = await Promise.all([
-      storage.fileExists(task.key),
-      galleryRef.get(),
-    ]);
-
-    if (!exists) {
-      return { success: false, error: 'Asset missing from storage.' };
-    }
-
     const assetUrl = getPublicUrl(task.key);
     const thumbUrl = task.thumbKey ? getPublicUrl(task.thumbKey) : assetUrl;
-    const originalUrl = task.originalKey && task.originalReady
-      ? getPublicUrl(task.originalKey)
-      : null;
+    const originalUrl =
+      task.originalKey && task.originalReady
+        ? getPublicUrl(task.originalKey)
+        : null;
 
     const photosRef = galleryRef.collection('photos');
     const photoDocRef = photosRef.doc(task.id);
     const photoSnap = await photoDocRef.get();
 
+    const isNewPhoto = !photoSnap.exists;
+    const fileBytes = task.file.size || 0;
+
     if (photoSnap.exists && task.originalReady) {
+      const prevSize = Number(photoSnap.data()?.originalSize) || 0;
+      const deltaBytes = fileBytes - prevSize;
+
       await photoDocRef.update({
         originalKey: task.originalKey,
         originalUrl,
@@ -523,7 +575,11 @@ export async function completeUpload({
         originalSize: task.file.size,
         originalUpdatedAt: new Date().toISOString(),
       });
-    } else if (!photoSnap.exists) {
+
+      if (deltaBytes !== 0) {
+        await incrementStorageCounter(userId, deltaBytes, 0);
+      }
+    } else if (isNewPhoto) {
       await photoDocRef.set({
         id: task.id,
         url: assetUrl,
@@ -542,18 +598,19 @@ export async function completeUpload({
         order: Date.now(),
         uploadedAt: new Date().toISOString(),
       });
+
+      await incrementStorageCounter(userId, fileBytes, 1);
     }
 
-    const galleryData = gallerySnap.data() || {};
-    const currentCount = galleryData.photoCount || 0;
-
+    // ✅ Race-safe photoCount — parallel uploads mein bhi sahi
     await galleryRef.update({
-      photoCount: photoSnap.exists ? currentCount : currentCount + 1,
+      photoCount: isNewPhoto
+        ? admin.firestore.FieldValue.increment(1)
+        : admin.firestore.FieldValue.increment(0),
       updatedAt: new Date().toISOString(),
     });
 
-    // ✅ Storage cache clear karein — naya photo add hua
-    clearStorageStatsCache(userId);
+    // ❌ clearStorageStatsCache — HATA DIYA. Cache 5min TTL pe khud expire hoga.
 
     return { success: true };
   } catch (error: unknown) {
@@ -590,7 +647,6 @@ export async function refreshPhotoUrls(keys: string[]): Promise<{
 
     for (const key of uniqueKeys) {
       const cached = signedUrlCache.get(key);
-
       if (cached && cached.expires > now) {
         urlMap[key] = cached.url;
       } else {
@@ -603,7 +659,6 @@ export async function refreshPhotoUrls(keys: string[]): Promise<{
         keysToFetch.map(async (key) => {
           try {
             const signedUrl = await storage.getSignedUrl(key, 604800);
-
             urlMap[key] = signedUrl;
             signedUrlCache.set(key, {
               url: signedUrl,
@@ -657,13 +712,14 @@ export async function deleteGalleryFiles(storageKeys: string[]) {
       })
     );
 
-    const failures = results.filter((result) => result.status === 'rejected');
+    const failures = results.filter((r) => r.status === 'rejected');
 
     return {
       success: failures.length === 0,
-      error: failures.length > 0
-        ? `${failures.length} assets failed.`
-        : undefined,
+      error:
+        failures.length > 0
+          ? `${failures.length} assets failed.`
+          : undefined,
     };
   } catch (error: unknown) {
     return {
@@ -673,6 +729,9 @@ export async function deleteGalleryFiles(storageKeys: string[]) {
   }
 }
 
+/**
+ * Delete photo — decrement sharded counters.
+ */
 export async function deletePhoto({
   galleryId,
   photoId,
@@ -689,27 +748,41 @@ export async function deletePhoto({
       return { success: false, error: 'DB offline' };
     }
 
-    await adminDb
+    const photoDocRef = adminDb
       .collection('galleries')
       .doc(galleryId)
       .collection('photos')
-      .doc(photoId)
-      .delete();
+      .doc(photoId);
+
+    // ✅ Pehle size padho, phir delete karo
+    const photoSnap = await photoDocRef.get();
+    const photoData = photoSnap.data();
+    const deleteBytes =
+      Number(photoData?.originalSize) ||
+      Number(photoData?.fileSize) ||
+      0;
+    const photoExists = photoSnap.exists;
+
+    await photoDocRef.delete();
 
     const galleryRef = adminDb.collection('galleries').doc(galleryId);
-    const snap = await galleryRef.get();
-    const currentCount = snap.data()?.photoCount || 0;
-
     await galleryRef.update({
-      photoCount: Math.max(currentCount - 1, 0),
+      photoCount: admin.firestore.FieldValue.increment(
+        photoExists ? -1 : 0
+      ),
       updatedAt: new Date().toISOString(),
     });
+
+    // ✅ Sharded counter decrement
+    if (userId && photoExists) {
+      await incrementStorageCounter(userId, -deleteBytes, -1);
+    }
 
     if (storageKeys.length > 0) {
       await deleteGalleryFiles(storageKeys.filter(Boolean));
     }
 
-    // ✅ Storage cache clear karein — photo delete hua
+    // ✅ Delete ke baad cache clear (manual case — safe hai)
     if (userId) {
       clearStorageStatsCache(userId);
     }
@@ -728,14 +801,13 @@ export async function deletePhoto({
 export async function getMusicSignedUrl(key: string) {
   try {
     if (!key) return { success: false, error: 'Missing key' };
-
     const url = await storage.getSignedUrl(key, 604800);
-
     return { success: true, url };
   } catch (error: unknown) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Could not sign URL.',
+      error:
+        error instanceof Error ? error.message : 'Could not sign URL.',
     };
   }
 }
@@ -743,14 +815,13 @@ export async function getMusicSignedUrl(key: string) {
 export async function getFreshMusicUrl(storageKey: string) {
   try {
     if (!storageKey) return { success: false, error: 'Missing key' };
-
     const url = await storage.getSignedUrl(storageKey, 604800);
-
     return { success: true, url };
   } catch (error: unknown) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Could not sign URL.',
+      error:
+        error instanceof Error ? error.message : 'Could not sign URL.',
     };
   }
 }
@@ -758,14 +829,13 @@ export async function getFreshMusicUrl(storageKey: string) {
 export async function getOriginalDownloadUrl(originalKey: string) {
   try {
     if (!originalKey) return { success: false, error: 'Missing key' };
-
     const url = await storage.getSignedUrl(originalKey, 604800);
-
     return { success: true, url };
   } catch (error: unknown) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Could not sign URL.',
+      error:
+        error instanceof Error ? error.message : 'Could not sign URL.',
     };
   }
 }

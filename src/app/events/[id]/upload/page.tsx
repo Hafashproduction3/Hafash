@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -42,6 +41,7 @@ import {
   clearPendingFiles,
   blobToFile
 } from '@/lib/upload-storage';
+import { serverActionLimiter, r2UploadLimiter } from '@/lib/rate-limiter';
 
 type UploadStepStatus =
   | 'queued'
@@ -73,8 +73,9 @@ interface FileItem {
   originalReady?: boolean;
 }
 
-const PARALLEL_LIMIT = 5;
+const PARALLEL_LIMIT = 4;
 const MAX_RETRIES = 3;
+const CIRCUIT_THRESHOLD = 5; // 5 consecutive failures → auto-pause
 
 // Multipart sirf 1 GiB se bari files ke liye.
 const MULTIPART_CHUNK_SIZE = 16 * 1024 * 1024;
@@ -136,6 +137,7 @@ export default function GalleryUploadPage() {
   const pauseRef = useRef(false);
   const cancelRef = useRef(false);
   const speedSamplesRef = useRef<number[]>([]);
+  const consecutiveFailuresRef = useRef(0);
 
   const isOwner = useMemo(
     () => isOwnerEmail(user?.email),
@@ -412,6 +414,7 @@ export default function GalleryUploadPage() {
   const handleResume = () => {
     pauseRef.current = false;
     setIsPaused(false);
+    consecutiveFailuresRef.current = 0;
 
     toast({
       title: "▶️ Resumed",
@@ -490,6 +493,8 @@ export default function GalleryUploadPage() {
 
   /**
    * Upload one blob using a presigned R2 PUT URL.
+   * ✅ Wrapped in r2UploadLimiter — max 10/sec, max 4 concurrent.
+   * ✅ Timeout 3 min (pehle 15 min tha — hang par worker 15 min block rehta tha).
    * Returns the response ETag, required for multipart completion.
    */
   const uploadToR2 = (
@@ -497,70 +502,73 @@ export default function GalleryUploadPage() {
     file: Blob,
     onProgress?: (loaded: number, total: number) => void
   ): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const startTime = Date.now();
-      let lastLoaded = 0;
-      let lastTime = startTime;
+    return r2UploadLimiter.run(() => {
+      return new Promise<string>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const startTime = Date.now();
+        let lastLoaded = 0;
+        let lastTime = startTime;
 
-      if (onProgress) {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (!e.lengthComputable) return;
+        if (onProgress) {
+          xhr.upload.addEventListener('progress', (e) => {
+            if (!e.lengthComputable) return;
 
-          const now = Date.now();
-          const timeDiff = (now - lastTime) / 1000;
+            const now = Date.now();
+            const timeDiff = (now - lastTime) / 1000;
 
-          if (timeDiff > 0.5) {
-            const instantSpeed = (e.loaded - lastLoaded) / timeDiff;
+            if (timeDiff > 0.5) {
+              const instantSpeed = (e.loaded - lastLoaded) / timeDiff;
 
-            speedSamplesRef.current.push(instantSpeed);
+              speedSamplesRef.current.push(instantSpeed);
 
-            if (speedSamplesRef.current.length > 10) {
-              speedSamplesRef.current.shift();
+              if (speedSamplesRef.current.length > 10) {
+                speedSamplesRef.current.shift();
+              }
+
+              onProgress(e.loaded, e.total);
+              lastLoaded = e.loaded;
+              lastTime = now;
             }
+          });
+        }
 
-            onProgress(e.loaded, e.total);
-            lastLoaded = e.loaded;
-            lastTime = now;
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(xhr.getResponseHeader('ETag') || '');
+          } else {
+            reject(new Error(`R2 upload failed: HTTP ${xhr.status}`));
           }
         });
-      }
 
-      xhr.addEventListener('load', () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(xhr.getResponseHeader('ETag') || '');
-        } else {
-          reject(new Error(`R2 upload failed: HTTP ${xhr.status}`));
-        }
+        xhr.addEventListener('error', () => {
+          reject(new Error('Network error'));
+        });
+
+        xhr.addEventListener('abort', () => {
+          reject(new Error('Upload aborted'));
+        });
+
+        xhr.timeout = 180000; // ✅ 3 min (pehle 15 min tha)
+
+        xhr.addEventListener('timeout', () => {
+          reject(new Error('Upload timeout'));
+        });
+
+        xhr.open('PUT', url);
+
+        xhr.setRequestHeader(
+          'Content-Type',
+          file.type || 'application/octet-stream'
+        );
+
+        xhr.send(file);
       });
-
-      xhr.addEventListener('error', () => {
-        reject(new Error('Network error'));
-      });
-
-      xhr.addEventListener('abort', () => {
-        reject(new Error('Upload aborted'));
-      });
-
-      xhr.timeout = 900000;
-
-      xhr.addEventListener('timeout', () => {
-        reject(new Error('Upload timeout'));
-      });
-
-      xhr.open('PUT', url);
-
-      xhr.setRequestHeader(
-        'Content-Type',
-        file.type || 'application/octet-stream'
-      );
-
-      xhr.send(file);
     });
   };
 
   /**
    * Multipart upload is retained for originals larger than the threshold.
+   * ✅ Server actions rate limiter ke through jaate hain.
    */
   const uploadMultipartToR2 = async ({
     userId,
@@ -575,13 +583,15 @@ export default function GalleryUploadPage() {
     file: File;
     onProgress?: (loaded: number, total: number) => void;
   }): Promise<string> => {
-    const startResult = await startMultipartUpload({
-      userId,
-      galleryId,
-      fileName,
-      contentType: file.type || 'application/octet-stream',
-      fileSize: file.size,
-    });
+    const startResult = await serverActionLimiter.run(() =>
+      startMultipartUpload({
+        userId,
+        galleryId,
+        fileName,
+        contentType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+      })
+    );
 
     if (
       !startResult.success ||
@@ -601,13 +611,15 @@ export default function GalleryUploadPage() {
         Array.from({ length: partCount }, async (_, index) => {
           const partNumber = index + 1;
 
-          const result = await getMultipartPartUrl({
-            userId,
-            galleryId,
-            key,
-            uploadId,
-            partNumber,
-          });
+          const result = await serverActionLimiter.run(() =>
+            getMultipartPartUrl({
+              userId,
+              galleryId,
+              key,
+              uploadId,
+              partNumber,
+            })
+          );
 
           if (!result.success || !result.url) {
             throw new Error(
@@ -717,13 +729,15 @@ export default function GalleryUploadPage() {
         throw new Error('Some multipart parts were not uploaded.');
       }
 
-      const finishResult = await finishMultipartUpload({
-        userId,
-        galleryId,
-        key,
-        uploadId,
-        parts: completedParts,
-      });
+      const finishResult = await serverActionLimiter.run(() =>
+        finishMultipartUpload({
+          userId,
+          galleryId,
+          key,
+          uploadId,
+          parts: completedParts,
+        })
+      );
 
       if (!finishResult.success) {
         throw new Error(
@@ -759,6 +773,7 @@ export default function GalleryUploadPage() {
     pauseRef.current = false;
     cancelRef.current = false;
     speedSamplesRef.current = [];
+    consecutiveFailuresRef.current = 0;
 
     const alreadyUploaded = new Set(uploadedNames);
     const tracker = new Set(uploadedNames);
@@ -886,16 +901,18 @@ export default function GalleryUploadPage() {
             });
           }
 
-          const result = await requestUploadUrls({
-            userId: user!.uid,
-            galleryId: id,
-            files: [{
-              id: 'original',
-              fileName: `original_${item.name}`,
-              contentType: fileToUpload.type || 'application/octet-stream',
-              fileSize: fileToUpload.size,
-            }],
-          });
+          const result = await serverActionLimiter.run(() =>
+            requestUploadUrls({
+              userId: user!.uid,
+              galleryId: id,
+              files: [{
+                id: 'original',
+                fileName: `original_${item.name}`,
+                contentType: fileToUpload.type || 'application/octet-stream',
+                fileSize: fileToUpload.size,
+              }],
+            })
+          );
 
           if (!result.success) {
             throw new Error(
@@ -908,16 +925,22 @@ export default function GalleryUploadPage() {
             r => r.id === 'original'
           );
 
-          if (
-            !originalResult?.success ||
-            !originalResult.uploadUrl ||
-            !originalResult.key
-          ) {
-            throw new Error('Failed to authorize original photo upload.');
+          if (!originalResult || !originalResult.success) {
+            throw new Error(
+              (originalResult &&
+                'error' in originalResult &&
+                originalResult.error) ||
+              'Failed to authorize original photo upload.'
+            );
           }
 
+          const originalSuccess = originalResult as {
+            uploadUrl: string;
+            key: string;
+          };
+
           await uploadToR2(
-            originalResult.uploadUrl,
+            originalSuccess.uploadUrl,
             fileToUpload,
             (loaded, total) => {
               const progress = total > 0
@@ -928,7 +951,7 @@ export default function GalleryUploadPage() {
             }
           );
 
-          return originalResult.key;
+          return originalSuccess.key;
         })();
 
         /*
@@ -955,16 +978,18 @@ export default function GalleryUploadPage() {
                 : f
             ));
 
-            const result = await requestUploadUrls({
-              userId: user!.uid,
-              galleryId: id,
-              files: [{
-                id: 'thumbnail',
-                fileName: `thumb_${item.name}`,
-                contentType: 'image/jpeg',
-                fileSize: thumbFile.size,
-              }],
-            });
+            const result = await serverActionLimiter.run(() =>
+              requestUploadUrls({
+                userId: user!.uid,
+                galleryId: id,
+                files: [{
+                  id: 'thumbnail',
+                  fileName: `thumb_${item.name}`,
+                  contentType: 'image/jpeg',
+                  fileSize: thumbFile.size,
+                }],
+              })
+            );
 
             if (!result.success) return undefined;
 
@@ -972,11 +997,7 @@ export default function GalleryUploadPage() {
               r => r.id === 'thumbnail'
             );
 
-            if (
-              !thumbResult?.success ||
-              !thumbResult.uploadUrl ||
-              !thumbResult.key
-            ) {
+            if (!thumbResult || !thumbResult.success) {
               return undefined;
             }
 
@@ -984,9 +1005,14 @@ export default function GalleryUploadPage() {
               return undefined;
             }
 
-            await uploadToR2(thumbResult.uploadUrl, thumbFile);
+            const thumbSuccess = thumbResult as {
+              uploadUrl: string;
+              key: string;
+            };
 
-            return thumbResult.key;
+            await uploadToR2(thumbSuccess.uploadUrl, thumbFile);
+
+            return thumbSuccess.key;
           } catch {
             // Thumbnail failure must not fail the original upload.
             return undefined;
@@ -1040,22 +1066,24 @@ export default function GalleryUploadPage() {
           currentStep: 'Saving photo to gallery...',
         });
 
-        const completionResult = await completeUpload({
-          userId: user!.uid,
-          galleryId: id,
-          task: {
-            id: item.id,
-            key: originalKey,
-            thumbKey,
-            originalKey,
-            originalReady: true,
-            file: {
-              name: item.name,
-              size: fileToUpload.size,
-              type: fileToUpload.type,
+        const completionResult = await serverActionLimiter.run(() =>
+          completeUpload({
+            userId: user!.uid,
+            galleryId: id,
+            task: {
+              id: item.id,
+              key: originalKey!,
+              thumbKey,
+              originalKey,
+              originalReady: true,
+              file: {
+                name: item.name,
+                size: fileToUpload.size,
+                type: fileToUpload.type,
+              },
             },
-          },
-        });
+          })
+        );
 
         if (!completionResult.success) {
           throw new Error(
@@ -1070,6 +1098,9 @@ export default function GalleryUploadPage() {
           currentStep: "✅ Uploaded",
           originalReady: true,
         });
+
+        // ✅ Success — consecutive failure counter reset
+        consecutiveFailuresRef.current = 0;
 
         tracker.add(item.name);
         setUploadedNames(new Set(tracker));
@@ -1125,6 +1156,22 @@ export default function GalleryUploadPage() {
           currentStep: "Failed",
           retryCount: attempt,
         });
+
+        // ✅ Circuit breaker — 5 consecutive failures → auto-pause
+        consecutiveFailuresRef.current++;
+        if (
+          consecutiveFailuresRef.current >= CIRCUIT_THRESHOLD &&
+          !pauseRef.current &&
+          !cancelRef.current
+        ) {
+          pauseRef.current = true;
+          setIsPaused(true);
+          toast({
+            variant: 'destructive',
+            title: '⚠️ Upload auto-paused',
+            description: `${CIRCUIT_THRESHOLD} consecutive failures. Check internet & click Resume.`,
+          });
+        }
       }
     };
 
@@ -1195,6 +1242,7 @@ export default function GalleryUploadPage() {
   };
 
   const retryFailed = () => {
+    consecutiveFailuresRef.current = 0;
     setFiles(prev => prev.map(f =>
       f.status === 'error'
         ? {
